@@ -1,2 +1,88 @@
-/frontend/node_modules
+# ==========================================
+# Global Environment & Secret Files
+# ==========================================
+.env
+.env.*
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+!.env.example
+!*.env.example
+*.local
+*.secrets.json
+
+# ==========================================
+# /frontend (React / Vite / Node.js)
+# ==========================================
+/frontend/node_modules/
+/frontend/dist/
+/frontend/dist-ssr/
+/frontend/.eslintcache
+/frontend/npm-debug.log*
+/frontend/yarn-debug.log*
+/frontend/yarn-error.log*
+/frontend/pnpm-debug.log*
+
+# Frontend Environments
 /frontend/.env
+/frontend/.env.*
+/frontend/.env.local
+/frontend/.env.development.local
+/frontend/.env.test.local
+/frontend/.env.production.local
+!/frontend/.env.example
+
+# ==========================================
+# /Vaxora.Api (.NET / ASP.NET Core API)
+# ==========================================
+/Vaxora.Api/bin/
+/Vaxora.Api/obj/
+/Vaxora.Api/publish/
+/Vaxora.Api/TestResults/
+
+# Backend Environments & Local Secrets
+/Vaxora.Api/.env
+/Vaxora.Api/.env.*
+!/Vaxora.Api/.env.example
+/Vaxora.Api/appsettings.local.json
+/Vaxora.Api/appsettings.*.local.json
+/Vaxora.Api/*.secrets.json
+
+# General .NET fallback patterns
+[Bb]in/
+[Oo]bj/
+**/[Bb]in/
+**/[Oo]bj/
+appsettings.local.json
+appsettings.*.local.json
+
+# ==========================================
+# IDE & Editor Directories
+# ==========================================
+.vs/
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+*.user
+*.userosscache
+*.suo
+*.sln.docstates
+*.userprefs
+*.sw?
+*.ntvs*
+*.njsproj
+
+# ==========================================
+# Operating System Files
+# ==========================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
