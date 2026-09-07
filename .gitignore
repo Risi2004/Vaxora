@@ -23,6 +23,9 @@
 /frontend/yarn-debug.log*
 /frontend/yarn-error.log*
 /frontend/pnpm-debug.log*
+/frontend/.vercel
+.vercel
+
 
 # Frontend Environments
 /frontend/.env
