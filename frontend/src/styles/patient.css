@@ -1516,4 +1516,460 @@
   }
 }
 
+/* ==========================================================================
+   Patient History Search & Record View (Matching Mockup)
+   ========================================================================== */
+.doctor-patient-history-page {
+  width: 100%;
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 24px 20px 48px;
+}
+
+.patient-search-section {
+  width: 100%;
+  margin-bottom: 28px;
+}
+
+.patient-search-card-wrapper {
+  width: 100%;
+  max-width: 580px;
+  margin: 0 auto;
+}
+
+.patient-search-input-box {
+  position: relative;
+  width: 100%;
+  margin-bottom: 18px;
+}
+
+.patient-search-input {
+  width: 100%;
+  height: 44px;
+  border-radius: 999px;
+  border: 1.8px solid #1a164c;
+  padding: 0 48px 0 24px;
+  font-family: 'Lora', 'Playfair Display', Georgia, serif;
+  font-size: 1.05rem;
+  color: #1a164c;
+  outline: none;
+  background: #ffffff;
+  box-shadow: 0 1px 4px rgba(26, 22, 76, 0.04);
+  transition: all 0.2s ease;
+}
+
+.patient-search-input:focus {
+  border-color: #1a164c;
+  box-shadow: 0 0 0 3px rgba(26, 22, 76, 0.12);
+}
+
+.patient-search-input::placeholder {
+  color: #6b7280;
+  font-style: normal;
+  font-family: 'Lora', 'Playfair Display', Georgia, serif;
+}
+
+.patient-search-icon-btn {
+  position: absolute;
+  right: 18px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: #1a164c;
+  transition: transform 0.15s ease;
+}
+
+.patient-search-icon-btn:hover {
+  transform: translateY(-50%) scale(1.1);
+}
+
+.patient-search-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: #ffffff;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 16px;
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.12);
+  z-index: 50;
+  overflow: hidden;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.patient-dropdown-item {
+  padding: 12px 18px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  border-bottom: 1px solid #f1f5f9;
+  transition: background-color 0.15s;
+}
+
+.patient-dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.patient-dropdown-item:hover {
+  background-color: #f1f5f9;
+}
+
+.patient-dropdown-name {
+  font-family: 'Lora', Georgia, serif;
+  font-weight: 700;
+  color: #1a164c;
+  font-size: 0.95rem;
+}
+
+.patient-dropdown-id {
+  font-family: monospace;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #2563eb;
+  background: #eff6ff;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.patient-recent-updates-box {
+  width: 100%;
+}
+
+.patient-recent-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 10px;
+  padding: 0 2px;
+}
+
+.patient-recent-title {
+  font-family: 'Lora', Georgia, serif;
+  font-size: 0.95rem;
+  color: #4b5563;
+  font-weight: 600;
+  font-style: normal;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.patient-recent-see-more {
+  font-family: 'Lora', Georgia, serif;
+  font-size: 0.85rem;
+  color: #6b7280;
+  text-decoration: none;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  padding: 0;
+  transition: color 0.15s ease;
+}
+
+.patient-recent-see-more:hover {
+  color: #1a164c;
+  text-decoration: underline;
+}
+
+.patient-recent-list {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.patient-recent-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 2px;
+  border-bottom: 1.5px solid #8e9bb0;
+  cursor: pointer;
+  background: transparent;
+  transition: all 0.15s ease;
+}
+
+.patient-recent-item:hover {
+  background-color: rgba(241, 245, 249, 0.5);
+  border-radius: 2px;
+}
+
+.patient-recent-item:hover .patient-recent-id {
+  color: #2563eb;
+}
+
+.patient-recent-id {
+  font-family: 'Lora', Georgia, serif;
+  font-size: 1.12rem;
+  font-weight: 700;
+  color: #1a164c;
+  letter-spacing: 0.02em;
+  transition: color 0.15s ease;
+}
+
+.patient-recent-time {
+  font-family: 'Lora', Georgia, serif;
+  font-size: 0.98rem;
+  color: #4b5563;
+  font-style: normal;
+}
+
+.patient-details-card-container {
+  position: relative;
+  background: #ffffff;
+  border: 1.5px solid #d8e2ee;
+  border-radius: 22px;
+  padding: 36px 40px;
+  box-shadow: 0 6px 28px rgba(15, 23, 42, 0.04);
+  margin-top: 24px;
+}
+
+.btn-close-patient-details {
+  position: absolute;
+  top: -12px;
+  right: -12px;
+  width: 32px;
+  height: 32px;
+  background-color: #ef4444;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  font-size: 1.1rem;
+  font-weight: 800;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 3px 8px rgba(239, 68, 68, 0.4);
+  transition: transform 0.15s, background-color 0.15s;
+  z-index: 10;
+}
+
+.btn-close-patient-details:hover {
+  background-color: #dc2626;
+  transform: scale(1.1);
+}
+
+.patient-personal-info-box {
+  border: 1.5px solid #cbd5e1;
+  border-radius: 16px;
+  padding: 24px 28px;
+  box-shadow: 0 4px 0 #cbd5e1, 0 8px 18px rgba(0, 0, 0, 0.02);
+  display: flex;
+  align-items: center;
+  gap: 36px;
+  background: #ffffff;
+  margin-bottom: 28px;
+}
+
+@media (max-width: 680px) {
+  .patient-personal-info-box {
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+  }
+}
+
+.patient-avatar-wrapper {
+  position: relative;
+  width: 140px;
+  height: 140px;
+  flex-shrink: 0;
+}
+
+.patient-avatar-circle {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background-color: #cbd5e1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.patient-avatar-silhouette {
+  width: 100%;
+  height: 100%;
+}
+
+.patient-avatar-expand-icon {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  background: transparent;
+  border: none;
+  font-size: 1.25rem;
+  color: #1d1854;
+  cursor: pointer;
+  padding: 2px;
+  transition: transform 0.15s;
+}
+
+.patient-avatar-expand-icon:hover {
+  transform: scale(1.15);
+  color: #2563eb;
+}
+
+.patient-info-content {
+  flex: 1;
+  border-left: 1.5px solid #cbd5e1;
+  padding-left: 28px;
+}
+
+@media (max-width: 680px) {
+  .patient-info-content {
+    border-left: none;
+    padding-left: 0;
+    width: 100%;
+  }
+}
+
+.patient-info-heading {
+  font-family: 'Lora', 'Playfair Display', Georgia, serif;
+  font-size: 1.45rem;
+  font-weight: 700;
+  color: #1d1854;
+  margin: 0 0 16px;
+}
+
+.patient-info-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.patient-info-row {
+  display: grid;
+  grid-template-columns: 140px 20px 1fr;
+  align-items: center;
+  font-family: 'Lora', Georgia, serif;
+  font-size: 0.95rem;
+}
+
+@media (max-width: 480px) {
+  .patient-info-row {
+    grid-template-columns: 110px 16px 1fr;
+    font-size: 0.88rem;
+  }
+}
+
+.patient-info-label {
+  font-weight: 700;
+  color: #1d1854;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.patient-info-colon {
+  font-weight: 700;
+  color: #1d1854;
+  text-align: center;
+}
+
+.patient-info-val {
+  font-weight: 500;
+  color: #1d1854;
+}
+
+.patient-section-heading {
+  font-family: 'Lora', 'Playfair Display', Georgia, serif;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #1d1854;
+  margin: 24px 0 12px;
+}
+
+.patient-mockup-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: 4px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+  margin-bottom: 24px;
+}
+
+.patient-mockup-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  text-align: center;
+}
+
+.patient-mockup-table thead tr th {
+  background-color: #7892b8;
+  color: #ffffff;
+  font-family: 'Lora', 'Playfair Display', Georgia, serif;
+  font-size: 1.1rem;
+  font-weight: 700;
+  padding: 12px 14px;
+  border-right: 3px solid #ffffff;
+  letter-spacing: 0.01em;
+}
+
+.patient-mockup-table thead tr th:last-child {
+  border-right: none;
+}
+
+.patient-mockup-table tbody tr td {
+  background-color: #b9cce5;
+  color: #1d1854;
+  font-family: 'Lora', 'Playfair Display', Georgia, serif;
+  font-size: 1rem;
+  font-weight: 600;
+  padding: 12px 14px;
+  border-right: 3px solid #ffffff;
+  border-top: 2px solid #ffffff;
+  vertical-align: middle;
+}
+
+.patient-mockup-table tbody tr td:last-child {
+  border-right: none;
+}
+
+.patient-mockup-table tbody tr:hover td {
+  background-color: #acc2dd;
+}
+
+.dosage-cell-content {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.btn-edit-dosage {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 1rem;
+  color: #1d1854;
+  padding: 2px;
+  transition: transform 0.15s;
+}
+
+.btn-edit-dosage:hover {
+  transform: scale(1.2);
+  color: #19469d;
+}
+
+.dosage-inline-input {
+  width: 70px;
+  padding: 4px 6px;
+  border: 1.5px solid #19469d;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 700;
+  text-align: center;
+  color: #1d1854;
+  outline: none;
+}
+
+
 

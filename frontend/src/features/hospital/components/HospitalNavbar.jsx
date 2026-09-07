@@ -28,16 +28,9 @@ export default function HospitalNavbar() {
   return (
     <header className="hospital-header">
       <div className="hospital-header-inner">
-        {/* Brand & Facility Info */}
+        {/* Brand Logo */}
         <div className="hospital-brand-group" onClick={() => navigate('/hospital/dashboard')}>
           <img src={logo} alt="Vaxora Logo" className="hospital-logo-img" />
-          <div className="hospital-badge">
-            <span className="hospital-facility-name">National Healthcare General Hospital</span>
-            <div className="hospital-facility-meta">
-              <span className="hospital-meta-tag">MOH Certified</span>
-              <span>Reg: HOSPITAL-77042 • Colombo 07</span>
-            </div>
-          </div>
         </div>
 
         {/* Center Navigation Pills */}
@@ -83,6 +76,8 @@ export default function HospitalNavbar() {
                   </div>
                 </div>
 
+                <div style={{ height: '1px', background: '#f1f5f9', margin: '6px 0 10px' }} />
+
                 <button
                   type="button"
                   className="hospital-dropdown-link"
@@ -94,14 +89,12 @@ export default function HospitalNavbar() {
                   View Profile
                 </button>
 
-                <div style={{ height: '1px', background: '#e2e8f0', margin: '6px 0' }} />
-
                 <button
                   type="button"
                   className="hospital-dropdown-logout"
                   onClick={handleLogout}
                 >
-                  <span>🚪</span> Log Out
+                  Log Out
                 </button>
               </div>
             )}

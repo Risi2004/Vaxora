@@ -16,3 +16,9 @@
 
 /* 5. Feature: Patient Portal */
 @import './patient.css';
+
+/* 6. Feature: Hospital Portal */
+@import './hospital.css';
+
+/* 7. Feature: Doctor Portal */
+@import './doctor.css';

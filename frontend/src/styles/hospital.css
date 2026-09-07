@@ -30,6 +30,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  position: relative;
   gap: 16px;
 }
 
@@ -42,8 +43,9 @@
 }
 
 .hospital-logo-img {
-  height: 38px;
+  height: 40px;
   width: auto;
+  max-height: 42px;
   object-fit: contain;
   transition: transform var(--transition-fast);
 }
@@ -86,6 +88,9 @@
 }
 
 .hospital-nav-tabs {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
   align-items: center;
   gap: 4px;
@@ -94,6 +99,7 @@
   border-radius: var(--radius-pill);
   padding: 4px 8px;
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+  z-index: 10;
 }
 
 .hospital-nav-btn {
@@ -247,47 +253,47 @@
 }
 
 .hospital-dropdown-link {
-  width: 100%;
-  text-align: left;
-  background: none;
-  border: none;
-  padding: 8px 12px;
+  background: #f1f5f9;
+  color: #1e1b4b;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 8px 14px;
   font-size: 0.88rem;
-  font-weight: 600;
-  color: var(--color-text-body);
-  border-radius: var(--radius-sm);
+  font-weight: 700;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 10px;
+  text-align: center;
+  display: block;
+  width: 100%;
   transition: all var(--transition-fast);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
 .hospital-dropdown-link:hover {
-  background: #f1f5f9;
-  color: var(--color-primary);
+  background: #e2e8f0;
+  color: #19469d;
+  border-color: #94a3b8;
+  transform: translateY(-1px);
 }
 
 .hospital-dropdown-logout {
-  width: 100%;
-  text-align: left;
-  background: none;
-  border: none;
-  padding: 8px 12px;
-  font-size: 0.88rem;
-  font-weight: 600;
+  background: #fef2f2;
   color: #dc2626;
-  border-radius: var(--radius-sm);
+  border: 1px solid #fca5a5;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 0.88rem;
+  font-weight: 700;
   cursor: pointer;
-  margin-top: 4px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
+  text-align: center;
+  display: block;
+  width: 100%;
+  margin-top: 8px;
   transition: all var(--transition-fast);
 }
 
 .hospital-dropdown-logout:hover {
-  background: #fef2f2;
+  background: #fee2e2;
+  border-color: #f87171;
 }
 
 /* ==========================================================================
@@ -1263,25 +1269,285 @@
   background: #ffffff;
   border: 1.5px solid #d8e2ee;
   border-radius: 24px;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04);
-  padding: 36px 42px;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.04);
+  padding: 36px 44px 44px;
   width: 100%;
 }
 
 .hospital-manage-title {
   font-family: 'Lora', 'Playfair Display', Georgia, serif;
-  font-size: 2rem;
+  font-size: 2.2rem;
   font-weight: 700;
   color: #1d1854;
   text-align: center;
-  margin: 0 0 32px;
+  margin: 0 0 28px;
+  letter-spacing: -0.01em;
 }
 
+/* Inner Card Container matching mockup */
+.hospital-appointment-inner-card {
+  background: #ffffff;
+  border: 1.5px solid #d4dce8;
+  border-radius: 18px;
+  padding: 26px 28px 32px;
+  box-shadow: 0 5px 0 #cbd5e1, 0 10px 24px rgba(29, 24, 84, 0.03);
+  margin-bottom: 24px;
+}
+
+.hospital-inner-facility-name {
+  font-family: 'Lora', 'Playfair Display', Georgia, serif;
+  font-size: 1.45rem;
+  font-weight: 700;
+  color: #1d1854;
+  text-align: center;
+  margin: 0 0 20px;
+}
+
+/* Date Filter & Toolbar */
+.hospital-appointments-filter-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 12px 18px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+}
+
+.hospital-filter-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.hospital-filter-label {
+  font-family: 'Lora', 'Playfair Display', Georgia, serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1d1854;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hospital-filter-date-input {
+  padding: 7px 12px;
+  border-radius: 8px;
+  border: 1.5px solid #cbd5e1;
+  font-size: 0.9rem;
+  font-family: inherit;
+  color: #1d1854;
+  background: #ffffff;
+  outline: none;
+  transition: border-color 0.2s;
+  cursor: pointer;
+}
+
+.hospital-filter-date-input:focus {
+  border-color: #19469d;
+  box-shadow: 0 0 0 3px rgba(25, 70, 157, 0.12);
+}
+
+.hospital-filter-btn {
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #1d1854;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.hospital-filter-btn:hover {
+  background: #e2e8f0;
+}
+
+.hospital-filter-btn.active {
+  background: #19469d;
+  color: #ffffff;
+  border-color: #19469d;
+}
+
+.btn-toggle-schedule-create {
+  padding: 7px 16px;
+  border-radius: 8px;
+  border: 1.5px solid #1a489c;
+  background: #ffffff;
+  color: #1a489c;
+  font-family: 'Lora', 'Playfair Display', Georgia, serif;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-toggle-schedule-create:hover {
+  background: #1a489c;
+  color: #ffffff;
+}
+
+/* Appointments Table matching Mockup */
+.hospital-appointments-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.hospital-appointments-mockup-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  text-align: center;
+}
+
+.hospital-appointments-mockup-table thead tr th {
+  background-color: #7892b8;
+  color: #ffffff;
+  font-family: 'Lora', 'Playfair Display', Georgia, serif;
+  font-size: 1.15rem;
+  font-weight: 700;
+  padding: 13px 16px;
+  border-right: 3px solid #ffffff;
+  letter-spacing: 0.01em;
+}
+
+.hospital-appointments-mockup-table thead tr th:last-child {
+  border-right: none;
+}
+
+.hospital-appointments-mockup-table tbody tr td {
+  background-color: #b9cce5;
+  color: #1d1854;
+  font-family: 'Lora', 'Playfair Display', Georgia, serif;
+  font-size: 1.05rem;
+  font-weight: 600;
+  padding: 14px 16px;
+  border-right: 3px solid #ffffff;
+  border-top: 2px solid #ffffff;
+  vertical-align: middle;
+}
+
+.hospital-appointments-mockup-table tbody tr td:last-child {
+  border-right: none;
+}
+
+.hospital-appointments-mockup-table tbody tr:hover td {
+  background-color: #acc2dd;
+}
+
+/* Action Check & Reject Buttons */
+.mockup-actions-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.btn-mockup-check {
+  background-color: #52b755;
+  color: #ffffff;
+  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.15rem;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 2px 5px rgba(82, 183, 85, 0.4);
+  transition: all 0.15s ease;
+}
+
+.btn-mockup-check:hover {
+  background-color: #429f45;
+  transform: scale(1.08);
+}
+
+.btn-mockup-reject {
+  background-color: #f87171;
+  color: #ffffff;
+  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.05rem;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 2px 5px rgba(248, 113, 113, 0.4);
+  transition: all 0.15s ease;
+}
+
+.btn-mockup-reject:hover {
+  background-color: #ef4444;
+  transform: scale(1.08);
+}
+
+.mockup-status-badge {
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.mockup-status-badge.accepted {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #86efac;
+}
+
+.mockup-status-badge.rejected {
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fca5a5;
+}
+
+.mockup-undo-btn {
+  background: transparent;
+  border: none;
+  color: #1d1854;
+  cursor: pointer;
+  font-size: 0.8rem;
+  text-decoration: underline;
+  margin-left: 6px;
+}
+
+.mockup-undo-btn:hover {
+  color: #dc2626;
+}
+
+.empty-table-cell {
+  background-color: #edf2f8 !important;
+  color: #475569 !important;
+  font-family: 'Lora', Georgia, serif;
+  font-size: 1rem;
+  font-style: italic;
+  padding: 24px !important;
+  text-align: center;
+}
+
+/* Schedule Create Collapsible Box */
 .schedule-create-box {
   background-color: #dbe4f0;
   border-radius: 18px;
   padding: 24px 28px 20px;
-  margin-bottom: 36px;
+  margin-top: 24px;
+  margin-bottom: 24px;
   box-shadow: 0 4px 14px rgba(29, 24, 84, 0.05);
 }
 
@@ -1389,48 +1655,5 @@
   transform: translateY(-1px);
 }
 
-.btn-action-check {
-  background-color: #22c55e;
-  color: #ffffff;
-  border: none;
-  width: 30px;
-  height: 30px;
-  border-radius: 6px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1rem;
-  font-weight: 700;
-  cursor: pointer;
-  box-shadow: 0 2px 6px rgba(34, 197, 94, 0.3);
-  transition: all var(--transition-fast);
-}
-
-.btn-action-check:hover {
-  background-color: #16a34a;
-  transform: scale(1.08);
-}
-
-.btn-action-reject {
-  background-color: #ef4444;
-  color: #ffffff;
-  border: none;
-  width: 30px;
-  height: 30px;
-  border-radius: 6px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.9rem;
-  font-weight: 700;
-  cursor: pointer;
-  box-shadow: 0 2px 6px rgba(239, 68, 68, 0.3);
-  transition: all var(--transition-fast);
-}
-
-.btn-action-reject:hover {
-  background-color: #dc2626;
-  transform: scale(1.08);
-}
 
 

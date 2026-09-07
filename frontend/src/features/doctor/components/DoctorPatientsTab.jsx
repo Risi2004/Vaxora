@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 
-export default function VaccinationHistoryTab() {
-  // 1. Patient Database
+export default function DoctorPatientsTab() {
+  // 1. Patient Database with complete records
   const [patients, setPatients] = useState([
     {
       id: 1,
@@ -17,8 +17,6 @@ export default function VaccinationHistoryTab() {
           date: '2025-02-24',
           location: 'Lanka hospital- colombo',
           status: 'Completed',
-          batch: 'ATD-2025-881',
-          doctor: 'Dr. M. F. De Silva',
         },
         {
           id: 'vh-2',
@@ -26,8 +24,6 @@ export default function VaccinationHistoryTab() {
           date: '2020-04-12',
           location: 'Lanka hospital- colombo',
           status: 'Completed',
-          batch: 'COV-2020-019',
-          doctor: 'Dr. N. Wickramasinghe',
         },
       ],
       pendingVaccines: [
@@ -55,8 +51,6 @@ export default function VaccinationHistoryTab() {
           date: '2024-11-15',
           location: 'National Hospital Colombo',
           status: 'Completed',
-          batch: 'PFZ-2024-402',
-          doctor: 'Dr. P. Senanayake',
         },
         {
           id: 'vh-4',
@@ -64,8 +58,6 @@ export default function VaccinationHistoryTab() {
           date: '2023-05-10',
           location: 'Lanka hospital- colombo',
           status: 'Completed',
-          batch: 'HEP-2023-088',
-          doctor: 'Dr. M. F. De Silva',
         },
       ],
       pendingVaccines: [
@@ -93,8 +85,6 @@ export default function VaccinationHistoryTab() {
           date: '2021-08-19',
           location: 'Asiri Central Hospital',
           status: 'Completed',
-          batch: 'SINO-2021-391',
-          doctor: 'Dr. S. Perera',
         },
       ],
       pendingVaccines: [
@@ -108,25 +98,52 @@ export default function VaccinationHistoryTab() {
         },
       ],
     },
+    {
+      id: 4,
+      vaxoraId: 'VP123456781',
+      nic: '199589234120',
+      name: 'NADEEKA PRIYADARSHANI',
+      email: 'nadeeka.p@gmail.com',
+      phone: '076 234 5678',
+      vaccinationHistory: [
+        {
+          id: 'vh-6',
+          vaccine: 'MMR',
+          date: '2022-01-14',
+          location: 'Lanka hospital- colombo',
+          status: 'Completed',
+        },
+      ],
+      pendingVaccines: [
+        {
+          id: 'pv-4',
+          vaccine: 'HPV Quadrivalent',
+          date: '2025-03-15',
+          time: '02.00 pm',
+          location: 'Delmon hospital',
+          dosage: '0.5ml',
+        },
+      ],
+    },
   ]);
 
+  // 2. Recent Updates List (matching mockup)
   const recentUpdates = [
     { id: 'r-1', vaxoraId: 'VP123456783', patientName: 'CHAMINDA WICKRAMASINGHE', time: '1 day ago' },
     { id: 'r-2', vaxoraId: 'VP12345678', patientName: 'KUMAR', time: '1 day ago' },
     { id: 'r-3', vaxoraId: 'VP123456782', patientName: 'ROHAN JAYATILLAKE', time: '2 days ago' },
   ];
 
-  // 2. States
+  // 3. UI State
   const [searchQuery, setSearchQuery] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
-  const [selectedPatient, setSelectedPatient] = useState(patients[0]);
+  const [selectedPatient, setSelectedPatient] = useState(patients[0]); // Default to Kumar (mockup match)
   const [showDetailsCard, setShowDetailsCard] = useState(true);
-  const [selectedCertificate, setSelectedCertificate] = useState(null);
   const [editingDosageId, setEditingDosageId] = useState(null);
   const [dosageInput, setDosageInput] = useState('');
   const [notification, setNotification] = useState('');
 
-  // 3. Search Matching
+  // 4. Live Search Filter
   const matchingPatients = patients.filter((p) => {
     const q = searchQuery.toLowerCase().trim();
     if (!q) return false;
@@ -153,6 +170,11 @@ export default function VaccinationHistoryTab() {
     }
   };
 
+  const handleStartEditDosage = (pvId, currentDosage) => {
+    setEditingDosageId(pvId);
+    setDosageInput(currentDosage);
+  };
+
   const handleSaveDosage = (pvId) => {
     if (!dosageInput.trim()) return;
     setPatients((prev) =>
@@ -167,6 +189,7 @@ export default function VaccinationHistoryTab() {
       })
     );
 
+    // Also update selected patient
     setSelectedPatient((prev) => ({
       ...prev,
       pendingVaccines: prev.pendingVaccines.map((pv) =>
@@ -175,13 +198,13 @@ export default function VaccinationHistoryTab() {
     }));
 
     setEditingDosageId(null);
-    setNotification(`Dosage updated to ${dosageInput.trim()}`);
+    setNotification(`Dosage level updated to ${dosageInput.trim()}`);
     setTimeout(() => setNotification(''), 3000);
   };
 
   return (
     <div className="doctor-patient-history-page">
-      {/* Toast Alert */}
+      {/* Toast Notification Alert */}
       {notification && (
         <div
           className="appointment-alert-pill"
@@ -391,20 +414,7 @@ export default function VaccinationHistoryTab() {
                         <td>{item.vaccine}</td>
                         <td>{item.date}</td>
                         <td>{item.location}</td>
-                        <td>
-                          <span
-                            style={{
-                              cursor: 'pointer',
-                              textDecoration: 'underline',
-                              color: '#1d1854',
-                              fontWeight: 700,
-                            }}
-                            title="Click to view digital certificate"
-                            onClick={() => setSelectedCertificate(item)}
-                          >
-                            {item.status} 📜
-                          </span>
-                        </td>
+                        <td>{item.status}</td>
                       </tr>
                     ))
                   ) : (
@@ -476,10 +486,7 @@ export default function VaccinationHistoryTab() {
                                 className="btn-edit-dosage"
                                 title="Edit Dosage Level"
                                 aria-label="Edit dosage level"
-                                onClick={() => {
-                                  setEditingDosageId(pv.id);
-                                  setDosageInput(pv.dosage);
-                                }}
+                                onClick={() => handleStartEditDosage(pv.id, pv.dosage)}
                               >
                                 📝
                               </button>
@@ -512,67 +519,6 @@ export default function VaccinationHistoryTab() {
           >
             Open Patient Record ({selectedPatient.name})
           </button>
-        </div>
-      )}
-
-      {/* Digital Certificate Modal */}
-      {selectedCertificate && (
-        <div className="modal-overlay" onClick={() => setSelectedCertificate(null)}>
-          <div className="modal-content-card" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header-row">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '1.4rem' }}>🛡️</span>
-                <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1e1b4b', margin: 0 }}>
-                  Official Digital Certificate
-                </h3>
-              </div>
-              <button
-                type="button"
-                className="modal-close-btn"
-                onClick={() => setSelectedCertificate(null)}
-              >
-                ✕
-              </button>
-            </div>
-
-            <div style={{ padding: '16px 20px', background: '#f8fafc', borderRadius: '12px', margin: '16px 0' }}>
-              <p style={{ margin: '0 0 6px', fontWeight: 700, color: '#1e1b4b' }}>
-                Vaccine: {selectedCertificate.vaccine}
-              </p>
-              <p style={{ margin: '0 0 6px', fontSize: '0.9rem', color: '#475569' }}>
-                Administration Date: {selectedCertificate.date}
-              </p>
-              <p style={{ margin: '0 0 6px', fontSize: '0.9rem', color: '#475569' }}>
-                Facility: {selectedCertificate.location}
-              </p>
-              <p style={{ margin: '0 0 6px', fontSize: '0.9rem', color: '#475569' }}>
-                Recipient: {selectedPatient.name} ({selectedPatient.vaxoraId})
-              </p>
-              <p style={{ margin: '0', fontSize: '0.85rem', color: '#16a34a', fontWeight: 700 }}>
-                Status: Verified by Ministry of Health (SLMC)
-              </p>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              <button
-                type="button"
-                className="btn-modal-cancel"
-                onClick={() => setSelectedCertificate(null)}
-              >
-                Close
-              </button>
-              <button
-                type="button"
-                className="btn-modal-download"
-                onClick={() => {
-                  alert(`Downloading cryptographic certificate for ${selectedCertificate.vaccine}`);
-                  setSelectedCertificate(null);
-                }}
-              >
-                Download PDF
-              </button>
-            </div>
-          </div>
         </div>
       )}
     </div>

@@ -5,11 +5,11 @@ export default function HospitalAppointmentsTab() {
   const [scheduleForm, setScheduleForm] = useState({
     doctor: '',
     vaccineType: '',
-    date: '',
+    date: '2025-02-24',
     time: '',
   });
 
-  // 2. Schedules list state (initialized with mockup data)
+  // 2. Schedules list state
   const [schedules, setSchedules] = useState([
     {
       id: 1,
@@ -18,9 +18,23 @@ export default function HospitalAppointmentsTab() {
       date: '2025-02-24',
       time: '11.30 am - 12.30 pm',
     },
+    {
+      id: 2,
+      doctor: 'Dr. Samantha Perera',
+      vaccine: 'COVID-19 Bivalent',
+      date: '2025-02-24',
+      time: '02.00 pm - 04.00 pm',
+    },
+    {
+      id: 3,
+      doctor: 'Dr. M. F. De Silva',
+      vaccine: 'Hepatitis B',
+      date: '2025-02-25',
+      time: '09.00 am - 11.00 am',
+    },
   ]);
 
-  // 3. Appointments list state (initialized with mockup data)
+  // 3. Appointments list state
   const [appointments, setAppointments] = useState([
     {
       id: 1,
@@ -30,8 +44,42 @@ export default function HospitalAppointmentsTab() {
       vaccine: 'Influenza',
       status: 'pending', // 'pending' | 'accepted' | 'rejected'
     },
+    {
+      id: 2,
+      pName: 'Nimal Perera',
+      date: '2025-02-24',
+      time: '02.15 pm',
+      vaccine: 'COVID-19 Booster',
+      status: 'pending',
+    },
+    {
+      id: 3,
+      pName: 'Sanduni Malshani',
+      date: '2025-02-25',
+      time: '09.45 am',
+      vaccine: 'MMR Booster',
+      status: 'accepted',
+    },
+    {
+      id: 4,
+      pName: 'Rohan Jayatillake',
+      date: '2025-02-25',
+      time: '11.00 am',
+      vaccine: 'Hepatitis B',
+      status: 'pending',
+    },
+    {
+      id: 5,
+      pName: 'Kasun Fernando',
+      date: '2025-02-26',
+      time: '10.30 am',
+      vaccine: 'Influenza',
+      status: 'pending',
+    },
   ]);
 
+  // 4. Filter Date state (kept as explicitly requested)
+  const [filterDate, setFilterDate] = useState('2025-02-24');
   const [notification, setNotification] = useState('');
 
   const handleScheduleChange = (e) => {
@@ -60,7 +108,7 @@ export default function HospitalAppointmentsTab() {
     setScheduleForm({
       doctor: '',
       vaccineType: '',
-      date: '',
+      date: '2025-02-24',
       time: '',
     });
 
@@ -75,20 +123,27 @@ export default function HospitalAppointmentsTab() {
   };
 
   const handleAcceptAppointment = (id) => {
+    const target = appointments.find((a) => a.id === id);
     setAppointments((prev) =>
       prev.map((app) => (app.id === id ? { ...app, status: 'accepted' } : app))
     );
-    setNotification('Appointment confirmed!');
+    setNotification(`Appointment for ${target ? target.pName : 'patient'} confirmed!`);
     setTimeout(() => setNotification(''), 2500);
   };
 
   const handleRejectAppointment = (id) => {
+    const target = appointments.find((a) => a.id === id);
     setAppointments((prev) =>
       prev.map((app) => (app.id === id ? { ...app, status: 'rejected' } : app))
     );
-    setNotification('Appointment declined.');
+    setNotification(`Appointment for ${target ? target.pName : 'patient'} declined.`);
     setTimeout(() => setNotification(''), 2500);
   };
+
+  // Filter appointments according to filterDate
+  const filteredAppointments = filterDate
+    ? appointments.filter((app) => app.date === filterDate)
+    : appointments;
 
   return (
     <div className="hospital-manage-appointments-wrapper">
@@ -102,7 +157,7 @@ export default function HospitalAppointmentsTab() {
         </div>
       )}
 
-      {/* Main Outer Card Container matching mockup */}
+      {/* Main Outer Card Container */}
       <div className="hospital-manage-appointments-card">
         <h1 className="hospital-manage-title">
           Manage Your Appointments
@@ -146,12 +201,11 @@ export default function HospitalAppointmentsTab() {
               <div className="schedule-input-group">
                 <label className="schedule-input-label">Date</label>
                 <input
-                  type="text"
+                  type="date"
                   name="date"
                   value={scheduleForm.date}
                   onChange={handleScheduleChange}
                   className="schedule-input-field"
-                  placeholder="DD/MM/YYYY 📅"
                 />
               </div>
 
@@ -183,21 +237,21 @@ export default function HospitalAppointmentsTab() {
             Schedules
           </h2>
 
-          <div className="appointments-table-container">
-            <table className="custom-appointments-table">
+          <div className="hospital-appointments-table-wrapper">
+            <table className="hospital-appointments-mockup-table">
               <thead>
                 <tr>
-                  <th style={{ width: '20%' }}>Doctor</th>
-                  <th style={{ width: '20%' }}>Vaccine</th>
+                  <th style={{ width: '25%' }}>Doctor</th>
+                  <th style={{ width: '25%' }}>Vaccine</th>
                   <th style={{ width: '20%' }}>Date</th>
-                  <th style={{ width: '25%' }}>Time</th>
-                  <th style={{ width: '15%', borderRight: 'none' }}>Action</th>
+                  <th style={{ width: '20%' }}>Time</th>
+                  <th style={{ width: '10%', borderRight: 'none' }}>Action</th>
                 </tr>
               </thead>
               <tbody>
                 {schedules.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="empty-appointments-cell">
+                    <td colSpan={5} className="empty-table-cell">
                       No active schedules created yet.
                     </td>
                   </tr>
@@ -225,32 +279,78 @@ export default function HospitalAppointmentsTab() {
           </div>
         </div>
 
-        {/* 3. Appointments Table Section */}
+        {/* 3. Appointments Table Section with Date Filter */}
         <div>
-          <h2 className="schedule-section-heading">
-            Appointments
-          </h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
+            <h2 className="schedule-section-heading" style={{ margin: 0 }}>
+              Appointments
+            </h2>
 
-          <div className="appointments-table-container">
-            <table className="custom-appointments-table">
+            {/* Filter Date Bar */}
+            <div className="hospital-filter-group">
+              <label htmlFor="hospital-filter-date" className="hospital-filter-label">
+                <span>📅</span> Filter Date:
+              </label>
+              <input
+                id="hospital-filter-date"
+                type="date"
+                value={filterDate}
+                onChange={(e) => setFilterDate(e.target.value)}
+                className="hospital-filter-date-input"
+                aria-label="Filter appointments by date"
+              />
+              <button
+                type="button"
+                className={`hospital-filter-btn ${!filterDate ? 'active' : ''}`}
+                onClick={() => setFilterDate('')}
+              >
+                All Dates ({appointments.length})
+              </button>
+              <button
+                type="button"
+                className={`hospital-filter-btn ${filterDate === '2025-02-24' ? 'active' : ''}`}
+                onClick={() => setFilterDate('2025-02-24')}
+              >
+                2025-02-24
+              </button>
+            </div>
+          </div>
+
+          <div className="hospital-appointments-table-wrapper">
+            <table className="hospital-appointments-mockup-table">
               <thead>
                 <tr>
                   <th style={{ width: '22%' }}>P-Name</th>
                   <th style={{ width: '20%' }}>Date</th>
                   <th style={{ width: '18%' }}>Time</th>
-                  <th style={{ width: '25%' }}>Vaccine</th>
-                  <th style={{ width: '15%', borderRight: 'none' }}>Action</th>
+                  <th style={{ width: '24%' }}>Vaccine</th>
+                  <th style={{ width: '16%', borderRight: 'none' }}>Action</th>
                 </tr>
               </thead>
               <tbody>
-                {appointments.length === 0 ? (
+                {filteredAppointments.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="empty-appointments-cell">
-                      No patient appointments booked yet.
+                    <td colSpan={5} className="empty-table-cell">
+                      No patient appointments found for date {filterDate}.{' '}
+                      <button
+                        type="button"
+                        onClick={() => setFilterDate('')}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#19469d',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          textDecoration: 'underline',
+                          marginLeft: '6px',
+                        }}
+                      >
+                        Show All Dates
+                      </button>
                     </td>
                   </tr>
                 ) : (
-                  appointments.map((item) => (
+                  filteredAppointments.map((item) => (
                     <tr key={item.id}>
                       <td>{item.pName}</td>
                       <td>{item.date}</td>
@@ -258,10 +358,10 @@ export default function HospitalAppointmentsTab() {
                       <td>{item.vaccine}</td>
                       <td style={{ borderRight: 'none' }}>
                         {item.status === 'pending' ? (
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                          <div className="mockup-actions-cell">
                             <button
                               type="button"
-                              className="btn-action-check"
+                              className="btn-mockup-check"
                               title="Accept Appointment"
                               onClick={() => handleAcceptAppointment(item.id)}
                             >
@@ -269,20 +369,20 @@ export default function HospitalAppointmentsTab() {
                             </button>
                             <button
                               type="button"
-                              className="btn-action-reject"
+                              className="btn-mockup-reject"
                               title="Decline Appointment"
                               onClick={() => handleRejectAppointment(item.id)}
                             >
-                              ✖
+                              ✕
                             </button>
                           </div>
                         ) : item.status === 'accepted' ? (
-                          <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#15803d' }}>
+                          <span className="mockup-status-badge accepted">
                             Confirmed ✓
                           </span>
                         ) : (
-                          <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#dc2626' }}>
-                            Cancelled ✖
+                          <span className="mockup-status-badge rejected">
+                            Cancelled ✕
                           </span>
                         )}
                       </td>

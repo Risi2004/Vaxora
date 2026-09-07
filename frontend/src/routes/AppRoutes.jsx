@@ -20,6 +20,15 @@ import {
   FeedbackTab as HospitalFeedbackTab,
 } from '../features/hospital';
 
+import {
+  DoctorLayout,
+  DoctorDashboardOverview,
+  DoctorAppointmentsTab,
+  DoctorPatientsTab,
+  DoctorProfileTab,
+  FeedbackTab as DoctorFeedbackTab,
+} from '../features/doctor';
+
 export default function AppRoutes() {
   return (
     <Routes>
@@ -48,6 +57,18 @@ export default function AppRoutes() {
         <Route path="staff" element={<HospitalStaffTab />} />
         <Route path="feedback" element={<HospitalFeedbackTab />} />
         <Route path="profile" element={<HospitalProfileTab />} />
+      </Route>
+
+      {/* Dedicated Doctor Portal Routes */}
+      <Route path="/doctor" element={<DoctorLayout />}>
+        <Route index element={<Navigate to="/doctor/dashboard" replace />} />
+        <Route path="dashboard" element={<DoctorDashboardOverview />} />
+        <Route path="appointments" element={<DoctorAppointmentsTab />} />
+        <Route path="patients" element={<DoctorPatientsTab />} />
+        <Route path="patient-history" element={<Navigate to="/doctor/patients" replace />} />
+        <Route path="history" element={<Navigate to="/doctor/patients" replace />} />
+        <Route path="feedback" element={<DoctorFeedbackTab />} />
+        <Route path="profile" element={<DoctorProfileTab />} />
       </Route>
 
       {/* Catch-All Fallback */}

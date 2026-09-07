@@ -54,6 +54,8 @@ export default function AuthPage({ onAuthSuccess }) {
       navigate('/patient/dashboard');
     } else if (selectedRole === 'hospital') {
       navigate('/hospital/dashboard');
+    } else if (selectedRole === 'doctor') {
+      navigate('/doctor/dashboard');
     } else {
       navigate('/');
     }
