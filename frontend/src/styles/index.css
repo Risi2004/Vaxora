@@ -1,0 +1,18 @@
+/* ==========================================================================
+   Vaxora Main Stylesheet Orchestrator
+   ========================================================================== */
+
+/* 1. Design System Tokens & Custom Properties */
+@import './variables.css';
+
+/* 2. CSS Reset & Typography Base */
+@import './reset.css';
+
+/* 3. Feature: Landing Page */
+@import './landing.css';
+
+/* 4. Feature: Authentication (Login & Signup) */
+@import './auth.css';
+
+/* 5. Feature: Patient Portal */
+@import './patient.css';

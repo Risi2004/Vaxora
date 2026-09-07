@@ -1,0 +1,21 @@
+<svg width="90" height="90" viewBox="0 0 90 90" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Stars -->
+  <path d="M45 4L46.6 8.5H51.4L47.5 11.3L49 15.8L45 13L41 15.8L42.5 11.3L38.6 8.5H43.4L45 4Z" fill="#38BDF8"/>
+  <path d="M28 8L29.3 11.5H33.1L30 13.8L31.2 17.3L28 15.1L24.8 17.3L26 13.8L22.9 11.5H26.7L28 8Z" fill="#38BDF8"/>
+  <path d="M62 8L63.3 11.5H67.1L64 13.8L65.2 17.3L62 15.1L58.8 17.3L60 13.8L56.9 11.5H60.7L62 8Z" fill="#38BDF8"/>
+  <path d="M15 18L16.1 21H19.5L16.8 23L17.8 26L15 24.1L12.2 26L13.2 23L10.5 21H13.9L15 18Z" fill="#38BDF8"/>
+  <path d="M75 18L76.1 21H79.5L76.8 23L77.8 26L75 24.1L72.2 26L73.2 23L70.5 21H73.9L75 18Z" fill="#38BDF8"/>
+
+  <!-- Ribbons behind -->
+  <path d="M34 56L22 84L38 74L45 60" fill="#2563EB"/>
+  <path d="M56 56L68 84L52 74L45 60" fill="#1D4ED8"/>
+
+  <!-- Outer Cog/Scallop Ring -->
+  <circle cx="45" cy="42" r="28" fill="#38BDF8"/>
+  <circle cx="45" cy="42" r="23" fill="#0284C7"/>
+  <circle cx="45" cy="42" r="20" fill="#2563EB"/>
+
+  <!-- Person avatar -->
+  <circle cx="45" cy="36" r="7" fill="white"/>
+  <path d="M32 53C32 46.5 37.8 44 45 44C52.2 44 58 46.5 58 53" fill="white"/>
+</svg>
