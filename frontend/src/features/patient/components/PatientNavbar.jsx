@@ -86,9 +86,19 @@ export default function PatientNavbar() {
             <div className="patient-profile-dropdown">
               <div className="profile-dropdown-header">
                 <div className="profile-dropdown-name">Kumar Sangakkara</div>
-                <div className="profile-dropdown-id">ID: VAX-2026-9812</div>
+                <div className="profile-dropdown-id">ID: VP12345678</div>
               </div>
               <div className="profile-dropdown-divider" />
+              <button
+                type="button"
+                className="profile-dropdown-link"
+                onClick={() => {
+                  setShowProfileMenu(false);
+                  navigate('/patient/profile');
+                }}
+              >
+                View Profile
+              </button>
               <button
                 type="button"
                 className="profile-dropdown-logout"

@@ -1,0 +1,9 @@
+export { default as HospitalNavbar } from './HospitalNavbar';
+export { default as HospitalDashboardOverview } from './HospitalDashboardOverview';
+export { default as WalkInRegistrationModal } from './WalkInRegistrationModal';
+export { default as RestockVaccineModal } from './RestockVaccineModal';
+export { default as HospitalProfileTab } from './HospitalProfileTab';
+export { default as HospitalAppointmentsTab } from './HospitalAppointmentsTab';
+export { default as HospitalStaffTab } from './HospitalStaffTab';
+export { default as AddStaffRequestModal } from './AddStaffRequestModal';
+export { default as FeedbackTab } from '../../../components/FeedbackTab';

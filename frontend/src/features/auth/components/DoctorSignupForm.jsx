@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 
-export default function DoctorNurseSignupForm({ onSuccess }) {
+export default function DoctorSignupForm({ onSuccess }) {
   const [formData, setFormData] = useState({
     fullName: '',
     nic: '',
@@ -42,7 +42,7 @@ export default function DoctorNurseSignupForm({ onSuccess }) {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!registrationCardFile) {
-      setError('Please upload your Medical Registration Card');
+      setError('Please upload your Medical Practitioner Registration Card');
       return;
     }
     if (formData.password !== formData.confirmPassword) {
@@ -58,8 +58,8 @@ export default function DoctorNurseSignupForm({ onSuccess }) {
   if (submitted) {
     return (
       <div className="auth-success-alert" role="alert">
-        <h4>Application Submitted!</h4>
-        <p>Your medical practitioner profile is pending credential verification.</p>
+        <h4>Doctor Application Submitted!</h4>
+        <p>Your medical credentials and SLMC license are under administrative review.</p>
       </div>
     );
   }
@@ -74,15 +74,15 @@ export default function DoctorNurseSignupForm({ onSuccess }) {
           name="fullName"
           value={formData.fullName}
           onChange={handleChange}
-          placeholder="Full Name"
+          placeholder="Dr. Full Name"
           required
           className="auth-input"
         />
       </div>
 
-      {/* Profile Picture Upload Field */}
+      {/* Profile Picture Upload */}
       <div className="auth-input-group">
-        <label className="auth-label">Profile Picture (Optional)</label>
+        <label className="auth-label">Doctor Profile Picture (Optional)</label>
         <div
           className="file-upload-box"
           onClick={() => profilePicRef.current?.click()}
@@ -93,9 +93,9 @@ export default function DoctorNurseSignupForm({ onSuccess }) {
             {profilePicPreview ? (
               <img src={profilePicPreview} alt="Preview" className="file-upload-thumb" />
             ) : (
-              <span>📷</span>
+              <span>👨‍⚕️</span>
             )}
-            <span>{profilePicFile || 'Upload Profile Picture (JPG/PNG)'}</span>
+            <span>{profilePicFile || 'Upload Profile Photo (JPG/PNG)'}</span>
           </div>
           <span className="file-upload-btn-text">Browse</span>
         </div>
@@ -126,15 +126,16 @@ export default function DoctorNurseSignupForm({ onSuccess }) {
           name="licenseNumber"
           value={formData.licenseNumber}
           onChange={handleChange}
-          placeholder="Medical License Number"
+          placeholder="SLMC / Medical License Number"
           required
           className="auth-input"
         />
       </div>
 
+
       {/* Medical Registration Card Upload */}
       <div className="auth-input-group">
-        <label className="auth-label">Medical Registration Card *</label>
+        <label className="auth-label">Medical Council Registration Card *</label>
         <div
           className="file-upload-box"
           onClick={() => fileInputRef.current?.click()}
@@ -142,8 +143,8 @@ export default function DoctorNurseSignupForm({ onSuccess }) {
           tabIndex={0}
         >
           <div className="file-upload-info">
-            <span>📄</span>
-            <span>{registrationCardFile || 'Upload Card (PDF/JPG)'}</span>
+            <span>📑</span>
+            <span>{registrationCardFile || 'Upload Registration Certificate (PDF/JPG)'}</span>
           </div>
           <span className="file-upload-btn-text">Browse</span>
         </div>
@@ -193,7 +194,7 @@ export default function DoctorNurseSignupForm({ onSuccess }) {
       </div>
 
       <button type="submit" className="btn-auth-submit">
-        Create Doctor/Nurse Account
+        Create Doctor Account
       </button>
     </form>
   );

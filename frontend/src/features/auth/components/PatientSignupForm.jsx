@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 
 export default function PatientSignupForm({ onSuccess }) {
   const [formData, setFormData] = useState({
@@ -7,13 +7,25 @@ export default function PatientSignupForm({ onSuccess }) {
     password: '',
     confirmPassword: '',
   });
+
+  const [profilePicFile, setProfilePicFile] = useState(null);
+  const [profilePicPreview, setProfilePicPreview] = useState(null);
   const [error, setError] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const fileInputRef = useRef(null);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
     setError('');
+  };
+
+  const handleFileChange = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setProfilePicFile(file.name);
+      setProfilePicPreview(URL.createObjectURL(file));
+    }
   };
 
   const handleSubmit = (e) => {
@@ -38,7 +50,7 @@ export default function PatientSignupForm({ onSuccess }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="auth-form">
+    <form onSubmit={handleSubmit} className="auth-form auth-form-scrollable">
       {error && <div style={{ color: '#dc2626', fontSize: '0.85rem', fontWeight: 600 }}>{error}</div>}
 
       <div className="auth-input-group">
@@ -50,6 +62,34 @@ export default function PatientSignupForm({ onSuccess }) {
           placeholder="Full Name"
           required
           className="auth-input"
+        />
+      </div>
+
+      {/* Profile Picture Upload Field */}
+      <div className="auth-input-group">
+        <label className="auth-label">Profile Picture (Optional)</label>
+        <div
+          className="file-upload-box"
+          onClick={() => fileInputRef.current?.click()}
+          role="button"
+          tabIndex={0}
+        >
+          <div className="file-upload-info">
+            {profilePicPreview ? (
+              <img src={profilePicPreview} alt="Preview" className="file-upload-thumb" />
+            ) : (
+              <span>📷</span>
+            )}
+            <span>{profilePicFile || 'Upload Profile Picture (JPG/PNG)'}</span>
+          </div>
+          <span className="file-upload-btn-text">Browse</span>
+        </div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/jpg,image/webp"
+          onChange={handleFileChange}
+          className="hidden-file-input"
         />
       </div>
 
@@ -83,7 +123,7 @@ export default function PatientSignupForm({ onSuccess }) {
           name="confirmPassword"
           value={formData.confirmPassword}
           onChange={handleChange}
-          placeholder="Conform Password"
+          placeholder="Confirm Password"
           required
           className="auth-input"
         />

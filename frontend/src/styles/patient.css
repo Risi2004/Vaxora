@@ -143,6 +143,25 @@
   background-color: #f1f5f9;
 }
 
+.profile-dropdown-link {
+  background: #f1f5f9;
+  color: #1e1b4b;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: center;
+  transition: all var(--transition-fast);
+}
+
+.profile-dropdown-link:hover {
+  background: #e2e8f0;
+  color: #19469d;
+  border-color: #94a3b8;
+}
+
 .profile-dropdown-logout {
   background: #fef2f2;
   color: #dc2626;
@@ -1298,4 +1317,203 @@
     max-height: 320px;
   }
 }
+
+/* ==========================================================================
+   12. Patient Profile Page UI (Mockup Spec)
+   ========================================================================== */
+.profile-top-card {
+  padding: 36px 48px;
+}
+
+.profile-top-grid {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 48px;
+  align-items: center;
+}
+
+.profile-avatar-column {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.profile-avatar-wrap {
+  position: relative;
+  width: 190px;
+  height: 190px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.profile-large-silhouette {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+}
+
+.btn-avatar-edit {
+  position: absolute;
+  top: 6px;
+  right: 0px;
+  background: #ffffff;
+  border: 1.5px solid #cbd5e1;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: all var(--transition-fast);
+}
+
+.btn-avatar-edit:hover {
+  transform: scale(1.12);
+  border-color: #19469d;
+  background-color: #f8fafc;
+}
+
+.profile-info-column {
+  width: 100%;
+}
+
+.profile-info-card {
+  border: 1.5px solid #d8e2ee;
+  border-radius: 18px;
+  padding: 26px 32px 28px;
+  background: #ffffff;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.03);
+}
+
+.profile-info-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 22px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.profile-info-title {
+  font-family: 'Lora', 'Playfair Display', Georgia, serif;
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #1d1854;
+  margin: 0;
+}
+
+.profile-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn-profile-edit {
+  background-color: #1a489c;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 7px 22px;
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(26, 72, 156, 0.3);
+  transition: all var(--transition-fast);
+}
+
+.btn-profile-edit:hover {
+  background-color: #12377a;
+  transform: translateY(-1px);
+}
+
+.btn-profile-export {
+  background-color: #1a489c;
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(26, 72, 156, 0.3);
+  transition: all var(--transition-fast);
+}
+
+.btn-profile-export:hover {
+  background-color: #12377a;
+  transform: translateY(-1px);
+}
+
+.profile-fields-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.profile-field-row {
+  display: grid;
+  grid-template-columns: 180px 24px 1fr;
+  align-items: center;
+}
+
+.profile-field-label {
+  font-family: 'Lora', 'Playfair Display', Georgia, serif;
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: #1d1854;
+  letter-spacing: 0.02em;
+}
+
+.profile-field-colon {
+  font-family: 'Lora', Georgia, serif;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1d1854;
+}
+
+.profile-field-value {
+  font-family: 'Lora', Georgia, serif;
+  font-size: 1rem;
+  color: #1e293b;
+  font-weight: 500;
+}
+
+.profile-field-input {
+  background: #f8fafc;
+  border: 1.5px solid #1a489c;
+  border-radius: 8px;
+  padding: 5px 12px;
+  font-family: 'Lora', Georgia, serif;
+  font-size: 0.96rem;
+  color: #1e293b;
+  outline: none;
+}
+
+.profile-bottom-card {
+  padding: 40px 48px 44px;
+}
+
+@media (max-width: 860px) {
+  .profile-top-grid {
+    grid-template-columns: 1fr;
+    gap: 28px;
+  }
+
+  .profile-top-card,
+  .profile-bottom-card {
+    padding: 28px 20px;
+  }
+
+  .profile-field-row {
+    grid-template-columns: 140px 18px 1fr;
+  }
+}
+
 

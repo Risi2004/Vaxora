@@ -4,6 +4,9 @@ export default function HospitalSignupForm({ onSuccess }) {
   const [formData, setFormData] = useState({
     hospitalName: '',
     type: 'Government',
+    operatingHoursType: '24hrs',
+    openingTime: '08:00',
+    closingTime: '18:00',
     officialEmail: '',
     contactNumber: '',
     address: '',
@@ -11,11 +14,14 @@ export default function HospitalSignupForm({ onSuccess }) {
     confirmPassword: '',
   });
 
+  const [hospitalLogo, setHospitalLogo] = useState(null);
+  const [logoPreview, setLogoPreview] = useState(null);
   const [registrationProof, setRegistrationProof] = useState(null);
   const [addressProof, setAddressProof] = useState(null);
   const [error, setError] = useState('');
   const [submitted, setSubmitted] = useState(false);
 
+  const logoRef = useRef(null);
   const regProofRef = useRef(null);
   const addrProofRef = useRef(null);
 
@@ -23,6 +29,14 @@ export default function HospitalSignupForm({ onSuccess }) {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
     setError('');
+  };
+
+  const handleLogoChange = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setHospitalLogo(file.name);
+      setLogoPreview(URL.createObjectURL(file));
+    }
   };
 
   const handleRegFileChange = (e) => {
@@ -61,7 +75,7 @@ export default function HospitalSignupForm({ onSuccess }) {
     return (
       <div className="auth-success-alert" role="alert">
         <h4>Registration Request Submitted!</h4>
-        <p>Your hospital portal access is being reviewed by the Ministry & Health Authorities.</p>
+        <p>Your hospital portal access is being reviewed by the Ministry &amp; Health Authorities.</p>
       </div>
     );
   }
@@ -82,6 +96,39 @@ export default function HospitalSignupForm({ onSuccess }) {
         />
       </div>
 
+      {/* Hospital Logo Upload Field */}
+      <div className="auth-input-group">
+        <label className="auth-label">Hospital Logo (Optional)</label>
+        <div
+          className="file-upload-box"
+          onClick={() => logoRef.current?.click()}
+          role="button"
+          tabIndex={0}
+        >
+          <div className="file-upload-info">
+            {logoPreview ? (
+              <img
+                src={logoPreview}
+                alt="Logo preview"
+                className="file-upload-thumb"
+                style={{ borderRadius: '6px' }}
+              />
+            ) : (
+              <span>🏥</span>
+            )}
+            <span>{hospitalLogo || 'Upload Hospital Logo (JPG/PNG)'}</span>
+          </div>
+          <span className="file-upload-btn-text">Browse</span>
+        </div>
+        <input
+          ref={logoRef}
+          type="file"
+          accept="image/png,image/jpeg,image/jpg,image/webp,image/svg+xml"
+          onChange={handleLogoChange}
+          className="hidden-file-input"
+        />
+      </div>
+
       <div className="auth-input-group">
         <label className="auth-label">Hospital Type</label>
         <select
@@ -95,13 +142,54 @@ export default function HospitalSignupForm({ onSuccess }) {
         </select>
       </div>
 
+      {/* Operating Schedule */}
+      <div className="auth-input-group">
+        <label className="auth-label">Operating Schedule / Hours</label>
+        <select
+          name="operatingHoursType"
+          value={formData.operatingHoursType}
+          onChange={handleChange}
+          className="auth-select"
+        >
+          <option value="24hrs">Open 24 Hours (24/7)</option>
+          <option value="selected">Selected Operating Hours</option>
+        </select>
+      </div>
+
+      {formData.operatingHoursType === 'selected' && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div className="auth-input-group">
+            <label className="auth-label">Start Time *</label>
+            <input
+              type="time"
+              name="openingTime"
+              value={formData.openingTime}
+              onChange={handleChange}
+              required
+              className="auth-input"
+            />
+          </div>
+          <div className="auth-input-group">
+            <label className="auth-label">End Time *</label>
+            <input
+              type="time"
+              name="closingTime"
+              value={formData.closingTime}
+              onChange={handleChange}
+              required
+              className="auth-input"
+            />
+          </div>
+        </div>
+      )}
+
       <div className="auth-input-group">
         <input
           type="email"
           name="officialEmail"
           value={formData.officialEmail}
           onChange={handleChange}
-          placeholder="Official Email"
+          placeholder="Email"
           required
           className="auth-input"
         />
@@ -133,7 +221,7 @@ export default function HospitalSignupForm({ onSuccess }) {
 
       {/* Registration Proof */}
       <div className="auth-input-group">
-        <label className="auth-label">Registration Proof</label>
+        <label className="auth-label">Registration Proof *</label>
         <div
           className="file-upload-box"
           onClick={() => regProofRef.current?.click()}
@@ -157,7 +245,7 @@ export default function HospitalSignupForm({ onSuccess }) {
 
       {/* Address Proof */}
       <div className="auth-input-group">
-        <label className="auth-label">Address Proof</label>
+        <label className="auth-label">Address Proof *</label>
         <div
           className="file-upload-box"
           onClick={() => addrProofRef.current?.click()}

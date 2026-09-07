@@ -5,6 +5,7 @@ export {
   AppointmentsTab,
   VaccinationHistoryTab,
   FeedbackTab,
+  PatientProfileTab,
   BookAppointmentModal,
 } from './components';
 export { default } from './pages/PatientLayout';

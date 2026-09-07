@@ -3,7 +3,8 @@ import React from 'react';
 export default function RoleSelector({ selectedRole, onSelectRole }) {
   const roles = [
     { id: 'patient', label: 'Patient' },
-    { id: 'doctor_nurse', label: 'Doctor / Nurse' },
+    { id: 'doctor', label: 'Doctor' },
+    { id: 'nurse', label: 'Nurse' },
     { id: 'hospital', label: 'Hospital' },
   ];
 

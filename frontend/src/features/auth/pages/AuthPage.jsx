@@ -6,6 +6,8 @@ import {
   RoleSelector,
   LoginForm,
   PatientSignupForm,
+  DoctorSignupForm,
+  NurseSignupForm,
   DoctorNurseSignupForm,
   HospitalSignupForm,
   ForgotPasswordForm,
@@ -50,6 +52,8 @@ export default function AuthPage({ onAuthSuccess }) {
     onAuthSuccess?.({ role: selectedRole, name });
     if (selectedRole === 'patient') {
       navigate('/patient/dashboard');
+    } else if (selectedRole === 'hospital') {
+      navigate('/hospital/dashboard');
     } else {
       navigate('/');
     }
@@ -154,8 +158,16 @@ export default function AuthPage({ onAuthSuccess }) {
                   <PatientSignupForm onSuccess={handleSignupSuccess} />
                 )}
 
+                {selectedRole === 'doctor' && (
+                  <DoctorSignupForm onSuccess={handleSignupSuccess} />
+                )}
+
+                {selectedRole === 'nurse' && (
+                  <NurseSignupForm onSuccess={handleSignupSuccess} />
+                )}
+
                 {selectedRole === 'doctor_nurse' && (
-                  <DoctorNurseSignupForm onSuccess={handleSignupSuccess} />
+                  <DoctorSignupForm onSuccess={handleSignupSuccess} />
                 )}
 
                 {selectedRole === 'hospital' && (
