@@ -90,6 +90,86 @@
   gap: 12px;
 }
 
+/* Portal Mobile Hamburger & Drawer Styles */
+.portal-hamburger-btn {
+  display: none;
+  background: #ffffff;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 10px;
+  font-size: 1.25rem;
+  line-height: 1;
+  padding: 7px 11px;
+  color: #1e1b4b;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.portal-hamburger-btn:hover {
+  background: #f1f5f9;
+  border-color: #19469d;
+  color: #19469d;
+}
+
+.portal-mobile-drawer {
+  background: #ffffff;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 16px;
+  padding: 14px;
+  margin-top: 10px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.1);
+  animation: slideDown 0.25s ease-out;
+}
+
+.portal-mobile-nav-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.portal-mobile-nav-btn {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #1d1854;
+  text-align: left;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.portal-mobile-nav-btn:hover {
+  background: #eff6ff;
+  color: #19469d;
+  border-color: #bfdbfe;
+}
+
+.portal-mobile-nav-btn.active {
+  background: #19469d;
+  color: #ffffff;
+  border-color: #19469d;
+}
+
+.portal-mobile-nav-btn.text-danger {
+  background: #fef2f2;
+  color: #dc2626;
+  border-color: #fca5a5;
+}
+
+@media (max-width: 860px) {
+  .desktop-nav-pill {
+    display: none !important;
+  }
+
+  .portal-hamburger-btn {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
 .patient-avatar-button {
   background: none;
   border: none;
@@ -1971,5 +2051,215 @@
   outline: none;
 }
 
+/* ==========================================================================
+   Comprehensive Patient Portal Responsive Breakpoints
+   ========================================================================== */
+@media (max-width: 1024px) {
+  .patient-header-inner {
+    padding: 0 4px;
+  }
 
+  .patient-content-area {
+    padding: 24px 20px 48px;
+  }
 
+  .patient-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+  }
+
+  .dashboard-two-column-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .profile-top-grid {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+
+  .feedback-split-card {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+
+  .feedback-image-pane {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .patient-header {
+    padding: 10px 14px;
+  }
+
+  .patient-header-inner {
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .patient-nav-tabs {
+    order: 3;
+    width: 100%;
+    justify-content: flex-start;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 4px 6px;
+  }
+
+  .patient-nav-btn {
+    padding: 5px 12px;
+    font-size: 0.82rem;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .patient-content-area {
+    padding: 16px 12px 36px;
+  }
+
+  .patient-welcome-banner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 20px 18px;
+    border-radius: 16px;
+  }
+
+  .patient-welcome-banner h1 {
+    font-size: 1.5rem;
+  }
+
+  .welcome-subtitle {
+    font-size: 0.9rem;
+    max-width: 100%;
+  }
+
+  .btn-banner-action {
+    width: 100%;
+    text-align: center;
+    padding: 10px 18px;
+  }
+
+  .patient-stats-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .patient-stat-card {
+    padding: 16px;
+  }
+
+  .overview-panel-card {
+    padding: 18px 16px;
+    border-radius: 16px;
+  }
+
+  .appointment-actions-row {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .btn-outline-action {
+    width: 100%;
+  }
+
+  .patient-manage-card {
+    padding: 20px 14px;
+    border-radius: 16px;
+  }
+
+  .patient-manage-title {
+    font-size: 1.6rem;
+    margin-bottom: 18px;
+  }
+
+  .patient-info-row {
+    grid-template-columns: 110px 16px 1fr;
+    font-size: 0.88rem;
+  }
+
+  .patient-mockup-table thead tr th {
+    font-size: 0.95rem;
+    padding: 10px 10px;
+  }
+
+  .patient-mockup-table tbody tr td {
+    font-size: 0.88rem;
+    padding: 10px 8px;
+  }
+
+  .feedback-bordered-box {
+    padding: 20px 16px;
+    border-radius: 16px;
+  }
+
+  .feedback-mockup-input,
+  .feedback-mockup-textarea {
+    font-size: 0.9rem;
+    padding: 10px 12px;
+  }
+
+  .star-icon-btn {
+    font-size: 1.6rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .patient-logo-img {
+    height: 34px;
+  }
+
+  .patient-welcome-banner h1 {
+    font-size: 1.3rem;
+  }
+
+  .patient-stat-card {
+    gap: 12px;
+  }
+
+  .stat-card-value {
+    font-size: 1.25rem;
+  }
+
+  .appointment-date-time-bar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .schedule-left {
+    gap: 10px;
+  }
+
+  .schedule-icon-circle {
+    width: 34px;
+    height: 34px;
+    font-size: 1rem;
+  }
+
+  .schedule-name {
+    font-size: 0.88rem;
+  }
+
+  .profile-top-card,
+  .profile-bottom-card {
+    padding: 18px 12px;
+  }
+
+  .profile-field-row {
+    grid-template-columns: 1fr;
+    gap: 4px;
+    margin-bottom: 8px;
+  }
+
+  .profile-field-colon {
+    display: none;
+  }
+
+  .patient-portal-footer {
+    padding: 20px 12px;
+    font-size: 0.82rem;
+  }
+}

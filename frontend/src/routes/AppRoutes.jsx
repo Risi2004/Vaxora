@@ -15,6 +15,7 @@ import {
   HospitalLayout,
   HospitalDashboardOverview,
   HospitalAppointmentsTab,
+  HospitalInventoryTab,
   HospitalStaffTab,
   HospitalProfileTab,
   FeedbackTab as HospitalFeedbackTab,
@@ -54,6 +55,7 @@ export default function AppRoutes() {
         <Route index element={<Navigate to="/hospital/dashboard" replace />} />
         <Route path="dashboard" element={<HospitalDashboardOverview />} />
         <Route path="appointments" element={<HospitalAppointmentsTab />} />
+        <Route path="inventory" element={<HospitalInventoryTab />} />
         <Route path="staff" element={<HospitalStaffTab />} />
         <Route path="feedback" element={<HospitalFeedbackTab />} />
         <Route path="profile" element={<HospitalProfileTab />} />

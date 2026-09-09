@@ -416,18 +416,34 @@
 }
 
 /* ==========================================================================
-   Responsive Breakpoints
+   Responsive Breakpoints & Mobile Optimization
    ========================================================================== */
 @media (max-width: 860px) {
+  .auth-wrapper {
+    padding: 24px 16px;
+    align-items: flex-start;
+  }
+
+  .auth-back-nav {
+    position: static;
+    margin-bottom: 16px;
+    width: 100%;
+    max-width: 480px;
+    display: flex;
+    justify-content: flex-start;
+  }
+
   .auth-container {
     grid-template-columns: 1fr;
     max-width: 480px;
+    border-radius: 20px;
+    min-height: auto;
   }
 
   .auth-banner-left {
     border-top-right-radius: 0;
-    border-bottom-left-radius: 80px;
-    padding: 36px 28px;
+    border-bottom-left-radius: 0;
+    padding: 32px 24px;
     text-align: center;
     align-items: center;
   }
@@ -437,11 +453,83 @@
     font-size: 2.2rem;
   }
 
+  .auth-banner-subtext {
+    max-width: 100%;
+    margin-top: 10px;
+  }
+
   .auth-form-side {
-    padding: 28px 20px;
+    padding: 24px 16px 32px;
   }
 
   .auth-card-inner {
     padding: 24px 18px;
+    border-width: 2px;
   }
 }
+
+@media (max-width: 480px) {
+  .auth-wrapper {
+    padding: 16px 12px;
+  }
+
+  .auth-container {
+    border-radius: 16px;
+  }
+
+  .auth-banner-left {
+    padding: 24px 16px;
+  }
+
+  .auth-welcome-text {
+    font-size: 1.8rem;
+  }
+
+  .auth-card-inner {
+    padding: 20px 14px;
+    border-radius: 16px;
+  }
+
+  .auth-logo {
+    height: 70px;
+  }
+
+  .auth-form-title {
+    font-size: 1.3rem;
+  }
+
+  .role-selector-tabs {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 6px;
+  }
+
+  .role-tab-btn {
+    padding: 7px 4px;
+    font-size: 0.8rem;
+  }
+
+  .auth-input {
+    padding: 9px 12px;
+    font-size: 0.9rem;
+  }
+
+  .btn-auth-submit {
+    padding: 11px;
+    font-size: 0.95rem;
+  }
+
+  .auth-form-scrollable {
+    max-height: 360px;
+  }
+}
+
+@media (max-width: 360px) {
+  .auth-card-inner {
+    padding: 16px 10px;
+  }
+
+  .auth-welcome-text {
+    font-size: 1.6rem;
+  }
+}
+

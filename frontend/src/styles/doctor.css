@@ -94,11 +94,8 @@
   font-size: 0.7rem;
 }
 
-/* Center Pill Navigation matching Hospital & Patient - Perfectly Centered */
+/* Center Pill Navigation matching Hospital & Patient */
 .doctor-nav-tabs {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
   display: flex;
   align-items: center;
   gap: 4px;
@@ -107,7 +104,6 @@
   border-radius: var(--radius-pill, 9999px);
   padding: 4px 8px;
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
-  z-index: 10;
 }
 
 .doctor-nav-btn {
@@ -137,7 +133,87 @@
 .doctor-actions-area {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
+}
+
+/* Portal Mobile Hamburger & Drawer Styles */
+.portal-hamburger-btn {
+  display: none;
+  background: #ffffff;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 10px;
+  font-size: 1.25rem;
+  line-height: 1;
+  padding: 7px 11px;
+  color: #1e1b4b;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.portal-hamburger-btn:hover {
+  background: #f1f5f9;
+  border-color: #19469d;
+  color: #19469d;
+}
+
+.portal-mobile-drawer {
+  background: #ffffff;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 16px;
+  padding: 14px;
+  margin-top: 10px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.1);
+  animation: slideDown 0.25s ease-out;
+}
+
+.portal-mobile-nav-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.portal-mobile-nav-btn {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #1d1854;
+  text-align: left;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.portal-mobile-nav-btn:hover {
+  background: #eff6ff;
+  color: #19469d;
+  border-color: #bfdbfe;
+}
+
+.portal-mobile-nav-btn.active {
+  background: #19469d;
+  color: #ffffff;
+  border-color: #19469d;
+}
+
+.portal-mobile-nav-btn.text-danger {
+  background: #fef2f2;
+  color: #dc2626;
+  border-color: #fca5a5;
+}
+
+@media (max-width: 860px) {
+  .desktop-nav-pill {
+    display: none !important;
+  }
+
+  .portal-hamburger-btn {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+  }
 }
 
 .doctor-avatar-button {
@@ -2236,4 +2312,166 @@
   background-color: #acc2dd;
 }
 
+/* ==========================================================================
+   12. Comprehensive Doctor Portal Responsive Breakpoints
+   ========================================================================== */
+@media (max-width: 1024px) {
+  .doctor-content-area {
+    padding: 24px 20px 48px;
+  }
 
+  .doctor-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+  }
+
+  .doctor-manage-appointments-card {
+    padding: 28px 24px;
+  }
+}
+
+@media (max-width: 992px) {
+  .doctor-header {
+    padding: 10px 14px;
+  }
+
+  .doctor-header-inner {
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .doctor-nav-tabs {
+    position: static;
+    transform: none;
+    order: 3;
+    width: 100%;
+    justify-content: flex-start;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 4px 6px;
+  }
+
+  .doctor-nav-btn {
+    padding: 5px 12px;
+    font-size: 0.82rem;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+}
+
+@media (max-width: 768px) {
+  .doctor-content-area {
+    padding: 16px 12px 36px;
+  }
+
+  .doctor-hero-banner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 20px 16px;
+    border-radius: 16px;
+  }
+
+  .doctor-hero-banner h1 {
+    font-size: 1.5rem;
+  }
+
+  .doctor-stats-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .doctor-manage-appointments-card {
+    padding: 20px 14px;
+    border-radius: 16px;
+  }
+
+  .doctor-manage-title {
+    font-size: 1.6rem;
+    margin-bottom: 18px;
+  }
+
+  .doctor-appointment-inner-card {
+    padding: 16px 12px;
+  }
+
+  .doctor-appointments-filter-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 10px 12px;
+  }
+
+  .doctor-filter-group {
+    justify-content: space-between;
+  }
+
+  .doctor-appointments-mockup-table thead tr th {
+    font-size: 0.95rem;
+    padding: 10px 8px;
+  }
+
+  .doctor-appointments-mockup-table tbody tr td {
+    font-size: 0.88rem;
+    padding: 10px 8px;
+  }
+
+  .patient-details-card-container {
+    padding: 20px 16px;
+    border-radius: 16px;
+  }
+
+  .patient-personal-info-box {
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+    padding: 18px 14px;
+  }
+
+  .patient-info-content {
+    border-left: none;
+    padding-left: 0;
+    width: 100%;
+  }
+
+  .doctor-modal-card {
+    padding: 20px 16px;
+    margin: 10px;
+    max-height: 94vh;
+    border-radius: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .doctor-logo-img {
+    height: 34px;
+  }
+
+  .doctor-badge {
+    display: none;
+  }
+
+  .doctor-stat-card {
+    padding: 16px;
+  }
+
+  .stat-card-value {
+    font-size: 1.35rem;
+  }
+
+  .patient-search-card-wrapper {
+    max-width: 100%;
+  }
+
+  .patient-info-row {
+    grid-template-columns: 110px 14px 1fr;
+    font-size: 0.84rem;
+  }
+
+  .btn-administer-trigger,
+  .btn-aefi-trigger {
+    padding: 6px 10px;
+    font-size: 0.78rem;
+  }
+}
