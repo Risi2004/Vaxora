@@ -15,6 +15,8 @@ public class AppDbContext : DbContext
     public DbSet<Batch> Batches { get; set; }
     public DbSet<InventoryTransaction> InventoryTransactions { get; set; }
 
+    public DbSet<User> Users { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -35,6 +37,10 @@ public class AppDbContext : DbContext
 
         modelBuilder.Entity<InventoryTransaction>()
             .HasIndex(t => t.TransactionDate);
+
+        modelBuilder.Entity<User>()
+            .HasIndex(u => u.Username)
+            .IsUnique();
 
         // =============================================
         // 🔥 SEED DATA (Required by Assignment Section 6)
@@ -158,5 +164,24 @@ public class AppDbContext : DbContext
                 BatchId = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc")
             }
         );
+        // Seed Users
+modelBuilder.Entity<User>().HasData(
+    new User 
+    { 
+        Id = Guid.Parse("11111111-1111-1111-1111-111111111111"), 
+        Username = "admin", 
+        PasswordHash = BCrypt.Net.BCrypt.HashPassword("admin123"), 
+        Role = "Admin", 
+        CreatedAt = DateTime.UtcNow 
+    },
+    new User 
+    { 
+        Id = Guid.Parse("22222222-2222-2222-2222-222222222222"), 
+        Username = "staff", 
+        PasswordHash = BCrypt.Net.BCrypt.HashPassword("staff123"), 
+        Role = "Staff", 
+        CreatedAt = DateTime.UtcNow 
+    }
+);
     }
 }
