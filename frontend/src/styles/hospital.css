@@ -88,9 +88,6 @@
 }
 
 .hospital-nav-tabs {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
   display: flex;
   align-items: center;
   gap: 4px;
@@ -99,7 +96,6 @@
   border-radius: var(--radius-pill);
   padding: 4px 8px;
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
-  z-index: 10;
 }
 
 .hospital-nav-btn {
@@ -141,7 +137,87 @@
 .hospital-actions-area {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
+}
+
+/* Portal Mobile Hamburger & Drawer Styles */
+.portal-hamburger-btn {
+  display: none;
+  background: #ffffff;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 10px;
+  font-size: 1.25rem;
+  line-height: 1;
+  padding: 7px 11px;
+  color: #1e1b4b;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.portal-hamburger-btn:hover {
+  background: #f1f5f9;
+  border-color: #19469d;
+  color: #19469d;
+}
+
+.portal-mobile-drawer {
+  background: #ffffff;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 16px;
+  padding: 14px;
+  margin-top: 10px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.1);
+  animation: slideDown 0.25s ease-out;
+}
+
+.portal-mobile-nav-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.portal-mobile-nav-btn {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #1d1854;
+  text-align: left;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.portal-mobile-nav-btn:hover {
+  background: #eff6ff;
+  color: #19469d;
+  border-color: #bfdbfe;
+}
+
+.portal-mobile-nav-btn.active {
+  background: #19469d;
+  color: #ffffff;
+  border-color: #19469d;
+}
+
+.portal-mobile-nav-btn.text-danger {
+  background: #fef2f2;
+  color: #dc2626;
+  border-color: #fca5a5;
+}
+
+@media (max-width: 860px) {
+  .desktop-nav-pill {
+    display: none !important;
+  }
+
+  .portal-hamburger-btn {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+  }
 }
 
 .hospital-telemetry-pill {
@@ -1655,5 +1731,1426 @@
   transform: translateY(-1px);
 }
 
+/* ==========================================================================
+   12. Hospital Vaccine Inventory & Cold Chain Management Styles
+   ========================================================================== */
 
+/* Toast Notice */
+.inventory-toast-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(135deg, #1e1b4b, #1e40af);
+  color: #ffffff;
+  padding: 12px 20px;
+  border-radius: 12px;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 14px rgba(30, 64, 175, 0.25);
+  font-size: 0.92rem;
+  font-weight: 600;
+  animation: slideDown 0.3s ease-out;
+}
+
+.inventory-toast-banner button {
+  background: transparent;
+  border: none;
+  color: #ffffff;
+  font-size: 1.4rem;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0 4px;
+}
+
+/* Header & Tags */
+.inventory-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 20px;
+  margin-bottom: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1.5px solid #e2e8f0;
+}
+
+.inventory-badge-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.inventory-moh-tag {
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-size: 0.76rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border: 1px solid #bfdbfe;
+}
+
+.inventory-facility-tag {
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 0.76rem;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 9999px;
+}
+
+.inventory-subtitle {
+  color: #64748b;
+  font-size: 0.95rem;
+  margin: 0;
+  max-width: 680px;
+  line-height: 1.5;
+}
+
+/* Vaccine Formulary Registry Card */
+.vaccine-formulary-card {
+  background: #fdfefe;
+  border: 1.5px solid #d0deee;
+  border-radius: 18px;
+  padding: 20px 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 4px 14px rgba(25, 70, 157, 0.04);
+}
+
+.formulary-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.formulary-title {
+  font-family: 'Lora', 'Playfair Display', Georgia, serif;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #1d1854;
+  margin: 0;
+}
+
+.formulary-sub {
+  font-size: 0.84rem;
+  color: #64748b;
+  margin: 2px 0 0;
+}
+
+.btn-toggle-registry {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #1e1b4b;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-toggle-registry:hover {
+  background: #e2e8f0;
+}
+
+.formulary-card-body {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px dashed #cbd5e1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.formulary-input-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.formulary-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 200px;
+}
+
+.formulary-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #334155;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.formulary-text-input {
+  padding: 9px 14px;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  color: #1d1854;
+  outline: none;
+  background: #ffffff;
+  transition: all var(--transition-fast);
+}
+
+.formulary-text-input:focus {
+  border-color: #19469d;
+  box-shadow: 0 0 0 3px rgba(25, 70, 157, 0.12);
+}
+
+.btn-register-vaccine {
+  background: #19469d;
+  color: #ffffff;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 20px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(25, 70, 157, 0.3);
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+  height: 42px;
+}
+
+.btn-register-vaccine:hover {
+  background: #12377a;
+  transform: translateY(-1px);
+}
+
+.registered-pills-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.registered-pills-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.registered-pills-list {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.registered-vaccine-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #ffffff;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 9999px;
+  padding: 4px 10px 4px 10px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  font-size: 0.84rem;
+  color: #1e1b4b;
+  transition: all var(--transition-fast);
+}
+
+.registered-vaccine-pill:hover {
+  border-color: #19469d;
+  background: #f8fafc;
+}
+
+.pill-dot {
+  font-size: 0.85rem;
+}
+
+.pill-name {
+  font-weight: 600;
+}
+
+.pill-remove-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  margin-left: 2px;
+  padding: 0 2px;
+  transition: color var(--transition-fast);
+}
+
+.pill-remove-btn:hover {
+  color: #dc2626;
+}
+
+.inventory-action-buttons {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.btn-inventory-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: 12px;
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  border: 1.5px solid transparent;
+}
+
+.btn-restock-primary {
+  background: #19469d;
+  color: #ffffff;
+  box-shadow: 0 4px 14px rgba(25, 70, 157, 0.3);
+}
+
+.btn-restock-primary:hover {
+  background: #133984;
+  transform: translateY(-1px);
+}
+
+.btn-wastage-secondary {
+  background: #fff1f2;
+  color: #be123c;
+  border-color: #fecdd3;
+}
+
+.btn-wastage-secondary:hover {
+  background: #ffe4e6;
+  border-color: #fda4af;
+  transform: translateY(-1px);
+}
+
+.btn-export-neutral {
+  background: #f8fafc;
+  color: #334155;
+  border-color: #cbd5e1;
+}
+
+.btn-export-neutral:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+  transform: translateY(-1px);
+}
+
+/* Metric Cards */
+.inventory-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+@media (max-width: 992px) {
+  .inventory-metrics-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 540px) {
+  .inventory-metrics-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.inventory-stat-card {
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 20px 18px;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+  transition: all var(--transition-fast);
+}
+
+.inventory-stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.07);
+}
+
+.inventory-stat-icon-box {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+  flex-shrink: 0;
+}
+
+.inventory-stat-icon-box.icon-blue {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+}
+
+.inventory-stat-icon-box.icon-amber {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+}
+
+.inventory-stat-icon-box.icon-purple {
+  background: #f5f3ff;
+  border: 1px solid #ddd6fe;
+}
+
+.inventory-stat-icon-box.icon-green {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+}
+
+.inventory-stat-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.inventory-stat-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+  margin-bottom: 2px;
+}
+
+.inventory-stat-value {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: #1e1b4b;
+  line-height: 1.15;
+}
+
+.inventory-stat-sub {
+  font-size: 0.78rem;
+  color: #64748b;
+  margin-top: 4px;
+}
+
+/* Cold Vaults Telemetry Section */
+.cold-vaults-section {
+  background: #f0f7ff;
+  border: 1.5px solid #bfdbfe;
+  border-radius: 18px;
+  padding: 22px 24px;
+  margin-bottom: 24px;
+}
+
+.cold-vaults-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.cold-vaults-title {
+  font-family: 'Lora', 'Playfair Display', Georgia, serif;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #1d1854;
+  margin: 0;
+}
+
+.cold-vaults-sub {
+  font-size: 0.84rem;
+  color: #475569;
+  margin: 2px 0 0;
+}
+
+.cold-vaults-live-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #ffffff;
+  border: 1px solid #93c5fd;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #1e40af;
+  letter-spacing: 0.05em;
+}
+
+.pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.4);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
+}
+
+.cold-vaults-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+
+@media (max-width: 860px) {
+  .cold-vaults-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.cold-vault-card {
+  background: #ffffff;
+  border: 1.5px solid #dbeafe;
+  border-radius: 14px;
+  padding: 16px 18px;
+  box-shadow: 0 2px 6px rgba(30, 64, 175, 0.05);
+}
+
+.cold-vault-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.vault-name {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1e1b4b;
+}
+
+.vault-type {
+  font-size: 0.75rem;
+  color: #64748b;
+  display: block;
+}
+
+.vault-status-badge {
+  background: #ecfdf5;
+  color: #059669;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid #a7f3d0;
+}
+
+.cold-vault-temp-display {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.temp-big {
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: #1e40af;
+  letter-spacing: -0.02em;
+}
+
+.temp-target {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.cold-vault-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.76rem;
+  color: #64748b;
+  border-top: 1px solid #f1f5f9;
+  padding-top: 10px;
+}
+
+.sensor-tag {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+  color: #334155;
+}
+
+/* Toolbar & Filter Bar */
+.inventory-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 18px;
+  padding: 14px 18px;
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 14px;
+}
+
+.inventory-search-group {
+  position: relative;
+  flex: 1;
+  min-width: 280px;
+  max-width: 480px;
+}
+
+.inventory-search-input {
+  width: 100%;
+  padding: 9px 36px 9px 38px;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  color: #1d1854;
+  outline: none;
+  background: #ffffff;
+  transition: all var(--transition-fast);
+}
+
+.inventory-search-input:focus {
+  border-color: #19469d;
+  box-shadow: 0 0 0 3px rgba(25, 70, 157, 0.12);
+}
+
+.search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.95rem;
+  color: #64748b;
+  pointer-events: none;
+}
+
+.clear-search-btn {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  font-size: 1.1rem;
+  color: #94a3b8;
+  cursor: pointer;
+}
+
+.inventory-filter-pills {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.filter-pill-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.filter-pill {
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.filter-pill:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+
+.filter-pill.active {
+  background: #19469d;
+  color: #ffffff;
+  border-color: #19469d;
+}
+
+.filter-pill.pill-alert.active {
+  background: #dc2626;
+  border-color: #dc2626;
+  color: #ffffff;
+}
+
+.filter-pill.pill-warning.active {
+  background: #d97706;
+  border-color: #d97706;
+  color: #ffffff;
+}
+
+.view-mode-toggles {
+  display: flex;
+  background: #e2e8f0;
+  border-radius: 8px;
+  padding: 2px;
+}
+
+.btn-view-toggle {
+  padding: 5px 12px;
+  border: none;
+  background: transparent;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #475569;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-view-toggle.active {
+  background: #ffffff;
+  color: #1d1854;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Custom Table View */
+.inventory-custom-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  text-align: center;
+}
+
+.inventory-custom-table thead tr th {
+  background-color: #7892b8;
+  color: #ffffff;
+  font-family: 'Lora', 'Playfair Display', Georgia, serif;
+  font-size: 1.05rem;
+  font-weight: 700;
+  padding: 13px 14px;
+  border-right: 2px solid #ffffff;
+  letter-spacing: 0.01em;
+}
+
+.inventory-custom-table thead tr th:last-child {
+  border-right: none;
+}
+
+.inventory-custom-table tbody tr td {
+  background-color: #edf2f9;
+  color: #1d1854;
+  font-size: 0.92rem;
+  padding: 12px 14px;
+  border-right: 2px solid #ffffff;
+  border-top: 2px solid #ffffff;
+  vertical-align: middle;
+}
+
+.inventory-custom-table tbody tr:hover td {
+  background-color: #e2ebf6;
+}
+
+.inventory-custom-table tbody tr.row-highlight-low td {
+  background-color: #fee2e2 !important;
+}
+
+.inventory-custom-table tbody tr.row-highlight-low:hover td {
+  background-color: #fecaca !important;
+}
+
+.vaccine-title-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.vaccine-name-text {
+  font-family: 'Lora', Georgia, serif;
+  font-size: 0.98rem;
+  color: #1d1854;
+  font-weight: 700;
+}
+
+.vaccine-sub-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.76rem;
+}
+
+.lot-badge {
+  background: #dbeafe;
+  color: #1e40af;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.mfr-text {
+  color: #64748b;
+}
+
+.category-tag {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  letter-spacing: 0.04em;
+}
+
+.storage-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.vault-label {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: #1e293b;
+}
+
+.temp-badge {
+  font-size: 0.72rem;
+  color: #0284c7;
+  font-weight: 600;
+}
+
+.stock-level-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stock-numbers {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 4px;
+  font-size: 0.9rem;
+}
+
+.cap-total {
+  font-size: 0.76rem;
+  color: #64748b;
+}
+
+.pct-text {
+  font-size: 0.76rem;
+  color: #475569;
+  font-weight: 600;
+}
+
+.stock-progress-track {
+  width: 100%;
+  height: 7px;
+  background: #cbd5e1;
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.stock-progress-fill {
+  height: 100%;
+  border-radius: 9999px;
+  transition: width 0.3s ease;
+}
+
+.stock-progress-fill.bar-green {
+  background: #10b981;
+}
+
+.stock-progress-fill.bar-blue {
+  background: #2563eb;
+}
+
+.stock-progress-fill.bar-orange {
+  background: #f59e0b;
+}
+
+.stock-progress-fill.bar-red {
+  background: #ef4444;
+}
+
+.low-stock-alert-tag {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #dc2626;
+}
+
+.doses-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 0.92rem;
+}
+
+.doses-cell small {
+  font-size: 0.72rem;
+  color: #64748b;
+}
+
+.expiry-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.expiry-date {
+  font-weight: 600;
+  font-size: 0.88rem;
+}
+
+.expiry-date.text-amber {
+  color: #d97706;
+}
+
+.exp-badge {
+  background: #fef3c7;
+  color: #b45309;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid #fde68a;
+}
+
+.stock-badge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+  display: inline-block;
+}
+
+.stock-badge.badge-healthy {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #86efac;
+}
+
+.stock-badge.badge-reorder {
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fca5a5;
+}
+
+.stock-badge.badge-expiring {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+.inventory-row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.btn-quick-adjust {
+  padding: 4px 8px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all var(--transition-fast);
+}
+
+.btn-adjust-plus {
+  background: #dbeafe;
+  color: #1e40af;
+  border-color: #bfdbfe;
+}
+
+.btn-adjust-plus:hover {
+  background: #bfdbfe;
+}
+
+.btn-adjust-minus {
+  background: #f1f5f9;
+  color: #475569;
+  border-color: #cbd5e1;
+}
+
+.btn-adjust-minus:hover {
+  background: #fee2e2;
+  color: #dc2626;
+  border-color: #fca5a5;
+}
+
+.btn-table-audit {
+  padding: 4px 10px;
+  background: #ffffff;
+  border: 1px solid #94a3b8;
+  color: #1e293b;
+  font-size: 0.74rem;
+  font-weight: 700;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-table-audit:hover {
+  background: #1e1b4b;
+  color: #ffffff;
+  border-color: #1e1b4b;
+}
+
+/* Cards Grid View */
+.inventory-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-top: 14px;
+}
+
+@media (max-width: 900px) {
+  .inventory-cards-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 560px) {
+  .inventory-cards-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.inventory-card-item {
+  background: #ffffff;
+  border: 1.5px solid #d8e2ee;
+  border-radius: 16px;
+  padding: 18px 20px;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.04);
+  display: flex;
+  flex-direction: column;
+  transition: all var(--transition-fast);
+}
+
+.inventory-card-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+}
+
+.inventory-card-item.card-low-stock {
+  border-color: #fca5a5;
+  background: #fffafa;
+}
+
+.inv-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.inv-card-name {
+  font-family: 'Lora', 'Playfair Display', Georgia, serif;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #1d1854;
+  margin: 0 0 6px;
+  line-height: 1.3;
+}
+
+.inv-card-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: #64748b;
+  margin-bottom: 12px;
+}
+
+.inv-card-storage-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  font-size: 0.8rem;
+}
+
+.storage-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #334155;
+  font-weight: 600;
+}
+
+.inv-card-stock-block {
+  margin-bottom: 16px;
+}
+
+.stock-header-flex {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  color: #1e293b;
+  margin-bottom: 6px;
+}
+
+.doses-sub-line {
+  font-size: 0.75rem;
+  color: #64748b;
+  margin-top: 4px;
+}
+
+.inv-card-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: auto;
+  border-top: 1px solid #f1f5f9;
+  padding-top: 12px;
+}
+
+.btn-card-audit {
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  color: #1e293b;
+  padding: 8px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn-card-audit:hover {
+  background: #e2e8f0;
+}
+
+.btn-card-restock {
+  background: #19469d;
+  border: 1px solid #19469d;
+  color: #ffffff;
+  padding: 8px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn-card-restock:hover {
+  background: #133984;
+}
+
+/* Footer Notice */
+.inventory-footer-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 24px;
+  padding: 16px 20px;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 14px;
+}
+
+.footer-notice-text {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.86rem;
+  color: #475569;
+  max-width: 800px;
+}
+
+.btn-sync-registry {
+  background: #ffffff;
+  border: 1.5px solid #2563eb;
+  color: #2563eb;
+  padding: 8px 16px;
+  border-radius: 10px;
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-sync-registry:hover {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+/* ==========================================================================
+   13. Comprehensive Hospital Portal Responsive Breakpoints
+   ========================================================================== */
+@media (max-width: 1024px) {
+  .hospital-content-area {
+    padding: 24px 20px 48px;
+  }
+
+  .hospital-metrics-grid,
+  .inventory-metrics-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+  }
+
+  .cold-vaults-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .inventory-cards-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .hospital-staff-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+
+  .hospital-manage-appointments-card {
+    padding: 28px 24px;
+  }
+}
+
+@media (max-width: 768px) {
+  .hospital-header {
+    padding: 10px 14px;
+  }
+
+  .hospital-header-inner {
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .hospital-nav-tabs {
+    order: 3;
+    width: 100%;
+    justify-content: flex-start;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 4px 6px;
+  }
+
+  .hospital-nav-btn {
+    padding: 5px 12px;
+    font-size: 0.82rem;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .hospital-content-area {
+    padding: 16px 12px 36px;
+  }
+
+  .hospital-welcome-banner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 20px 16px;
+    border-radius: 16px;
+  }
+
+  .hospital-welcome-banner h1 {
+    font-size: 1.5rem;
+  }
+
+  .hospital-banner-actions {
+    width: 100%;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .btn-banner-action {
+    width: 100%;
+    text-align: center;
+  }
+
+  .hospital-metrics-grid,
+  .inventory-metrics-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .inventory-header-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
+  }
+
+  .inventory-action-buttons {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .btn-inventory-action {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .cold-vaults-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .inventory-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .inventory-search-group {
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .inventory-filter-pills {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .filter-pill-group {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    width: 100%;
+    padding-bottom: 4px;
+  }
+
+  .filter-pill {
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .inventory-cards-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hospital-manage-appointments-card {
+    padding: 20px 14px;
+    border-radius: 16px;
+  }
+
+  .hospital-manage-title {
+    font-size: 1.6rem;
+    margin-bottom: 18px;
+  }
+
+  .hospital-appointment-inner-card {
+    padding: 16px 12px;
+  }
+
+  .hospital-appointments-filter-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 10px 12px;
+  }
+
+  .hospital-filter-group {
+    justify-content: space-between;
+  }
+
+  .btn-toggle-schedule-create {
+    width: 100%;
+    text-align: center;
+  }
+
+  .schedule-inputs-row {
+    grid-template-columns: 1fr !important;
+    gap: 12px;
+  }
+
+  .hospital-staff-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+  }
+
+  .hospital-appointments-mockup-table thead tr th,
+  .inventory-custom-table thead tr th {
+    font-size: 0.95rem;
+    padding: 10px 8px;
+  }
+
+  .hospital-appointments-mockup-table tbody tr td,
+  .inventory-custom-table tbody tr td {
+    font-size: 0.88rem;
+    padding: 10px 8px;
+  }
+
+  .hospital-modal-card {
+    padding: 20px 16px;
+    margin: 10px;
+    max-height: 94vh;
+    border-radius: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .hospital-logo-img {
+    height: 34px;
+  }
+
+  .hospital-brand-group {
+    gap: 8px;
+  }
+
+  .hospital-staff-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .cold-vault-temp-display {
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .temp-big {
+    font-size: 1.5rem;
+  }
+
+  .inv-card-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .inventory-footer-notice {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .btn-sync-registry {
+    width: 100%;
+  }
+
+  .modal-footer {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .btn-modal-cancel,
+  .btn-modal-submit {
+    width: 100%;
+  }
+}
 
