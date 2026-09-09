@@ -1,0 +1,22 @@
+# .NET build artifacts
+**/bin/
+**/obj/
+**/publish/
+
+# User-specific files
+*.user
+*.userosscache
+*.suo
+
+# Visual Studio / VS Code
+.vscode/
+.idea/
+*.sln.docstates
+
+# Environment / Secrets
+*.env
+appsettings.Development.json   # <-- Ignores dev secrets
+
+# OS junk
+.DS_Store
+Thumbs.db
