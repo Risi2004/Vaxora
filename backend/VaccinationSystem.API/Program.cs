@@ -7,7 +7,7 @@ using VaccinationSystem.Infrastructure.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. Add PostgreSQL DbContext (We'll create AppDbContext next)
+// 1. Add PostgreSQL DbContext
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
@@ -32,7 +32,19 @@ builder.Services.AddAuthorization();
 // 3. Add Controllers
 builder.Services.AddControllers();
 
-// 4. Add Swagger with JWT support (so you can test from browser)
+// 🔥 ADDED: 4. CORS Configuration (Allows React & Flutter to call this API)
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll",
+        policy =>
+        {
+            policy.AllowAnyOrigin()   // For development; restrict in production
+                  .AllowAnyMethod()
+                  .AllowAnyHeader();
+        });
+});
+
+// 5. Add Swagger with JWT support
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -60,7 +72,7 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-// 5. Middleware Pipeline
+// 6. Middleware Pipeline
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -69,7 +81,11 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-app.UseAuthentication(); // <-- Important: Must be before Authorization
+app.UseAuthentication(); // Must be before Authorization
+
+// 🔥 ADDED: 7. Use CORS middleware (MUST be between Authentication and Authorization)
+app.UseCors("AllowAll");
+
 app.UseAuthorization();
 
 app.MapControllers();
