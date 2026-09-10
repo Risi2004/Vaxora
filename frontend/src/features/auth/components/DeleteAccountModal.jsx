@@ -17,12 +17,12 @@ export default function DeleteAccountModal({ isOpen, onClose, userName, roleName
       await authService.deleteAccount();
       onClose();
       navigate('/login', {
+        replace: true,
         state: { message: 'Your Vaxora account has been permanently deleted.' },
       });
     } catch (err) {
       console.error('Failed to delete account:', err);
       setError(err.message || 'Failed to delete your account. Please try again.');
-    } finally {
       setLoading(false);
     }
   };

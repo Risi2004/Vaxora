@@ -998,15 +998,18 @@ public class AuthService : IAuthService
         _context.Users.Remove(user);
         await _context.SaveChangesAsync();
 
-        // Send confirmation email to user after account deletion
-        try
+        // Send confirmation email asynchronously in background so deletion returns immediately without SMTP latency
+        _ = Task.Run(async () =>
         {
-            await _emailService.SendAccountDeletedEmailAsync(userEmail, displayName, regNumber, roleName);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to send account deletion email to {Email}", userEmail);
-        }
+            try
+            {
+                await _emailService.SendAccountDeletedEmailAsync(userEmail, displayName, regNumber, roleName);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to send account deletion email to {Email}", userEmail);
+            }
+        });
 
         return true;
     }
