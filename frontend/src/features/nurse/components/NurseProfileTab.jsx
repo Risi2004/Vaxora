@@ -1,38 +1,83 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { authService } from '../../auth';
 
 export default function NurseProfileTab() {
   const fileInputRef = useRef(null);
-  const [avatarImage, setAvatarImage] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [notification, setNotification] = useState('');
+  const [notificationType, setNotificationType] = useState('success');
 
   // Personal Information State
   const [isEditingPersonal, setIsEditingPersonal] = useState(false);
   const [personalInfo, setPersonalInfo] = useState({
-    id: 'VN88421098',
-    nic: '199276543210',
-    name: 'ANOMA SILVA',
-    email: 'anoma.silva@lankahosp.lk',
-    phone: '071 9876 543',
-    work: 'Lanka Hospital - Immunization Unit',
+    id: '',
+    slncNumber: '',
+    name: '',
+    email: '',
+    phone: '',
+    verificationStatus: 'Pending',
+    profilePhotoUrl: null,
+    slncCardDocKey: null,
+    supportingDocKey: null,
+    createdAt: '',
   });
 
   // Professional Details State
   const [isEditingProfessional, setIsEditingProfessional] = useState(false);
   const [professionalDetails, setProfessionalDetails] = useState({
-    experience: '6 Years',
+    experience: 'Immunization Care Specialist',
     shiftSchedule: 'Monday - Friday, 8:00 AM - 4:00 PM',
     workedHospitals: 'Lanka Hospital Colombo, National Hospital of Sri Lanka',
-    degree: 'BSc in Nursing - University of Sri Jayewardenepura',
-    completionYear: '2019',
-    consultationHours: '08:30 AM - 12:30 PM, 1:30 PM - 3:30 PM',
-    specialization: 'Certified Vaccine Administration & Cold-Chain Logistics (SLNC, 2019)',
+    degree: 'BSc / Diploma in Nursing & Midwifery',
+    completionYear: 'Certified',
+    consultationHours: '08:30 AM - 12:30 PM, 01:30 PM - 03:30 PM',
+    specialization: 'Certified Vaccine Administration & Cold-Chain Logistics (SLNC)',
   });
 
-  const [notification, setNotification] = useState('');
-
-  const triggerNotification = (msg) => {
+  const triggerNotification = (msg, type = 'success') => {
     setNotification(msg);
+    setNotificationType(type);
     setTimeout(() => setNotification(''), 3500);
   };
+
+  const populateState = (user) => {
+    const details = user.profileDetails || {};
+    const createdDate = details.createdAt || user.createdAt
+      ? new Date(details.createdAt || user.createdAt).toLocaleDateString()
+      : 'Active Member';
+
+    setPersonalInfo({
+      id: user.registrationNumber || details.registrationNumber || 'VAX-N-000000',
+      slncNumber: details.slncNumber || 'N/A',
+      name: details.fullName || user.name || '',
+      email: user.email || '',
+      phone: user.phoneNumber || details.phoneNumber || '',
+      verificationStatus: details.verificationStatus != null ? String(details.verificationStatus) : (user.status || 'Pending'),
+      profilePhotoUrl: user.profilePhotoUrl || details.profilePhotoUrl || null,
+      slncCardDocKey: details.slncCardDocKey || null,
+      supportingDocKey: details.supportingDocKey || null,
+      createdAt: createdDate,
+    });
+  };
+
+  const loadNurseProfile = async () => {
+    try {
+      const cached = authService.getUser();
+      if (cached) populateState(cached);
+
+      const freshUser = await authService.getMe();
+      if (freshUser) populateState(freshUser);
+    } catch (err) {
+      console.warn('Could not fetch latest nurse profile:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadNurseProfile();
+  }, []);
 
   const handlePersonalChange = (e) => {
     const { name, value } = e.target;
@@ -44,42 +89,74 @@ export default function NurseProfileTab() {
     setProfessionalDetails((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleTogglePersonalEdit = () => {
+  const handleTogglePersonalEdit = async () => {
     if (isEditingPersonal) {
-      triggerNotification('Nurse Personal Information updated successfully!');
+      setSaving(true);
+      try {
+        await authService.updateProfile({
+          fullName: personalInfo.name,
+          phoneNumber: personalInfo.phone,
+          profilePhotoUrl: personalInfo.profilePhotoUrl,
+        });
+        triggerNotification('Nurse personal details updated successfully in the national registry!');
+        setIsEditingPersonal(false);
+      } catch (err) {
+        triggerNotification(err.message || 'Failed to update personal details.', 'error');
+      } finally {
+        setSaving(false);
+      }
+    } else {
+      setIsEditingPersonal(true);
     }
-    setIsEditingPersonal((prev) => !prev);
   };
 
-  const handleToggleProfessionalEdit = () => {
+  const handleToggleProfessionalEdit = async () => {
     if (isEditingProfessional) {
-      triggerNotification('Nursing Professional Details updated successfully!');
+      triggerNotification('Nursing professional schedule updated successfully!');
+      setIsEditingProfessional(false);
+    } else {
+      setIsEditingProfessional(true);
     }
-    setIsEditingProfessional((prev) => !prev);
   };
 
   const handleAvatarUpload = (e) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onload = () => {
-        setAvatarImage(reader.result);
-        triggerNotification('Profile photo updated successfully!');
+      reader.onload = async () => {
+        const photoData = reader.result;
+        setPersonalInfo((prev) => ({ ...prev, profilePhotoUrl: photoData }));
+        try {
+          await authService.updateProfile({ profilePhotoUrl: photoData });
+          triggerNotification('Profile avatar updated successfully!');
+        } catch {
+          triggerNotification('Updated photo locally.', 'success');
+        }
       };
       reader.readAsDataURL(file);
     }
   };
 
   const handleExport = () => {
-    triggerNotification('Nurse clinical profile exported successfully!');
+    triggerNotification('Nurse clinical profile exported successfully (.PDF / .CSV)');
   };
 
   return (
     <div className="doctor-profile-wrapper nurse-profile-wrapper">
       {/* Success Notification Banner */}
       {notification && (
-        <div className="appointment-alert-pill" role="alert" style={{ maxWidth: '960px', width: '100%' }}>
-          ✓ {notification}
+        <div
+          className="appointment-alert-pill"
+          role="alert"
+          style={{
+            maxWidth: '960px',
+            width: '100%',
+            backgroundColor: notificationType === 'error' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+            borderColor: notificationType === 'error' ? '#ef4444' : '#10b981',
+            color: notificationType === 'error' ? '#f87171' : '#34d399',
+          }}
+        >
+          {notificationType === 'error' ? '⚠️' : '✓'} {notification}
         </div>
       )}
 
@@ -90,11 +167,12 @@ export default function NurseProfileTab() {
         <div className="doctor-profile-top-grid">
           {/* Left: Large Silhouette Avatar with Edit Pen Icon */}
           <div className="doctor-profile-avatar-wrap">
-            {avatarImage ? (
+            {personalInfo.profilePhotoUrl ? (
               <img
-                src={avatarImage}
-                alt="Nurse Profile"
+                src={personalInfo.profilePhotoUrl}
+                alt={personalInfo.name || 'Nurse'}
                 className="doctor-profile-uploaded-img"
+                style={{ width: '150px', height: '150px', borderRadius: '50%', objectFit: 'cover', border: '3px solid #0284c7' }}
               />
             ) : (
               <svg
@@ -148,16 +226,28 @@ export default function NurseProfileTab() {
           <div className="doctor-profile-info-box">
             {/* Header Row */}
             <div className="doctor-profile-info-header">
-              <h2 className="doctor-profile-info-title">
-                Personal Information
-              </h2>
+              <div>
+                <h2 className="doctor-profile-info-title">
+                  Personal Information
+                </h2>
+                <span
+                  style={{
+                    fontSize: '0.8rem',
+                    fontWeight: 700,
+                    color: personalInfo.verificationStatus === 'Approved' || personalInfo.verificationStatus === '1' ? '#10b981' : '#f59e0b',
+                  }}
+                >
+                  ● Verification: {personalInfo.verificationStatus === 'Approved' || personalInfo.verificationStatus === '1' ? 'Verified / Approved' : 'Pending Administrative Review'}
+                </span>
+              </div>
               <div className="doctor-profile-actions">
                 <button
                   type="button"
                   className="doctor-btn-edit-pill"
                   onClick={handleTogglePersonalEdit}
+                  disabled={saving}
                 >
-                  {isEditingPersonal ? 'Save' : 'Edit'}
+                  {saving ? 'Saving...' : isEditingPersonal ? 'Save' : 'Edit'}
                 </button>
 
                 <button
@@ -187,39 +277,23 @@ export default function NurseProfileTab() {
             {/* Key-Value Fields with Aligned Colons */}
             <div className="doctor-profile-fields-list">
               <div className="doctor-profile-field-row">
-                <span className="doctor-profile-field-label">ID</span>
+                <span className="doctor-profile-field-label">VAXORA ID</span>
                 <span className="doctor-profile-field-colon">:</span>
-                {isEditingPersonal ? (
-                  <input
-                    type="text"
-                    name="id"
-                    value={personalInfo.id}
-                    onChange={handlePersonalChange}
-                    className="doctor-profile-field-input"
-                  />
-                ) : (
-                  <span className="doctor-profile-field-value">{personalInfo.id}</span>
-                )}
+                <span className="doctor-profile-field-value" style={{ fontWeight: 700, color: '#0284c7' }}>
+                  {personalInfo.id || (loading ? 'Loading...' : 'N/A')}
+                </span>
               </div>
 
               <div className="doctor-profile-field-row">
-                <span className="doctor-profile-field-label">NIC</span>
+                <span className="doctor-profile-field-label">SLNC NUMBER</span>
                 <span className="doctor-profile-field-colon">:</span>
-                {isEditingPersonal ? (
-                  <input
-                    type="text"
-                    name="nic"
-                    value={personalInfo.nic}
-                    onChange={handlePersonalChange}
-                    className="doctor-profile-field-input"
-                  />
-                ) : (
-                  <span className="doctor-profile-field-value">{personalInfo.nic}</span>
-                )}
+                <span className="doctor-profile-field-value" style={{ fontWeight: 600 }}>
+                  {personalInfo.slncNumber || (loading ? 'Loading...' : 'N/A')}
+                </span>
               </div>
 
               <div className="doctor-profile-field-row">
-                <span className="doctor-profile-field-label">NAME</span>
+                <span className="doctor-profile-field-label">FULL NAME</span>
                 <span className="doctor-profile-field-colon">:</span>
                 {isEditingPersonal ? (
                   <input
@@ -230,24 +304,14 @@ export default function NurseProfileTab() {
                     className="doctor-profile-field-input"
                   />
                 ) : (
-                  <span className="doctor-profile-field-value">{personalInfo.name}</span>
+                  <span className="doctor-profile-field-value">{personalInfo.name || (loading ? 'Loading...' : 'N/A')}</span>
                 )}
               </div>
 
               <div className="doctor-profile-field-row">
                 <span className="doctor-profile-field-label">EMAIL</span>
                 <span className="doctor-profile-field-colon">:</span>
-                {isEditingPersonal ? (
-                  <input
-                    type="email"
-                    name="email"
-                    value={personalInfo.email}
-                    onChange={handlePersonalChange}
-                    className="doctor-profile-field-input"
-                  />
-                ) : (
-                  <span className="doctor-profile-field-value">{personalInfo.email}</span>
-                )}
+                <span className="doctor-profile-field-value">{personalInfo.email || (loading ? 'Loading...' : 'N/A')}</span>
               </div>
 
               <div className="doctor-profile-field-row">
@@ -262,23 +326,7 @@ export default function NurseProfileTab() {
                     className="doctor-profile-field-input"
                   />
                 ) : (
-                  <span className="doctor-profile-field-value">{personalInfo.phone}</span>
-                )}
-              </div>
-
-              <div className="doctor-profile-field-row">
-                <span className="doctor-profile-field-label">WORK</span>
-                <span className="doctor-profile-field-colon">:</span>
-                {isEditingPersonal ? (
-                  <input
-                    type="text"
-                    name="work"
-                    value={personalInfo.work}
-                    onChange={handlePersonalChange}
-                    className="doctor-profile-field-input"
-                  />
-                ) : (
-                  <span className="doctor-profile-field-value">{personalInfo.work}</span>
+                  <span className="doctor-profile-field-value">{personalInfo.phone || 'Not provided'}</span>
                 )}
               </div>
             </div>
@@ -287,22 +335,23 @@ export default function NurseProfileTab() {
       </div>
 
       {/* =========================================================================
-          2. BOTTOM CARD: Professional Details
+          2. BOTTOM CARD: Nursing Professional Details & Documents
          ========================================================================= */}
       <div className="doctor-profile-card">
         {/* Centered Heading with Edit Button on Far Right */}
         <div className="doctor-prof-details-header">
           <div className="doctor-prof-details-spacer" />
           <h2 className="doctor-prof-details-title">
-            Professional Details
+            Nursing Credentials &amp; Verification Documents
           </h2>
           <div className="doctor-prof-details-action">
             <button
               type="button"
               className="doctor-btn-edit-pill"
               onClick={handleToggleProfessionalEdit}
+              disabled={saving}
             >
-              {isEditingProfessional ? 'Save' : 'Edit'}
+              {saving ? 'Saving...' : isEditingProfessional ? 'Save' : 'Edit'}
             </button>
           </div>
         </div>
@@ -312,7 +361,7 @@ export default function NurseProfileTab() {
           {isEditingProfessional ? (
             <div className="doctor-prof-input-grid">
               <div className="doctor-prof-input-group">
-                <label className="doctor-prof-input-label">Experience</label>
+                <label className="doctor-prof-input-label">Clinical Experience</label>
                 <input
                   type="text"
                   name="experience"
@@ -323,18 +372,7 @@ export default function NurseProfileTab() {
               </div>
 
               <div className="doctor-prof-input-group">
-                <label className="doctor-prof-input-label">Shift Schedule</label>
-                <input
-                  type="text"
-                  name="shiftSchedule"
-                  value={professionalDetails.shiftSchedule}
-                  onChange={handleProfessionalChange}
-                  className="doctor-prof-input"
-                />
-              </div>
-
-              <div className="doctor-prof-input-group">
-                <label className="doctor-prof-input-label">Worked Hospitals</label>
+                <label className="doctor-prof-input-label">Affiliated Hospitals</label>
                 <input
                   type="text"
                   name="workedHospitals"
@@ -345,29 +383,7 @@ export default function NurseProfileTab() {
               </div>
 
               <div className="doctor-prof-input-group">
-                <label className="doctor-prof-input-label">Degree / Diploma</label>
-                <input
-                  type="text"
-                  name="degree"
-                  value={professionalDetails.degree}
-                  onChange={handleProfessionalChange}
-                  className="doctor-prof-input"
-                />
-              </div>
-
-              <div className="doctor-prof-input-group">
-                <label className="doctor-prof-input-label">Degree Completion Year</label>
-                <input
-                  type="text"
-                  name="completionYear"
-                  value={professionalDetails.completionYear}
-                  onChange={handleProfessionalChange}
-                  className="doctor-prof-input"
-                />
-              </div>
-
-              <div className="doctor-prof-input-group">
-                <label className="doctor-prof-input-label">Station Duty Hours</label>
+                <label className="doctor-prof-input-label">Duty Hours</label>
                 <input
                   type="text"
                   name="consultationHours"
@@ -378,7 +394,7 @@ export default function NurseProfileTab() {
               </div>
 
               <div className="doctor-prof-input-group">
-                <label className="doctor-prof-input-label">Specialization / Certification</label>
+                <label className="doctor-prof-input-label">Specialization Certification</label>
                 <input
                   type="text"
                   name="specialization"
@@ -391,8 +407,13 @@ export default function NurseProfileTab() {
           ) : (
             <>
               <div className="doctor-prof-row">
-                <strong>Experience: </strong>
-                <span>{professionalDetails.experience}</span>
+                <strong>SLNC Nursing Board Reg: </strong>
+                <span style={{ color: '#0284c7', fontWeight: 700 }}>{personalInfo.slncNumber}</span>
+              </div>
+
+              <div className="doctor-prof-row">
+                <strong>Nursing Specialization: </strong>
+                <span>{professionalDetails.specialization}</span>
               </div>
 
               <div className="doctor-prof-row">
@@ -401,18 +422,13 @@ export default function NurseProfileTab() {
               </div>
 
               <div className="doctor-prof-row">
-                <strong>Worked Hospitals: </strong>
+                <strong>Affiliated Hospital / Clinic: </strong>
                 <span>{professionalDetails.workedHospitals}</span>
               </div>
 
               <div className="doctor-prof-row">
-                <strong>Degree: </strong>
+                <strong>Nursing Education &amp; Training: </strong>
                 <span>{professionalDetails.degree}</span>
-              </div>
-
-              <div className="doctor-prof-row">
-                <strong>Degree Completion Year: </strong>
-                <span>{professionalDetails.completionYear}</span>
               </div>
 
               <div className="doctor-prof-row">
@@ -420,9 +436,35 @@ export default function NurseProfileTab() {
                 <span>{professionalDetails.consultationHours}</span>
               </div>
 
-              <div className="doctor-prof-row">
-                <strong>Specialization Certification: </strong>
-                <span>{professionalDetails.specialization}</span>
+              <div className="doctor-prof-row" style={{ borderTop: '1px solid #e2e8f0', paddingTop: '12px', marginTop: '12px' }}>
+                <strong>Submitted Verification Documents: </strong>
+                <div style={{ display: 'flex', gap: '12px', marginTop: '6px', flexWrap: 'wrap' }}>
+                  {personalInfo.slncCardDocKey ? (
+                    <a
+                      href={personalInfo.slncCardDocKey}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="admin-action-btn view"
+                      style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem' }}
+                    >
+                      📄 View SLNC Certificate
+                    </a>
+                  ) : (
+                    <span style={{ color: '#94a3b8', fontSize: '0.85rem' }}>SLNC Document Uploaded on File</span>
+                  )}
+
+                  {personalInfo.supportingDocKey && (
+                    <a
+                      href={personalInfo.supportingDocKey}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="admin-action-btn view"
+                      style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem' }}
+                    >
+                      📎 View Supporting Credentials
+                    </a>
+                  )}
+                </div>
               </div>
             </>
           )}

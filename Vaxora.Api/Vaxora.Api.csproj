@@ -4,6 +4,8 @@
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <OutputPath>$(LOCALAPPDATA)\VaxoraBuild\bin\</OutputPath>
+    <IntermediateOutputPath>$(LOCALAPPDATA)\VaxoraBuild\obj\</IntermediateOutputPath>
   </PropertyGroup>
 
   <ItemGroup>

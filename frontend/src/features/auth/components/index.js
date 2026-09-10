@@ -6,3 +6,4 @@ export { default as NurseSignupForm } from './NurseSignupForm';
 export { default as DoctorNurseSignupForm } from './DoctorNurseSignupForm';
 export { default as HospitalSignupForm } from './HospitalSignupForm';
 export { default as ForgotPasswordForm } from './ForgotPasswordForm';
+export { default as DeleteAccountModal } from './DeleteAccountModal';

@@ -9,6 +9,8 @@ export default function AdminAuditLogsTab() {
   const [toastMessage, setToastMessage] = useState(null);
   const [auditLogs, setAuditLogs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isPaused, setIsPaused] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState(new Date());
   const [error, setError] = useState('');
 
   const showToast = (msg) => {
@@ -16,8 +18,8 @@ export default function AdminAuditLogsTab() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  const loadAuditLogs = useCallback(async () => {
-    setLoading(true);
+  const loadAuditLogs = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     setError('');
     try {
       const data = await authService.getAuditLogs(200);
@@ -55,20 +57,45 @@ export default function AdminAuditLogsTab() {
           };
         });
         setAuditLogs(formatted);
+        setLastUpdated(new Date());
       } else {
         setAuditLogs([]);
       }
     } catch (err) {
       console.error('Failed to load audit logs:', err);
-      setError(err.message || 'Failed to fetch audit log stream.');
+      if (!silent) setError(err.message || 'Failed to fetch audit log stream.');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
+  // Initial load
   useEffect(() => {
-    loadAuditLogs();
+    loadAuditLogs(false);
   }, [loadAuditLogs]);
+
+  // Live auto-streaming polling interval
+  useEffect(() => {
+    if (isPaused) return;
+
+    const intervalId = setInterval(() => {
+      loadAuditLogs(true);
+    }, 5000);
+
+    return () => clearInterval(intervalId);
+  }, [isPaused, loadAuditLogs]);
+
+  // Toggle Pause / Resume
+  const togglePauseResume = () => {
+    if (isPaused) {
+      setIsPaused(false);
+      loadAuditLogs(true);
+      showToast('▶ Live audit stream resumed (auto-polling active).');
+    } else {
+      setIsPaused(true);
+      showToast('⏸ Live audit stream paused (frozen for inspection).');
+    }
+  };
 
   // Filtered dataset
   const filteredLogs = useMemo(() => {
@@ -170,9 +197,52 @@ export default function AdminAuditLogsTab() {
       {/* Hero Header */}
       <section className="doctor-hero-banner" style={{ marginBottom: '24px' }}>
         <div className="doctor-hero-info">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px', flexWrap: 'wrap' }}>
             <span className="admin-pill-badge blue">Security &amp; Governance</span>
-            <span style={{ color: '#38bdf8', fontSize: '0.8rem', fontWeight: 600 }}>• Live Audit Trail</span>
+            {isPaused ? (
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '3px 10px',
+                  borderRadius: '20px',
+                  background: 'rgba(245, 158, 11, 0.15)',
+                  border: '1px solid rgba(245, 158, 11, 0.4)',
+                  color: '#fbbf24',
+                  fontSize: '0.78rem',
+                  fontWeight: 700,
+                }}
+              >
+                ⏸ Stream Paused
+              </span>
+            ) : (
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '3px 10px',
+                  borderRadius: '20px',
+                  background: 'rgba(16, 185, 129, 0.15)',
+                  border: '1px solid rgba(52, 211, 153, 0.4)',
+                  color: '#34d399',
+                  fontSize: '0.78rem',
+                  fontWeight: 700,
+                }}
+              >
+                <span
+                  style={{
+                    width: '7px',
+                    height: '7px',
+                    borderRadius: '50%',
+                    background: '#10b981',
+                    boxShadow: '0 0 8px #10b981',
+                  }}
+                />
+                Live Polling (5s)
+              </span>
+            )}
           </div>
           <h1 className="doctor-hero-title">System Audit &amp; Security Activity Logs</h1>
           <p className="doctor-hero-subtitle">
@@ -180,16 +250,37 @@ export default function AdminAuditLogsTab() {
           </p>
         </div>
 
-        <div className="doctor-hero-meta" style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+        <div className="doctor-hero-meta" style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+          {/* Pause / Resume Button */}
           <button
             type="button"
             className="doctor-filter-btn"
-            onClick={loadAuditLogs}
+            onClick={togglePauseResume}
+            style={{
+              fontWeight: 700,
+              background: isPaused ? 'rgba(16, 185, 129, 0.2)' : 'rgba(245, 158, 11, 0.15)',
+              borderColor: isPaused ? 'rgba(52, 211, 153, 0.5)' : 'rgba(245, 158, 11, 0.4)',
+              color: isPaused ? '#34d399' : '#fbbf24',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+            title={isPaused ? 'Resume live audit streaming' : 'Pause live audit streaming'}
+          >
+            {isPaused ? '▶ Resume Stream' : '⏸ Pause Stream'}
+          </button>
+
+          <button
+            type="button"
+            className="doctor-filter-btn"
+            onClick={() => loadAuditLogs(false)}
             disabled={loading}
             style={{ fontWeight: 700 }}
+            title="Fetch latest audit logs immediately"
           >
             🔄 Refresh
           </button>
+
           <button
             type="button"
             className="doctor-hero-session-pill"
@@ -237,7 +328,7 @@ export default function AdminAuditLogsTab() {
             <span className="doctor-stat-label">Registrations &amp; Approvals</span>
             <div className="doctor-stat-value" style={{ color: '#34d399' }}>{stats.verifications}</div>
             <span className="doctor-stat-meta" style={{ color: '#34d399' }}>
-              Practitioners &amp; facility events
+              Practitioners &amp; hospital events
             </span>
           </div>
         </div>
@@ -262,7 +353,7 @@ export default function AdminAuditLogsTab() {
           <div>
             <h2 className="doctor-card-title" style={{ margin: 0 }}>Activity Stream</h2>
             <p style={{ margin: '4px 0 0', color: '#94a3b8', fontSize: '0.85rem' }}>
-              Displaying {filteredLogs.length} verified administrative audit events
+              Displaying {filteredLogs.length} verified administrative audit events • {isPaused ? 'Stream paused' : `Auto-sync active (synced ${lastUpdated.toLocaleTimeString()})`}
             </p>
           </div>
 

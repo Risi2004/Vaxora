@@ -1,13 +1,36 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import logo from '../../../assets/images/logo.png';
-import { authService } from '../../auth';
+import { authService, getUser } from '../../auth';
+import DeleteAccountModal from '../../auth/components/DeleteAccountModal';
 
-export default function AdminNavbar({ pendingApprovalsCount = 4 }) {
+export default function AdminNavbar({ pendingApprovalsCount = 0 }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const profileMenuRef = useRef(null);
+
+  const user = typeof authService?.getUser === 'function' ? authService.getUser() : (getUser ? getUser() : null);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target)) {
+        setShowProfileMenu(false);
+      }
+    }
+
+    if (showProfileMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('touchstart', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [showProfileMenu]);
 
   const handleLogout = async () => {
     await authService.logout();
@@ -69,7 +92,7 @@ export default function AdminNavbar({ pendingApprovalsCount = 4 }) {
 
         {/* Right User Profile Avatar & Mobile Hamburger Toggle */}
         <div className="doctor-actions-area">
-          <div style={{ position: 'relative' }}>
+          <div ref={profileMenuRef} style={{ position: 'relative' }}>
             <button
               type="button"
               className="doctor-avatar-button admin-avatar-btn"
@@ -79,30 +102,40 @@ export default function AdminNavbar({ pendingApprovalsCount = 4 }) {
               }}
               title="Superadmin Profile"
               aria-label="Superadmin Profile"
+              style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
             >
-              <svg
-                viewBox="0 0 48 48"
-                width="40"
-                height="40"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <circle cx="24" cy="24" r="23" fill="#e0f2fe" stroke="#0ea5e9" strokeWidth="2" />
-                <circle cx="24" cy="18" r="8" fill="#0284c7" />
-                <path
-                  d="M10 40C10 32.268 16.268 28 24 28C31.732 28 38 32.268 38 40"
-                  fill="#0284c7"
+              {user?.profilePhotoUrl ? (
+                <img
+                  src={user.profilePhotoUrl}
+                  alt={user.name || 'Admin'}
+                  className="navbar-avatar-img"
+                  style={{ borderColor: '#0ea5e9' }}
                 />
-              </svg>
+              ) : (
+                <svg
+                  viewBox="0 0 48 48"
+                  width="40"
+                  height="40"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <circle cx="24" cy="24" r="23" fill="#e0f2fe" stroke="#0ea5e9" strokeWidth="2" />
+                  <circle cx="24" cy="18" r="8" fill="#0284c7" />
+                  <path
+                    d="M10 40C10 32.268 16.268 28 24 28C31.732 28 38 32.268 38 40"
+                    fill="#0284c7"
+                  />
+                </svg>
+              )}
             </button>
 
             {showProfileMenu && (
               <div className="doctor-profile-dropdown">
                 <div className="doctor-dropdown-header">
-                  <div className="doctor-dropdown-name">Dr. V. Ratnayake</div>
+                  <div className="doctor-dropdown-name">{user?.name || 'System Administrator'}</div>
                   <div className="doctor-dropdown-meta">National System Superadmin</div>
                   <div className="doctor-dropdown-meta" style={{ color: '#0284c7', fontWeight: 600 }}>
-                    MOH IT Directorate
+                    {user?.email || 'MOH IT Directorate'}
                   </div>
                 </div>
 
@@ -125,6 +158,17 @@ export default function AdminNavbar({ pendingApprovalsCount = 4 }) {
                   onClick={handleLogout}
                 >
                   Log Out
+                </button>
+
+                <button
+                  type="button"
+                  className="doctor-dropdown-delete"
+                  onClick={() => {
+                    setShowProfileMenu(false);
+                    setIsDeleteModalOpen(true);
+                  }}
+                >
+                  🗑️ Delete Account
                 </button>
               </div>
             )}
@@ -177,9 +221,27 @@ export default function AdminNavbar({ pendingApprovalsCount = 4 }) {
             >
               🚪 Log Out
             </button>
+            <button
+              type="button"
+              className="portal-mobile-nav-btn text-danger"
+              onClick={() => {
+                setMobileMenuOpen(false);
+                setIsDeleteModalOpen(true);
+              }}
+            >
+              🗑️ Delete Account
+            </button>
           </nav>
         </div>
       )}
+
+      {/* Delete Account Confirmation Modal */}
+      <DeleteAccountModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        userName={user?.name || 'System Administrator'}
+        roleName="Administrator"
+      />
     </header>
   );
 }

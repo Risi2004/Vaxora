@@ -176,6 +176,19 @@ export const authService = {
     return user;
   },
 
+  // 6.1 Update Current User Profile
+  async updateProfile(payload) {
+    const updatedUser = await apiRequest('/auth/profile', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+    if (updatedUser) {
+      const current = getUser() || {};
+      localStorage.setItem('vaxora_user', JSON.stringify({ ...current, ...updatedUser }));
+    }
+    return updatedUser;
+  },
+
   // 7. Refresh Token
   async refreshToken() {
     const refreshToken = getRefreshToken();
@@ -212,10 +225,10 @@ export const authService = {
   },
 
   // 10. Reset Password
-  async resetPassword(email, resetToken, newPassword) {
+  async resetPassword(email, resetToken, newPassword, confirmPassword) {
     return await apiRequest('/auth/reset-password', {
       method: 'POST',
-      body: JSON.stringify({ email, resetToken, newPassword }),
+      body: JSON.stringify({ email, resetToken, newPassword, confirmPassword }),
     });
   },
 
@@ -225,6 +238,18 @@ export const authService = {
       method: 'POST',
       body: JSON.stringify({ currentPassword, newPassword }),
     });
+  },
+
+  // 12. Delete Account
+  async deleteAccount() {
+    try {
+      const data = await apiRequest('/auth/account', {
+        method: 'DELETE',
+      });
+      return data;
+    } finally {
+      clearAuth();
+    }
   },
 
   // ================= ADMIN VERIFICATION APIS =================
@@ -259,6 +284,26 @@ export const authService = {
     return await apiRequest(`/admin/verification/users${query ? `?${query}` : ''}`, {
       method: 'GET',
     });
+  },
+
+  getUser() {
+    return getUser();
+  },
+
+  getToken() {
+    return getToken();
+  },
+
+  getRefreshToken() {
+    return getRefreshToken();
+  },
+
+  setSession(token, refreshToken, user) {
+    setSession(token, refreshToken, user);
+  },
+
+  clearAuth() {
+    clearAuth();
   }
 };
 

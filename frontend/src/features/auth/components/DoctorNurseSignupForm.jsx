@@ -49,20 +49,8 @@ export default function DoctorNurseSignupForm({ onSuccess }) {
       setError('Passwords do not match');
       return;
     }
-    setSubmitted(true);
-    setTimeout(() => {
-      onSuccess?.(formData.fullName);
-    }, 1500);
+    onSuccess?.({ fullName: formData.fullName });
   };
-
-  if (submitted) {
-    return (
-      <div className="auth-success-alert" role="alert">
-        <h4>Application Submitted!</h4>
-        <p>Your medical practitioner profile is pending credential verification.</p>
-      </div>
-    );
-  }
 
   return (
     <form onSubmit={handleSubmit} className="auth-form auth-form-scrollable">

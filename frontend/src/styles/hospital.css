@@ -372,6 +372,30 @@
   border-color: #f87171;
 }
 
+.hospital-dropdown-delete {
+  background: #ffffff;
+  color: #dc2626;
+  border: 1px dashed #f87171;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 0.86rem;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: center;
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  transition: all var(--transition-fast);
+}
+
+.hospital-dropdown-delete:hover {
+  background: #fef2f2;
+  color: #b91c1c;
+  border-style: solid;
+  border-color: #ef4444;
+  transform: translateY(-1px);
+}
+
 /* ==========================================================================
    2. Main Layout Shell
    ========================================================================== */

@@ -1,14 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { authService } from '../../auth/services/authService';
 
 export default function AdminProfileTab() {
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [personalInfo, setPersonalInfo] = useState({
     id: 'ADM-001',
-    nic: '197023456789',
-    name: 'Dr. V. Ratnayake',
-    email: 'ratnayake.v@health.gov.lk',
+    registrationNumber: 'VAX-A-0001',
+    name: 'National System Administrator',
+    email: 'admin@vaxora.lk',
     phone: '011 269 4033',
     designation: 'Director - Health IT & National Immunization Surveillance',
     ministry: 'Ministry of Health, Sri Lanka',
+    status: 'ACTIVE',
+    createdAt: '',
   });
 
   const [isEditing, setIsEditing] = useState(false);
@@ -17,6 +22,7 @@ export default function AdminProfileTab() {
 
   // Change Password State
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: '',
     newPassword: '',
@@ -33,9 +39,62 @@ export default function AdminProfileTab() {
     setTimeout(() => setNotification(''), 3500);
   };
 
-  const handleSave = () => {
-    setIsEditing(false);
-    showToast('Superadmin profile information updated successfully!');
+  useEffect(() => {
+    fetchAdminProfile();
+  }, []);
+
+  const fetchAdminProfile = async () => {
+    try {
+      setLoading(true);
+      const user = await authService.getMe();
+      if (user) {
+        setPersonalInfo({
+          id: user.id || 'ADM-001',
+          registrationNumber: user.registrationNumber || user.id || 'VAX-A-0001',
+          name: user.name || 'System Administrator',
+          email: user.email || '',
+          phone: user.phoneNumber || '',
+          designation: 'Director - Health IT & National Immunization Surveillance',
+          ministry: 'Ministry of Health, Sri Lanka',
+          status: user.status || 'ACTIVE',
+          createdAt: user.createdAt || '',
+        });
+      }
+    } catch (err) {
+      console.warn('Failed to load admin profile from server, using local fallback:', err);
+      const cached = authService.getUser();
+      if (cached) {
+        setPersonalInfo({
+          id: cached.id || 'ADM-001',
+          registrationNumber: cached.registrationNumber || cached.id || 'VAX-A-0001',
+          name: cached.name || 'System Administrator',
+          email: cached.email || '',
+          phone: cached.phoneNumber || '',
+          designation: 'Director - Health IT & National Immunization Surveillance',
+          ministry: 'Ministry of Health, Sri Lanka',
+          status: cached.status || 'ACTIVE',
+          createdAt: cached.createdAt || '',
+        });
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      await authService.updateProfile({
+        name: personalInfo.name,
+        phoneNumber: personalInfo.phone,
+      });
+      setIsEditing(false);
+      showToast('Superadmin profile information updated successfully in database!');
+    } catch (err) {
+      showToast(err.message || 'Failed to update profile', 'error');
+    } finally {
+      setSaving(false);
+    }
   };
 
   // Password Strength Calculation
@@ -59,7 +118,7 @@ export default function AdminProfileTab() {
   };
 
   // Handle Password Update Submit
-  const handlePasswordSubmit = (e) => {
+  const handlePasswordSubmit = async (e) => {
     e.preventDefault();
     setPasswordError('');
 
@@ -76,14 +135,21 @@ export default function AdminProfileTab() {
       return;
     }
 
-    // Success simulation
-    setPasswordForm({
-      currentPassword: '',
-      newPassword: '',
-      confirmPassword: '',
-    });
-    setIsPasswordModalOpen(false);
-    showToast('Superadministrator password changed successfully! Next login will require the new credentials.');
+    try {
+      setChangingPassword(true);
+      await authService.changePassword(passwordForm.currentPassword, passwordForm.newPassword);
+      setPasswordForm({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: '',
+      });
+      setIsPasswordModalOpen(false);
+      showToast('Superadministrator password changed successfully! Next login will require the new credentials.');
+    } catch (err) {
+      setPasswordError(err.message || 'Failed to change password. Please check your current password.');
+    } finally {
+      setChangingPassword(false);
+    }
   };
 
   return (
@@ -149,10 +215,20 @@ export default function AdminProfileTab() {
 
             <div className="doctor-profile-fields-list">
               <div className="doctor-profile-field-row">
-                <span className="doctor-profile-field-label">ADMIN UID</span>
+                <span className="doctor-profile-field-label">VAXORA CODE</span>
                 <span className="doctor-profile-field-colon">:</span>
-                <span className="doctor-profile-field-value" style={{ color: '#38bdf8', fontWeight: 700 }}>
-                  {personalInfo.id}
+                <span className="doctor-profile-field-value" style={{ color: '#38bdf8', fontWeight: 800, letterSpacing: '1px' }}>
+                  {personalInfo.registrationNumber || personalInfo.id}
+                </span>
+              </div>
+
+              <div className="doctor-profile-field-row">
+                <span className="doctor-profile-field-label">SYSTEM STATUS</span>
+                <span className="doctor-profile-field-colon">:</span>
+                <span className="doctor-profile-field-value">
+                  <span className={`admin-pill-badge ${personalInfo.status === 'ACTIVE' ? 'green' : 'amber'}`} style={{ fontSize: '0.75rem', padding: '2px 8px' }}>
+                    ● {personalInfo.status}
+                  </span>
                 </span>
               </div>
 

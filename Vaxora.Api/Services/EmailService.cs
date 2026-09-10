@@ -10,6 +10,9 @@ public interface IEmailService
     Task<bool> SendPendingApprovalEmailAsync(string toEmail, string recipientName, string regNumber, string roleName);
     Task<bool> SendApprovalEmailAsync(string toEmail, string recipientName, string regNumber, string roleName);
     Task<bool> SendRejectionEmailAsync(string toEmail, string recipientName, string regNumber, string roleName, string? rejectionReason);
+    Task<bool> SendPasswordResetEmailAsync(string toEmail, string recipientName, string resetLink, string resetCode, int expiryMinutes = 15);
+    Task<bool> SendPasswordChangedConfirmationEmailAsync(string toEmail, string recipientName);
+    Task<bool> SendAccountDeletedEmailAsync(string toEmail, string recipientName, string regNumber, string roleName);
 }
 
 public class EmailService : IEmailService
@@ -23,79 +26,80 @@ public class EmailService : IEmailService
         _logger = logger;
     }
 
-    private string? GetConfigValue(string configKey, string envKey) =>
-        _configuration[configKey] ?? Environment.GetEnvironmentVariable(envKey);
-
     public async Task<bool> SendPatientWelcomeEmailAsync(string toEmail, string patientName, string regNumber, DateTime? dob, byte[] vaccinationCardPdfBytes)
     {
         var subject = $"Welcome to Vaxora • Your Digital Vaccination Card ({regNumber})";
         var bodyHtml = $@"
 <!DOCTYPE html>
-<html>
+<html lang='en'>
 <head>
   <meta charset='utf-8'>
-  <style>
-    body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #0b1329; margin: 0; padding: 20px; color: #e2e8f0; }}
-    .container {{ max-width: 600px; margin: 0 auto; background-color: #111c38; border-radius: 12px; border: 1px solid #1e293b; overflow: hidden; }}
-    .header {{ background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); padding: 30px; text-align: center; }}
-    .header h1 {{ margin: 0; color: #ffffff; font-size: 24px; letter-spacing: 1px; }}
-    .header p {{ margin: 5px 0 0 0; color: #e0f2fe; font-size: 13px; }}
-    .content {{ padding: 30px; line-height: 1.6; font-size: 15px; }}
-    .badge-box {{ background-color: #0d1527; border: 1px solid #0284c7; border-radius: 8px; padding: 18px; margin: 20px 0; text-align: center; }}
-    .badge-label {{ color: #94a3b8; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px; }}
-    .badge-value {{ color: #38bdf8; font-size: 22px; font-weight: bold; letter-spacing: 2px; }}
-    .info-table {{ width: 100%; border-collapse: collapse; margin: 20px 0; }}
-    .info-table td {{ padding: 10px 0; border-bottom: 1px solid #1e293b; }}
-    .info-table td.label {{ color: #94a3b8; width: 40%; font-size: 14px; }}
-    .info-table td.val {{ color: #f8fafc; font-weight: 600; font-size: 14px; }}
-    .attachment-notice {{ background: rgba(16, 185, 129, 0.1); border-left: 4px solid #10b981; padding: 12px 16px; border-radius: 4px; margin: 20px 0; font-size: 13.5px; color: #6ee7b7; }}
-    .footer {{ background-color: #0b1329; padding: 20px; text-align: center; font-size: 12px; color: #64748b; border-top: 1px solid #1e293b; }}
-  </style>
+  <title>{subject}</title>
 </head>
-<body>
-  <div class='container'>
-    <div class='header'>
-      <h1>VAXORA</h1>
-      <p>National Immunization & Healthcare Platform</p>
-    </div>
-    <div class='content'>
-      <p>Dear <strong>{patientName}</strong>,</p>
-      <p>Welcome to <strong>Vaxora</strong>. Your official national immunization citizen profile has been created successfully.</p>
-      
-      <div class='badge-box'>
-        <div class='badge-label'>Your Vaxora Registration Number</div>
-        <div class='badge-value'>{regNumber}</div>
-      </div>
+<body style='margin: 0; padding: 24px; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, ""Segoe UI"", Roboto, Helvetica, Arial, sans-serif; color: #1e293b; -webkit-font-smoothing: antialiased;'>
+  <table role='presentation' width='100%' border='0' cellspacing='0' cellpadding='0' style='background-color: #f1f5f9; padding: 20px 0;'>
+    <tr>
+      <td align='center'>
+        <table role='presentation' width='100%' border='0' cellspacing='0' cellpadding='0' style='max-width: 600px; background-color: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);'>
+          <!-- Header -->
+          <tr>
+            <td style='background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); padding: 32px 24px; text-align: center;'>
+              <h1 style='margin: 0; color: #ffffff; font-size: 26px; font-weight: 800; letter-spacing: 2px;'>VAXORA</h1>
+              <p style='margin: 6px 0 0 0; color: #e0f2fe; font-size: 13px; font-weight: 500; letter-spacing: 0.5px;'>National Immunization &amp; Healthcare Platform</p>
+            </td>
+          </tr>
+          <!-- Content -->
+          <tr>
+            <td style='padding: 32px 28px; background-color: #ffffff;'>
+              <p style='margin: 0 0 16px 0; color: #0f172a; font-size: 16px; line-height: 1.5;'>Dear <strong>{patientName}</strong>,</p>
+              <p style='margin: 0 0 20px 0; color: #334155; font-size: 15px; line-height: 1.6;'>Welcome to <strong>Vaxora</strong>. Your official national immunization citizen profile has been created successfully.</p>
+              
+              <!-- Registration Number Box -->
+              <div style='background-color: #f0f9ff; border: 2px solid #0284c7; border-radius: 10px; padding: 20px; margin: 24px 0; text-align: center;'>
+                <div style='color: #0369a1; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 6px;'>Your Vaxora Registration Number</div>
+                <div style='color: #0284c7; font-size: 26px; font-weight: 800; letter-spacing: 2px; font-family: ""Courier New"", Courier, monospace;'>{regNumber}</div>
+              </div>
 
-      <table class='info-table'>
-        <tr>
-          <td class='label'>Patient Name:</td>
-          <td class='val'>{patientName}</td>
-        </tr>
-        <tr>
-          <td class='label'>Vaxora ID:</td>
-          <td class='val'>{regNumber}</td>
-        </tr>
-        <tr>
-          <td class='label'>Date of Birth:</td>
-          <td class='val'>{dob?.ToString("dd MMM yyyy") ?? "N/A"}</td>
-        </tr>
-        <tr>
-          <td class='label'>Account Status:</td>
-          <td class='val' style='color: #34d399;'>✓ Active / Verified</td>
-        </tr>
-      </table>
+              <!-- Details Table -->
+              <table role='presentation' width='100%' border='0' cellspacing='0' cellpadding='0' style='margin: 20px 0; border-collapse: collapse;'>
+                <tr>
+                  <td style='padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #64748b; font-size: 14px; width: 40%;'>Patient Name:</td>
+                  <td style='padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #0f172a; font-weight: 600; font-size: 14px;'>{patientName}</td>
+                </tr>
+                <tr>
+                  <td style='padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #64748b; font-size: 14px;'>Vaxora ID:</td>
+                  <td style='padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #0f172a; font-weight: 600; font-size: 14px;'>{regNumber}</td>
+                </tr>
+                <tr>
+                  <td style='padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #64748b; font-size: 14px;'>Date of Birth:</td>
+                  <td style='padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #0f172a; font-weight: 600; font-size: 14px;'>{dob?.ToString("dd MMM yyyy") ?? "N/A"}</td>
+                </tr>
+                <tr>
+                  <td style='padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #64748b; font-size: 14px;'>Account Status:</td>
+                  <td style='padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #16a34a; font-weight: 700; font-size: 14px;'>✓ Active &amp; Verified</td>
+                </tr>
+              </table>
 
-      <div class='attachment-notice'>
-        📎 <strong>Attached:</strong> Your official digital <strong>Vaxora Vaccination Card (PDF)</strong> with encrypted verification QR code is attached to this email. You can present this card at any registered clinic or hospital.
-      </div>
+              <!-- Attachment Notice -->
+              <div style='background-color: #f0fdf4; border-left: 4px solid #16a34a; padding: 14px 18px; border-radius: 6px; margin: 24px 0;'>
+                <p style='margin: 0; color: #15803d; font-size: 14px; line-height: 1.5;'>
+                  📎 <strong>Attached:</strong> Your official digital <strong>Vaxora Vaccination Card (PDF)</strong> is attached to this email. You can present this card at any registered hospital or clinic.
+                </p>
+              </div>
 
-      <p style='color: #94a3b8; font-size: 13.5px;'>Please save your Vaxora Registration Number for fast identification during immunization appointments.</p>
-    </div>
-    <div class='footer'>
-      &copy; {DateTime.UtcNow.Year} Vaxora National Immunization Platform. All rights reserved.
-    </div>
-  </div>
+              <p style='margin: 0; color: #64748b; font-size: 13.5px; line-height: 1.5;'>Please keep your Vaxora Registration Number safe for immunization appointments and verification.</p>
+            </td>
+          </tr>
+          <!-- Footer -->
+          <tr>
+            <td style='background-color: #f8fafc; padding: 22px 24px; text-align: center; border-top: 1px solid #e2e8f0;'>
+              <p style='margin: 0; color: #64748b; font-size: 12px;'>&copy; {DateTime.UtcNow.Year} Vaxora National Immunization Platform. All rights reserved.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
 </body>
 </html>";
 
@@ -107,49 +111,52 @@ public class EmailService : IEmailService
         var subject = $"Application Received • Vaxora {roleName} Account ({regNumber})";
         var bodyHtml = $@"
 <!DOCTYPE html>
-<html>
+<html lang='en'>
 <head>
   <meta charset='utf-8'>
-  <style>
-    body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #0b1329; margin: 0; padding: 20px; color: #e2e8f0; }}
-    .container {{ max-width: 600px; margin: 0 auto; background-color: #111c38; border-radius: 12px; border: 1px solid #1e293b; overflow: hidden; }}
-    .header {{ background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 30px; text-align: center; }}
-    .header h1 {{ margin: 0; color: #ffffff; font-size: 24px; }}
-    .header p {{ margin: 5px 0 0 0; color: #fef3c7; font-size: 13px; }}
-    .content {{ padding: 30px; line-height: 1.6; font-size: 15px; }}
-    .badge-box {{ background-color: #0d1527; border: 1px solid #f59e0b; border-radius: 8px; padding: 18px; margin: 20px 0; text-align: center; }}
-    .badge-label {{ color: #94a3b8; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }}
-    .badge-value {{ color: #fbbf24; font-size: 22px; font-weight: bold; letter-spacing: 2px; }}
-    .status-notice {{ background: rgba(245, 158, 11, 0.1); border-left: 4px solid #f59e0b; padding: 12px 16px; border-radius: 4px; margin: 20px 0; font-size: 14px; color: #fcd34d; }}
-    .footer {{ background-color: #0b1329; padding: 20px; text-align: center; font-size: 12px; color: #64748b; border-top: 1px solid #1e293b; }}
-  </style>
+  <title>{subject}</title>
 </head>
-<body>
-  <div class='container'>
-    <div class='header'>
-      <h1>VAXORA</h1>
-      <p>Healthcare Professional & Facility Portal</p>
-    </div>
-    <div class='content'>
-      <p>Dear <strong>{recipientName}</strong>,</p>
-      <p>Thank you for registering on the <strong>Vaxora Healthcare Platform</strong> as a <strong>{roleName}</strong>.</p>
-      
-      <div class='badge-box'>
-        <div class='badge-label'>Assigned Registration Number</div>
-        <div class='badge-value'>{regNumber}</div>
-      </div>
+<body style='margin: 0; padding: 24px; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, ""Segoe UI"", Roboto, Helvetica, Arial, sans-serif; color: #1e293b; -webkit-font-smoothing: antialiased;'>
+  <table role='presentation' width='100%' border='0' cellspacing='0' cellpadding='0' style='background-color: #f1f5f9; padding: 20px 0;'>
+    <tr>
+      <td align='center'>
+        <table role='presentation' width='100%' border='0' cellspacing='0' cellpadding='0' style='max-width: 600px; background-color: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);'>
+          <!-- Header -->
+          <tr>
+            <td style='background: linear-gradient(135deg, #d97706 0%, #b45309 100%); padding: 32px 24px; text-align: center;'>
+              <h1 style='margin: 0; color: #ffffff; font-size: 26px; font-weight: 800; letter-spacing: 2px;'>VAXORA</h1>
+              <p style='margin: 6px 0 0 0; color: #fef3c7; font-size: 13px; font-weight: 500;'>Healthcare Professional &amp; Hospital Portal</p>
+            </td>
+          </tr>
+          <!-- Content -->
+          <tr>
+            <td style='padding: 32px 28px; background-color: #ffffff;'>
+              <p style='margin: 0 0 16px 0; color: #0f172a; font-size: 16px; line-height: 1.5;'>Dear <strong>{recipientName}</strong>,</p>
+              <p style='margin: 0 0 20px 0; color: #334155; font-size: 15px; line-height: 1.6;'>Thank you for registering on <strong>Vaxora</strong> as a <strong>{roleName}</strong>.</p>
+              
+              <div style='background-color: #fffbeb; border: 2px solid #f59e0b; border-radius: 10px; padding: 20px; margin: 24px 0; text-align: center;'>
+                <div style='color: #92400e; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 6px;'>Assigned Registration Number</div>
+                <div style='color: #b45309; font-size: 26px; font-weight: 800; letter-spacing: 2px; font-family: ""Courier New"", Courier, monospace;'>{regNumber}</div>
+              </div>
 
-      <div class='status-notice'>
-        ⏳ <strong>Account Status: Under Administrative Review</strong><br/>
-        Your submitted professional credentials, licensing numbers, and verification documents have been securely routed to the Ministry of Health administration team.
-      </div>
+              <div style='background-color: #fffbeb; border-left: 4px solid #f59e0b; padding: 16px 18px; border-radius: 6px; margin: 24px 0;'>
+                <div style='color: #92400e; font-weight: 700; font-size: 14px; margin-bottom: 4px;'>⏳ Application Under Review</div>
+                <div style='color: #78350f; font-size: 13.5px; line-height: 1.5;'>Your submitted credentials and documentation are currently undergoing administrative verification by our compliance team.</div>
+              </div>
 
-      <p>Our team will verify your details against official regulatory registries. Once approved, you will receive an activation email granting immediate access to your portal.</p>
-    </div>
-    <div class='footer'>
-      &copy; {DateTime.UtcNow.Year} Vaxora National Immunization Platform.
-    </div>
-  </div>
+              <p style='margin: 0; color: #64748b; font-size: 13.5px; line-height: 1.5;'>You will receive an email confirmation as soon as your account is approved and activated.</p>
+            </td>
+          </tr>
+          <!-- Footer -->
+          <tr>
+            <td style='background-color: #f8fafc; padding: 22px 24px; text-align: center; border-top: 1px solid #e2e8f0;'>
+              <p style='margin: 0; color: #64748b; font-size: 12px;'>&copy; {DateTime.UtcNow.Year} Vaxora National Immunization Platform. All rights reserved.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
 </body>
 </html>";
 
@@ -161,48 +168,51 @@ public class EmailService : IEmailService
         var subject = $"Account Approved • Access Granted to Vaxora {roleName} Portal ({regNumber})";
         var bodyHtml = $@"
 <!DOCTYPE html>
-<html>
+<html lang='en'>
 <head>
   <meta charset='utf-8'>
-  <style>
-    body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #0b1329; margin: 0; padding: 20px; color: #e2e8f0; }}
-    .container {{ max-width: 600px; margin: 0 auto; background-color: #111c38; border-radius: 12px; border: 1px solid #1e293b; overflow: hidden; }}
-    .header {{ background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 30px; text-align: center; }}
-    .header h1 {{ margin: 0; color: #ffffff; font-size: 24px; }}
-    .header p {{ margin: 5px 0 0 0; color: #d1fae5; font-size: 13px; }}
-    .content {{ padding: 30px; line-height: 1.6; font-size: 15px; }}
-    .badge-box {{ background-color: #0d1527; border: 1px solid #10b981; border-radius: 8px; padding: 18px; margin: 20px 0; text-align: center; }}
-    .badge-label {{ color: #94a3b8; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }}
-    .badge-value {{ color: #34d399; font-size: 22px; font-weight: bold; letter-spacing: 2px; }}
-    .btn {{ display: inline-block; background-color: #0284c7; color: #ffffff; padding: 12px 28px; border-radius: 6px; text-decoration: none; font-weight: bold; font-size: 15px; margin: 15px 0; }}
-    .footer {{ background-color: #0b1329; padding: 20px; text-align: center; font-size: 12px; color: #64748b; border-top: 1px solid #1e293b; }}
-  </style>
+  <title>{subject}</title>
 </head>
-<body>
-  <div class='container'>
-    <div class='header'>
-      <h1>VAXORA</h1>
-      <p>Healthcare Professional Authorization Notice</p>
-    </div>
-    <div class='content'>
-      <p>Dear <strong>{recipientName}</strong>,</p>
-      <p>We are pleased to inform you that your <strong>Vaxora {roleName}</strong> credentials have been verified and approved by the system administration.</p>
-      
-      <div class='badge-box'>
-        <div class='badge-label'>Vaxora Registration Number</div>
-        <div class='badge-value'>{regNumber}</div>
-      </div>
+<body style='margin: 0; padding: 24px; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, ""Segoe UI"", Roboto, Helvetica, Arial, sans-serif; color: #1e293b; -webkit-font-smoothing: antialiased;'>
+  <table role='presentation' width='100%' border='0' cellspacing='0' cellpadding='0' style='background-color: #f1f5f9; padding: 20px 0;'>
+    <tr>
+      <td align='center'>
+        <table role='presentation' width='100%' border='0' cellspacing='0' cellpadding='0' style='max-width: 600px; background-color: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);'>
+          <!-- Header -->
+          <tr>
+            <td style='background: linear-gradient(135deg, #059669 0%, #047857 100%); padding: 32px 24px; text-align: center;'>
+              <h1 style='margin: 0; color: #ffffff; font-size: 26px; font-weight: 800; letter-spacing: 2px;'>VAXORA</h1>
+              <p style='margin: 6px 0 0 0; color: #d1fae5; font-size: 13px; font-weight: 500;'>Healthcare Professional Authorization Notice</p>
+            </td>
+          </tr>
+          <!-- Content -->
+          <tr>
+            <td style='padding: 32px 28px; background-color: #ffffff;'>
+              <p style='margin: 0 0 16px 0; color: #0f172a; font-size: 16px; line-height: 1.5;'>Dear <strong>{recipientName}</strong>,</p>
+              <p style='margin: 0 0 20px 0; color: #334155; font-size: 15px; line-height: 1.6;'>We are pleased to inform you that your <strong>Vaxora {roleName}</strong> credentials have been verified and approved.</p>
+              
+              <div style='background-color: #f0fdf4; border: 2px solid #16a34a; border-radius: 10px; padding: 20px; margin: 24px 0; text-align: center;'>
+                <div style='color: #15803d; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 6px;'>Vaxora Registration Number</div>
+                <div style='color: #16a34a; font-size: 26px; font-weight: 800; letter-spacing: 2px; font-family: ""Courier New"", Courier, monospace;'>{regNumber}</div>
+              </div>
 
-      <p>Your account is now <strong>Active</strong>. You have full access to manage vaccination records, appointments, and immunization batches.</p>
+              <p style='margin: 0 0 24px 0; color: #334155; font-size: 15px; line-height: 1.6;'>Your account is now <strong>Active</strong>. You have full access to manage records, appointments, and batch operations.</p>
 
-      <div style='text-align: center;'>
-        <a href='http://localhost:5173/login' class='btn'>Log In to Vaxora Portal</a>
-      </div>
-    </div>
-    <div class='footer'>
-      &copy; {DateTime.UtcNow.Year} Vaxora National Immunization Platform.
-    </div>
-  </div>
+              <div style='text-align: center; margin: 28px 0;'>
+                <a href='http://localhost:5173/login' style='display: inline-block; background-color: #0284c7; color: #ffffff; padding: 14px 34px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 15px; box-shadow: 0 4px 12px rgba(2, 132, 199, 0.35);' target='_blank'>Log In to Vaxora Portal</a>
+              </div>
+            </td>
+          </tr>
+          <!-- Footer -->
+          <tr>
+            <td style='background-color: #f8fafc; padding: 22px 24px; text-align: center; border-top: 1px solid #e2e8f0;'>
+              <p style='margin: 0; color: #64748b; font-size: 12px;'>&copy; {DateTime.UtcNow.Year} Vaxora National Immunization Platform. All rights reserved.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
 </body>
 </html>";
 
@@ -214,53 +224,276 @@ public class EmailService : IEmailService
         var subject = $"Account Verification Notice • Vaxora {roleName} ({regNumber})";
         var reasonText = !string.IsNullOrWhiteSpace(rejectionReason) 
             ? rejectionReason 
-            : "The submitted credential documents could not be matched against official regulatory registries.";
+            : "The submitted credential documents could not be verified.";
 
         var bodyHtml = $@"
 <!DOCTYPE html>
-<html>
+<html lang='en'>
 <head>
   <meta charset='utf-8'>
-  <style>
-    body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #0b1329; margin: 0; padding: 20px; color: #e2e8f0; }}
-    .container {{ max-width: 600px; margin: 0 auto; background-color: #111c38; border-radius: 12px; border: 1px solid #1e293b; overflow: hidden; }}
-    .header {{ background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); padding: 30px; text-align: center; }}
-    .header h1 {{ margin: 0; color: #ffffff; font-size: 24px; }}
-    .header p {{ margin: 5px 0 0 0; color: #fee2e2; font-size: 13px; }}
-    .content {{ padding: 30px; line-height: 1.6; font-size: 15px; }}
-    .reason-box {{ background-color: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; border-radius: 8px; padding: 18px; margin: 20px 0; }}
-    .reason-title {{ color: #f87171; font-weight: bold; font-size: 14px; margin-bottom: 6px; }}
-    .reason-body {{ color: #e2e8f0; font-size: 14px; }}
-    .footer {{ background-color: #0b1329; padding: 20px; text-align: center; font-size: 12px; color: #64748b; border-top: 1px solid #1e293b; }}
-  </style>
+  <title>{subject}</title>
 </head>
-<body>
-  <div class='container'>
-    <div class='header'>
-      <h1>VAXORA</h1>
-      <p>Verification Review Notice</p>
-    </div>
-    <div class='content'>
-      <p>Dear <strong>{recipientName}</strong>,</p>
-      <p>Thank you for your interest in registering on <strong>Vaxora</strong> as a <strong>{roleName}</strong> (Ref: <code>{regNumber}</code>).</p>
-      
-      <p>After careful review by the administrative team, your application could not be verified at this time due to the following reason:</p>
+<body style='margin: 0; padding: 24px; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, ""Segoe UI"", Roboto, Helvetica, Arial, sans-serif; color: #1e293b; -webkit-font-smoothing: antialiased;'>
+  <table role='presentation' width='100%' border='0' cellspacing='0' cellpadding='0' style='background-color: #f1f5f9; padding: 20px 0;'>
+    <tr>
+      <td align='center'>
+        <table role='presentation' width='100%' border='0' cellspacing='0' cellpadding='0' style='max-width: 600px; background-color: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);'>
+          <!-- Header -->
+          <tr>
+            <td style='background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%); padding: 32px 24px; text-align: center;'>
+              <h1 style='margin: 0; color: #ffffff; font-size: 26px; font-weight: 800; letter-spacing: 2px;'>VAXORA</h1>
+              <p style='margin: 6px 0 0 0; color: #fee2e2; font-size: 13px; font-weight: 500;'>Verification Review Notice</p>
+            </td>
+          </tr>
+          <!-- Content -->
+          <tr>
+            <td style='padding: 32px 28px; background-color: #ffffff;'>
+              <p style='margin: 0 0 16px 0; color: #0f172a; font-size: 16px; line-height: 1.5;'>Dear <strong>{recipientName}</strong>,</p>
+              <p style='margin: 0 0 20px 0; color: #334155; font-size: 15px; line-height: 1.6;'>Thank you for your interest in registering on <strong>Vaxora</strong> as a <strong>{roleName}</strong> (Ref: <code>{regNumber}</code>).</p>
+              
+              <p style='margin: 0 0 16px 0; color: #334155; font-size: 15px; line-height: 1.6;'>After careful review, your application could not be verified at this time due to the following reason:</p>
 
-      <div class='reason-box'>
-        <div class='reason-title'>Administrative Review Note:</div>
-        <div class='reason-body'>{reasonText}</div>
-      </div>
+              <!-- Reason Box -->
+              <div style='background-color: #fef2f2; border: 1.5px solid #ef4444; border-radius: 8px; padding: 18px; margin: 20px 0;'>
+                <div style='color: #dc2626; font-weight: 700; font-size: 14px; margin-bottom: 6px;'>Reviewer Feedback:</div>
+                <div style='color: #7f1d1d; font-size: 14.5px; line-height: 1.5;'>{reasonText}</div>
+              </div>
 
-      <p style='color: #94a3b8; font-size: 13.5px;'>If you believe this is an error or wish to provide updated verification documents, please submit a new registration or contact our help desk.</p>
-    </div>
-    <div class='footer'>
-      &copy; {DateTime.UtcNow.Year} Vaxora National Immunization Platform.
-    </div>
-  </div>
+              <p style='margin: 0; color: #64748b; font-size: 13.5px; line-height: 1.5;'>If you believe this is an error or wish to provide updated verification documents, please submit a new application or contact support.</p>
+            </td>
+          </tr>
+          <!-- Footer -->
+          <tr>
+            <td style='background-color: #f8fafc; padding: 22px 24px; text-align: center; border-top: 1px solid #e2e8f0;'>
+              <p style='margin: 0; color: #64748b; font-size: 12px;'>&copy; {DateTime.UtcNow.Year} Vaxora National Immunization Platform. All rights reserved.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
 </body>
 </html>";
 
         return await SendEmailAsync(toEmail, recipientName, subject, bodyHtml);
+    }
+
+    public async Task<bool> SendPasswordResetEmailAsync(string toEmail, string recipientName, string resetLink, string resetCode, int expiryMinutes = 15)
+    {
+        var subject = "Password Reset Request • Vaxora Platform";
+        var bodyHtml = $@"
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+  <meta charset='utf-8'>
+  <title>{subject}</title>
+</head>
+<body style='margin: 0; padding: 24px; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, ""Segoe UI"", Roboto, Helvetica, Arial, sans-serif; color: #1e293b; -webkit-font-smoothing: antialiased;'>
+  <table role='presentation' width='100%' border='0' cellspacing='0' cellpadding='0' style='background-color: #f1f5f9; padding: 20px 0;'>
+    <tr>
+      <td align='center'>
+        <table role='presentation' width='100%' border='0' cellspacing='0' cellpadding='0' style='max-width: 600px; background-color: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);'>
+          <!-- Header -->
+          <tr>
+            <td style='background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); padding: 32px 24px; text-align: center;'>
+              <h1 style='margin: 0; color: #ffffff; font-size: 26px; font-weight: 800; letter-spacing: 2px;'>VAXORA</h1>
+              <p style='margin: 6px 0 0 0; color: #e0f2fe; font-size: 13px; font-weight: 500; letter-spacing: 0.5px;'>National Immunization &amp; Healthcare Platform</p>
+            </td>
+          </tr>
+          <!-- Content -->
+          <tr>
+            <td style='padding: 34px 28px; background-color: #ffffff;'>
+              <p style='margin: 0 0 16px 0; color: #0f172a; font-size: 16px; line-height: 1.5;'>Dear <strong>{recipientName}</strong>,</p>
+              <p style='margin: 0 0 20px 0; color: #334155; font-size: 15px; line-height: 1.6;'>We received a request to reset the password for your <strong>Vaxora</strong> account (<code>{toEmail}</code>).</p>
+              
+              <!-- Highlighted Reset Token Box -->
+              <div style='background-color: #f0f9ff; border: 2px solid #0284c7; border-radius: 10px; padding: 22px; margin: 24px 0; text-align: center;'>
+                <div style='color: #0369a1; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 8px;'>Your Password Reset Token / Code</div>
+                <div style='color: #0284c7; font-size: 32px; font-weight: 800; letter-spacing: 6px; font-family: ""Courier New"", Courier, monospace;'>{resetCode}</div>
+              </div>
+
+              <p style='margin: 0 0 16px 0; color: #334155; font-size: 15px; line-height: 1.6;'>You can also click the button below to directly open the reset password screen:</p>
+
+              <!-- Action Button -->
+              <div style='text-align: center; margin: 28px 0;'>
+                <a href='{resetLink}' style='display: inline-block; background-color: #0284c7; color: #ffffff !important; padding: 14px 34px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 15px; box-shadow: 0 4px 14px rgba(2, 132, 199, 0.35);' target='_blank'>Reset My Password</a>
+              </div>
+
+              <!-- Notice Box -->
+              <div style='background-color: #fffbeb; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 6px; margin: 24px 0;'>
+                <p style='margin: 0; color: #92400e; font-size: 13.5px; line-height: 1.5;'>
+                  ⏳ <strong>Security Notice:</strong> This code and link will expire in <strong>{expiryMinutes} minutes</strong>.<br/>
+                  If you did not request a password reset, you can safely ignore this email. Your account remains secure.
+                </p>
+              </div>
+
+              <p style='margin: 20px 0 0 0; color: #64748b; font-size: 12.5px; line-height: 1.5; word-break: break-all;'>
+                Direct link: <a href='{resetLink}' style='color: #0284c7; text-decoration: underline;'>{resetLink}</a>
+              </p>
+            </td>
+          </tr>
+          <!-- Footer -->
+          <tr>
+            <td style='background-color: #f8fafc; padding: 22px 24px; text-align: center; border-top: 1px solid #e2e8f0;'>
+              <p style='margin: 0; color: #64748b; font-size: 12px;'>&copy; {DateTime.UtcNow.Year} Vaxora National Immunization Platform. All rights reserved.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>";
+
+        return await SendEmailAsync(toEmail, recipientName, subject, bodyHtml);
+    }
+
+    public async Task<bool> SendPasswordChangedConfirmationEmailAsync(string toEmail, string recipientName)
+    {
+        var subject = "Security Alert • Your Vaxora Password Was Successfully Changed";
+        var bodyHtml = $@"
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+  <meta charset='utf-8'>
+  <title>{subject}</title>
+</head>
+<body style='margin: 0; padding: 24px; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, ""Segoe UI"", Roboto, Helvetica, Arial, sans-serif; color: #1e293b; -webkit-font-smoothing: antialiased;'>
+  <table role='presentation' width='100%' border='0' cellspacing='0' cellpadding='0' style='background-color: #f1f5f9; padding: 20px 0;'>
+    <tr>
+      <td align='center'>
+        <table role='presentation' width='100%' border='0' cellspacing='0' cellpadding='0' style='max-width: 600px; background-color: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);'>
+          <!-- Header -->
+          <tr>
+            <td style='background: linear-gradient(135deg, #059669 0%, #047857 100%); padding: 32px 24px; text-align: center;'>
+              <h1 style='margin: 0; color: #ffffff; font-size: 26px; font-weight: 800; letter-spacing: 2px;'>VAXORA</h1>
+              <p style='margin: 6px 0 0 0; color: #d1fae5; font-size: 13px; font-weight: 500;'>Security Notification</p>
+            </td>
+          </tr>
+          <!-- Content -->
+          <tr>
+            <td style='padding: 34px 28px; background-color: #ffffff;'>
+              <p style='margin: 0 0 16px 0; color: #0f172a; font-size: 16px; line-height: 1.5;'>Dear <strong>{recipientName}</strong>,</p>
+              <p style='margin: 0 0 20px 0; color: #334155; font-size: 15px; line-height: 1.6;'>This is an automated notification confirming that the password for your Vaxora account (<code>{toEmail}</code>) was successfully changed.</p>
+              
+              <div style='background-color: #f0fdf4; border-left: 4px solid #16a34a; padding: 16px 18px; border-radius: 6px; margin: 24px 0;'>
+                <div style='color: #15803d; font-weight: 700; font-size: 14px; margin-bottom: 4px;'>✓ Password Updated Successfully</div>
+                <div style='color: #166534; font-size: 13.5px; line-height: 1.5;'>{DateTime.UtcNow:dd MMM yyyy, HH:mm} UTC • All active sessions and refresh tokens have been revoked.</div>
+              </div>
+
+              <p style='margin: 0; color: #64748b; font-size: 13.5px; line-height: 1.5;'>
+                If you performed this change, no further action is required.<br/>
+                <strong>If you did not initiate this change,</strong> please contact Vaxora Support immediately to secure your account.
+              </p>
+            </td>
+          </tr>
+          <!-- Footer -->
+          <tr>
+            <td style='background-color: #f8fafc; padding: 22px 24px; text-align: center; border-top: 1px solid #e2e8f0;'>
+              <p style='margin: 0; color: #64748b; font-size: 12px;'>&copy; {DateTime.UtcNow.Year} Vaxora National Immunization Platform. All rights reserved.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>";
+
+        return await SendEmailAsync(toEmail, recipientName, subject, bodyHtml);
+    }
+
+    public async Task<bool> SendAccountDeletedEmailAsync(string toEmail, string recipientName, string regNumber, string roleName)
+    {
+        var subject = $"Account Deletion Confirmation • Vaxora {roleName} ({regNumber})";
+        var bodyHtml = $@"
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+  <meta charset='utf-8'>
+  <title>{subject}</title>
+</head>
+<body style='margin: 0; padding: 24px; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, ""Segoe UI"", Roboto, Helvetica, Arial, sans-serif; color: #1e293b; -webkit-font-smoothing: antialiased;'>
+  <table role='presentation' width='100%' border='0' cellspacing='0' cellpadding='0' style='background-color: #f1f5f9; padding: 20px 0;'>
+    <tr>
+      <td align='center'>
+        <table role='presentation' width='100%' border='0' cellspacing='0' cellpadding='0' style='max-width: 600px; background-color: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);'>
+          <!-- Header -->
+          <tr>
+            <td style='background: linear-gradient(135deg, #475569 0%, #334155 100%); padding: 32px 24px; text-align: center;'>
+              <h1 style='margin: 0; color: #ffffff; font-size: 26px; font-weight: 800; letter-spacing: 2px;'>VAXORA</h1>
+              <p style='margin: 6px 0 0 0; color: #cbd5e1; font-size: 13px; font-weight: 500;'>National Immunization &amp; Healthcare Platform</p>
+            </td>
+          </tr>
+          <!-- Content -->
+          <tr>
+            <td style='padding: 34px 28px; background-color: #ffffff;'>
+              <p style='margin: 0 0 16px 0; color: #0f172a; font-size: 16px; line-height: 1.5;'>Dear <strong>{recipientName}</strong>,</p>
+              <p style='margin: 0 0 20px 0; color: #334155; font-size: 15px; line-height: 1.6;'>This email confirms that your <strong>Vaxora {roleName} account</strong> (Registration: <code>{regNumber}</code>) has been <strong>permanently deleted</strong> upon your request.</p>
+              
+              <!-- Status Box -->
+              <div style='background-color: #fef2f2; border: 1.5px solid #ef4444; border-radius: 10px; padding: 20px; margin: 24px 0; text-align: center;'>
+                <div style='color: #991b1b; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 6px;'>Account Status</div>
+                <div style='color: #dc2626; font-size: 22px; font-weight: 800; letter-spacing: 1px;'>🗑️ Permanently Deleted &amp; Closed</div>
+                <div style='color: #7f1d1d; font-size: 13px; margin-top: 6px;'>Processed on {DateTime.UtcNow:dd MMM yyyy, HH:mm} UTC</div>
+              </div>
+
+              <!-- Summary Table -->
+              <table role='presentation' width='100%' border='0' cellspacing='0' cellpadding='0' style='margin: 20px 0; border-collapse: collapse;'>
+                <tr>
+                  <td style='padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #64748b; font-size: 14px; width: 40%;'>Account Name:</td>
+                  <td style='padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #0f172a; font-weight: 600; font-size: 14px;'>{recipientName}</td>
+                </tr>
+                <tr>
+                  <td style='padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #64748b; font-size: 14px;'>Account Role:</td>
+                  <td style='padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #0f172a; font-weight: 600; font-size: 14px;'>{roleName}</td>
+                </tr>
+                <tr>
+                  <td style='padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #64748b; font-size: 14px;'>Registration Code:</td>
+                  <td style='padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #0f172a; font-weight: 600; font-size: 14px; font-family: monospace;'>{regNumber}</td>
+                </tr>
+                <tr>
+                  <td style='padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #64748b; font-size: 14px;'>Associated Email:</td>
+                  <td style='padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #0f172a; font-weight: 600; font-size: 14px;'>{toEmail}</td>
+                </tr>
+              </table>
+
+              <!-- Notice Box -->
+              <div style='background-color: #f8fafc; border-left: 4px solid #64748b; padding: 14px 18px; border-radius: 6px; margin: 24px 0;'>
+                <p style='margin: 0; color: #334155; font-size: 13.5px; line-height: 1.5;'>
+                  🔒 <strong>Privacy &amp; Data Security:</strong> All your profile details, personal identification numbers, access credentials, and uploaded documentation have been erased from the Vaxora database.
+                </p>
+              </div>
+
+              <p style='margin: 0; color: #64748b; font-size: 13px; line-height: 1.5;'>
+                If you did not request this deletion or believe your account was compromised, please reach out to the Vaxora National Support Team immediately.
+              </p>
+            </td>
+          </tr>
+          <!-- Footer -->
+          <tr>
+            <td style='background-color: #f8fafc; padding: 22px 24px; text-align: center; border-top: 1px solid #e2e8f0;'>
+              <p style='margin: 0; color: #64748b; font-size: 12px;'>&copy; {DateTime.UtcNow.Year} Vaxora National Immunization Platform. All rights reserved.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>";
+
+        return await SendEmailAsync(toEmail, recipientName, subject, bodyHtml);
+    }
+
+    private string? GetConfigValue(string configKey, string envKey)
+    {
+        return _configuration[configKey]
+            ?? _configuration[envKey]
+            ?? Environment.GetEnvironmentVariable(envKey)
+            ?? Environment.GetEnvironmentVariable(configKey.Replace(":", "__"))
+            ?? Environment.GetEnvironmentVariable(configKey)
+            ?? Environment.GetEnvironmentVariable(configKey.Replace(":", "_").ToUpperInvariant());
     }
 
     private async Task<bool> SendEmailAsync(
@@ -275,7 +508,7 @@ public class EmailService : IEmailService
         var portStr = GetConfigValue("Smtp:Port", "SMTP_PORT") ?? "587";
         var username = GetConfigValue("Smtp:Username", "SMTP_USERNAME");
         var password = GetConfigValue("Smtp:Password", "SMTP_PASSWORD");
-        var fromEmail = GetConfigValue("Smtp:FromEmail", "SMTP_FROM_EMAIL") ?? "noreply@vaxora.health.gov.lk";
+        var fromEmail = GetConfigValue("Smtp:FromEmail", "SMTP_FROM_EMAIL");
         var fromName = GetConfigValue("Smtp:FromName", "SMTP_FROM_NAME") ?? "Vaxora Immunization Platform";
         var enableSslStr = GetConfigValue("Smtp:EnableSsl", "SMTP_ENABLE_SSL") ?? "true";
 
@@ -283,6 +516,12 @@ public class EmailService : IEmailService
         {
             _logger.LogWarning("SMTP credentials not fully configured (Host: {Host}, User: {User}). Skipping live email dispatch for '{Subject}' to '{Recipient}'.", host, username, subject, toEmail);
             return false;
+        }
+
+        // For Gmail SMTP, the 'From' address must be the authenticated username (or verified alias) to prevent rejection
+        if (string.IsNullOrWhiteSpace(fromEmail) || (host?.Contains("gmail.com", StringComparison.OrdinalIgnoreCase) == true))
+        {
+            fromEmail = username;
         }
 
         try
@@ -314,17 +553,17 @@ public class EmailService : IEmailService
             // Accept all certificates for custom/self-hosted dev environments if needed
             client.ServerCertificateValidationCallback = (s, c, h, e) => true;
 
-            await client.ConnectAsync(host, port, socketOptions);
-            await client.AuthenticateAsync(username, password);
+            await client.ConnectAsync(host!, port, socketOptions);
+            await client.AuthenticateAsync(username!, password!);
             await client.SendAsync(message);
             await client.DisconnectAsync(true);
 
-            _logger.LogInformation("Successfully sent email '{Subject}' to '{Recipient}'.", subject, toEmail);
+            _logger.LogInformation("Successfully sent email '{Subject}' to '{Recipient}' from '{FromEmail}'.", subject, toEmail, fromEmail);
             return true;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to send email '{Subject}' to '{Recipient}'.", subject, toEmail);
+            _logger.LogError(ex, "Failed to send email '{Subject}' to '{Recipient}'. Host: {Host}, Port: {Port}, User: {User}", subject, toEmail, host, portStr, username);
             return false;
         }
     }

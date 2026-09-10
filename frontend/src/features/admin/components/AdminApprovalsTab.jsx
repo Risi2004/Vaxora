@@ -134,10 +134,10 @@ export default function AdminApprovalsTab() {
           <div>
             <div className="doctor-card-title">
               <span>🛡️</span>
-              Practitioner &amp; Facility Approval Queue
+              Doctor, Nurse &amp; Hospital Approval Queue
             </div>
             <p style={{ margin: '4px 0 0 0', fontSize: '0.82rem', color: '#64748b' }}>
-              All Doctors, Nurses, and Healthcare Facilities must be verified and approved before accessing clinical tools.
+              All Doctors, Nurses, and Hospitals must be verified and approved before accessing clinical tools.
             </p>
           </div>
 
@@ -188,7 +188,7 @@ export default function AdminApprovalsTab() {
               className={`doctor-filter-btn ${filterType === 'hospital' ? 'active' : ''}`}
               onClick={() => setFilterType('hospital')}
             >
-              🏥 Facilities
+              🏥 Hospitals
             </button>
           </div>
         </div>
@@ -199,7 +199,7 @@ export default function AdminApprovalsTab() {
           <input
             type="text"
             className="doctor-search-input"
-            placeholder="Search pending applications by name, SLMC/SLNC/MOH license, or facility..."
+            placeholder="Search pending applications by name, SLMC/SLNC/MOH license, or hospital..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -212,8 +212,9 @@ export default function AdminApprovalsTab() {
               <tr>
                 <th>Applicant / Organization</th>
                 <th>Category</th>
+                <th>Vaxora Reg Code</th>
                 <th>Licensing Code</th>
-                <th>Facility / Details</th>
+                <th>Hospital / Details</th>
                 <th>Verification Document</th>
                 <th>Submission Time</th>
                 <th>Status</th>
@@ -223,14 +224,14 @@ export default function AdminApprovalsTab() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={8} style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
+                  <td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
                     <div style={{ display: 'inline-block', animation: 'spin 1s linear infinite', fontSize: '1.5rem', marginBottom: '8px' }}>⏳</div>
                     <div>Fetching live verification queue...</div>
                   </td>
                 </tr>
               ) : filteredRequests.length === 0 ? (
                 <tr>
-                  <td colSpan={8} style={{ textAlign: 'center', padding: '36px', color: '#64748b' }}>
+                  <td colSpan={9} style={{ textAlign: 'center', padding: '36px', color: '#64748b' }}>
                     No applications currently pending verification.
                   </td>
                 </tr>
@@ -238,19 +239,61 @@ export default function AdminApprovalsTab() {
                 filteredRequests.map((req) => (
                   <tr key={req.id}>
                     <td>
-                      <div className="doctor-patient-cell">
-                        <span
-                          className="doctor-patient-name-link"
-                          onClick={() => {
-                            setSelectedRequest(req);
-                            setIsInspectModalOpen(true);
-                          }}
-                        >
-                          {req.name}
-                        </span>
-                        <span className="doctor-patient-sub" style={{ color: '#94a3b8' }}>
-                          {req.email} • {req.phone}
-                        </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        {req.profilePhotoUrl ? (
+                          <a
+                            href={req.profilePhotoUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            title="Click to view full profile photo/logo"
+                            style={{ display: 'block', flexShrink: 0 }}
+                          >
+                            <img
+                              src={req.profilePhotoUrl}
+                              alt={req.name}
+                              style={{
+                                width: '40px',
+                                height: '40px',
+                                borderRadius: req.type === 'hospital' ? '8px' : '50%',
+                                objectFit: 'cover',
+                                border: '1.5px solid rgba(56, 189, 248, 0.45)',
+                                boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+                                cursor: 'pointer',
+                              }}
+                            />
+                          </a>
+                        ) : (
+                          <div
+                            style={{
+                              width: '40px',
+                              height: '40px',
+                              borderRadius: req.type === 'hospital' ? '8px' : '50%',
+                              background: '#111c38',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '1.2rem',
+                              border: '1px solid rgba(255, 255, 255, 0.12)',
+                              flexShrink: 0,
+                            }}
+                          >
+                            {req.type === 'doctor' ? '👨‍⚕️' : req.type === 'nurse' ? '👩‍⚕️' : '🏥'}
+                          </div>
+                        )}
+                        <div className="doctor-patient-cell">
+                          <span
+                            className="doctor-patient-name-link"
+                            onClick={() => {
+                              setSelectedRequest(req);
+                              setIsInspectModalOpen(true);
+                            }}
+                          >
+                            {req.name}
+                          </span>
+                          <span className="doctor-patient-sub" style={{ color: '#94a3b8' }}>
+                            {req.email} • {req.phone}
+                          </span>
+                        </div>
                       </div>
                     </td>
                     <td style={{ whiteSpace: 'nowrap' }}>
@@ -261,36 +304,67 @@ export default function AdminApprovalsTab() {
                       </span>
                     </td>
                     <td style={{ whiteSpace: 'nowrap' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
-                        {req.registrationNumber && (
-                          <span className="admin-id-pill" style={{ color: '#34d399', borderColor: 'rgba(52, 211, 153, 0.4)', background: 'rgba(16, 185, 129, 0.12)', fontSize: '0.78rem' }}>
-                            {req.registrationNumber}
-                          </span>
-                        )}
-                        <span className="admin-id-pill" style={{ color: '#38bdf8', borderColor: 'rgba(56, 189, 248, 0.3)', fontSize: '0.74rem' }}>
-                          {req.licenseId}
+                      {req.registrationNumber ? (
+                        <span className="admin-id-pill" style={{ color: '#34d399', borderColor: 'rgba(52, 211, 153, 0.4)', background: 'rgba(16, 185, 129, 0.12)', fontSize: '0.8rem', fontWeight: 700 }}>
+                          {req.registrationNumber}
                         </span>
-                      </div>
+                      ) : (
+                        <span style={{ color: '#64748b', fontSize: '0.8rem' }}>—</span>
+                      )}
+                    </td>
+                    <td style={{ whiteSpace: 'nowrap' }}>
+                      <span className="admin-id-pill" style={{ color: '#38bdf8', borderColor: 'rgba(56, 189, 248, 0.3)', fontSize: '0.78rem' }}>
+                        {req.licenseId}
+                      </span>
                     </td>
                     <td style={{ fontSize: '0.84rem', color: '#e2e8f0', fontWeight: 600 }}>
                       {req.facility}
                     </td>
                     <td>
-                      {req.primaryDocUrl ? (
-                        <a
-                          href={req.primaryDocUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="admin-doc-link-btn"
-                          title="Open Verification Document"
-                        >
-                          📄 View Document
-                        </a>
-                      ) : (
-                        <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
-                          📄 Document Attached
-                        </span>
-                      )}
+                      <div className="admin-doc-stack">
+                        {/* 1. Primary Licensing Document */}
+                        {req.primaryDocUrl ? (
+                          <a
+                            href={req.primaryDocUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="admin-doc-badge-link"
+                            title="Open Primary Verification Document"
+                          >
+                            📄 {req.type === 'doctor' ? 'SLMC Certificate' : req.type === 'nurse' ? 'SLNC Card' : 'Registration Doc'} ↗
+                          </a>
+                        ) : (
+                          <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                            📄 Document Attached
+                          </span>
+                        )}
+
+                        {/* 2. Supporting Document (if uploaded) */}
+                        {req.supportingDocUrl && (
+                          <a
+                            href={req.supportingDocUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="admin-doc-badge-link supporting"
+                            title="Open Supporting Document"
+                          >
+                            📎 Supporting Doc ↗
+                          </a>
+                        )}
+
+                        {/* 3. Profile Photo / Logo (if uploaded) */}
+                        {req.profilePhotoUrl && (
+                          <a
+                            href={req.profilePhotoUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="admin-doc-badge-link photo"
+                            title="Open Profile Photo / Logo"
+                          >
+                            🖼️ {req.type === 'hospital' ? 'Hospital Logo' : 'Profile Photo'} ↗
+                          </a>
+                        )}
+                      </div>
                     </td>
                     <td style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
                       {req.appliedAt}
@@ -312,43 +386,51 @@ export default function AdminApprovalsTab() {
                         </span>
                       )}
                     </td>
-                    <td>
+                    <td style={{ whiteSpace: 'nowrap', minWidth: '190px' }}>
                       {req.status === 'pending' ? (
-                        <div style={{ display: 'flex', gap: '6px' }}>
+                        <div className="admin-action-btn-group">
                           <button
                             type="button"
-                            className="doctor-table-btn"
+                            className="admin-btn-action admin-btn-approve"
                             disabled={actionLoading}
-                            style={{ background: '#0284c7', color: '#ffffff', borderColor: '#38bdf8' }}
                             onClick={() => handleApprove(req)}
                             title="Approve and activate credentials"
                           >
-                            ✓ Approve
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                            Approve
                           </button>
                           <button
                             type="button"
-                            className="doctor-table-btn"
+                            className="admin-btn-action admin-btn-reject"
                             disabled={actionLoading}
-                            style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#f87171', borderColor: 'rgba(239, 68, 68, 0.3)' }}
                             onClick={() => {
                               setSelectedRequest(req);
                               setIsRejectModalOpen(true);
                             }}
                             title="Reject application"
                           >
-                            ✕ Reject
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <line x1="18" y1="6" x2="6" y2="18" />
+                              <line x1="6" y1="6" x2="18" y2="18" />
+                            </svg>
+                            Reject
                           </button>
                         </div>
                       ) : (
                         <button
                           type="button"
-                          className="doctor-table-btn"
-                          style={{ background: '#1e293b', color: '#ffffff', borderColor: 'rgba(255, 255, 255, 0.12)' }}
+                          className="admin-btn-action admin-btn-view"
                           onClick={() => {
                             setSelectedRequest(req);
                             setIsInspectModalOpen(true);
                           }}
                         >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                            <circle cx="12" cy="12" r="3" />
+                          </svg>
                           View Record
                         </button>
                       )}
@@ -390,7 +472,13 @@ export default function AdminApprovalsTab() {
                   </span>
                 </div>
                 <div className="admin-detail-item">
-                  <span className="admin-detail-label">Licensing Code / Reg Number</span>
+                  <span className="admin-detail-label">Vaxora Registration Code</span>
+                  <span className="admin-detail-val" style={{ fontWeight: 800, color: '#34d399' }}>
+                    {selectedRequest.registrationNumber || 'Pending'}
+                  </span>
+                </div>
+                <div className="admin-detail-item">
+                  <span className="admin-detail-label">Licensing Code (SLMC / SLNC / MOH)</span>
                   <span className="admin-detail-val" style={{ fontWeight: 800, color: '#38bdf8' }}>{selectedRequest.licenseId}</span>
                 </div>
                 <div className="admin-detail-item">
@@ -402,7 +490,7 @@ export default function AdminApprovalsTab() {
                   <span className="admin-detail-val">{selectedRequest.phone}</span>
                 </div>
                 <div className="admin-detail-item">
-                  <span className="admin-detail-label">Facility / Specialization</span>
+                  <span className="admin-detail-label">Hospital / Specialization</span>
                   <span className="admin-detail-val">{selectedRequest.facility}</span>
                 </div>
               </div>
@@ -447,6 +535,39 @@ export default function AdminApprovalsTab() {
                   </div>
                 )}
               </div>
+
+              {/* Profile Photo / Logo Row */}
+              {selectedRequest.profilePhotoUrl && (
+                <div style={{ marginTop: '12px', padding: '12px 16px', background: '#0b1120', border: '1px solid rgba(52, 211, 153, 0.25)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <img
+                      src={selectedRequest.profilePhotoUrl}
+                      alt="Profile preview"
+                      style={{
+                        width: '44px',
+                        height: '44px',
+                        borderRadius: selectedRequest.type === 'hospital' ? '8px' : '50%',
+                        objectFit: 'cover',
+                        border: '1.5px solid #34d399'
+                      }}
+                    />
+                    <div>
+                      <div style={{ color: '#ffffff', fontWeight: 700, fontSize: '0.9rem' }}>
+                        {selectedRequest.type === 'hospital' ? 'Hospital Logo' : 'Practitioner Profile Photo'}
+                      </div>
+                      <span style={{ fontSize: '0.78rem', color: '#94a3b8' }}>Uploaded during registration</span>
+                    </div>
+                  </div>
+                  <a
+                    href={selectedRequest.profilePhotoUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ background: 'rgba(52, 211, 153, 0.15)', color: '#34d399', border: '1px solid rgba(52, 211, 153, 0.3)', fontWeight: 700, fontSize: '0.78rem', padding: '6px 12px', borderRadius: '6px', textDecoration: 'none' }}
+                  >
+                    View Image ↗
+                  </a>
+                </div>
+              )}
             </div>
 
             <div className="doctor-modal-footer">

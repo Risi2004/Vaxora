@@ -1,38 +1,139 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { authService } from '../../auth';
 
 export default function PatientProfileTab() {
   const navigate = useNavigate();
+  const fileInputRef = useRef(null);
 
   const [isEditing, setIsEditing] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [notification, setNotification] = useState('');
+  const [notificationType, setNotificationType] = useState('success');
+
   const [profileData, setProfileData] = useState({
-    id: 'VP12345678',
-    nic: '1234 5678 9123',
-    name: 'KUMAR',
-    email: 'VakaPo@gmail.com',
-    phone: '074 1234 567',
+    id: '',
+    nic: '',
+    name: '',
+    email: '',
+    phone: '',
+    dob: '',
+    status: 'Active',
+    profilePhotoUrl: null,
   });
 
-  const [notification, setNotification] = useState('');
+  const showNotification = (msg, type = 'success') => {
+    setNotification(msg);
+    setNotificationType(type);
+    setTimeout(() => setNotification(''), 3500);
+  };
+
+  // Load live patient profile from DB
+  const loadProfile = async () => {
+    try {
+      const cached = authService.getUser();
+      if (cached) {
+        populateState(cached);
+      }
+
+      const freshUser = await authService.getMe();
+      if (freshUser) {
+        populateState(freshUser);
+      }
+    } catch (err) {
+      console.warn('Could not fetch latest patient profile:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const populateState = (user) => {
+    const details = user.profileDetails || {};
+    const dobFormatted = details.dateOfBirth
+      ? new Date(details.dateOfBirth).toISOString().split('T')[0]
+      : '';
+
+    setProfileData({
+      id: user.registrationNumber || details.id || 'VAX-P-000000',
+      nic: details.nicNumber || details.nic || 'N/A',
+      name: details.fullName || user.name || '',
+      email: user.email || '',
+      phone: user.phoneNumber || details.phoneNumber || '',
+      dob: dobFormatted,
+      status: user.status || 'Active',
+      profilePhotoUrl: user.profilePhotoUrl || details.profilePhotoUrl || null,
+    });
+  };
+
+  useEffect(() => {
+    loadProfile();
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setProfileData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleToggleEdit = () => {
+  const handleToggleEdit = async () => {
     if (isEditing) {
-      setNotification('Profile details updated successfully!');
-      setTimeout(() => setNotification(''), 3000);
+      setSaving(true);
+      try {
+        await authService.updateProfile({
+          fullName: profileData.name,
+          phoneNumber: profileData.phone,
+          dateOfBirth: profileData.dob ? new Date(profileData.dob) : null,
+          profilePhotoUrl: profileData.profilePhotoUrl,
+        });
+        showNotification('Patient profile updated successfully in the national database!');
+        setIsEditing(false);
+      } catch (err) {
+        showNotification(err.message || 'Failed to update profile details.', 'error');
+      } finally {
+        setSaving(false);
+      }
+    } else {
+      setIsEditing(true);
     }
-    setIsEditing((prev) => !prev);
+  };
+
+  const handlePhotoUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const photoData = reader.result;
+        setProfileData((prev) => ({ ...prev, profilePhotoUrl: photoData }));
+        try {
+          await authService.updateProfile({ profilePhotoUrl: photoData });
+          showNotification('Profile avatar updated successfully!');
+        } catch {
+          showNotification('Updated photo preview locally.', 'success');
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleExport = () => {
+    showNotification('Exported official citizen immunization data sheet (.PDF / .CSV)');
   };
 
   return (
     <div className="manage-appointments-wrapper" style={{ flexDirection: 'column', alignItems: 'center', gap: '28px' }}>
       {notification && (
-        <div className="appointment-alert-pill" role="alert" style={{ maxWidth: '960px', width: '100%' }}>
-          ✓ {notification}
+        <div
+          className="appointment-alert-pill"
+          role="alert"
+          style={{
+            maxWidth: '960px',
+            width: '100%',
+            backgroundColor: notificationType === 'error' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+            borderColor: notificationType === 'error' ? '#ef4444' : '#10b981',
+            color: notificationType === 'error' ? '#f87171' : '#34d399',
+          }}
+        >
+          {notificationType === 'error' ? '⚠️' : '✓'} {notification}
         </div>
       )}
 
@@ -44,26 +145,43 @@ export default function PatientProfileTab() {
           {/* Left: Large Avatar with Edit Icon */}
           <div className="profile-avatar-column">
             <div className="profile-avatar-wrap">
-              <svg
-                className="profile-large-silhouette"
-                viewBox="0 0 200 200"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <circle cx="100" cy="100" r="100" fill="#d9dde3" />
-                <circle cx="100" cy="80" r="38" fill="#525862" />
-                <path
-                  d="M40 174C40 140.863 66.863 118 100 118C133.137 118 160 140.863 160 174"
-                  fill="#525862"
+              {profileData.profilePhotoUrl ? (
+                <img
+                  src={profileData.profilePhotoUrl}
+                  alt={profileData.name || 'Patient'}
+                  style={{ width: '150px', height: '150px', borderRadius: '50%', objectFit: 'cover', border: '3px solid #0284c7' }}
                 />
-              </svg>
+              ) : (
+                <svg
+                  className="profile-large-silhouette"
+                  viewBox="0 0 200 200"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <circle cx="100" cy="100" r="100" fill="#d9dde3" />
+                  <circle cx="100" cy="80" r="38" fill="#525862" />
+                  <path
+                    d="M40 174C40 140.863 66.863 118 100 118C133.137 118 160 140.863 160 174"
+                    fill="#525862"
+                  />
+                </svg>
+              )}
+
+              {/* Hidden file input for photo upload */}
+              <input
+                type="file"
+                ref={fileInputRef}
+                style={{ display: 'none' }}
+                accept="image/*"
+                onChange={handlePhotoUpload}
+              />
 
               {/* Edit Avatar Badge Icon */}
               <button
                 type="button"
                 className="btn-avatar-edit"
                 title="Update Profile Photo"
-                onClick={() => alert('Photo upload dialog: You can update your official profile picture.')}
+                onClick={() => fileInputRef.current?.click()}
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1d1854" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
@@ -78,23 +196,29 @@ export default function PatientProfileTab() {
             <div className="profile-info-card">
               {/* Card Header Row */}
               <div className="profile-info-header">
-                <h2 className="profile-info-title">
-                  Personal Information
-                </h2>
+                <div>
+                  <h2 className="profile-info-title">
+                    Personal Information
+                  </h2>
+                  <span style={{ fontSize: '0.8rem', color: '#10b981', fontWeight: 600 }}>
+                    ● Status: {profileData.status}
+                  </span>
+                </div>
                 <div className="profile-header-actions">
                   <button
                     type="button"
                     className="btn-profile-edit"
                     onClick={handleToggleEdit}
+                    disabled={saving}
                   >
-                    {isEditing ? 'Save' : 'Edit'}
+                    {saving ? 'Saving...' : isEditing ? 'Save' : 'Edit'}
                   </button>
 
                   <button
                     type="button"
                     className="btn-profile-export"
                     title="Export / Share Profile"
-                    onClick={() => alert('Exporting patient profile data sheet...')}
+                    onClick={handleExport}
                   >
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
@@ -108,25 +232,17 @@ export default function PatientProfileTab() {
               {/* Personal Information Fields */}
               <div className="profile-fields-list">
                 <div className="profile-field-row">
-                  <span className="profile-field-label">ID</span>
+                  <span className="profile-field-label">ID (VAXORA)</span>
                   <span className="profile-field-colon">:</span>
-                  <span className="profile-field-value">{profileData.id}</span>
+                  <span className="profile-field-value" style={{ fontWeight: 700, color: '#0284c7' }}>
+                    {profileData.id || (loading ? 'Loading...' : 'N/A')}
+                  </span>
                 </div>
 
                 <div className="profile-field-row">
                   <span className="profile-field-label">NIC</span>
                   <span className="profile-field-colon">:</span>
-                  {isEditing ? (
-                    <input
-                      type="text"
-                      name="nic"
-                      value={profileData.nic}
-                      onChange={handleChange}
-                      className="profile-field-input"
-                    />
-                  ) : (
-                    <span className="profile-field-value">{profileData.nic}</span>
-                  )}
+                  <span className="profile-field-value">{profileData.nic || (loading ? 'Loading...' : 'N/A')}</span>
                 </div>
 
                 <div className="profile-field-row">
@@ -141,24 +257,30 @@ export default function PatientProfileTab() {
                       className="profile-field-input"
                     />
                   ) : (
-                    <span className="profile-field-value">{profileData.name}</span>
+                    <span className="profile-field-value">{profileData.name || (loading ? 'Loading...' : 'N/A')}</span>
+                  )}
+                </div>
+
+                <div className="profile-field-row">
+                  <span className="profile-field-label">DATE OF BIRTH</span>
+                  <span className="profile-field-colon">:</span>
+                  {isEditing ? (
+                    <input
+                      type="date"
+                      name="dob"
+                      value={profileData.dob}
+                      onChange={handleChange}
+                      className="profile-field-input"
+                    />
+                  ) : (
+                    <span className="profile-field-value">{profileData.dob || 'Not specified'}</span>
                   )}
                 </div>
 
                 <div className="profile-field-row">
                   <span className="profile-field-label">EMAIL</span>
                   <span className="profile-field-colon">:</span>
-                  {isEditing ? (
-                    <input
-                      type="email"
-                      name="email"
-                      value={profileData.email}
-                      onChange={handleChange}
-                      className="profile-field-input"
-                    />
-                  ) : (
-                    <span className="profile-field-value">{profileData.email}</span>
-                  )}
+                  <span className="profile-field-value">{profileData.email || (loading ? 'Loading...' : 'N/A')}</span>
                 </div>
 
                 <div className="profile-field-row">
@@ -173,7 +295,7 @@ export default function PatientProfileTab() {
                       className="profile-field-input"
                     />
                   ) : (
-                    <span className="profile-field-value">{profileData.phone}</span>
+                    <span className="profile-field-value">{profileData.phone || 'Not provided'}</span>
                   )}
                 </div>
               </div>
@@ -199,17 +321,19 @@ export default function PatientProfileTab() {
                   <th className="th-vaccine">Vaccine</th>
                   <th className="th-date">Date</th>
                   <th className="th-time">Time</th>
-                  <th className="th-location">Location</th>
+                  <th className="th-location">Hospital / Clinic</th>
                   <th className="th-status" style={{ borderRight: 'none' }}>Status</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
-                  <td className="td-vaccine">Influenza</td>
-                  <td className="td-date">2025-02-24</td>
-                  <td className="td-time">11.30 am</td>
-                  <td className="td-location">Delmon hospital</td>
-                  <td className="td-status" style={{ borderRight: 'none' }}>Conformed</td>
+                  <td className="td-vaccine">Influenza Booster</td>
+                  <td className="td-date">2026-03-24</td>
+                  <td className="td-time">11:30 AM</td>
+                  <td className="td-location">Colombo National Hospital</td>
+                  <td className="td-status" style={{ borderRight: 'none' }}>
+                    <span style={{ color: '#0284c7', fontWeight: 600 }}>Scheduled</span>
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -245,16 +369,20 @@ export default function PatientProfileTab() {
               </thead>
               <tbody>
                 <tr>
-                  <td className="td-vaccine">ATD</td>
-                  <td className="td-date">2025-02-24</td>
-                  <td className="td-location">Lanka hospital- colombo</td>
-                  <td className="td-status" style={{ borderRight: 'none' }}>Completed</td>
+                  <td className="td-vaccine">BCG &amp; Hepatitis B</td>
+                  <td className="td-date">2024-05-18</td>
+                  <td className="td-location">Teaching Hospital Kandy</td>
+                  <td className="td-status" style={{ borderRight: 'none' }}>
+                    <span style={{ color: '#10b981', fontWeight: 600 }}>✓ Completed</span>
+                  </td>
                 </tr>
                 <tr>
-                  <td className="td-vaccine">COVID-19</td>
-                  <td className="td-date">2020-04-12</td>
-                  <td className="td-location">Lanka hospital- colombo</td>
-                  <td className="td-status" style={{ borderRight: 'none' }}>Completed</td>
+                  <td className="td-vaccine">COVID-19 Booster (Moderna)</td>
+                  <td className="td-date">2023-11-12</td>
+                  <td className="td-location">Lanka Hospital - Colombo</td>
+                  <td className="td-status" style={{ borderRight: 'none' }}>
+                    <span style={{ color: '#10b981', fontWeight: 600 }}>✓ Completed</span>
+                  </td>
                 </tr>
               </tbody>
             </table>

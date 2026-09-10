@@ -250,7 +250,7 @@ export default function AdminHospitalsTab() {
               Hospital Centers Performance &amp; Vaccine Supply
             </div>
             <p style={{ margin: '4px 0 0 0', fontSize: '0.82rem', color: '#64748b' }}>
-              Track facility immunization metrics, cold-chain compliance, wastage rates, and manage vaccine batch allocations.
+              Track hospital immunization metrics, cold-chain compliance, wastage rates, and manage vaccine batch allocations.
             </p>
           </div>
 
@@ -293,7 +293,7 @@ export default function AdminHospitalsTab() {
           <input
             type="text"
             className="doctor-search-input"
-            placeholder="Search hospitals by name, MOH facility code, district, or medical director..."
+            placeholder="Search hospitals by name, MOH hospital code, district, or medical director..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -401,7 +401,7 @@ export default function AdminHospitalsTab() {
               <div>
                 <h3 className="doctor-modal-title">{selectedHospital.name}</h3>
                 <p style={{ margin: '4px 0 0 0', fontSize: '0.82rem', color: 'rgba(255,255,255,0.85)' }}>
-                  Facility ID: {selectedHospital.code} • {selectedHospital.city} ({selectedHospital.province} Province)
+                  Hospital ID: {selectedHospital.code} • {selectedHospital.city} ({selectedHospital.province} Province)
                 </p>
               </div>
               <button type="button" className="doctor-modal-close-btn" onClick={() => setIsDetailModalOpen(false)}>
@@ -433,7 +433,7 @@ export default function AdminHospitalsTab() {
                 </div>
               </div>
 
-              {/* Facility Metadata */}
+              {/* Hospital Metadata */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', background: '#111a2e', border: '1px solid rgba(255, 255, 255, 0.08)', padding: '14px 16px', borderRadius: '10px', marginBottom: '18px', fontSize: '0.84rem' }}>
                 <div>
                   <span style={{ color: '#94a3b8' }}>Medical Director:</span>

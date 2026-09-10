@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Vaxora.Api.Data;
 using Vaxora.Api.Dtos;
@@ -18,6 +20,8 @@ public interface IAuthService
     Task<bool> ForgotPasswordAsync(ForgotPasswordDto dto);
     Task<bool> ResetPasswordAsync(ResetPasswordDto dto);
     Task<bool> ChangePasswordAsync(Guid userId, ChangePasswordDto dto);
+    Task<UserDto> UpdateProfileAsync(Guid userId, UpdateProfileDto dto);
+    Task<bool> DeleteAccountAsync(Guid userId);
 }
 
 public class AuthService : IAuthService
@@ -29,6 +33,7 @@ public class AuthService : IAuthService
     private readonly IRegistrationNumberService _registrationNumberService;
     private readonly IVaccinationCardService _vaccinationCardService;
     private readonly IEmailService _emailService;
+    private readonly IConfiguration _configuration;
     private readonly ILogger<AuthService> _logger;
 
     public AuthService(
@@ -39,6 +44,7 @@ public class AuthService : IAuthService
         IRegistrationNumberService registrationNumberService,
         IVaccinationCardService vaccinationCardService,
         IEmailService emailService,
+        IConfiguration configuration,
         ILogger<AuthService> logger)
     {
         _context = context;
@@ -48,6 +54,7 @@ public class AuthService : IAuthService
         _registrationNumberService = registrationNumberService;
         _vaccinationCardService = vaccinationCardService;
         _emailService = emailService;
+        _configuration = configuration;
         _logger = logger;
     }
 
@@ -247,10 +254,6 @@ public class AuthService : IAuthService
             Timestamp = DateTime.UtcNow
         });
 
-        var refreshToken = _tokenService.GenerateRefreshToken();
-        user.RefreshToken = refreshToken;
-        user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(7);
-
         await _context.SaveChangesAsync();
 
         // Dispatch "Waiting for Approval" email in background
@@ -270,13 +273,11 @@ public class AuthService : IAuthService
             }
         });
 
-        var token = _tokenService.GenerateAccessToken(user, profile.FullName);
-
         return new AuthResponseDto
         {
-            Token = token,
-            RefreshToken = refreshToken,
-            ExpiresAt = _tokenService.GetTokenExpiration(),
+            Token = null,
+            RefreshToken = null,
+            ExpiresAt = null,
             User = new UserDto
             {
                 Id = user.Id,
@@ -366,10 +367,6 @@ public class AuthService : IAuthService
             Timestamp = DateTime.UtcNow
         });
 
-        var refreshToken = _tokenService.GenerateRefreshToken();
-        user.RefreshToken = refreshToken;
-        user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(7);
-
         await _context.SaveChangesAsync();
 
         // Dispatch "Waiting for Approval" email in background
@@ -389,13 +386,11 @@ public class AuthService : IAuthService
             }
         });
 
-        var token = _tokenService.GenerateAccessToken(user, profile.FullName);
-
         return new AuthResponseDto
         {
-            Token = token,
-            RefreshToken = refreshToken,
-            ExpiresAt = _tokenService.GetTokenExpiration(),
+            Token = null,
+            RefreshToken = null,
+            ExpiresAt = null,
             User = new UserDto
             {
                 Id = user.Id,
@@ -489,10 +484,6 @@ public class AuthService : IAuthService
             Timestamp = DateTime.UtcNow
         });
 
-        var refreshToken = _tokenService.GenerateRefreshToken();
-        user.RefreshToken = refreshToken;
-        user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(7);
-
         await _context.SaveChangesAsync();
 
         // Dispatch "Waiting for Approval" email in background
@@ -512,13 +503,11 @@ public class AuthService : IAuthService
             }
         });
 
-        var token = _tokenService.GenerateAccessToken(user, profile.HospitalName);
-
         return new AuthResponseDto
         {
-            Token = token,
-            RefreshToken = refreshToken,
-            ExpiresAt = _tokenService.GetTokenExpiration(),
+            Token = null,
+            RefreshToken = null,
+            ExpiresAt = null,
             User = new UserDto
             {
                 Id = user.Id,
@@ -548,6 +537,11 @@ public class AuthService : IAuthService
         if (user == null || !_passwordHasher.VerifyPassword(dto.Password, user.PasswordHash))
         {
             throw new UnauthorizedAccessException("Invalid email address or password.");
+        }
+
+        if (user.Status == UserStatus.Pending)
+        {
+            throw new InvalidOperationException("Your account is currently under administrative verification by the Ministry of Health. Access will be granted once approved by the administrator.");
         }
 
         if (user.Status == UserStatus.Suspended)
@@ -621,9 +615,19 @@ public class AuthService : IAuthService
             throw new SecurityException("Invalid or expired refresh token.");
         }
 
+        if (user.Status == UserStatus.Pending)
+        {
+            throw new InvalidOperationException("Account is pending verification.");
+        }
+
         if (user.Status == UserStatus.Suspended)
         {
             throw new InvalidOperationException("Account is suspended.");
+        }
+
+        if (user.Status == UserStatus.Rejected)
+        {
+            throw new InvalidOperationException("Account registration was rejected.");
         }
 
         var displayName = GetUserDisplayName(user);
@@ -695,20 +699,35 @@ public class AuthService : IAuthService
         };
     }
 
+    private static string HashResetToken(string token)
+    {
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(token.Trim()));
+        return Convert.ToHexString(bytes).ToLowerInvariant();
+    }
+
     public async Task<bool> ForgotPasswordAsync(ForgotPasswordDto dto)
     {
         var normalizedEmail = dto.Email.Trim().ToLowerInvariant();
-        var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == normalizedEmail);
+        var user = await _context.Users
+            .Include(u => u.PatientProfile)
+            .Include(u => u.DoctorProfile)
+            .Include(u => u.NurseProfile)
+            .Include(u => u.HospitalProfile)
+            .FirstOrDefaultAsync(u => u.Email == normalizedEmail);
+
         if (user == null)
         {
-            // Return true for security to prevent email enumeration
+            // Return generic true for security to prevent email enumeration attacks
             return true;
         }
 
-        // Generate 6-digit numeric or alphanumeric reset token
-        var resetToken = Random.Shared.Next(100000, 999999).ToString();
-        user.ResetPasswordToken = resetToken;
+        // 1. Generate a cryptographically secure 6-digit numeric reset token
+        var rawToken = RandomNumberGenerator.GetInt32(100000, 1000000).ToString();
+
+        // 2. Store ONLY the SHA-256 hash of the reset token in the database
+        user.ResetPasswordToken = HashResetToken(rawToken);
         user.ResetPasswordExpiryTime = DateTime.UtcNow.AddMinutes(15);
+        user.UpdatedAt = DateTime.UtcNow;
 
         _context.AuditLogs.Add(new AuditLog
         {
@@ -716,30 +735,82 @@ public class AuthService : IAuthService
             UserEmail = user.Email,
             Role = user.Role.ToString(),
             Action = "PASSWORD_RESET_REQUESTED",
-            Details = $"Password reset code requested for {user.Email}",
+            Details = $"Secure password reset link and token generated for {user.Email}",
             Timestamp = DateTime.UtcNow
         });
 
         await _context.SaveChangesAsync();
 
-        _logger.LogInformation("Password reset token generated for user {Email}: {Token}", user.Email, resetToken);
+        // 3. Build frontend password reset link
+        var frontendBaseUrl = _configuration["Frontend:BaseUrl"] 
+            ?? Environment.GetEnvironmentVariable("FRONTEND_BASE_URL") 
+            ?? "http://localhost:5173";
+
+        var resetLink = $"{frontendBaseUrl.TrimEnd('/')}/reset-password?token={Uri.EscapeDataString(rawToken)}&email={Uri.EscapeDataString(user.Email)}";
+        var displayName = GetUserDisplayName(user);
+
+        // 4. Dispatch password reset email via SMTP
+        try
+        {
+            await _emailService.SendPasswordResetEmailAsync(user.Email, displayName, resetLink, rawToken, 15);
+            _logger.LogInformation("Password reset email successfully sent to {Email}", user.Email);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to dispatch password reset email to {Email}", user.Email);
+        }
+
+        _logger.LogInformation("Password reset token generated and processed for user {Email}", user.Email);
         return true;
     }
 
     public async Task<bool> ResetPasswordAsync(ResetPasswordDto dto)
     {
-        var normalizedEmail = dto.Email.Trim().ToLowerInvariant();
-        var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == normalizedEmail);
-
-        if (user == null || user.ResetPasswordToken != dto.ResetToken || user.ResetPasswordExpiryTime < DateTime.UtcNow)
+        // 1. Validate password constraints
+        if (string.IsNullOrWhiteSpace(dto.NewPassword) || dto.NewPassword.Length < 6)
         {
-            throw new InvalidOperationException("Invalid or expired reset token.");
+            throw new InvalidOperationException("Password must be at least 6 characters.");
         }
 
+        if (!string.IsNullOrWhiteSpace(dto.ConfirmPassword) && dto.NewPassword != dto.ConfirmPassword)
+        {
+            throw new InvalidOperationException("New password and confirm password do not match.");
+        }
+
+        var normalizedEmail = dto.Email.Trim().ToLowerInvariant();
+        var user = await _context.Users
+            .Include(u => u.PatientProfile)
+            .Include(u => u.DoctorProfile)
+            .Include(u => u.NurseProfile)
+            .Include(u => u.HospitalProfile)
+            .FirstOrDefaultAsync(u => u.Email == normalizedEmail);
+
+        if (user == null || string.IsNullOrWhiteSpace(user.ResetPasswordToken) || user.ResetPasswordExpiryTime == null || user.ResetPasswordExpiryTime < DateTime.UtcNow)
+        {
+            throw new InvalidOperationException("Invalid or expired password reset token.");
+        }
+
+        // 2. Validate token against stored SHA-256 hash
+        var incomingHash = HashResetToken(dto.ResetToken);
+        bool isValidToken = string.Equals(user.ResetPasswordToken, incomingHash, StringComparison.OrdinalIgnoreCase)
+                         || string.Equals(user.ResetPasswordToken, dto.ResetToken.Trim(), StringComparison.OrdinalIgnoreCase);
+
+        if (!isValidToken)
+        {
+            throw new InvalidOperationException("Invalid or expired password reset token.");
+        }
+
+        // 3. Update password using BCrypt password hasher
         user.PasswordHash = _passwordHasher.HashPassword(dto.NewPassword);
+
+        // 4. Invalidate / clear reset token and expiry
         user.ResetPasswordToken = null;
         user.ResetPasswordExpiryTime = null;
-        user.RefreshToken = null; // Revoke existing sessions
+
+        // 5. Invalidate existing sessions and refresh tokens for security
+        user.RefreshToken = null;
+        user.RefreshTokenExpiryTime = null;
+        user.UpdatedAt = DateTime.UtcNow;
 
         _context.AuditLogs.Add(new AuditLog
         {
@@ -747,11 +818,25 @@ public class AuthService : IAuthService
             UserEmail = user.Email,
             Role = user.Role.ToString(),
             Action = "PASSWORD_RESET_SUCCESS",
-            Details = $"Password was successfully reset for {user.Email}",
+            Details = $"Password was successfully reset for {user.Email}. Active sessions revoked.",
             Timestamp = DateTime.UtcNow
         });
 
         await _context.SaveChangesAsync();
+
+        // 6. Dispatch password-changed security confirmation email
+        var displayName = GetUserDisplayName(user);
+        try
+        {
+            await _emailService.SendPasswordChangedConfirmationEmailAsync(user.Email, displayName);
+            _logger.LogInformation("Password-changed confirmation email sent to {Email}", user.Email);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send password-changed confirmation email to {Email}", user.Email);
+        }
+
+        _logger.LogInformation("Password successfully reset and sessions revoked for user {Email}", user.Email);
         return true;
     }
 
@@ -782,6 +867,147 @@ public class AuthService : IAuthService
         });
 
         await _context.SaveChangesAsync();
+        return true;
+    }
+
+    public async Task<UserDto> UpdateProfileAsync(Guid userId, UpdateProfileDto dto)
+    {
+        var user = await _context.Users
+            .Include(u => u.PatientProfile)
+            .Include(u => u.DoctorProfile)
+            .Include(u => u.NurseProfile)
+            .Include(u => u.HospitalProfile)
+            .FirstOrDefaultAsync(u => u.Id == userId);
+
+        if (user == null)
+        {
+            throw new KeyNotFoundException("User not found.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(dto.PhoneNumber))
+        {
+            user.PhoneNumber = dto.PhoneNumber.Trim();
+        }
+
+        switch (user.Role)
+        {
+            case UserRole.PATIENT:
+                if (user.PatientProfile != null)
+                {
+                    if (!string.IsNullOrWhiteSpace(dto.FullName)) user.PatientProfile.FullName = dto.FullName.Trim();
+                    if (!string.IsNullOrWhiteSpace(dto.PhoneNumber)) user.PatientProfile.PhoneNumber = dto.PhoneNumber.Trim();
+                    if (dto.DateOfBirth.HasValue) user.PatientProfile.DateOfBirth = dto.DateOfBirth.Value;
+                    if (!string.IsNullOrWhiteSpace(dto.ProfilePhotoUrl)) user.PatientProfile.ProfilePhotoUrl = dto.ProfilePhotoUrl;
+                }
+                break;
+
+            case UserRole.DOCTOR:
+                if (user.DoctorProfile != null)
+                {
+                    if (!string.IsNullOrWhiteSpace(dto.FullName)) user.DoctorProfile.FullName = dto.FullName.Trim();
+                    if (!string.IsNullOrWhiteSpace(dto.PhoneNumber)) user.DoctorProfile.PhoneNumber = dto.PhoneNumber.Trim();
+                    if (!string.IsNullOrWhiteSpace(dto.Specialization)) user.DoctorProfile.Specialization = dto.Specialization.Trim();
+                    if (!string.IsNullOrWhiteSpace(dto.ProfilePhotoUrl)) user.DoctorProfile.ProfilePhotoUrl = dto.ProfilePhotoUrl;
+                }
+                break;
+
+            case UserRole.NURSE:
+                if (user.NurseProfile != null)
+                {
+                    if (!string.IsNullOrWhiteSpace(dto.FullName)) user.NurseProfile.FullName = dto.FullName.Trim();
+                    if (!string.IsNullOrWhiteSpace(dto.PhoneNumber)) user.NurseProfile.PhoneNumber = dto.PhoneNumber.Trim();
+                    if (!string.IsNullOrWhiteSpace(dto.ProfilePhotoUrl)) user.NurseProfile.ProfilePhotoUrl = dto.ProfilePhotoUrl;
+                }
+                break;
+
+            case UserRole.HOSPITAL:
+                if (user.HospitalProfile != null)
+                {
+                    if (!string.IsNullOrWhiteSpace(dto.HospitalName)) user.HospitalProfile.HospitalName = dto.HospitalName.Trim();
+                    if (!string.IsNullOrWhiteSpace(dto.PhoneNumber)) user.HospitalProfile.ContactNumber = dto.PhoneNumber.Trim();
+                    if (!string.IsNullOrWhiteSpace(dto.HospitalType)) user.HospitalProfile.HospitalType = dto.HospitalType.Trim();
+                    if (!string.IsNullOrWhiteSpace(dto.OperatingHours)) user.HospitalProfile.OperatingHours = dto.OperatingHours.Trim();
+                    if (!string.IsNullOrWhiteSpace(dto.Address)) user.HospitalProfile.Address = dto.Address.Trim();
+                    if (!string.IsNullOrWhiteSpace(dto.District)) user.HospitalProfile.District = dto.District.Trim();
+                    if (!string.IsNullOrWhiteSpace(dto.Province)) user.HospitalProfile.Province = dto.Province.Trim();
+                    if (!string.IsNullOrWhiteSpace(dto.ProfilePhotoUrl)) user.HospitalProfile.LogoUrl = dto.ProfilePhotoUrl;
+                }
+                break;
+        }
+
+        user.UpdatedAt = DateTime.UtcNow;
+
+        _context.AuditLogs.Add(new AuditLog
+        {
+            UserId = user.Id,
+            UserEmail = user.Email,
+            Role = user.Role.ToString(),
+            Action = "PROFILE_UPDATED",
+            Details = $"User updated profile details ({user.Role})",
+            Timestamp = DateTime.UtcNow
+        });
+
+        await _context.SaveChangesAsync();
+
+        return new UserDto
+        {
+            Id = user.Id,
+            Email = user.Email,
+            Role = user.Role.ToString(),
+            Status = user.Status.ToString(),
+            Name = GetUserDisplayName(user),
+            PhoneNumber = user.PhoneNumber,
+            RegistrationNumber = user.RegistrationNumber,
+            ProfilePhotoUrl = GetUserPhotoUrl(user),
+            ProfileDetails = GetUserProfileObject(user)
+        };
+    }
+
+    public async Task<bool> DeleteAccountAsync(Guid userId)
+    {
+        var user = await _context.Users
+            .Include(u => u.PatientProfile)
+            .Include(u => u.DoctorProfile)
+            .Include(u => u.NurseProfile)
+            .Include(u => u.HospitalProfile)
+            .FirstOrDefaultAsync(u => u.Id == userId);
+
+        if (user == null)
+        {
+            throw new KeyNotFoundException("User not found.");
+        }
+
+        var userEmail = user.Email;
+        var displayName = GetUserDisplayName(user);
+        var roleName = user.Role.ToString();
+        var regNumber = user.RegistrationNumber ?? user.Id.ToString();
+
+        _logger.LogInformation("Permanently deleting account for user {UserId} with role {Role} and email {Email}", user.Id, user.Role, user.Email);
+
+        // Record Audit Log before removing
+        _context.AuditLogs.Add(new AuditLog
+        {
+            UserId = user.Id,
+            UserEmail = user.Email,
+            Role = user.Role.ToString(),
+            Action = "ACCOUNT_DELETED",
+            Details = $"User self-deleted their account ({user.Role}) with registration number {user.RegistrationNumber}",
+            Timestamp = DateTime.UtcNow
+        });
+
+        _context.Users.Remove(user);
+        await _context.SaveChangesAsync();
+
+        // Send confirmation email to user after account deletion
+        try
+        {
+            await _emailService.SendAccountDeletedEmailAsync(userEmail, displayName, regNumber, roleName);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send account deletion email to {Email}", userEmail);
+        }
+
         return true;
     }
 

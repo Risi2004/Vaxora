@@ -1,14 +1,37 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import logo from '../../../assets/images/logo.png';
 
-import { authService } from '../../auth';
+import { authService, getUser } from '../../auth';
+import DeleteAccountModal from '../../auth/components/DeleteAccountModal';
 
 export default function NurseNavbar() {
   const navigate = useNavigate();
   const location = useLocation();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const profileMenuRef = useRef(null);
+
+  const user = typeof authService?.getUser === 'function' ? authService.getUser() : (getUser ? getUser() : null);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target)) {
+        setShowProfileMenu(false);
+      }
+    }
+
+    if (showProfileMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('touchstart', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [showProfileMenu]);
 
   const handleLogout = async () => {
     await authService.logout();
@@ -61,7 +84,7 @@ export default function NurseNavbar() {
 
         {/* Right User Profile Avatar & Mobile Hamburger Toggle */}
         <div className="doctor-actions-area">
-          <div style={{ position: 'relative' }}>
+          <div ref={profileMenuRef} style={{ position: 'relative' }}>
             <button
               type="button"
               className="doctor-avatar-button nurse-avatar-btn"
@@ -71,31 +94,43 @@ export default function NurseNavbar() {
               }}
               title="Nurse Account Profile"
               aria-label="Nurse Account Profile"
+              style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
             >
-              <svg
-                viewBox="0 0 48 48"
-                width="40"
-                height="40"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <circle cx="24" cy="24" r="23" fill="#e0f2fe" stroke="#38bdf8" strokeWidth="2" />
-                <circle cx="24" cy="18" r="8" fill="#0284c7" />
-                <path
-                  d="M10 40C10 32.268 16.268 28 24 28C31.732 28 38 32.268 38 40"
-                  fill="#0284c7"
+              {user?.profilePhotoUrl ? (
+                <img
+                  src={user.profilePhotoUrl}
+                  alt={user.name || 'Nurse'}
+                  className="navbar-avatar-img"
+                  style={{ borderColor: '#0284c7' }}
                 />
-              </svg>
+              ) : (
+                <svg
+                  viewBox="0 0 48 48"
+                  width="40"
+                  height="40"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <circle cx="24" cy="24" r="23" fill="#e0f2fe" stroke="#38bdf8" strokeWidth="2" />
+                  <circle cx="24" cy="18" r="8" fill="#0284c7" />
+                  <path
+                    d="M10 40C10 32.268 16.268 28 24 28C31.732 28 38 32.268 38 40"
+                    fill="#0284c7"
+                  />
+                </svg>
+              )}
             </button>
 
             {showProfileMenu && (
               <div className="doctor-profile-dropdown">
                 <div className="doctor-dropdown-header">
-                  <div className="doctor-dropdown-name">Nurse Anoma Silva</div>
-                  <div className="doctor-dropdown-meta">Senior Immunization Nurse (RNO)</div>
-                  <div className="doctor-dropdown-meta" style={{ color: '#0284c7', fontWeight: 600 }}>
-                    SLNC Reg: 49201
-                  </div>
+                  <div className="doctor-dropdown-name">{user?.name || 'Nurse Profile'}</div>
+                  <div className="doctor-dropdown-meta">Senior Immunization Nurse</div>
+                  {user?.registrationNumber && (
+                    <div className="doctor-dropdown-meta" style={{ color: '#0284c7', fontWeight: 600 }}>
+                      Reg: {user.registrationNumber}
+                    </div>
+                  )}
                 </div>
 
                 <div style={{ height: '1px', background: '#f1f5f9', margin: '6px 0 10px' }} />
@@ -117,6 +152,17 @@ export default function NurseNavbar() {
                   onClick={handleLogout}
                 >
                   Log Out
+                </button>
+
+                <button
+                  type="button"
+                  className="doctor-dropdown-delete"
+                  onClick={() => {
+                    setShowProfileMenu(false);
+                    setIsDeleteModalOpen(true);
+                  }}
+                >
+                  🗑️ Delete Account
                 </button>
               </div>
             )}
@@ -169,9 +215,27 @@ export default function NurseNavbar() {
             >
               🚪 Log Out
             </button>
+            <button
+              type="button"
+              className="portal-mobile-nav-btn text-danger"
+              onClick={() => {
+                setMobileMenuOpen(false);
+                setIsDeleteModalOpen(true);
+              }}
+            >
+              🗑️ Delete Account
+            </button>
           </nav>
         </div>
       )}
+
+      {/* Delete Account Confirmation Modal */}
+      <DeleteAccountModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        userName={user?.name || 'Nurse Profile'}
+        roleName="Nurse"
+      />
     </header>
   );
 }

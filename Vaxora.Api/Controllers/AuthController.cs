@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Vaxora.Api.Dtos;
 using Vaxora.Api.Services;
 
@@ -202,6 +203,34 @@ public class AuthController : ControllerBase
         }
     }
 
+    [Authorize]
+    [HttpPut("profile")]
+    public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileDto dto)
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value 
+            ?? User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)?.Value;
+
+        if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+        {
+            return Unauthorized(new { message = "Invalid user token claims." });
+        }
+
+        try
+        {
+            var updatedUser = await _authService.UpdateProfileAsync(userId, dto);
+            return Ok(updatedUser);
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound(new { message = "User record not found." });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating user profile");
+            return StatusCode(500, new { message = "Failed to update profile." });
+        }
+    }
+
     [HttpPost("refresh-token")]
     public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequestDto dto)
     {
@@ -240,24 +269,36 @@ public class AuthController : ControllerBase
         return Ok(new { message = "Logged out successfully." });
     }
 
+    [EnableRateLimiting("ForgotPasswordLimiter")]
     [HttpPost("forgot-password")]
     public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordDto dto)
     {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+
         try
         {
             await _authService.ForgotPasswordAsync(dto);
-            return Ok(new { message = "If your email is registered in Vaxora, a password reset code has been sent." });
+            return Ok(new { message = "If an account exists for this email, password reset instructions have been sent." });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error in forgot password");
-            return StatusCode(500, new { message = "Failed to process forgot password request." });
+            _logger.LogError(ex, "Error processing forgot password request");
+            // Always return the same generic message even if an unexpected error occurs internally to avoid leaking info
+            return Ok(new { message = "If an account exists for this email, password reset instructions have been sent." });
         }
     }
 
     [HttpPost("reset-password")]
     public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordDto dto)
     {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+
         try
         {
             await _authService.ResetPasswordAsync(dto);
@@ -270,7 +311,7 @@ public class AuthController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error resetting password");
-            return StatusCode(500, new { message = "Failed to reset password." });
+            return StatusCode(500, new { message = "An error occurred while resetting your password. Please try again." });
         }
     }
 
@@ -299,6 +340,34 @@ public class AuthController : ControllerBase
         {
             _logger.LogError(ex, "Error changing password");
             return StatusCode(500, new { message = "Failed to change password." });
+        }
+    }
+
+    [Authorize]
+    [HttpDelete("account")]
+    public async Task<IActionResult> DeleteAccount()
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value 
+            ?? User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)?.Value;
+
+        if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+        {
+            return Unauthorized(new { message = "Invalid authentication claims." });
+        }
+
+        try
+        {
+            await _authService.DeleteAccountAsync(userId);
+            return Ok(new { message = "Your account has been deleted successfully." });
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound(new { message = "User account not found." });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting account for user {UserId}", userId);
+            return StatusCode(500, new { message = "Failed to delete account. Please try again." });
         }
     }
 }

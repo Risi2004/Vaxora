@@ -4,7 +4,7 @@ import logo from '../../../assets/images/logo.png';
 
 import { authService } from '../../auth';
 
-export default function AdminSidebar({ pendingApprovalsCount = 3 }) {
+export default function AdminSidebar({ pendingApprovalsCount = 0 }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);

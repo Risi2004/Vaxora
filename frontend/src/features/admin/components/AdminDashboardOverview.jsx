@@ -1,14 +1,44 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { authService } from '../../auth';
 
 export default function AdminDashboardOverview() {
   const navigate = useNavigate();
   const [toastMessage, setToastMessage] = useState(null);
+  const [pendingRequests, setPendingRequests] = useState([]);
+  const [loadingPending, setLoadingPending] = useState(true);
 
   const showToast = (msg) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
   };
+
+  useEffect(() => {
+    async function loadPending() {
+      try {
+        setLoadingPending(true);
+        const data = await authService.getPendingVerifications();
+        if (Array.isArray(data)) {
+          const formatted = data
+            .filter((item) => (item.status || 'Pending').toLowerCase() === 'pending')
+            .map((item) => ({
+              id: item.userId,
+              type: (item.role || 'doctor').toLowerCase(),
+              name: item.name || 'Applicant',
+              regNumber: item.registrationNumber || item.licenseOrRegNumber || 'Pending',
+              hospital: item.hospitalAffiliationOrType || 'General Hospital',
+              date: new Date(item.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+            }));
+          setPendingRequests(formatted);
+        }
+      } catch (err) {
+        console.warn('Failed to fetch pending requests in overview:', err);
+      } finally {
+        setLoadingPending(false);
+      }
+    }
+    loadPending();
+  }, []);
 
   // Live Hospital Quick Telemetry
   const activeHospitals = [
@@ -26,13 +56,6 @@ export default function AdminDashboardOverview() {
     { vaccine: 'Moderna Spikevax', inStock: '24,000 doses', allocated: '18,200 doses', tempRange: '-25°C to -15°C' },
     { vaccine: 'Influenza (Quadrivalent)', inStock: '62,000 doses', allocated: '41,000 doses', tempRange: '+2°C to +8°C' },
     { vaccine: 'MMR (Measles, Mumps)', inStock: '31,500 doses', allocated: '20,000 doses', tempRange: '+2°C to +8°C' },
-  ];
-
-  // Recent Verification Requests
-  const pendingRequests = [
-    { id: 'req-1', type: 'doctor', name: 'Dr. Kasun Abeysekera', regNumber: 'SLMC-42091', hospital: 'Lanka Hospital', date: 'Today, 07:45 AM' },
-    { id: 'req-2', type: 'nurse', name: 'Nurse Sanduni Wijesinghe', regNumber: 'SLNC-58210', hospital: 'Asiri Central Hospital', date: 'Today, 08:12 AM' },
-    { id: 'req-3', type: 'hospital', name: 'Nawaloka Medicare Center - Negombo', regNumber: 'MOH-PVT-8821', hospital: 'Gampaha District', date: 'Yesterday' },
   ];
 
   return (
@@ -68,7 +91,7 @@ export default function AdminDashboardOverview() {
             style={{ background: '#0284c7' }}
             onClick={() => navigate('/admin/approvals')}
           >
-            📋 Review Approvals (3)
+            📋 Review Approvals ({pendingRequests.length})
           </button>
           <button
             type="button"
@@ -112,9 +135,9 @@ export default function AdminDashboardOverview() {
         <div className="doctor-stat-card" onClick={() => navigate('/admin/approvals')} style={{ cursor: 'pointer' }}>
           <div className="doctor-stat-content">
             <span className="doctor-stat-label">Pending Verification Requests</span>
-            <span className="doctor-stat-value" style={{ color: '#d97706' }}>3</span>
+            <span className="doctor-stat-value" style={{ color: '#d97706' }}>{loadingPending ? '...' : pendingRequests.length}</span>
             <span className="doctor-stat-meta">
-              <span style={{ color: '#dc2626', fontWeight: 700 }}>Action needed:</span> 1 Doctor, 1 Nurse, 1 Facility
+              <span style={{ color: '#dc2626', fontWeight: 700 }}>Action needed:</span> {pendingRequests.length} applications pending
             </span>
           </div>
           <div className="doctor-stat-icon-wrapper doctor-icon-amber">

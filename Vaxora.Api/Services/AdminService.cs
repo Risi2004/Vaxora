@@ -134,8 +134,8 @@ public class AdminService : IAdminService
         }
         else if (targetUser.Role == UserRole.HOSPITAL)
         {
-            recipientName = targetUser.HospitalProfile?.HospitalName ?? "Hospital Facility";
-            roleTitle = "Hospital Facility";
+            recipientName = targetUser.HospitalProfile?.HospitalName ?? "Hospital";
+            roleTitle = "Hospital";
         }
         else
         {
@@ -177,6 +177,9 @@ public class AdminService : IAdminService
                 Timestamp = DateTime.UtcNow
             });
 
+            targetUser.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
             // Dispatch Account Approved email in background
             _ = Task.Run(async () =>
             {
@@ -196,43 +199,34 @@ public class AdminService : IAdminService
         }
         else
         {
-            targetUser.Status = UserStatus.Rejected;
-            var reason = dto.Reason ?? "Documentation criteria not met.";
-            if (targetUser.DoctorProfile != null)
-            {
-                targetUser.DoctorProfile.VerificationStatus = VerificationStatus.Rejected;
-                targetUser.DoctorProfile.RejectionReason = reason;
-                targetUser.DoctorProfile.VerifiedByAdminId = adminId;
-            }
-            else if (targetUser.NurseProfile != null)
-            {
-                targetUser.NurseProfile.VerificationStatus = VerificationStatus.Rejected;
-                targetUser.NurseProfile.RejectionReason = reason;
-                targetUser.NurseProfile.VerifiedByAdminId = adminId;
-            }
-            else if (targetUser.HospitalProfile != null)
-            {
-                targetUser.HospitalProfile.VerificationStatus = VerificationStatus.Rejected;
-                targetUser.HospitalProfile.RejectionReason = reason;
-                targetUser.HospitalProfile.VerifiedByAdminId = adminId;
-            }
+            var userEmail = targetUser.Email;
+            var userRole = targetUser.Role.ToString();
+            var reason = !string.IsNullOrWhiteSpace(dto.Reason) 
+                ? dto.Reason.Trim() 
+                : "Documentation criteria not met.";
 
+            // 1. Record rejection in audit log
             _context.AuditLogs.Add(new AuditLog
             {
                 UserId = adminId,
+                UserEmail = userEmail,
                 Role = "ADMIN",
                 Action = "VERIFICATION_REJECTED",
-                Details = $"Admin rejected registration for user {targetUser.Email} (Role: {targetUser.Role}, Reg #{regNumber}). Reason: {reason}",
+                Details = $"Admin rejected and deleted registration for user {userEmail} (Role: {userRole}, Reg #{regNumber}). Reason: {reason}",
                 Timestamp = DateTime.UtcNow
             });
 
-            // Dispatch Account Rejected email in background
+            // 2. Automatically delete the rejected user from the database (cascades to profile)
+            _context.Users.Remove(targetUser);
+            await _context.SaveChangesAsync();
+
+            // 3. Dispatch Account Rejected email with reason to user
             _ = Task.Run(async () =>
             {
                 try
                 {
                     await _emailService.SendRejectionEmailAsync(
-                        targetUser.Email,
+                        userEmail,
                         recipientName,
                         regNumber,
                         roleTitle,
@@ -240,13 +234,13 @@ public class AdminService : IAdminService
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Background error dispatching rejection email to {Email}", targetUser.Email);
+                    _logger.LogError(ex, "Background error dispatching rejection email to {Email}", userEmail);
                 }
             });
+
+            _logger.LogInformation("User {Email} rejected (Reason: {Reason}) and automatically deleted from database.", userEmail, reason);
         }
 
-        targetUser.UpdatedAt = DateTime.UtcNow;
-        await _context.SaveChangesAsync();
         return true;
     }
 

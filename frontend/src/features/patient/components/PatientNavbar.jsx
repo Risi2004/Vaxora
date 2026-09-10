@@ -1,14 +1,37 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import logo from '../../../assets/images/logo.png';
 
-import { authService } from '../../auth';
+import { authService, getUser } from '../../auth';
+import DeleteAccountModal from '../../auth/components/DeleteAccountModal';
 
 export default function PatientNavbar() {
   const navigate = useNavigate();
   const location = useLocation();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const profileMenuRef = useRef(null);
+
+  const user = typeof authService?.getUser === 'function' ? authService.getUser() : (getUser ? getUser() : null);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target)) {
+        setShowProfileMenu(false);
+      }
+    }
+
+    if (showProfileMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('touchstart', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [showProfileMenu]);
 
   const handleLogout = async () => {
     await authService.logout();
@@ -66,60 +89,84 @@ export default function PatientNavbar() {
         </nav>
 
         {/* Right User Profile Avatar & Mobile Hamburger Toggle */}
-        <div className="patient-user-area" style={{ position: 'relative' }}>
-          <button
-            type="button"
-            className="patient-avatar-button"
-            onClick={() => {
-              setShowProfileMenu((prev) => !prev);
-              setMobileMenuOpen(false);
-            }}
-            title="Account Profile"
-            aria-label="Account Profile"
-          >
-            <svg
-              viewBox="0 0 48 48"
-              width="40"
-              height="40"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
+        <div className="patient-user-area">
+          <div ref={profileMenuRef} style={{ position: 'relative' }}>
+            <button
+              type="button"
+              className="patient-avatar-button"
+              onClick={() => {
+                setShowProfileMenu((prev) => !prev);
+                setMobileMenuOpen(false);
+              }}
+              title="Account Profile"
+              aria-label="Account Profile"
+              style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
             >
-              <circle cx="24" cy="24" r="23" fill="#cbd5e1" stroke="#94a3b8" strokeWidth="2" />
-              <circle cx="24" cy="18" r="8" fill="#1e4a9e" />
-              <path
-                d="M10 40C10 32.268 16.268 28 24 28C31.732 28 38 32.268 38 40"
-                fill="#1e4a9e"
-              />
-            </svg>
-          </button>
+              {user?.profilePhotoUrl ? (
+                <img
+                  src={user.profilePhotoUrl}
+                  alt={user.name || 'Patient'}
+                  className="navbar-avatar-img"
+                />
+              ) : (
+                <svg
+                  viewBox="0 0 48 48"
+                  width="40"
+                  height="40"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <circle cx="24" cy="24" r="23" fill="#cbd5e1" stroke="#94a3b8" strokeWidth="2" />
+                  <circle cx="24" cy="18" r="8" fill="#1e4a9e" />
+                  <path
+                    d="M10 40C10 32.268 16.268 28 24 28C31.732 28 38 32.268 38 40"
+                    fill="#1e4a9e"
+                  />
+                </svg>
+              )}
+            </button>
 
-          {/* Profile Dropdown Popup */}
-          {showProfileMenu && (
-            <div className="patient-profile-dropdown">
-              <div className="profile-dropdown-header">
-                <div className="profile-dropdown-name">Kumar Sangakkara</div>
-                <div className="profile-dropdown-id">ID: VP12345678</div>
+            {/* Profile Dropdown Popup */}
+            {showProfileMenu && (
+              <div className="patient-profile-dropdown">
+                <div className="profile-dropdown-header">
+                  <div className="profile-dropdown-name">{user?.name || 'Patient Profile'}</div>
+                  <div className="profile-dropdown-id">
+                    {user?.registrationNumber ? `ID: ${user.registrationNumber}` : (user?.email || '')}
+                  </div>
+                </div>
+                <div className="profile-dropdown-divider" />
+                <button
+                  type="button"
+                  className="profile-dropdown-link"
+                  onClick={() => {
+                    setShowProfileMenu(false);
+                    navigate('/patient/profile');
+                  }}
+                >
+                  View Profile
+                </button>
+                <button
+                  type="button"
+                  className="profile-dropdown-logout"
+                  onClick={handleLogout}
+                >
+                  Log Out
+                </button>
+
+                <button
+                  type="button"
+                  className="profile-dropdown-delete"
+                  onClick={() => {
+                    setShowProfileMenu(false);
+                    setIsDeleteModalOpen(true);
+                  }}
+                >
+                  🗑️ Delete Account
+                </button>
               </div>
-              <div className="profile-dropdown-divider" />
-              <button
-                type="button"
-                className="profile-dropdown-link"
-                onClick={() => {
-                  setShowProfileMenu(false);
-                  navigate('/patient/profile');
-                }}
-              >
-                View Profile
-              </button>
-              <button
-                type="button"
-                className="profile-dropdown-logout"
-                onClick={handleLogout}
-              >
-                Log Out
-              </button>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Mobile Hamburger Button */}
           <button
@@ -168,9 +215,27 @@ export default function PatientNavbar() {
             >
               🚪 Log Out
             </button>
+            <button
+              type="button"
+              className="portal-mobile-nav-btn text-danger"
+              onClick={() => {
+                setMobileMenuOpen(false);
+                setIsDeleteModalOpen(true);
+              }}
+            >
+              🗑️ Delete Account
+            </button>
           </nav>
         </div>
       )}
+
+      {/* Delete Account Confirmation Modal */}
+      <DeleteAccountModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        userName={user?.name || 'Patient Profile'}
+        roleName="Patient"
+      />
     </header>
   );
 }

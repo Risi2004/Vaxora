@@ -29,9 +29,9 @@ public class UserDto
 
 public class AuthResponseDto
 {
-    public string Token { get; set; } = string.Empty;
-    public string RefreshToken { get; set; } = string.Empty;
-    public DateTime ExpiresAt { get; set; }
+    public string? Token { get; set; }
+    public string? RefreshToken { get; set; }
+    public DateTime? ExpiresAt { get; set; }
     public UserDto User { get; set; } = null!;
     public string? Message { get; set; }
 }
@@ -59,8 +59,10 @@ public class ResetPasswordDto
     public string ResetToken { get; set; } = string.Empty;
 
     [Required]
-    [MinLength(6)]
+    [MinLength(6, ErrorMessage = "Password must be at least 6 characters.")]
     public string NewPassword { get; set; } = string.Empty;
+
+    public string? ConfirmPassword { get; set; }
 }
 
 public class ChangePasswordDto
@@ -71,6 +73,21 @@ public class ChangePasswordDto
     [Required]
     [MinLength(6)]
     public string NewPassword { get; set; } = string.Empty;
+}
+
+public class UpdateProfileDto
+{
+    public string? FullName { get; set; }
+    public string? PhoneNumber { get; set; }
+    public DateTime? DateOfBirth { get; set; }
+    public string? Specialization { get; set; }
+    public string? HospitalName { get; set; }
+    public string? HospitalType { get; set; }
+    public string? OperatingHours { get; set; }
+    public string? Address { get; set; }
+    public string? District { get; set; }
+    public string? Province { get; set; }
+    public string? ProfilePhotoUrl { get; set; }
 }
 
 // Signup DTOs exactly matching frontend forms

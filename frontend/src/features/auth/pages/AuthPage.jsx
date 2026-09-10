@@ -19,7 +19,7 @@ export default function AuthPage({ onAuthSuccess }) {
   // Derive mode from route pathname
   const getModeFromPath = (pathname) => {
     if (pathname.includes('signup')) return 'signup';
-    if (pathname.includes('forgot')) return 'forgot_password';
+    if (pathname.includes('forgot') || pathname.includes('reset')) return 'forgot_password';
     return 'login';
   };
 

@@ -1,14 +1,37 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import logo from '../../../assets/images/logo.png';
 
-import { authService } from '../../auth';
+import { authService, getUser } from '../../auth';
+import DeleteAccountModal from '../../auth/components/DeleteAccountModal';
 
 export default function HospitalNavbar() {
   const navigate = useNavigate();
   const location = useLocation();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const profileMenuRef = useRef(null);
+
+  const user = typeof authService?.getUser === 'function' ? authService.getUser() : (getUser ? getUser() : null);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target)) {
+        setShowProfileMenu(false);
+      }
+    }
+
+    if (showProfileMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('touchstart', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [showProfileMenu]);
 
   const handleLogout = async () => {
     await authService.logout();
@@ -62,7 +85,7 @@ export default function HospitalNavbar() {
 
         {/* Right Status Indicator, Profile & Mobile Hamburger */}
         <div className="hospital-actions-area">
-          <div style={{ position: 'relative' }}>
+          <div ref={profileMenuRef} style={{ position: 'relative' }}>
             <button
               type="button"
               className="hospital-avatar-button"
@@ -72,20 +95,32 @@ export default function HospitalNavbar() {
               }}
               title="Hospital Operations Account"
               aria-label="Hospital Account Profile"
+              style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
             >
-              <div className="hospital-avatar-circle">
-                <span>🏥</span>
-              </div>
+              {user?.profilePhotoUrl ? (
+                <img
+                  src={user.profilePhotoUrl}
+                  alt={user.name || 'Hospital'}
+                  className="navbar-avatar-img"
+                  style={{ borderColor: '#059669' }}
+                />
+              ) : (
+                <div className="hospital-avatar-circle">
+                  <span>🏥</span>
+                </div>
+              )}
             </button>
 
             {showProfileMenu && (
               <div className="hospital-profile-dropdown">
                 <div className="hospital-dropdown-header">
-                  <div className="hospital-dropdown-name">National Healthcare General</div>
-                  <div className="hospital-dropdown-meta">Administrator Portal</div>
-                  <div className="hospital-dropdown-meta" style={{ color: '#2563eb', fontWeight: 600 }}>
-                    MOH-COL-77042
-                  </div>
+                  <div className="hospital-dropdown-name">{user?.name || 'Hospital'}</div>
+                  <div className="hospital-dropdown-meta">{user?.profileDetails?.hospitalType || 'Administrator Portal'}</div>
+                  {user?.registrationNumber && (
+                    <div className="hospital-dropdown-meta" style={{ color: '#2563eb', fontWeight: 600 }}>
+                      Reg: {user.registrationNumber}
+                    </div>
+                  )}
                 </div>
 
                 <div style={{ height: '1px', background: '#f1f5f9', margin: '6px 0 10px' }} />
@@ -107,6 +142,17 @@ export default function HospitalNavbar() {
                   onClick={handleLogout}
                 >
                   Log Out
+                </button>
+
+                <button
+                  type="button"
+                  className="hospital-dropdown-delete"
+                  onClick={() => {
+                    setShowProfileMenu(false);
+                    setIsDeleteModalOpen(true);
+                  }}
+                >
+                  🗑️ Delete Account
                 </button>
               </div>
             )}
@@ -150,7 +196,7 @@ export default function HospitalNavbar() {
               className="portal-mobile-nav-btn"
               onClick={() => handleNavigate('/hospital/profile')}
             >
-              🏥 Facility Profile
+              🏥 Hospital Profile
             </button>
             <button
               type="button"
@@ -159,9 +205,27 @@ export default function HospitalNavbar() {
             >
               🚪 Log Out
             </button>
+            <button
+              type="button"
+              className="portal-mobile-nav-btn text-danger"
+              onClick={() => {
+                setMobileMenuOpen(false);
+                setIsDeleteModalOpen(true);
+              }}
+            >
+              🗑️ Delete Account
+            </button>
           </nav>
         </div>
       )}
+
+      {/* Delete Account Confirmation Modal */}
+      <DeleteAccountModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        userName={user?.name || 'Hospital Operations'}
+        roleName="Hospital"
+      />
     </header>
   );
 }

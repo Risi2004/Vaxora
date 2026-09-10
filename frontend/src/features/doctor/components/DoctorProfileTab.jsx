@@ -1,38 +1,90 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { authService } from '../../auth';
 
 export default function DoctorProfileTab() {
   const fileInputRef = useRef(null);
-  const [avatarImage, setAvatarImage] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [notification, setNotification] = useState('');
+  const [notificationType, setNotificationType] = useState('success');
 
-  // Personal Information State (matching mockup)
+  // Personal Information State
   const [isEditingPersonal, setIsEditingPersonal] = useState(false);
   const [personalInfo, setPersonalInfo] = useState({
-    id: 'VP12345678',
-    nic: '1234 5678 9123',
-    name: 'KUMAR',
-    email: 'VakaPo@gmail.com',
-    phone: '074 1234 567',
-    work: 'Lanka hospital',
+    id: '',
+    slmcNumber: '',
+    name: '',
+    email: '',
+    phone: '',
+    specialization: '',
+    verificationStatus: 'Pending',
+    profilePhotoUrl: null,
+    slmcCardDocKey: null,
+    supportingDocKey: null,
+    createdAt: '',
   });
 
-  // Professional Details State (matching mockup)
+  // Professional Details State
   const [isEditingProfessional, setIsEditingProfessional] = useState(false);
   const [professionalDetails, setProfessionalDetails] = useState({
-    experience: '8 Years',
+    experience: 'Clinical Specialist',
     shiftSchedule: 'Monday - Friday, 9:00 AM - 5:00 PM',
-    workedHospitals: 'VakaPo Central Hospital, Colombo General Hospital',
-    degree: 'MBBS - University of Colombo',
-    completionYear: '2017',
-    consultationHours: '10:00 AM - 1:00 PM, 2:00 PM - 4:00 PM',
-    specialization: 'Certified Cardiologist (Sri Lanka Medical Council, 2017)',
+    workedHospitals: 'National Hospital of Sri Lanka, Base Hospitals',
+    degree: 'MBBS / Specialist Certification',
+    completionYear: 'Certified',
+    consultationHours: '09:00 AM - 01:00 PM, 02:00 PM - 05:00 PM',
+    specialization: '',
   });
 
-  const [notification, setNotification] = useState('');
-
-  const triggerNotification = (msg) => {
+  const triggerNotification = (msg, type = 'success') => {
     setNotification(msg);
+    setNotificationType(type);
     setTimeout(() => setNotification(''), 3500);
   };
+
+  const populateState = (user) => {
+    const details = user.profileDetails || {};
+    const createdDate = details.createdAt || user.createdAt
+      ? new Date(details.createdAt || user.createdAt).toLocaleDateString()
+      : 'Active Member';
+
+    setPersonalInfo({
+      id: user.registrationNumber || details.registrationNumber || 'VAX-D-000000',
+      slmcNumber: details.slmcNumber || 'N/A',
+      name: details.fullName || user.name || '',
+      email: user.email || '',
+      phone: user.phoneNumber || details.phoneNumber || '',
+      specialization: details.specialization || 'General Healthcare / Immunization',
+      verificationStatus: details.verificationStatus != null ? String(details.verificationStatus) : (user.status || 'Pending'),
+      profilePhotoUrl: user.profilePhotoUrl || details.profilePhotoUrl || null,
+      slmcCardDocKey: details.slmcCardDocKey || null,
+      supportingDocKey: details.supportingDocKey || null,
+      createdAt: createdDate,
+    });
+
+    setProfessionalDetails((prev) => ({
+      ...prev,
+      specialization: details.specialization || 'Certified Medical Practitioner (SLMC Verified)',
+    }));
+  };
+
+  const loadDoctorProfile = async () => {
+    try {
+      const cached = authService.getUser();
+      if (cached) populateState(cached);
+
+      const freshUser = await authService.getMe();
+      if (freshUser) populateState(freshUser);
+    } catch (err) {
+      console.warn('Could not fetch latest doctor profile:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadDoctorProfile();
+  }, []);
 
   const handlePersonalChange = (e) => {
     const { name, value } = e.target;
@@ -44,42 +96,85 @@ export default function DoctorProfileTab() {
     setProfessionalDetails((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleTogglePersonalEdit = () => {
+  const handleTogglePersonalEdit = async () => {
     if (isEditingPersonal) {
-      triggerNotification('Personal Information updated successfully!');
+      setSaving(true);
+      try {
+        await authService.updateProfile({
+          fullName: personalInfo.name,
+          phoneNumber: personalInfo.phone,
+          specialization: personalInfo.specialization,
+          profilePhotoUrl: personalInfo.profilePhotoUrl,
+        });
+        triggerNotification('Personal details updated successfully in the national registry!');
+        setIsEditingPersonal(false);
+      } catch (err) {
+        triggerNotification(err.message || 'Failed to update personal details.', 'error');
+      } finally {
+        setSaving(false);
+      }
+    } else {
+      setIsEditingPersonal(true);
     }
-    setIsEditingPersonal((prev) => !prev);
   };
 
-  const handleToggleProfessionalEdit = () => {
+  const handleToggleProfessionalEdit = async () => {
     if (isEditingProfessional) {
-      triggerNotification('Professional Details updated successfully!');
+      setSaving(true);
+      try {
+        await authService.updateProfile({
+          specialization: professionalDetails.specialization,
+        });
+        triggerNotification('Professional details updated successfully!');
+        setIsEditingProfessional(false);
+      } catch (err) {
+        triggerNotification(err.message || 'Failed to update professional details.', 'error');
+      } finally {
+        setSaving(false);
+      }
+    } else {
+      setIsEditingProfessional(true);
     }
-    setIsEditingProfessional((prev) => !prev);
   };
 
   const handleAvatarUpload = (e) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onload = () => {
-        setAvatarImage(reader.result);
-        triggerNotification('Profile photo updated successfully!');
+      reader.onload = async () => {
+        const photoData = reader.result;
+        setPersonalInfo((prev) => ({ ...prev, profilePhotoUrl: photoData }));
+        try {
+          await authService.updateProfile({ profilePhotoUrl: photoData });
+          triggerNotification('Profile avatar updated successfully!');
+        } catch {
+          triggerNotification('Updated photo locally.', 'success');
+        }
       };
       reader.readAsDataURL(file);
     }
   };
 
   const handleExport = () => {
-    triggerNotification('Doctor clinical profile exported successfully!');
+    triggerNotification('Doctor clinical profile exported successfully (.PDF / .CSV)');
   };
 
   return (
     <div className="doctor-profile-wrapper">
       {/* Success Notification Banner */}
       {notification && (
-        <div className="appointment-alert-pill" role="alert" style={{ maxWidth: '960px', width: '100%' }}>
-          ✓ {notification}
+        <div
+          className="appointment-alert-pill"
+          role="alert"
+          style={{
+            maxWidth: '960px',
+            width: '100%',
+            backgroundColor: notificationType === 'error' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+            borderColor: notificationType === 'error' ? '#ef4444' : '#10b981',
+            color: notificationType === 'error' ? '#f87171' : '#34d399',
+          }}
+        >
+          {notificationType === 'error' ? '⚠️' : '✓'} {notification}
         </div>
       )}
 
@@ -90,11 +185,12 @@ export default function DoctorProfileTab() {
         <div className="doctor-profile-top-grid">
           {/* Left: Large Silhouette Avatar with Edit Pen Icon */}
           <div className="doctor-profile-avatar-wrap">
-            {avatarImage ? (
+            {personalInfo.profilePhotoUrl ? (
               <img
-                src={avatarImage}
-                alt="Doctor Profile"
+                src={personalInfo.profilePhotoUrl}
+                alt={personalInfo.name || 'Doctor'}
                 className="doctor-profile-uploaded-img"
+                style={{ width: '150px', height: '150px', borderRadius: '50%', objectFit: 'cover', border: '3px solid #0284c7' }}
               />
             ) : (
               <svg
@@ -148,16 +244,28 @@ export default function DoctorProfileTab() {
           <div className="doctor-profile-info-box">
             {/* Header Row */}
             <div className="doctor-profile-info-header">
-              <h2 className="doctor-profile-info-title">
-                Personal Information
-              </h2>
+              <div>
+                <h2 className="doctor-profile-info-title">
+                  Personal Information
+                </h2>
+                <span
+                  style={{
+                    fontSize: '0.8rem',
+                    fontWeight: 700,
+                    color: personalInfo.verificationStatus === 'Approved' || personalInfo.verificationStatus === '1' ? '#10b981' : '#f59e0b',
+                  }}
+                >
+                  ● Verification: {personalInfo.verificationStatus === 'Approved' || personalInfo.verificationStatus === '1' ? 'Verified / Approved' : 'Pending Administrative Review'}
+                </span>
+              </div>
               <div className="doctor-profile-actions">
                 <button
                   type="button"
                   className="doctor-btn-edit-pill"
                   onClick={handleTogglePersonalEdit}
+                  disabled={saving}
                 >
-                  {isEditingPersonal ? 'Save' : 'Edit'}
+                  {saving ? 'Saving...' : isEditingPersonal ? 'Save' : 'Edit'}
                 </button>
 
                 <button
@@ -187,39 +295,23 @@ export default function DoctorProfileTab() {
             {/* Key-Value Fields with Aligned Colons */}
             <div className="doctor-profile-fields-list">
               <div className="doctor-profile-field-row">
-                <span className="doctor-profile-field-label">ID</span>
+                <span className="doctor-profile-field-label">VAXORA ID</span>
                 <span className="doctor-profile-field-colon">:</span>
-                {isEditingPersonal ? (
-                  <input
-                    type="text"
-                    name="id"
-                    value={personalInfo.id}
-                    onChange={handlePersonalChange}
-                    className="doctor-profile-field-input"
-                  />
-                ) : (
-                  <span className="doctor-profile-field-value">{personalInfo.id}</span>
-                )}
+                <span className="doctor-profile-field-value" style={{ fontWeight: 700, color: '#0284c7' }}>
+                  {personalInfo.id || (loading ? 'Loading...' : 'N/A')}
+                </span>
               </div>
 
               <div className="doctor-profile-field-row">
-                <span className="doctor-profile-field-label">NIC</span>
+                <span className="doctor-profile-field-label">SLMC NUMBER</span>
                 <span className="doctor-profile-field-colon">:</span>
-                {isEditingPersonal ? (
-                  <input
-                    type="text"
-                    name="nic"
-                    value={personalInfo.nic}
-                    onChange={handlePersonalChange}
-                    className="doctor-profile-field-input"
-                  />
-                ) : (
-                  <span className="doctor-profile-field-value">{personalInfo.nic}</span>
-                )}
+                <span className="doctor-profile-field-value" style={{ fontWeight: 600 }}>
+                  {personalInfo.slmcNumber || (loading ? 'Loading...' : 'N/A')}
+                </span>
               </div>
 
               <div className="doctor-profile-field-row">
-                <span className="doctor-profile-field-label">NAME</span>
+                <span className="doctor-profile-field-label">FULL NAME</span>
                 <span className="doctor-profile-field-colon">:</span>
                 {isEditingPersonal ? (
                   <input
@@ -230,24 +322,14 @@ export default function DoctorProfileTab() {
                     className="doctor-profile-field-input"
                   />
                 ) : (
-                  <span className="doctor-profile-field-value">{personalInfo.name}</span>
+                  <span className="doctor-profile-field-value">{personalInfo.name || (loading ? 'Loading...' : 'N/A')}</span>
                 )}
               </div>
 
               <div className="doctor-profile-field-row">
                 <span className="doctor-profile-field-label">EMAIL</span>
                 <span className="doctor-profile-field-colon">:</span>
-                {isEditingPersonal ? (
-                  <input
-                    type="email"
-                    name="email"
-                    value={personalInfo.email}
-                    onChange={handlePersonalChange}
-                    className="doctor-profile-field-input"
-                  />
-                ) : (
-                  <span className="doctor-profile-field-value">{personalInfo.email}</span>
-                )}
+                <span className="doctor-profile-field-value">{personalInfo.email || (loading ? 'Loading...' : 'N/A')}</span>
               </div>
 
               <div className="doctor-profile-field-row">
@@ -262,23 +344,23 @@ export default function DoctorProfileTab() {
                     className="doctor-profile-field-input"
                   />
                 ) : (
-                  <span className="doctor-profile-field-value">{personalInfo.phone}</span>
+                  <span className="doctor-profile-field-value">{personalInfo.phone || 'Not provided'}</span>
                 )}
               </div>
 
               <div className="doctor-profile-field-row">
-                <span className="doctor-profile-field-label">WORK</span>
+                <span className="doctor-profile-field-label">SPECIALIZATION</span>
                 <span className="doctor-profile-field-colon">:</span>
                 {isEditingPersonal ? (
                   <input
                     type="text"
-                    name="work"
-                    value={personalInfo.work}
+                    name="specialization"
+                    value={personalInfo.specialization}
                     onChange={handlePersonalChange}
                     className="doctor-profile-field-input"
                   />
                 ) : (
-                  <span className="doctor-profile-field-value">{personalInfo.work}</span>
+                  <span className="doctor-profile-field-value">{personalInfo.specialization}</span>
                 )}
               </div>
             </div>
@@ -287,22 +369,23 @@ export default function DoctorProfileTab() {
       </div>
 
       {/* =========================================================================
-          2. BOTTOM CARD: Professional Details
+          2. BOTTOM CARD: Professional Details & Submitted Documents
          ========================================================================= */}
       <div className="doctor-profile-card">
         {/* Centered Heading with Edit Button on Far Right */}
         <div className="doctor-prof-details-header">
           <div className="doctor-prof-details-spacer" />
           <h2 className="doctor-prof-details-title">
-            Professional Details
+            Professional Credentials &amp; Verification Documents
           </h2>
           <div className="doctor-prof-details-action">
             <button
               type="button"
               className="doctor-btn-edit-pill"
               onClick={handleToggleProfessionalEdit}
+              disabled={saving}
             >
-              {isEditingProfessional ? 'Save' : 'Edit'}
+              {saving ? 'Saving...' : isEditingProfessional ? 'Save' : 'Edit'}
             </button>
           </div>
         </div>
@@ -312,7 +395,7 @@ export default function DoctorProfileTab() {
           {isEditingProfessional ? (
             <div className="doctor-prof-input-grid">
               <div className="doctor-prof-input-group">
-                <label className="doctor-prof-input-label">Experience</label>
+                <label className="doctor-prof-input-label">Clinical Experience</label>
                 <input
                   type="text"
                   name="experience"
@@ -334,7 +417,7 @@ export default function DoctorProfileTab() {
               </div>
 
               <div className="doctor-prof-input-group">
-                <label className="doctor-prof-input-label">Worked Hospitals</label>
+                <label className="doctor-prof-input-label">Affiliated Hospitals</label>
                 <input
                   type="text"
                   name="workedHospitals"
@@ -345,22 +428,11 @@ export default function DoctorProfileTab() {
               </div>
 
               <div className="doctor-prof-input-group">
-                <label className="doctor-prof-input-label">Degree</label>
+                <label className="doctor-prof-input-label">Degree Qualification</label>
                 <input
                   type="text"
                   name="degree"
                   value={professionalDetails.degree}
-                  onChange={handleProfessionalChange}
-                  className="doctor-prof-input"
-                />
-              </div>
-
-              <div className="doctor-prof-input-group">
-                <label className="doctor-prof-input-label">Degree Completion Year</label>
-                <input
-                  type="text"
-                  name="completionYear"
-                  value={professionalDetails.completionYear}
                   onChange={handleProfessionalChange}
                   className="doctor-prof-input"
                 />
@@ -391,8 +463,13 @@ export default function DoctorProfileTab() {
           ) : (
             <>
               <div className="doctor-prof-row">
-                <strong>Experience: </strong>
-                <span>{professionalDetails.experience}</span>
+                <strong>SLMC Medical Board Reg: </strong>
+                <span style={{ color: '#0284c7', fontWeight: 700 }}>{personalInfo.slmcNumber}</span>
+              </div>
+
+              <div className="doctor-prof-row">
+                <strong>Clinical Specialization: </strong>
+                <span>{professionalDetails.specialization}</span>
               </div>
 
               <div className="doctor-prof-row">
@@ -401,18 +478,13 @@ export default function DoctorProfileTab() {
               </div>
 
               <div className="doctor-prof-row">
-                <strong>Worked Hospitals: </strong>
+                <strong>Affiliated Hospitals: </strong>
                 <span>{professionalDetails.workedHospitals}</span>
               </div>
 
               <div className="doctor-prof-row">
-                <strong>Degree: </strong>
+                <strong>Degree &amp; Medical Education: </strong>
                 <span>{professionalDetails.degree}</span>
-              </div>
-
-              <div className="doctor-prof-row">
-                <strong>Degree Completion Year: </strong>
-                <span>{professionalDetails.completionYear}</span>
               </div>
 
               <div className="doctor-prof-row">
@@ -420,9 +492,35 @@ export default function DoctorProfileTab() {
                 <span>{professionalDetails.consultationHours}</span>
               </div>
 
-              <div className="doctor-prof-row">
-                <strong>Specialization Certification: </strong>
-                <span>{professionalDetails.specialization}</span>
+              <div className="doctor-prof-row" style={{ borderTop: '1px solid #e2e8f0', paddingTop: '12px', marginTop: '12px' }}>
+                <strong>Submitted Verification Documents: </strong>
+                <div style={{ display: 'flex', gap: '12px', marginTop: '6px', flexWrap: 'wrap' }}>
+                  {personalInfo.slmcCardDocKey ? (
+                    <a
+                      href={personalInfo.slmcCardDocKey}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="admin-action-btn view"
+                      style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem' }}
+                    >
+                      📄 View SLMC Certificate
+                    </a>
+                  ) : (
+                    <span style={{ color: '#94a3b8', fontSize: '0.85rem' }}>SLMC Document Uploaded on File</span>
+                  )}
+
+                  {personalInfo.supportingDocKey && (
+                    <a
+                      href={personalInfo.supportingDocKey}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="admin-action-btn view"
+                      style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem' }}
+                    >
+                      📎 View Supporting Credentials
+                    </a>
+                  )}
+                </div>
               </div>
             </>
           )}

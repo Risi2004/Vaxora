@@ -1,12 +1,10 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { getToken, getUser } from '../features/auth';
+import { getToken, getUser, clearAuth } from '../features/auth';
 
 /**
- * Route guard that ensures user is authenticated and has the required role.
- * If user is unauthenticated -> redirects to /login.
- * If user has wrong role -> redirects to their assigned dashboard.
- * If user is not yet active (e.g. pending doctor/nurse) -> redirects with state notice or login.
+ * Route guard that ensures user is authenticated, has the required role,
+ * and is approved/Active by the system administrator.
  */
 export default function ProtectedRoute({ allowedRoles = [], children }) {
   const token = getToken();
@@ -19,9 +17,51 @@ export default function ProtectedRoute({ allowedRoles = [], children }) {
   }
 
   const userRole = (user.role || '').toUpperCase();
+  const userStatus = (user.status || '').toLowerCase();
+
+  // 2. Pending, Rejected or Suspended verification block (Doctor, Nurse, Hospital)
+  if (userRole !== 'PATIENT' && userRole !== 'ADMIN') {
+    if (userStatus === 'pending' || userStatus === 'pendingverification') {
+      clearAuth();
+      return (
+        <Navigate
+          to="/login"
+          state={{
+            message: 'Your account is currently under review by the Ministry of Health. Access will be granted once approved by the administrator.',
+          }}
+          replace
+        />
+      );
+    }
+    if (userStatus === 'rejected') {
+      clearAuth();
+      return (
+        <Navigate
+          to="/login"
+          state={{
+            message: 'Your registration application was not approved by the administrator.',
+          }}
+          replace
+        />
+      );
+    }
+    if (userStatus === 'suspended') {
+      clearAuth();
+      return (
+        <Navigate
+          to="/login"
+          state={{
+            message: 'Your account has been suspended by the administrator.',
+          }}
+          replace
+        />
+      );
+    }
+  }
+
   const normalizedAllowedRoles = allowedRoles.map((r) => r.toUpperCase());
 
-  // 2. Role mismatch (e.g., patient trying to access /admin or /doctor)
+  // 3. Role mismatch (e.g., patient trying to access /admin or /doctor)
   if (normalizedAllowedRoles.length > 0 && !normalizedAllowedRoles.includes(userRole)) {
     switch (userRole) {
       case 'PATIENT':

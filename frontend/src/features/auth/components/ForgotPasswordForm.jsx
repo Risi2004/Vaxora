@@ -1,14 +1,33 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { authService } from '../services/authService';
 
 export default function ForgotPasswordForm({ onSwitchToLogin, onSuccess }) {
+  const location = useLocation();
   const [email, setEmail] = useState('');
   const [resetCode, setResetCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [step, setStep] = useState(1); // 1: Enter email, 2: Enter code & new password, 3: Completed
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Auto-detect token and email from URL link (e.g. from password reset email)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const tokenParam = params.get('token') || params.get('code');
+    const emailParam = params.get('email');
+
+    if (emailParam) {
+      setEmail(emailParam);
+    }
+    if (tokenParam) {
+      setResetCode(tokenParam);
+      setStep(2);
+    }
+  }, [location.search]);
 
   const handleSendEmail = async (e) => {
     e.preventDefault();
@@ -20,7 +39,7 @@ export default function ForgotPasswordForm({ onSwitchToLogin, onSuccess }) {
       await authService.forgotPassword(email);
       setStep(2);
     } catch (err) {
-      setError(err.message || 'Failed to send verification code. Please check your email.');
+      setError(err.message || 'Failed to send reset instructions. Please check your email.');
     } finally {
       setLoading(false);
     }
@@ -41,13 +60,13 @@ export default function ForgotPasswordForm({ onSwitchToLogin, onSuccess }) {
     setError('');
 
     try {
-      await authService.resetPassword(email, resetCode, newPassword);
+      await authService.resetPassword(email, resetCode, newPassword, confirmPassword);
       setStep(3);
       setTimeout(() => {
         onSuccess?.();
       }, 2000);
     } catch (err) {
-      setError(err.message || 'Invalid or expired verification code.');
+      setError(err.message || 'Invalid or expired verification token.');
     } finally {
       setLoading(false);
     }
@@ -108,7 +127,7 @@ export default function ForgotPasswordForm({ onSwitchToLogin, onSuccess }) {
       {step === 2 && (
         <form onSubmit={handleResetPassword} className="auth-form">
           <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '10px', padding: '12px', fontSize: '0.86rem', color: '#1e40af', textAlign: 'center' }}>
-            A 6-digit verification code was generated for <strong>{email}</strong>
+            Password reset verification token for <strong>{email}</strong>
           </div>
 
           {error && (
@@ -131,7 +150,7 @@ export default function ForgotPasswordForm({ onSwitchToLogin, onSuccess }) {
               name="resetCode"
               value={resetCode}
               onChange={(e) => { setResetCode(e.target.value); setError(''); }}
-              placeholder="6-digit Verification Code"
+              placeholder="Password Reset Token / Verification Code"
               required
               disabled={loading}
               className="auth-input"
@@ -139,29 +158,73 @@ export default function ForgotPasswordForm({ onSwitchToLogin, onSuccess }) {
           </div>
 
           <div className="auth-input-group">
-            <input
-              type="password"
-              name="newPassword"
-              value={newPassword}
-              onChange={(e) => { setNewPassword(e.target.value); setError(''); }}
-              placeholder="New Password (Min 6 characters)"
-              required
-              disabled={loading}
-              className="auth-input"
-            />
+            <div className="password-input-container">
+              <input
+                type={showNewPassword ? 'text' : 'password'}
+                name="newPassword"
+                value={newPassword}
+                onChange={(e) => { setNewPassword(e.target.value); setError(''); }}
+                placeholder="New Password (Min 6 characters)"
+                required
+                disabled={loading}
+                className="auth-input"
+              />
+              <button
+                type="button"
+                className="btn-password-toggle"
+                onClick={() => setShowNewPassword((prev) => !prev)}
+                tabIndex={-1}
+                title={showNewPassword ? 'Hide password' : 'Show password'}
+                aria-label={showNewPassword ? 'Hide password' : 'Show password'}
+              >
+                {showNewPassword ? (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                    <line x1="1" y1="1" x2="23" y2="23" />
+                  </svg>
+                ) : (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                )}
+              </button>
+            </div>
           </div>
 
           <div className="auth-input-group">
-            <input
-              type="password"
-              name="confirmPassword"
-              value={confirmPassword}
-              onChange={(e) => { setConfirmPassword(e.target.value); setError(''); }}
-              placeholder="Confirm New Password"
-              required
-              disabled={loading}
-              className="auth-input"
-            />
+            <div className="password-input-container">
+              <input
+                type={showConfirmPassword ? 'text' : 'password'}
+                name="confirmPassword"
+                value={confirmPassword}
+                onChange={(e) => { setConfirmPassword(e.target.value); setError(''); }}
+                placeholder="Confirm New Password"
+                required
+                disabled={loading}
+                className="auth-input"
+              />
+              <button
+                type="button"
+                className="btn-password-toggle"
+                onClick={() => setShowConfirmPassword((prev) => !prev)}
+                tabIndex={-1}
+                title={showConfirmPassword ? 'Hide password' : 'Show password'}
+                aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+              >
+                {showConfirmPassword ? (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                    <line x1="1" y1="1" x2="23" y2="23" />
+                  </svg>
+                ) : (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                )}
+              </button>
+            </div>
           </div>
 
           <button type="submit" className="btn-auth-submit" disabled={loading}>

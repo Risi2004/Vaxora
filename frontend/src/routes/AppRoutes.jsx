@@ -61,6 +61,7 @@ export default function AppRoutes() {
       <Route path="/login" element={<AuthPage />} />
       <Route path="/signup" element={<AuthPage />} />
       <Route path="/forgot-password" element={<AuthPage />} />
+      <Route path="/reset-password" element={<AuthPage />} />
 
       {/* Protected Patient Portal Routes */}
       <Route

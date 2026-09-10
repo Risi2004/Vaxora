@@ -1,5 +1,7 @@
 using System.Text;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -95,7 +97,19 @@ builder.Services.AddAuthentication(options =>
 
 builder.Services.AddAuthorization();
 
-// 4. Configure CORS for Frontend Development & Production
+// 4. Configure Rate Limiting (Protects Forgot Password from spamming)
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddFixedWindowLimiter("ForgotPasswordLimiter", opt =>
+    {
+        opt.PermitLimit = 5;
+        opt.Window = TimeSpan.FromMinutes(1);
+        opt.QueueLimit = 0;
+    });
+});
+
+// 5. Configure CORS for Frontend Development & Production
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
@@ -111,7 +125,7 @@ builder.Services.AddCors(options =>
     });
 });
 
-// 5. Add Controllers and JSON Serializer Configuration
+// 6. Add Controllers and JSON Serializer Configuration
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
@@ -183,6 +197,7 @@ app.UseStaticFiles(); // Serve local uploads if local fallback used
 app.UseRouting();
 
 app.UseCors("AllowFrontend");
+app.UseRateLimiter();
 
 app.UseAuthentication();
 app.UseAuthorization();

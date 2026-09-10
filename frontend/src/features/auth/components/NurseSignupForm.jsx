@@ -21,9 +21,11 @@ export default function NurseSignupForm({ onSuccess }) {
   const [supportingDocFile, setSupportingDocFile] = useState(null);
   const [supportingDocName, setSupportingDocName] = useState('');
 
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [submitted, setSubmitted] = useState(false);
 
   const profilePicRef = useRef(null);
   const slncDocRef = useRef(null);
@@ -91,26 +93,13 @@ export default function NurseSignupForm({ onSuccess }) {
       if (supportingDocFile) payload.append('supportingDocument', supportingDocFile);
 
       const response = await authService.signupNurse(payload);
-      setSubmitted(true);
-      setTimeout(() => {
-        onSuccess?.(response);
-      }, 2000);
+      onSuccess?.(response);
     } catch (err) {
       setError(err.message || 'Nurse registration failed. Please try again.');
     } finally {
       setLoading(false);
     }
   };
-
-  if (submitted) {
-    return (
-      <div className="auth-success-alert" role="alert">
-        <h4>Nurse Application Submitted!</h4>
-        <p>Your SLNC nursing credentials and documents have been securely submitted for administrative approval.</p>
-        <p style={{ fontSize: '0.85rem', marginTop: '6px', opacity: 0.8 }}>You will receive access once approved by platform administrators.</p>
-      </div>
-    );
-  }
 
   return (
     <form onSubmit={handleSubmit} className="auth-form auth-form-scrollable">
@@ -127,6 +116,35 @@ export default function NurseSignupForm({ onSuccess }) {
           {error}
         </div>
       )}
+
+      {/* Profile Picture Upload (at top) */}
+      <div className="auth-input-group">
+        <label className="auth-label">Nurse Profile Picture (Optional)</label>
+        <div
+          className="file-upload-box"
+          onClick={() => profilePicRef.current?.click()}
+          role="button"
+          tabIndex={0}
+        >
+          <div className="file-upload-info">
+            {profilePicPreview ? (
+              <img src={profilePicPreview} alt="Preview" className="file-upload-thumb" />
+            ) : (
+              <span>👩‍⚕️</span>
+            )}
+            <span>{profilePicName || 'Upload Profile Photo (JPG/PNG)'}</span>
+          </div>
+          <span className="file-upload-btn-text">Browse</span>
+        </div>
+        <input
+          ref={profilePicRef}
+          type="file"
+          accept="image/png,image/jpeg,image/jpg,image/webp"
+          onChange={handleProfilePicChange}
+          disabled={loading}
+          className="hidden-file-input"
+        />
+      </div>
 
       <div className="auth-input-group">
         <input
@@ -163,35 +181,6 @@ export default function NurseSignupForm({ onSuccess }) {
           placeholder="Contact Number"
           disabled={loading}
           className="auth-input"
-        />
-      </div>
-
-      {/* Profile Picture Upload */}
-      <div className="auth-input-group">
-        <label className="auth-label">Nurse Profile Picture (Optional)</label>
-        <div
-          className="file-upload-box"
-          onClick={() => profilePicRef.current?.click()}
-          role="button"
-          tabIndex={0}
-        >
-          <div className="file-upload-info">
-            {profilePicPreview ? (
-              <img src={profilePicPreview} alt="Preview" className="file-upload-thumb" />
-            ) : (
-              <span>👩‍⚕️</span>
-            )}
-            <span>{profilePicName || 'Upload Profile Photo (JPG/PNG)'}</span>
-          </div>
-          <span className="file-upload-btn-text">Browse</span>
-        </div>
-        <input
-          ref={profilePicRef}
-          type="file"
-          accept="image/png,image/jpeg,image/jpg,image/webp"
-          onChange={handleProfilePicChange}
-          disabled={loading}
-          className="hidden-file-input"
         />
       </div>
 
@@ -259,29 +248,73 @@ export default function NurseSignupForm({ onSuccess }) {
       </div>
 
       <div className="auth-input-group">
-        <input
-          type="password"
-          name="password"
-          value={formData.password}
-          onChange={handleChange}
-          placeholder="Password (Min 6 characters) *"
-          required
-          disabled={loading}
-          className="auth-input"
-        />
+        <div className="password-input-container">
+          <input
+            type={showPassword ? 'text' : 'password'}
+            name="password"
+            value={formData.password}
+            onChange={handleChange}
+            placeholder="Password (Min 6 characters) *"
+            required
+            disabled={loading}
+            className="auth-input"
+          />
+          <button
+            type="button"
+            className="btn-password-toggle"
+            onClick={() => setShowPassword((prev) => !prev)}
+            tabIndex={-1}
+            title={showPassword ? 'Hide password' : 'Show password'}
+            aria-label={showPassword ? 'Hide password' : 'Show password'}
+          >
+            {showPassword ? (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                <line x1="1" y1="1" x2="23" y2="23" />
+              </svg>
+            ) : (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+            )}
+          </button>
+        </div>
       </div>
 
       <div className="auth-input-group">
-        <input
-          type="password"
-          name="confirmPassword"
-          value={formData.confirmPassword}
-          onChange={handleChange}
-          placeholder="Confirm Password *"
-          required
-          disabled={loading}
-          className="auth-input"
-        />
+        <div className="password-input-container">
+          <input
+            type={showConfirmPassword ? 'text' : 'password'}
+            name="confirmPassword"
+            value={formData.confirmPassword}
+            onChange={handleChange}
+            placeholder="Confirm Password *"
+            required
+            disabled={loading}
+            className="auth-input"
+          />
+          <button
+            type="button"
+            className="btn-password-toggle"
+            onClick={() => setShowConfirmPassword((prev) => !prev)}
+            tabIndex={-1}
+            title={showConfirmPassword ? 'Hide password' : 'Show password'}
+            aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+          >
+            {showConfirmPassword ? (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                <line x1="1" y1="1" x2="23" y2="23" />
+              </svg>
+            ) : (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11-8-11-8z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+            )}
+          </button>
+        </div>
       </div>
 
       <button type="submit" className="btn-auth-submit" disabled={loading}>

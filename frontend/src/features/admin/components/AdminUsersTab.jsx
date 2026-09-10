@@ -207,7 +207,7 @@ export default function AdminUsersTab() {
                 <th>Role</th>
                 <th>Registration / License ID</th>
                 <th>Contact Info</th>
-                <th>Facility / Details</th>
+                <th>Hospital / Details</th>
                 <th>Status</th>
                 <th>Actions</th>
               </tr>
@@ -384,7 +384,7 @@ export default function AdminUsersTab() {
                   <span className="admin-detail-val" style={{ fontWeight: 700, color: '#38bdf8' }}>{selectedUser.identifier}</span>
                 </div>
                 <div className="admin-detail-item">
-                  <span className="admin-detail-label">Details / Facility</span>
+                  <span className="admin-detail-label">Hospital / Details</span>
                   <span className="admin-detail-val" style={{ color: '#ffffff' }}>{selectedUser.facilityOrDetails}</span>
                 </div>
                 <div className="admin-detail-item">
