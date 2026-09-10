@@ -1,0 +1,101 @@
+/* ==========================================================================
+   Vaxora - Nurse Portal Specific Stylesheet
+   Inherits base structure from doctor.css with Nurse-tailored visual refinements,
+   read-only dosage displays, and enhanced responsive rules.
+   ========================================================================== */
+
+/* Nurse Role Badge & Station Headers */
+.nurse-role-pill {
+  background: #e0f2fe;
+  color: #0369a1;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid #bae6fd;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.nurse-avatar-btn svg circle:last-of-type,
+.nurse-avatar-btn svg path {
+  fill: #0284c7;
+}
+
+/* Nurse Dosage Readonly Display (Strictly non-editable) */
+.nurse-dosage-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-family: inherit;
+}
+
+.nurse-dosage-badge {
+  font-weight: 700;
+  color: #0369a1;
+  font-size: 0.92rem;
+}
+
+.nurse-prescribed-tag {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #0284c7;
+  background: #e0f2fe;
+  padding: 2px 6px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+}
+
+.nurse-readonly-notice {
+  font-size: 0.8rem;
+  color: #0369a1;
+  background: #e0f2fe;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid #bae6fd;
+  font-weight: 600;
+}
+
+.readonly-dosage-input {
+  background-color: #f1f5f9 !important;
+  color: #334155 !important;
+  cursor: not-allowed !important;
+  border-color: #cbd5e1 !important;
+  font-weight: 600 !important;
+}
+
+/* Responsive Enhancements for Nurse & Doctor Portals */
+@media (max-width: 1024px) {
+  .nurse-hero-banner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+}
+
+@media (max-width: 768px) {
+  .nurse-readonly-notice {
+    font-size: 0.74rem;
+    padding: 3px 8px;
+  }
+
+  .nurse-dosage-cell {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 3px;
+    padding: 4px 6px;
+  }
+}
+
+@media (max-width: 480px) {
+  .nurse-role-pill {
+    display: none;
+  }
+}
