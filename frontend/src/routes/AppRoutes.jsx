@@ -2,6 +2,8 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import LandingPage from '../features/landing';
 import { AuthPage } from '../features/auth';
+import ProtectedRoute from './ProtectedRoute';
+
 import {
   PatientLayout,
   DashboardOverview,
@@ -60,8 +62,15 @@ export default function AppRoutes() {
       <Route path="/signup" element={<AuthPage />} />
       <Route path="/forgot-password" element={<AuthPage />} />
 
-      {/* Dedicated Patient Portal Routes */}
-      <Route path="/patient" element={<PatientLayout />}>
+      {/* Protected Patient Portal Routes */}
+      <Route
+        path="/patient"
+        element={
+          <ProtectedRoute allowedRoles={['PATIENT', 'ADMIN']}>
+            <PatientLayout />
+          </ProtectedRoute>
+        }
+      >
         <Route index element={<Navigate to="/patient/dashboard" replace />} />
         <Route path="dashboard" element={<DashboardOverview />} />
         <Route path="appointments" element={<AppointmentsTab />} />
@@ -71,8 +80,15 @@ export default function AppRoutes() {
         <Route path="profile" element={<PatientProfileTab />} />
       </Route>
 
-      {/* Dedicated Hospital Portal Routes */}
-      <Route path="/hospital" element={<HospitalLayout />}>
+      {/* Protected Hospital Portal Routes */}
+      <Route
+        path="/hospital"
+        element={
+          <ProtectedRoute allowedRoles={['HOSPITAL', 'ADMIN']}>
+            <HospitalLayout />
+          </ProtectedRoute>
+        }
+      >
         <Route index element={<Navigate to="/hospital/dashboard" replace />} />
         <Route path="dashboard" element={<HospitalDashboardOverview />} />
         <Route path="appointments" element={<HospitalAppointmentsTab />} />
@@ -82,8 +98,15 @@ export default function AppRoutes() {
         <Route path="profile" element={<HospitalProfileTab />} />
       </Route>
 
-      {/* Dedicated Doctor Portal Routes */}
-      <Route path="/doctor" element={<DoctorLayout />}>
+      {/* Protected Doctor Portal Routes */}
+      <Route
+        path="/doctor"
+        element={
+          <ProtectedRoute allowedRoles={['DOCTOR', 'ADMIN']}>
+            <DoctorLayout />
+          </ProtectedRoute>
+        }
+      >
         <Route index element={<Navigate to="/doctor/dashboard" replace />} />
         <Route path="dashboard" element={<DoctorDashboardOverview />} />
         <Route path="appointments" element={<DoctorAppointmentsTab />} />
@@ -94,8 +117,15 @@ export default function AppRoutes() {
         <Route path="profile" element={<DoctorProfileTab />} />
       </Route>
 
-      {/* Dedicated Nurse Portal Routes */}
-      <Route path="/nurse" element={<NurseLayout />}>
+      {/* Protected Nurse Portal Routes */}
+      <Route
+        path="/nurse"
+        element={
+          <ProtectedRoute allowedRoles={['NURSE', 'ADMIN']}>
+            <NurseLayout />
+          </ProtectedRoute>
+        }
+      >
         <Route index element={<Navigate to="/nurse/dashboard" replace />} />
         <Route path="dashboard" element={<NurseDashboardOverview />} />
         <Route path="appointments" element={<NurseAppointmentsTab />} />
@@ -106,8 +136,15 @@ export default function AppRoutes() {
         <Route path="profile" element={<NurseProfileTab />} />
       </Route>
 
-      {/* Dedicated Admin Portal Routes */}
-      <Route path="/admin" element={<AdminLayout />}>
+      {/* Protected Admin Portal Routes */}
+      <Route
+        path="/admin"
+        element={
+          <ProtectedRoute allowedRoles={['ADMIN']}>
+            <AdminLayout />
+          </ProtectedRoute>
+        }
+      >
         <Route index element={<Navigate to="/admin/dashboard" replace />} />
         <Route path="dashboard" element={<AdminDashboardOverview />} />
         <Route path="users" element={<AdminUsersTab />} />

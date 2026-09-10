@@ -8,7 +8,6 @@ import {
   PatientSignupForm,
   DoctorSignupForm,
   NurseSignupForm,
-  DoctorNurseSignupForm,
   HospitalSignupForm,
   ForgotPasswordForm,
 } from '../components';
@@ -25,41 +24,73 @@ export default function AuthPage({ onAuthSuccess }) {
   };
 
   const mode = getModeFromPath(location.pathname);
-  const [selectedRole, setSelectedRole] = useState('patient'); // 'patient' | 'doctor_nurse' | 'hospital'
+  const [selectedRole, setSelectedRole] = useState('patient'); // 'patient' | 'doctor' | 'nurse' | 'hospital'
+  const [signupPendingInfo, setSignupPendingInfo] = useState(null);
 
   const handleBackToHome = () => {
     navigate('/');
   };
 
   const handleSwitchToSignup = () => {
+    setSignupPendingInfo(null);
     navigate('/signup');
   };
 
   const handleSwitchToLogin = () => {
+    setSignupPendingInfo(null);
     navigate('/login');
   };
 
   const handleForgotPassword = () => {
+    setSignupPendingInfo(null);
     navigate('/forgot-password');
   };
 
-  const handleLoginSuccess = (userName) => {
-    onAuthSuccess?.({ role: 'patient', name: userName });
-    navigate('/patient/dashboard');
+  // Direct redirection based strictly on BACKEND RETURNED ROLE
+  const routeByRole = (role) => {
+    const normalizedRole = (role || '').toUpperCase();
+    switch (normalizedRole) {
+      case 'PATIENT':
+        return '/patient/dashboard';
+      case 'DOCTOR':
+        return '/doctor/dashboard';
+      case 'NURSE':
+        return '/nurse/dashboard';
+      case 'HOSPITAL':
+        return '/hospital/dashboard';
+      case 'ADMIN':
+        return '/admin/dashboard';
+      default:
+        return '/patient/dashboard';
+    }
   };
 
-  const handleSignupSuccess = (name) => {
-    onAuthSuccess?.({ role: selectedRole, name });
-    if (selectedRole === 'patient') {
-      navigate('/patient/dashboard');
-    } else if (selectedRole === 'hospital') {
-      navigate('/hospital/dashboard');
-    } else if (selectedRole === 'doctor') {
-      navigate('/doctor/dashboard');
-    } else if (selectedRole === 'nurse') {
-      navigate('/nurse/dashboard');
+  const handleLoginSuccess = (authResponse) => {
+    const user = authResponse?.user;
+    onAuthSuccess?.(user);
+
+    if (user?.role) {
+      const targetPath = routeByRole(user.role);
+      navigate(targetPath);
     } else {
-      navigate('/');
+      navigate('/patient/dashboard');
+    }
+  };
+
+  const handleSignupSuccess = (authResponse) => {
+    const user = authResponse?.user;
+    onAuthSuccess?.(user);
+
+    // If patient, direct straight to dashboard
+    if (user?.role === 'PATIENT' || user?.status === 'Active') {
+      navigate('/patient/dashboard');
+    } else {
+      // For Doctor, Nurse, Hospital, status is Pending verification
+      setSignupPendingInfo({
+        name: user?.name,
+        role: user?.role,
+        message: authResponse?.message || 'Application submitted for administrative verification.'
+      });
     }
   };
 
@@ -79,7 +110,7 @@ export default function AuthPage({ onAuthSuccess }) {
 
       <div className="auth-container">
         {/* =========================================================================
-            1. LEFT CURVED BLUE BANNER (Matches attached mock)
+            1. LEFT CURVED BLUE BANNER
            ========================================================================= */}
         <div className="auth-banner-left">
           {mode === 'login' && (
@@ -88,7 +119,7 @@ export default function AuthPage({ onAuthSuccess }) {
                 Welcome back
               </h1>
               <p className="auth-banner-subtext">
-                Log into your Vaxora immunization portal to manage bookings and health records.
+                Log into your Vaxora immunization portal to manage appointments, clinical records, and health analytics.
               </p>
             </>
           )}
@@ -99,7 +130,7 @@ export default function AuthPage({ onAuthSuccess }) {
                 Welcome To Vaxora
               </h1>
               <p className="auth-banner-subtext">
-                Join the national vaccination network for secure appointments, verified records, and live updates.
+                Join the national vaccination network for secure appointments, verified professional licensing, and live updates.
               </p>
             </>
           )}
@@ -123,7 +154,7 @@ export default function AuthPage({ onAuthSuccess }) {
           <div className="auth-card-inner">
             <div className="auth-header">
               <img src={logo} alt="Vaxora Logo" className="auth-logo" />
-              {mode === 'signup' && (
+              {mode === 'signup' && !signupPendingInfo && (
                 <h2 className="auth-form-title">Create an account</h2>
               )}
               {mode === 'forgot_password' && (
@@ -151,42 +182,65 @@ export default function AuthPage({ onAuthSuccess }) {
             {/* Signup Mode */}
             {mode === 'signup' && (
               <>
-                {/* Role Selector at the top (only one can be selected) */}
-                <RoleSelector
-                  selectedRole={selectedRole}
-                  onSelectRole={setSelectedRole}
-                />
+                {signupPendingInfo ? (
+                  <div className="auth-success-alert" role="alert" style={{ textAlign: 'left' }}>
+                    <h4 style={{ color: '#0369a1', fontSize: '1.15rem' }}>Application Under Review</h4>
+                    <p style={{ marginTop: '8px', color: '#334155' }}>
+                      Thank you, <strong>{signupPendingInfo.name}</strong>. Your <strong>{signupPendingInfo.role}</strong> registration documents have been securely submitted for administrative verification.
+                    </p>
+                    <p style={{ marginTop: '8px', color: '#475569', fontSize: '0.85rem' }}>
+                      Once approved, you will be able to log into your dashboard and access clinical features.
+                    </p>
+                    <div style={{ marginTop: '18px' }}>
+                      <button
+                        type="button"
+                        className="btn-auth-submit"
+                        onClick={handleSwitchToLogin}
+                      >
+                        Return to Log In
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {/* Role Selector at the top */}
+                    <RoleSelector
+                      selectedRole={selectedRole}
+                      onSelectRole={setSelectedRole}
+                    />
 
-                {/* Role-Specific Form Fields */}
-                {selectedRole === 'patient' && (
-                  <PatientSignupForm onSuccess={handleSignupSuccess} />
+                    {/* Role-Specific Form Fields */}
+                    {selectedRole === 'patient' && (
+                      <PatientSignupForm onSuccess={handleSignupSuccess} />
+                    )}
+
+                    {selectedRole === 'doctor' && (
+                      <DoctorSignupForm onSuccess={handleSignupSuccess} />
+                    )}
+
+                    {selectedRole === 'nurse' && (
+                      <NurseSignupForm onSuccess={handleSignupSuccess} />
+                    )}
+
+                    {selectedRole === 'doctor_nurse' && (
+                      <DoctorSignupForm onSuccess={handleSignupSuccess} />
+                    )}
+
+                    {selectedRole === 'hospital' && (
+                      <HospitalSignupForm onSuccess={handleSignupSuccess} />
+                    )}
+
+                    <div className="auth-switch-row">
+                      <button
+                        type="button"
+                        className="btn-auth-switch"
+                        onClick={handleSwitchToLogin}
+                      >
+                        Already have an account? Log in
+                      </button>
+                    </div>
+                  </>
                 )}
-
-                {selectedRole === 'doctor' && (
-                  <DoctorSignupForm onSuccess={handleSignupSuccess} />
-                )}
-
-                {selectedRole === 'nurse' && (
-                  <NurseSignupForm onSuccess={handleSignupSuccess} />
-                )}
-
-                {selectedRole === 'doctor_nurse' && (
-                  <DoctorSignupForm onSuccess={handleSignupSuccess} />
-                )}
-
-                {selectedRole === 'hospital' && (
-                  <HospitalSignupForm onSuccess={handleSignupSuccess} />
-                )}
-
-                <div className="auth-switch-row">
-                  <button
-                    type="button"
-                    className="btn-auth-switch"
-                    onClick={handleSwitchToLogin}
-                  >
-                    Already have an account? Log in
-                  </button>
-                </div>
               </>
             )}
           </div>

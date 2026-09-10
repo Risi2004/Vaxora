@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import logo from '../../../assets/images/logo.png';
+import { authService } from '../../auth';
 
 export default function AdminNavbar({ pendingApprovalsCount = 4 }) {
   const navigate = useNavigate();
@@ -8,7 +9,8 @@ export default function AdminNavbar({ pendingApprovalsCount = 4 }) {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await authService.logout();
     navigate('/login');
   };
 

@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { authService } from '../../auth';
 
 export default function AdminApprovalsTab() {
   const [filterType, setFilterType] = useState('all');
@@ -8,16 +9,17 @@ export default function AdminApprovalsTab() {
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [notification, setNotification] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const showToast = (msg) => {
     setNotification(msg);
     setTimeout(() => setNotification(''), 3500);
   };
 
-  // Initial pending approval applications
   const [requests, setRequests] = useState([
     {
       id: 'APP-801',
+      userId: null,
       type: 'doctor',
       name: 'Dr. Kasun Abeysekera',
       email: 'kasun.abey@gmail.com',
@@ -33,6 +35,7 @@ export default function AdminApprovalsTab() {
     },
     {
       id: 'APP-802',
+      userId: null,
       type: 'nurse',
       name: 'Nurse Sanduni Wijesinghe',
       email: 'sanduni.w@asiri.lk',
@@ -48,6 +51,7 @@ export default function AdminApprovalsTab() {
     },
     {
       id: 'APP-803',
+      userId: null,
       type: 'hospital',
       name: 'Nawaloka Medicare Center - Negombo',
       email: 'negombo@nawaloka.com',
@@ -60,54 +64,95 @@ export default function AdminApprovalsTab() {
       documentType: 'MOH Facility Accreditation & Cold-Chain Certification',
       degree: 'Category A Vaccination Center (4 Cold Storage Units)',
       status: 'pending',
-    },
-    {
-      id: 'APP-804',
-      type: 'doctor',
-      name: 'Dr. Imalka Wickramasinghe',
-      email: 'imalka.w@gmail.com',
-      phone: '077 889 9001',
-      nic: '198432109876',
-      licenseId: 'SLMC-31204',
-      facility: 'Teaching Hospital Kandy',
-      appliedAt: '2026-09-05 11:20 AM',
-      documentName: 'SLMC_Certification_Imalka.pdf',
-      documentType: 'Sri Lanka Medical Council Full Registration',
-      degree: 'MBBS, MD (Pediatrics) - Colombo (2015)',
-      status: 'approved',
-      decisionNote: 'Verified with SLMC database register on 2026-09-06.',
-    },
+    }
   ]);
 
+  const fetchBackendPendingApprovals = async () => {
+    try {
+      setLoading(true);
+      const data = await authService.getPendingVerifications();
+      if (Array.isArray(data) && data.length > 0) {
+        const formatted = data.map((item, idx) => ({
+          id: `APP-BE-${item.userId.substring(0, 6)}`,
+          userId: item.userId,
+          type: (item.role || 'doctor').toLowerCase(),
+          name: item.name || 'Healthcare Practitioner',
+          email: item.email,
+          phone: item.phoneNumber || 'N/A',
+          nic: item.licenseOrRegNumber || 'N/A',
+          licenseId: item.licenseOrRegNumber || 'N/A',
+          facility: item.hospitalAffiliationOrType || 'General Healthcare',
+          appliedAt: new Date(item.createdAt).toLocaleString(),
+          documentName: item.primaryDocUrl ? 'Verification_Certificate.pdf' : 'Documentation Attached',
+          primaryDocUrl: item.primaryDocUrl,
+          supportingDocUrl: item.supportingDocUrl,
+          documentType: `${item.role} Official Registration Credential`,
+          degree: item.hospitalAffiliationOrType || 'Verified Professional Submission',
+          status: (item.status || 'Pending').toLowerCase(),
+        }));
+
+        setRequests((prev) => {
+          // Merge unique by email or id
+          const existingEmails = new Set(formatted.map(f => f.email.toLowerCase()));
+          const staticRemainders = prev.filter(p => !existingEmails.has(p.email.toLowerCase()));
+          return [...formatted, ...staticRemainders];
+        });
+      }
+    } catch (err) {
+      console.warn('Could not fetch backend pending verifications (admin may not be logged in or mock):', err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchBackendPendingApprovals();
+  }, []);
+
   // Approve Request
-  const handleApprove = (req) => {
-    setRequests((prev) =>
-      prev.map((r) =>
-        r.id === req.id
-          ? { ...r, status: 'approved', decisionNote: 'Approved by Superadmin.' }
-          : r
-      )
-    );
-    showToast(`✅ Approved ${req.type.toUpperCase()}: ${req.name} (${req.licenseId}). Verified access activated.`);
-    setIsInspectModalOpen(false);
+  const handleApprove = async (req) => {
+    try {
+      if (req.userId) {
+        await authService.decideVerification(req.userId, 'Approve');
+      }
+      setRequests((prev) =>
+        prev.map((r) =>
+          r.id === req.id
+            ? { ...r, status: 'approved', decisionNote: 'Approved by Superadmin.' }
+            : r
+        )
+      );
+      showToast(`✅ Approved ${req.type.toUpperCase()}: ${req.name} (${req.licenseId}). Account activated.`);
+      setIsInspectModalOpen(false);
+    } catch (err) {
+      showToast(`❌ Failed to approve: ${err.message}`);
+    }
   };
 
   // Reject Request
-  const handleRejectSubmit = (e) => {
+  const handleRejectSubmit = async (e) => {
     e.preventDefault();
     if (!selectedRequest) return;
     const reason = rejectionReason.trim() || 'Incomplete or unverified credential submission.';
-    setRequests((prev) =>
-      prev.map((r) =>
-        r.id === selectedRequest.id
-          ? { ...r, status: 'rejected', decisionNote: reason }
-          : r
-      )
-    );
-    showToast(`❌ Application ${selectedRequest.id} (${selectedRequest.name}) rejected.`);
-    setIsRejectModalOpen(false);
-    setIsInspectModalOpen(false);
-    setRejectionReason('');
+
+    try {
+      if (selectedRequest.userId) {
+        await authService.decideVerification(selectedRequest.userId, 'Reject', reason);
+      }
+      setRequests((prev) =>
+        prev.map((r) =>
+          r.id === selectedRequest.id
+            ? { ...r, status: 'rejected', decisionNote: reason }
+            : r
+        )
+      );
+      showToast(`❌ Application ${selectedRequest.id} (${selectedRequest.name}) rejected.`);
+      setIsRejectModalOpen(false);
+      setIsInspectModalOpen(false);
+      setRejectionReason('');
+    } catch (err) {
+      showToast(`❌ Failed to reject: ${err.message}`);
+    }
   };
 
   // Filter requests
@@ -229,7 +274,7 @@ export default function AdminApprovalsTab() {
               {filteredRequests.length === 0 ? (
                 <tr>
                   <td colSpan={8} style={{ textAlign: 'center', padding: '36px', color: '#64748b' }}>
-                    No applications matching this filter.
+                    {loading ? 'Fetching live verification queue...' : 'No applications matching this filter.'}
                   </td>
                 </tr>
               ) : (
@@ -267,17 +312,29 @@ export default function AdminApprovalsTab() {
                       {req.facility}
                     </td>
                     <td>
-                      <button
-                        type="button"
-                        className="admin-doc-link-btn"
-                        onClick={() => {
-                          setSelectedRequest(req);
-                          setIsInspectModalOpen(true);
-                        }}
-                        title={req.documentName}
-                      >
-                        📄 {req.documentName}
-                      </button>
+                      {req.primaryDocUrl ? (
+                        <a
+                          href={req.primaryDocUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="admin-doc-link-btn"
+                          title="Open Verification Document"
+                        >
+                          📄 View Document
+                        </a>
+                      ) : (
+                        <button
+                          type="button"
+                          className="admin-doc-link-btn"
+                          onClick={() => {
+                            setSelectedRequest(req);
+                            setIsInspectModalOpen(true);
+                          }}
+                          title={req.documentName}
+                        >
+                          📄 {req.documentName}
+                        </button>
+                      )}
                     </td>
                     <td style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
                       {req.appliedAt}
@@ -288,11 +345,11 @@ export default function AdminApprovalsTab() {
                           ⏳ Pending
                         </span>
                       )}
-                      {req.status === 'approved' && (
+                      {req.status === 'active' || req.status === 'approved' ? (
                         <span className="doctor-status-badge status-completed">
                           ✓ Approved
                         </span>
-                      )}
+                      ) : null}
                       {req.status === 'rejected' && (
                         <span className="doctor-status-badge status-rejected">
                           ✕ Rejected
@@ -406,12 +463,23 @@ export default function AdminApprovalsTab() {
                       {selectedRequest.documentType}
                     </div>
                   </div>
-                  <span style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.3)', fontWeight: 700, fontSize: '0.75rem', padding: '4px 8px', borderRadius: '6px' }}>
-                    Digitally Signed
-                  </span>
+                  {selectedRequest.primaryDocUrl ? (
+                    <a
+                      href={selectedRequest.primaryDocUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', border: '1px solid rgba(56, 189, 248, 0.3)', fontWeight: 700, fontSize: '0.78rem', padding: '6px 12px', borderRadius: '6px', textDecoration: 'none' }}
+                    >
+                      View Document ↗
+                    </a>
+                  ) : (
+                    <span style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.3)', fontWeight: 700, fontSize: '0.75rem', padding: '4px 8px', borderRadius: '6px' }}>
+                      Verified Upload
+                    </span>
+                  )}
                 </div>
                 <div style={{ marginTop: '10px', fontSize: '0.84rem', color: '#cbd5e1' }}>
-                  <strong style={{ color: '#ffffff' }}>Educational &amp; Clinical Background:</strong> {selectedRequest.degree}
+                  <strong style={{ color: '#ffffff' }}>Affiliation / Specialization:</strong> {selectedRequest.degree}
                 </div>
               </div>
 
