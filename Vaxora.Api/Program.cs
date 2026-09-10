@@ -109,19 +109,38 @@ builder.Services.AddRateLimiter(options =>
     });
 });
 
-// 5. Configure CORS for Frontend Development & Production
+// 5. Configure CORS for Frontend Development & Vercel Production
+var corsAllowedOrigins = builder.Configuration["Cors:AllowedOrigins"]
+    ?? Environment.GetEnvironmentVariable("CORS_ALLOWED_ORIGINS");
+
+var allowedOriginsList = corsAllowedOrigins?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+    ?? Array.Empty<string>();
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins(
-                "http://localhost:5173",
-                "http://127.0.0.1:5173",
-                "http://localhost:3000"
-            )
-            .AllowAnyHeader()
-            .AllowAnyMethod()
-            .AllowCredentials();
+        policy.SetIsOriginAllowed(origin =>
+        {
+            if (string.IsNullOrWhiteSpace(origin)) return false;
+
+            // Allow local development ports
+            if (origin.StartsWith("http://localhost:") || origin.StartsWith("http://127.0.0.1:") || origin.StartsWith("https://localhost:"))
+                return true;
+
+            // Allow all Vercel deployment URLs (*.vercel.app)
+            if (origin.EndsWith(".vercel.app", StringComparison.OrdinalIgnoreCase) || origin.Contains("vercel.app", StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            // Allow custom domains defined in configuration
+            if (allowedOriginsList.Contains(origin, StringComparer.OrdinalIgnoreCase))
+                return true;
+
+            return false;
+        })
+        .AllowAnyHeader()
+        .AllowAnyMethod()
+        .AllowCredentials();
     });
 });
 
@@ -132,7 +151,7 @@ builder.Services.AddControllers()
         options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
     });
 
-// 6. Configure Swagger with JWT Bearer Support
+// 7. Configure Swagger with JWT Bearer Support
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -172,7 +191,7 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-// 7. Auto-Seed Initial Admin Account and Migration Setup
+// 8. Auto-Seed Initial Admin Account and Migration Setup
 try
 {
     await DbInitializer.SeedAsync(app.Services, app.Configuration);
@@ -182,18 +201,28 @@ catch (Exception ex)
     app.Logger.LogError(ex, "Failed to execute database seeding.");
 }
 
-// 8. Configure HTTP Request Pipeline
-if (app.Environment.IsDevelopment())
+// 9. Configure HTTP Request Pipeline
+var enableSwagger = app.Environment.IsDevelopment() 
+    || builder.Configuration.GetValue<bool>("EnableSwagger") 
+    || Environment.GetEnvironmentVariable("ENABLE_SWAGGER") == "true";
+
+if (enableSwagger || app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI(c =>
     {
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "Vaxora API v1");
+        c.RoutePrefix = "swagger";
     });
 }
 
-app.UseHttpsRedirection();
-app.UseStaticFiles(); // Serve local uploads if local fallback used
+// Render and cloud load balancers handle HTTPS termination
+if (!app.Environment.IsProduction())
+{
+    app.UseHttpsRedirection();
+}
+
+app.UseStaticFiles();
 app.UseRouting();
 
 app.UseCors("AllowFrontend");
@@ -201,6 +230,10 @@ app.UseRateLimiter();
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Render Health Check Endpoint
+app.MapGet("/", () => Results.Ok(new { status = "healthy", service = "Vaxora.Api", timestamp = DateTime.UtcNow }));
+app.MapGet("/api/health", () => Results.Ok(new { status = "healthy", service = "Vaxora.Api", timestamp = DateTime.UtcNow }));
 
 app.MapControllers();
 

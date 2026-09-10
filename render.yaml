@@ -1,0 +1,47 @@
+services:
+  - type: web
+    name: vaxora-api
+    env: docker
+    dockerfilePath: ./Vaxora.Api/Dockerfile
+    dockerContext: ./Vaxora.Api
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: ENABLE_SWAGGER
+        value: "true"
+      - key: ConnectionStrings__DefaultConnection
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: Jwt__SecretKey
+        sync: false
+      - key: Jwt__Issuer
+        value: Vaxora.Api
+      - key: Jwt__Audience
+        value: Vaxora.Client
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USERNAME
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM_EMAIL
+        sync: false
+      - key: SMTP_FROM_NAME
+        value: Vaxora National Immunization Platform
+      - key: SMTP_ENABLE_SSL
+        value: "true"
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET_NAME
+        sync: false
+      - key: R2_PUBLIC_DOMAIN
+        sync: false
