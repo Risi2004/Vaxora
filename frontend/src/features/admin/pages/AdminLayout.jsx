@@ -1,17 +1,41 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import AdminSidebar from '../components/AdminSidebar';
+import { authService } from '../../auth';
 import '../../../styles/doctor.css';
 import '../../../styles/admin.css';
 
 export default function AdminLayout() {
   const location = useLocation();
+  const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
+
+  const fetchLivePendingCount = useCallback(async () => {
+    try {
+      const data = await authService.getPendingVerifications();
+      if (Array.isArray(data)) {
+        const count = data.filter((item) => (item.status || 'Pending').toLowerCase() === 'pending').length;
+        setPendingApprovalsCount(count);
+      } else {
+        setPendingApprovalsCount(0);
+      }
+    } catch (err) {
+      console.warn('Failed to fetch pending approvals count:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchLivePendingCount();
+    const interval = setInterval(fetchLivePendingCount, 15000);
+    return () => clearInterval(interval);
+  }, [fetchLivePendingCount, location.pathname]);
 
   const getPageTitle = (pathname) => {
     if (pathname.includes('/admin/users')) return 'National User Directory';
-    if (pathname.includes('/admin/approvals')) return 'Practitioner & Facility Approvals';
+    if (pathname.includes('/admin/approvals')) return 'Doctor, Nurse & Hospital Approvals';
     if (pathname.includes('/admin/hospitals')) return 'Hospital Performance & Vaccine Logistics';
+    if (pathname.includes('/admin/campaigns')) return 'National Campaigns & Vaccination Drives';
     if (pathname.includes('/admin/feedback')) return 'Feedback & Inquiries Central';
+    if (pathname.includes('/admin/audit')) return 'System Audit & Compliance Logs';
     if (pathname.includes('/admin/profile')) return 'Superadmin Security & Profile';
     return 'Executive Operations Dashboard';
   };
@@ -19,7 +43,7 @@ export default function AdminLayout() {
   return (
     <div className="admin-dark-app">
       {/* 1. Left Dark Sidebar */}
-      <AdminSidebar pendingApprovalsCount={3} />
+      <AdminSidebar pendingApprovalsCount={pendingApprovalsCount} />
 
       {/* 2. Main Dark Content Wrapper */}
       <div className="admin-dark-main">

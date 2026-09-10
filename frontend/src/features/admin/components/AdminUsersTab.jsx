@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { authService } from '../../auth';
 
 export default function AdminUsersTab() {
   const [roleFilter, setRoleFilter] = useState('all');
@@ -7,163 +8,71 @@ export default function AdminUsersTab() {
   const [selectedUser, setSelectedUser] = useState(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [notification, setNotification] = useState('');
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [actionLoading, setActionLoading] = useState(null);
 
   const showToast = (msg) => {
     setNotification(msg);
-    setTimeout(() => setNotification(''), 3000);
+    setTimeout(() => setNotification(''), 3500);
   };
 
-  // Comprehensive user directory state
-  const [users, setUsers] = useState([
-    {
-      id: 'USR-101',
-      name: 'Dr. Samantha Perera',
-      role: 'doctor',
-      email: 'samantha.perera@lankahosp.lk',
-      phone: '077 345 6789',
-      identifier: 'SLMC-38291',
-      facility: 'Lanka Hospital Colombo',
-      status: 'active',
-      joinedDate: '2024-03-12',
-      specialization: 'Consultant Vaccinologist & Immunologist',
-    },
-    {
-      id: 'USR-102',
-      name: 'Nurse Anoma Silva',
-      role: 'nurse',
-      email: 'anoma.silva@lankahosp.lk',
-      phone: '071 987 6543',
-      identifier: 'SLNC-49201',
-      facility: 'Lanka Hospital Colombo',
-      status: 'active',
-      joinedDate: '2024-05-18',
-      specialization: 'Senior Immunization Nurse (RNO)',
-    },
-    {
-      id: 'USR-103',
-      name: 'Lanka Hospital Colombo',
-      role: 'hospital',
-      email: 'admin@lankahospitals.com',
-      phone: '011 543 0000',
-      identifier: 'MOH-PVT-0042',
-      facility: 'Western Province',
-      status: 'active',
-      joinedDate: '2023-11-01',
-      specialization: 'Tertiary Care & National Vaccination Center',
-    },
-    {
-      id: 'USR-104',
-      name: 'Chaminda Wickramasinghe',
-      role: 'patient',
-      email: 'chaminda.w@gmail.com',
-      phone: '077 452 1098',
-      identifier: 'NIC: 198845210982 (VP123456783)',
-      facility: 'Patient Portal User',
-      status: 'active',
-      joinedDate: '2024-01-10',
-      specialization: 'Registered Citizen Record',
-    },
-    {
-      id: 'USR-105',
-      name: 'Dr. Kasun Abeysekera',
-      role: 'doctor',
-      email: 'kasun.abey@gmail.com',
-      phone: '076 112 3344',
-      identifier: 'SLMC-42091',
-      facility: 'Lanka Hospital Colombo',
-      status: 'pending',
-      joinedDate: '2026-09-07',
-      specialization: 'General Practitioner',
-    },
-    {
-      id: 'USR-106',
-      name: 'Nurse Sanduni Wijesinghe',
-      role: 'nurse',
-      email: 'sanduni.w@asiri.lk',
-      phone: '070 234 5678',
-      identifier: 'SLNC-58210',
-      facility: 'Asiri Central Hospital',
-      status: 'pending',
-      joinedDate: '2026-09-07',
-      specialization: 'Staff Nurse',
-    },
-    {
-      id: 'USR-107',
-      name: 'Nawaloka Medicare Center - Negombo',
-      role: 'hospital',
-      email: 'negombo@nawaloka.com',
-      phone: '031 223 4455',
-      identifier: 'MOH-PVT-8821',
-      facility: 'Western Province (Gampaha)',
-      status: 'pending',
-      joinedDate: '2026-09-06',
-      specialization: 'Satellite Medical Center',
-    },
-    {
-      id: 'USR-108',
-      name: 'Nadeeka Priyadarshani',
-      role: 'patient',
-      email: 'nadeeka.p@gmail.com',
-      phone: '076 234 5678',
-      identifier: 'NIC: 199589234120 (VP123456781)',
-      facility: 'Patient Portal User',
-      status: 'active',
-      joinedDate: '2024-02-14',
-      specialization: 'Registered Citizen Record',
-    },
-    {
-      id: 'USR-109',
-      name: 'Dr. Rohan Jayawardena',
-      role: 'doctor',
-      email: 'rohan.j@gmail.com',
-      phone: '072 998 8776',
-      identifier: 'SLMC-29401',
-      facility: 'Delmon Hospital',
-      status: 'suspended',
-      joinedDate: '2023-08-20',
-      specialization: 'Pediatric Consultant',
-    },
-    {
-      id: 'USR-110',
-      name: 'KUMAR',
-      role: 'patient',
-      email: 'VakaPo@gmail.com',
-      phone: '074 1234 567',
-      identifier: 'NIC: 1234 5678 9123 (VP12345678)',
-      facility: 'Patient Portal User',
-      status: 'active',
-      joinedDate: '2024-06-01',
-      specialization: 'Registered Citizen Record',
-    },
-  ]);
+  const loadUsers = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const data = await authService.getAllUsers();
+      if (Array.isArray(data)) {
+        setUsers(data);
+      } else {
+        setUsers([]);
+      }
+    } catch (err) {
+      console.error('Failed to fetch users:', err);
+      setError(err.message || 'Failed to load user directory.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  // Handle status toggle
-  const handleToggleStatus = (userId) => {
-    setUsers((prev) =>
-      prev.map((u) => {
-        if (u.id !== userId) return u;
-        const newStatus = u.status === 'active' ? 'suspended' : 'active';
-        showToast(`User ${u.name} marked as ${newStatus.toUpperCase()}`);
-        return { ...u, status: newStatus };
-      })
-    );
+  useEffect(() => {
+    loadUsers();
+  }, [loadUsers]);
+
+  // Handle status toggle (Active <-> Suspended)
+  const handleToggleStatus = async (user) => {
+    if (user.role === 'admin') return;
+    const newStatus = user.status === 'active' ? 'Suspended' : 'Active';
+    setActionLoading(user.id);
+    try {
+      await authService.updateUserStatus(user.id, newStatus);
+      showToast(`User ${user.name} marked as ${newStatus.toUpperCase()}`);
+      setUsers((prev) =>
+        prev.map((u) => (u.id === user.id ? { ...u, status: newStatus.toLowerCase() } : u))
+      );
+      if (selectedUser && selectedUser.id === user.id) {
+        setSelectedUser((prev) => ({ ...prev, status: newStatus.toLowerCase() }));
+      }
+    } catch (err) {
+      alert(err.message || 'Failed to update user status.');
+    } finally {
+      setActionLoading(null);
+    }
   };
 
-  // Filter users
+  // Filter users in memory
   const filteredUsers = users.filter((u) => {
-    // Role filter
     if (roleFilter !== 'all' && u.role !== roleFilter) return false;
-    // Status filter
     if (statusFilter !== 'all' && u.status !== statusFilter) return false;
-    // Search query
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       return (
-        u.name.toLowerCase().includes(q) ||
-        u.email.toLowerCase().includes(q) ||
-        u.identifier.toLowerCase().includes(q) ||
-        u.facility.toLowerCase().includes(q) ||
-        u.phone.includes(q)
+        (u.name && u.name.toLowerCase().includes(q)) ||
+        (u.email && u.email.toLowerCase().includes(q)) ||
+        (u.identifier && u.identifier.toLowerCase().includes(q)) ||
+        (u.facilityOrDetails && u.facilityOrDetails.toLowerCase().includes(q)) ||
+        (u.phoneNumber && u.phoneNumber.includes(q))
       );
     }
     return true;
@@ -200,8 +109,20 @@ export default function AdminUsersTab() {
             </p>
           </div>
 
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <button
+              type="button"
+              className="doctor-filter-btn"
+              onClick={loadUsers}
+              disabled={loading}
+              title="Refresh users from server"
+            >
+              🔄 Refresh
+            </button>
+          </div>
+
           {/* Role Filters */}
-          <div className="doctor-filter-pills">
+          <div className="doctor-filter-pills" style={{ width: '100%', marginTop: '6px' }}>
             <button
               type="button"
               className={`doctor-filter-btn ${roleFilter === 'all' ? 'active' : ''}`}
@@ -247,7 +168,7 @@ export default function AdminUsersTab() {
             <input
               type="text"
               className="doctor-search-input"
-              placeholder="Search by name, email, SLMC/SLNC/MOH ID, NIC, or facility..."
+              placeholder="Search by name, email, SLMC/SLNC/Registration ID, NIC, or phone..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -265,9 +186,17 @@ export default function AdminUsersTab() {
               <option value="active">Active / Verified</option>
               <option value="pending">Pending Approval</option>
               <option value="suspended">Suspended</option>
+              <option value="rejected">Rejected</option>
             </select>
           </div>
         </div>
+
+        {/* Error State */}
+        {error && (
+          <div style={{ padding: '16px', background: 'rgba(239,68,68,0.1)', color: '#ef4444', borderRadius: '8px', margin: '16px', fontSize: '0.9rem' }}>
+            ⚠️ {error}
+          </div>
+        )}
 
         {/* Users Table */}
         <div className="doctor-table-wrapper">
@@ -278,16 +207,23 @@ export default function AdminUsersTab() {
                 <th>Role</th>
                 <th>Registration / License ID</th>
                 <th>Contact Info</th>
-                <th>Facility / Area</th>
+                <th>Hospital / Details</th>
                 <th>Status</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filteredUsers.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan={7} style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
+                    <div style={{ display: 'inline-block', animation: 'spin 1s linear infinite', fontSize: '1.5rem', marginBottom: '8px' }}>⏳</div>
+                    <div>Loading live user directory...</div>
+                  </td>
+                </tr>
+              ) : filteredUsers.length === 0 ? (
                 <tr>
                   <td colSpan={7} style={{ textAlign: 'center', padding: '36px', color: '#64748b' }}>
-                    No users found matching your filters.
+                    No user accounts found matching your filters.
                   </td>
                 </tr>
               ) : (
@@ -305,36 +241,44 @@ export default function AdminUsersTab() {
                           {u.name}
                         </span>
                         <span className="doctor-patient-sub" style={{ color: '#94a3b8' }}>
-                          UID: {u.id} • Joined {u.joinedDate}
+                          UID: {u.id.substring(0, 8)}... • Joined {new Date(u.createdAt).toLocaleDateString()}
                         </span>
                       </div>
                     </td>
-                    <td>
+                    <td style={{ whiteSpace: 'nowrap' }}>
                       <span className={`admin-role-badge ${u.role}`}>
                         {u.role === 'doctor' && '🩺 Doctor'}
                         {u.role === 'nurse' && '👩‍⚕️ Nurse'}
                         {u.role === 'hospital' && '🏥 Hospital'}
                         {u.role === 'patient' && '👤 Patient'}
+                        {u.role === 'admin' && '🛡️ Admin'}
                       </span>
                     </td>
-                    <td>
-                      <span className="admin-id-pill" style={{ color: '#38bdf8', borderColor: 'rgba(56, 189, 248, 0.3)' }}>
-                        {u.identifier}
-                      </span>
+                    <td style={{ whiteSpace: 'nowrap' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
+                        {u.registrationNumber && (
+                          <span className="admin-id-pill" style={{ color: '#34d399', borderColor: 'rgba(52, 211, 153, 0.4)', background: 'rgba(16, 185, 129, 0.12)', fontSize: '0.78rem' }}>
+                            {u.registrationNumber}
+                          </span>
+                        )}
+                        <span className="admin-id-pill" style={{ color: '#38bdf8', borderColor: 'rgba(56, 189, 248, 0.3)', fontSize: '0.74rem' }}>
+                          {u.identifier}
+                        </span>
+                      </div>
                     </td>
                     <td>
                       <div style={{ fontSize: '0.84rem' }}>
                         <div style={{ color: '#ffffff', fontWeight: 600 }}>{u.email}</div>
-                        <div style={{ color: '#94a3b8', marginTop: '2px' }}>{u.phone}</div>
+                        <div style={{ color: '#94a3b8', marginTop: '2px' }}>{u.phoneNumber || '—'}</div>
                       </div>
                     </td>
                     <td style={{ color: '#e2e8f0', fontWeight: 600, fontSize: '0.85rem' }}>
-                      {u.facility}
+                      {u.facilityOrDetails}
                     </td>
-                    <td>
+                    <td style={{ whiteSpace: 'nowrap' }}>
                       {u.status === 'active' && (
                         <span className="doctor-status-badge status-completed">
-                          ✓ Verified
+                          ✓ Verified / Active
                         </span>
                       )}
                       {u.status === 'pending' && (
@@ -345,6 +289,11 @@ export default function AdminUsersTab() {
                       {u.status === 'suspended' && (
                         <span className="doctor-status-badge status-rejected" style={{ background: 'rgba(239, 68, 68, 0.2)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.4)' }}>
                           ⛔ Suspended
+                        </span>
+                      )}
+                      {u.status === 'rejected' && (
+                        <span className="doctor-status-badge status-rejected">
+                          ✕ Rejected
                         </span>
                       )}
                     </td>
@@ -362,19 +311,24 @@ export default function AdminUsersTab() {
                         >
                           Details
                         </button>
-                        {u.role !== 'patient' && (
+                        {u.role !== 'admin' && (
                           <button
                             type="button"
                             className="doctor-table-btn"
+                            disabled={actionLoading === u.id}
                             style={{
                               background: u.status === 'active' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)',
                               color: u.status === 'active' ? '#f87171' : '#34d399',
                               borderColor: u.status === 'active' ? 'rgba(239, 68, 68, 0.3)' : 'rgba(16, 185, 129, 0.3)',
                             }}
-                            onClick={() => handleToggleStatus(u.id)}
+                            onClick={() => handleToggleStatus(u)}
                             title={u.status === 'active' ? 'Suspend User Access' : 'Activate User Access'}
                           >
-                            {u.status === 'active' ? 'Suspend' : 'Activate'}
+                            {actionLoading === u.id
+                              ? '...'
+                              : u.status === 'active'
+                              ? 'Suspend'
+                              : 'Activate'}
                           </button>
                         )}
                       </div>
@@ -395,7 +349,7 @@ export default function AdminUsersTab() {
               <div>
                 <h3 className="doctor-modal-title">Account Profile &amp; Credentials</h3>
                 <p style={{ margin: '4px 0 0 0', fontSize: '0.82rem', color: 'rgba(255,255,255,0.85)' }}>
-                  User UID: {selectedUser.id} • Registered under National Health Directory
+                  User ID: {selectedUser.id} • Registered in National Health Directory
                 </p>
               </div>
               <button type="button" className="doctor-modal-close-btn" onClick={() => setIsDetailModalOpen(false)}>
@@ -406,7 +360,7 @@ export default function AdminUsersTab() {
             <div className="doctor-modal-body">
               <div style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '14px', background: '#111a2e', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', marginBottom: '16px' }}>
                 <div style={{ fontSize: '2.4rem' }}>
-                  {selectedUser.role === 'doctor' ? '🩺' : selectedUser.role === 'nurse' ? '👩‍⚕️' : selectedUser.role === 'hospital' ? '🏥' : '👤'}
+                  {selectedUser.role === 'doctor' ? '🩺' : selectedUser.role === 'nurse' ? '👩‍⚕️' : selectedUser.role === 'hospital' ? '🏥' : selectedUser.role === 'admin' ? '🛡️' : '👤'}
                 </div>
                 <div>
                   <h3 style={{ margin: 0, color: '#ffffff', fontSize: '1.2rem', fontWeight: 800 }}>{selectedUser.name}</h3>
@@ -423,32 +377,25 @@ export default function AdminUsersTab() {
                 </div>
                 <div className="admin-detail-item">
                   <span className="admin-detail-label">Phone Number</span>
-                  <span className="admin-detail-val" style={{ color: '#ffffff' }}>{selectedUser.phone}</span>
+                  <span className="admin-detail-val" style={{ color: '#ffffff' }}>{selectedUser.phoneNumber || 'N/A'}</span>
                 </div>
                 <div className="admin-detail-item">
-                  <span className="admin-detail-label">Official License / ID</span>
+                  <span className="admin-detail-label">Official Registration / ID</span>
                   <span className="admin-detail-val" style={{ fontWeight: 700, color: '#38bdf8' }}>{selectedUser.identifier}</span>
                 </div>
                 <div className="admin-detail-item">
-                  <span className="admin-detail-label">Affiliated Facility</span>
-                  <span className="admin-detail-val" style={{ color: '#ffffff' }}>{selectedUser.facility}</span>
+                  <span className="admin-detail-label">Hospital / Details</span>
+                  <span className="admin-detail-val" style={{ color: '#ffffff' }}>{selectedUser.facilityOrDetails}</span>
                 </div>
                 <div className="admin-detail-item">
                   <span className="admin-detail-label">Joined Date</span>
-                  <span className="admin-detail-val" style={{ color: '#ffffff' }}>{selectedUser.joinedDate}</span>
+                  <span className="admin-detail-val" style={{ color: '#ffffff' }}>{new Date(selectedUser.createdAt).toLocaleString()}</span>
                 </div>
                 <div className="admin-detail-item">
                   <span className="admin-detail-label">Account Status</span>
                   <span className="admin-detail-val" style={{ textTransform: 'capitalize', fontWeight: 700, color: selectedUser.status === 'active' ? '#34d399' : '#fbbf24' }}>
                     {selectedUser.status}
                   </span>
-                </div>
-              </div>
-
-              <div style={{ marginTop: '14px', padding: '12px', background: '#111a2e', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '8px' }}>
-                <span style={{ fontSize: '0.78rem', color: '#94a3b8', fontWeight: 600 }}>Role Profile / Specialization:</span>
-                <div style={{ color: '#ffffff', fontWeight: 600, fontSize: '0.9rem', marginTop: '2px' }}>
-                  {selectedUser.specialization}
                 </div>
               </div>
             </div>
@@ -461,16 +408,16 @@ export default function AdminUsersTab() {
               >
                 Close
               </button>
-              {selectedUser.role !== 'patient' && (
+              {selectedUser.role !== 'admin' && (
                 <button
                   type="button"
                   className="doctor-btn-submit"
+                  disabled={actionLoading === selectedUser.id}
                   style={{
                     background: selectedUser.status === 'active' ? '#dc2626' : '#16a34a',
                   }}
                   onClick={() => {
-                    handleToggleStatus(selectedUser.id);
-                    setIsDetailModalOpen(false);
+                    handleToggleStatus(selectedUser);
                   }}
                 >
                   {selectedUser.status === 'active' ? 'Suspend Account' : 'Activate Account'}

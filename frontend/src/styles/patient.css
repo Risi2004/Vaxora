@@ -259,6 +259,29 @@
   background: #fee2e2;
 }
 
+.profile-dropdown-delete {
+  background: #ffffff;
+  color: #dc2626;
+  border: 1px dashed #f87171;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  text-align: center;
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+}
+
+.profile-dropdown-delete:hover {
+  background: #fef2f2;
+  color: #b91c1c;
+  border-style: solid;
+  border-color: #ef4444;
+}
+
 .patient-profile-pill {
   display: flex;
   align-items: center;

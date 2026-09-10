@@ -2,12 +2,15 @@ import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import logo from '../../../assets/images/logo.png';
 
-export default function AdminSidebar({ pendingApprovalsCount = 3 }) {
+import { authService } from '../../auth';
+
+export default function AdminSidebar({ pendingApprovalsCount = 0 }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await authService.logout();
     navigate('/login');
   };
 

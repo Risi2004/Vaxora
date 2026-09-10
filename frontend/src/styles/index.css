@@ -22,3 +22,21 @@
 
 /* 7. Feature: Doctor Portal */
 @import './doctor.css';
+
+/* 8. Global Navbar User Avatar Photo */
+.navbar-avatar-img {
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #2563eb;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+  display: block;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.navbar-avatar-img:hover {
+  transform: scale(1.06);
+}

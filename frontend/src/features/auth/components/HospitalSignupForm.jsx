@@ -1,8 +1,56 @@
 import React, { useState, useRef } from 'react';
+import { authService } from '../services/authService';
+
+const SRI_LANKA_PROVINCES = [
+  {
+    province: 'Western Province',
+    districts: ['Colombo', 'Gampaha', 'Kalutara'],
+  },
+  {
+    province: 'Central Province',
+    districts: ['Kandy', 'Matale', 'Nuwara Eliya'],
+  },
+  {
+    province: 'Southern Province',
+    districts: ['Galle', 'Matara', 'Hambantota'],
+  },
+  {
+    province: 'Northern Province',
+    districts: ['Jaffna', 'Kilinochchi', 'Mannar', 'Vavuniya', 'Mullaitivu'],
+  },
+  {
+    province: 'Eastern Province',
+    districts: ['Batticaloa', 'Ampara', 'Trincomalee'],
+  },
+  {
+    province: 'North Western Province',
+    districts: ['Kurunegala', 'Puttalam'],
+  },
+  {
+    province: 'North Central Province',
+    districts: ['Anuradhapura', 'Polonnaruwa'],
+  },
+  {
+    province: 'Uva Province',
+    districts: ['Badulla', 'Monaragala'],
+  },
+  {
+    province: 'Sabaragamuwa Province',
+    districts: ['Ratnapura', 'Kegalle'],
+  },
+];
+
+const DISTRICT_TO_PROVINCE = {};
+SRI_LANKA_PROVINCES.forEach((p) => {
+  p.districts.forEach((d) => {
+    DISTRICT_TO_PROVINCE[d] = p.province;
+  });
+});
 
 export default function HospitalSignupForm({ onSuccess }) {
   const [formData, setFormData] = useState({
     hospitalName: '',
+    registrationNumber: '',
     type: 'Government',
     operatingHoursType: '24hrs',
     openingTime: '08:00',
@@ -10,16 +58,27 @@ export default function HospitalSignupForm({ onSuccess }) {
     officialEmail: '',
     contactNumber: '',
     address: '',
+    district: '',
+    province: '',
     password: '',
     confirmPassword: '',
   });
 
-  const [hospitalLogo, setHospitalLogo] = useState(null);
+  const [hospitalLogoFile, setHospitalLogoFile] = useState(null);
+  const [logoName, setLogoName] = useState('');
   const [logoPreview, setLogoPreview] = useState(null);
-  const [registrationProof, setRegistrationProof] = useState(null);
-  const [addressProof, setAddressProof] = useState(null);
+
+  const [registrationProofFile, setRegistrationProofFile] = useState(null);
+  const [regProofName, setRegProofName] = useState('');
+
+  const [addressProofFile, setAddressProofFile] = useState(null);
+  const [addrProofName, setAddrProofName] = useState('');
+
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [submitted, setSubmitted] = useState(false);
 
   const logoRef = useRef(null);
   const regProofRef = useRef(null);
@@ -31,72 +90,134 @@ export default function HospitalSignupForm({ onSuccess }) {
     setError('');
   };
 
+  const handleProvinceChange = (e) => {
+    const selectedProvince = e.target.value;
+    if (!selectedProvince) {
+      setFormData((prev) => ({ ...prev, province: '', district: '' }));
+      setError('');
+      return;
+    }
+    setFormData((prev) => {
+      const allowedDistricts = SRI_LANKA_PROVINCES.find((p) => p.province === selectedProvince)?.districts || [];
+      const keepDistrict = allowedDistricts.includes(prev.district) ? prev.district : '';
+      return {
+        ...prev,
+        province: selectedProvince,
+        district: keepDistrict,
+      };
+    });
+    setError('');
+  };
+
+  const handleDistrictChange = (e) => {
+    const selectedDistrict = e.target.value;
+    if (!selectedDistrict) {
+      setFormData((prev) => ({ ...prev, district: '' }));
+      setError('');
+      return;
+    }
+    const matchingProvince = DISTRICT_TO_PROVINCE[selectedDistrict] || '';
+    setFormData((prev) => ({
+      ...prev,
+      district: selectedDistrict,
+      province: matchingProvince,
+    }));
+    setError('');
+  };
+
   const handleLogoChange = (e) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      setHospitalLogo(file.name);
+      setHospitalLogoFile(file);
+      setLogoName(file.name);
       setLogoPreview(URL.createObjectURL(file));
     }
   };
 
   const handleRegFileChange = (e) => {
     if (e.target.files && e.target.files[0]) {
-      setRegistrationProof(e.target.files[0].name);
+      const file = e.target.files[0];
+      setRegistrationProofFile(file);
+      setRegProofName(file.name);
     }
   };
 
   const handleAddrFileChange = (e) => {
     if (e.target.files && e.target.files[0]) {
-      setAddressProof(e.target.files[0].name);
+      const file = e.target.files[0];
+      setAddressProofFile(file);
+      setAddrProofName(file.name);
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!registrationProof) {
-      setError('Please upload Hospital Registration Proof');
+    if (!formData.province) {
+      setError('Please select a Province');
       return;
     }
-    if (!addressProof) {
-      setError('Please upload Hospital Address Proof');
+    if (!formData.district) {
+      setError('Please select a District');
       return;
     }
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match');
       return;
     }
-    setSubmitted(true);
-    setTimeout(() => {
-      onSuccess?.(formData.hospitalName);
-    }, 1500);
-  };
+    if (formData.password.length < 6) {
+      setError('Password must be at least 6 characters');
+      return;
+    }
+    if (!registrationProofFile) {
+      setError('Please upload Hospital Registration Proof');
+      return;
+    }
 
-  if (submitted) {
-    return (
-      <div className="auth-success-alert" role="alert">
-        <h4>Registration Request Submitted!</h4>
-        <p>Your hospital portal access is being reviewed by the Ministry &amp; Health Authorities.</p>
-      </div>
-    );
-  }
+    setLoading(true);
+    setError('');
+
+    try {
+      const payload = new FormData();
+      payload.append('hospitalName', formData.hospitalName);
+      payload.append('registrationNumber', formData.registrationNumber || `HOSP-${Date.now().toString().slice(-6)}`);
+      payload.append('hospitalType', formData.type);
+      payload.append('address', formData.address);
+      payload.append('district', formData.district);
+      payload.append('province', formData.province);
+      payload.append('contactNumber', formData.contactNumber);
+      payload.append('email', formData.officialEmail);
+      payload.append('password', formData.password);
+
+      if (hospitalLogoFile) payload.append('logo', hospitalLogoFile);
+      if (registrationProofFile) payload.append('registrationCertificate', registrationProofFile);
+      if (addressProofFile) payload.append('mohDocument', addressProofFile);
+
+      const response = await authService.signupHospital(payload);
+      onSuccess?.(response);
+    } catch (err) {
+      setError(err.message || 'Hospital registration failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <form onSubmit={handleSubmit} className="auth-form auth-form-scrollable">
-      {error && <div style={{ color: '#dc2626', fontSize: '0.85rem', fontWeight: 600 }}>{error}</div>}
+      {error && (
+        <div style={{ 
+          backgroundColor: 'rgba(239, 68, 68, 0.1)', 
+          color: '#dc2626', 
+          padding: '10px 14px', 
+          borderRadius: '8px', 
+          fontSize: '0.85rem', 
+          fontWeight: 600,
+          border: '1px solid rgba(239, 68, 68, 0.2)' 
+        }}>
+          {error}
+        </div>
+      )}
 
-      <div className="auth-input-group">
-        <input
-          type="text"
-          name="hospitalName"
-          value={formData.hospitalName}
-          onChange={handleChange}
-          placeholder="Hospital Name"
-          required
-          className="auth-input"
-        />
-      </div>
-
-      {/* Hospital Logo Upload Field */}
+      {/* Hospital Logo Upload Field (at top) */}
       <div className="auth-input-group">
         <label className="auth-label">Hospital Logo (Optional)</label>
         <div
@@ -116,7 +237,7 @@ export default function HospitalSignupForm({ onSuccess }) {
             ) : (
               <span>🏥</span>
             )}
-            <span>{hospitalLogo || 'Upload Hospital Logo (JPG/PNG)'}</span>
+            <span>{logoName || 'Upload Hospital Logo (JPG/PNG)'}</span>
           </div>
           <span className="file-upload-btn-text">Browse</span>
         </div>
@@ -125,7 +246,34 @@ export default function HospitalSignupForm({ onSuccess }) {
           type="file"
           accept="image/png,image/jpeg,image/jpg,image/webp,image/svg+xml"
           onChange={handleLogoChange}
+          disabled={loading}
           className="hidden-file-input"
+        />
+      </div>
+
+      <div className="auth-input-group">
+        <input
+          type="text"
+          name="hospitalName"
+          value={formData.hospitalName}
+          onChange={handleChange}
+          placeholder="Hospital / Medical Institution Name *"
+          required
+          disabled={loading}
+          className="auth-input"
+        />
+      </div>
+
+      <div className="auth-input-group">
+        <input
+          type="text"
+          name="registrationNumber"
+          value={formData.registrationNumber}
+          onChange={handleChange}
+          placeholder="MOH / PHSRC Registration Number *"
+          required
+          disabled={loading}
+          className="auth-input"
         />
       </div>
 
@@ -135,53 +283,14 @@ export default function HospitalSignupForm({ onSuccess }) {
           name="type"
           value={formData.type}
           onChange={handleChange}
+          disabled={loading}
           className="auth-select"
         >
-          <option value="Government">Government Hospital</option>
-          <option value="Private">Private Hospital / Clinic</option>
+          <option value="Government">Government / Base Hospital</option>
+          <option value="Private">Private Hospital / Center</option>
+          <option value="MOH">MOH Office / Immunization Clinic</option>
         </select>
       </div>
-
-      {/* Operating Schedule */}
-      <div className="auth-input-group">
-        <label className="auth-label">Operating Schedule / Hours</label>
-        <select
-          name="operatingHoursType"
-          value={formData.operatingHoursType}
-          onChange={handleChange}
-          className="auth-select"
-        >
-          <option value="24hrs">Open 24 Hours (24/7)</option>
-          <option value="selected">Selected Operating Hours</option>
-        </select>
-      </div>
-
-      {formData.operatingHoursType === 'selected' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-          <div className="auth-input-group">
-            <label className="auth-label">Start Time *</label>
-            <input
-              type="time"
-              name="openingTime"
-              value={formData.openingTime}
-              onChange={handleChange}
-              required
-              className="auth-input"
-            />
-          </div>
-          <div className="auth-input-group">
-            <label className="auth-label">End Time *</label>
-            <input
-              type="time"
-              name="closingTime"
-              value={formData.closingTime}
-              onChange={handleChange}
-              required
-              className="auth-input"
-            />
-          </div>
-        </div>
-      )}
 
       <div className="auth-input-group">
         <input
@@ -189,8 +298,9 @@ export default function HospitalSignupForm({ onSuccess }) {
           name="officialEmail"
           value={formData.officialEmail}
           onChange={handleChange}
-          placeholder="Email"
+          placeholder="Official Administration Email *"
           required
+          disabled={loading}
           className="auth-input"
         />
       </div>
@@ -201,8 +311,9 @@ export default function HospitalSignupForm({ onSuccess }) {
           name="contactNumber"
           value={formData.contactNumber}
           onChange={handleChange}
-          placeholder="Contact Number"
+          placeholder="Official Contact Phone Number *"
           required
+          disabled={loading}
           className="auth-input"
         />
       </div>
@@ -213,15 +324,72 @@ export default function HospitalSignupForm({ onSuccess }) {
           name="address"
           value={formData.address}
           onChange={handleChange}
-          placeholder="Hospital Address"
+          placeholder="Complete Hospital Address *"
           required
+          disabled={loading}
           className="auth-input"
         />
       </div>
 
+      {(() => {
+        const availableProvinces = formData.district
+          ? SRI_LANKA_PROVINCES.filter((p) => p.province === DISTRICT_TO_PROVINCE[formData.district])
+          : SRI_LANKA_PROVINCES;
+
+        const availableDistricts = formData.province
+          ? (SRI_LANKA_PROVINCES.find((p) => p.province === formData.province)?.districts || [])
+          : SRI_LANKA_PROVINCES.flatMap((p) => p.districts);
+
+        return (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div className="auth-input-group">
+              <label className="auth-label" style={{ fontSize: '0.82rem', color: '#475569', fontWeight: 600 }}>
+                Province *
+              </label>
+              <select
+                name="province"
+                value={formData.province}
+                onChange={handleProvinceChange}
+                required
+                disabled={loading}
+                className="auth-select"
+              >
+                <option value="">{formData.district ? 'All Provinces (Reset)' : 'Select Province'}</option>
+                {availableProvinces.map((p) => (
+                  <option key={p.province} value={p.province}>
+                    {p.province}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="auth-input-group">
+              <label className="auth-label" style={{ fontSize: '0.82rem', color: '#475569', fontWeight: 600 }}>
+                District *
+              </label>
+              <select
+                name="district"
+                value={formData.district}
+                onChange={handleDistrictChange}
+                required
+                disabled={loading}
+                className="auth-select"
+              >
+                <option value="">Select District</option>
+                {availableDistricts.map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Registration Proof */}
       <div className="auth-input-group">
-        <label className="auth-label">Registration Proof *</label>
+        <label className="auth-label">Hospital Registration Certificate *</label>
         <div
           className="file-upload-box"
           onClick={() => regProofRef.current?.click()}
@@ -230,7 +398,7 @@ export default function HospitalSignupForm({ onSuccess }) {
         >
           <div className="file-upload-info">
             <span>📑</span>
-            <span>{registrationProof || 'Upload Registration Certificate (PDF/JPG)'}</span>
+            <span>{regProofName || 'Upload Registration Certificate (PDF/JPG)'}</span>
           </div>
           <span className="file-upload-btn-text">Browse</span>
         </div>
@@ -239,13 +407,14 @@ export default function HospitalSignupForm({ onSuccess }) {
           type="file"
           accept=".pdf,.jpg,.jpeg,.png"
           onChange={handleRegFileChange}
+          disabled={loading}
           className="hidden-file-input"
         />
       </div>
 
-      {/* Address Proof */}
+      {/* Address Proof / MOH Document */}
       <div className="auth-input-group">
-        <label className="auth-label">Address Proof *</label>
+        <label className="auth-label">MOH Affiliation / Hospital Document (Optional)</label>
         <div
           className="file-upload-box"
           onClick={() => addrProofRef.current?.click()}
@@ -254,7 +423,7 @@ export default function HospitalSignupForm({ onSuccess }) {
         >
           <div className="file-upload-info">
             <span>📍</span>
-            <span>{addressProof || 'Upload Utility / Address Verification'}</span>
+            <span>{addrProofName || 'Upload MOH / Hospital Letter (PDF/JPG)'}</span>
           </div>
           <span className="file-upload-btn-text">Browse</span>
         </div>
@@ -263,36 +432,83 @@ export default function HospitalSignupForm({ onSuccess }) {
           type="file"
           accept=".pdf,.jpg,.jpeg,.png"
           onChange={handleAddrFileChange}
+          disabled={loading}
           className="hidden-file-input"
         />
       </div>
 
       <div className="auth-input-group">
-        <input
-          type="password"
-          name="password"
-          value={formData.password}
-          onChange={handleChange}
-          placeholder="Password"
-          required
-          className="auth-input"
-        />
+        <div className="password-input-container">
+          <input
+            type={showPassword ? 'text' : 'password'}
+            name="password"
+            value={formData.password}
+            onChange={handleChange}
+            placeholder="Password (Min 6 characters) *"
+            required
+            disabled={loading}
+            className="auth-input"
+          />
+          <button
+            type="button"
+            className="btn-password-toggle"
+            onClick={() => setShowPassword((prev) => !prev)}
+            tabIndex={-1}
+            title={showPassword ? 'Hide password' : 'Show password'}
+            aria-label={showPassword ? 'Hide password' : 'Show password'}
+          >
+            {showPassword ? (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                <line x1="1" y1="1" x2="23" y2="23" />
+              </svg>
+            ) : (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+            )}
+          </button>
+        </div>
       </div>
 
       <div className="auth-input-group">
-        <input
-          type="password"
-          name="confirmPassword"
-          value={formData.confirmPassword}
-          onChange={handleChange}
-          placeholder="Confirm Password"
-          required
-          className="auth-input"
-        />
+        <div className="password-input-container">
+          <input
+            type={showConfirmPassword ? 'text' : 'password'}
+            name="confirmPassword"
+            value={formData.confirmPassword}
+            onChange={handleChange}
+            placeholder="Confirm Password *"
+            required
+            disabled={loading}
+            className="auth-input"
+          />
+          <button
+            type="button"
+            className="btn-password-toggle"
+            onClick={() => setShowConfirmPassword((prev) => !prev)}
+            tabIndex={-1}
+            title={showConfirmPassword ? 'Hide password' : 'Show password'}
+            aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+          >
+            {showConfirmPassword ? (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                <line x1="1" y1="1" x2="23" y2="23" />
+              </svg>
+            ) : (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11-8-11-8z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+            )}
+          </button>
+        </div>
       </div>
 
-      <button type="submit" className="btn-auth-submit">
-        Register Hospital
+      <button type="submit" className="btn-auth-submit" disabled={loading}>
+        {loading ? 'Registering...' : 'Register as Hospital'}
       </button>
     </form>
   );

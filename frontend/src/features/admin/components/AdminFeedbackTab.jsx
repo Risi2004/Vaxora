@@ -313,7 +313,7 @@ export default function AdminFeedbackTab() {
           </div>
           <h1 className="doctor-hero-title">Incoming Feedback & Inquiries</h1>
           <p className="doctor-hero-subtitle">
-            Central repository of user experiences, clinical issue reports, and system inquiries submitted by Patients, Doctors, Nurses, and Healthcare Facilities across Sri Lanka.
+            Central repository of user experiences, clinical issue reports, and system inquiries submitted by Patients, Doctors, Nurses, and Hospitals across Sri Lanka.
           </p>
         </div>
 
@@ -445,7 +445,7 @@ export default function AdminFeedbackTab() {
             <option value="PATIENT">Patient</option>
             <option value="DOCTOR">Doctor</option>
             <option value="NURSE">Nurse</option>
-            <option value="HOSPITAL">Hospital / Facility</option>
+            <option value="HOSPITAL">Hospital</option>
           </select>
 
           {/* Category Filter */}
@@ -459,7 +459,7 @@ export default function AdminFeedbackTab() {
             <option value="Vaccination Service">Vaccination Service</option>
             <option value="System / Bug">System / Bug</option>
             <option value="Vaccine Adverse Event">Vaccine Adverse Event</option>
-            <option value="Facility Supply">Facility Supply</option>
+            <option value="Hospital Supply">Hospital Supply</option>
             <option value="Scheduling / Booking">Scheduling / Booking</option>
           </select>
 
@@ -644,7 +644,7 @@ export default function AdminFeedbackTab() {
                 </div>
 
                 <div>
-                  <div style={{ fontSize: '0.72rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700 }}>Facility / Clinic</div>
+                  <div style={{ fontSize: '0.72rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700 }}>Hospital / Clinic</div>
                   <div style={{ fontWeight: 600, color: '#e2e8f0', marginTop: '2px' }}>{selectedFeedback.hospital}</div>
                   <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '4px' }}>Submitted on {selectedFeedback.date}</div>
                 </div>

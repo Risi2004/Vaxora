@@ -1,61 +1,155 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { authService } from '../../auth';
 
 export default function HospitalProfileTab() {
-  const navigate = useNavigate();
-
+  const fileInputRef = useRef(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [notification, setNotification] = useState('');
+  const [notificationType, setNotificationType] = useState('success');
 
   const [hospitalInfo, setHospitalInfo] = useState({
-    id: 'Hospital24',
-    location: 'Dehiwala',
-    name: 'DELMON',
-    email: 'delmonhospital@gmail.com',
-    hospitalNumber: '074 1234 567',
+    id: '',
+    regNumber: '',
+    name: '',
+    email: '',
+    hospitalNumber: '',
+    hospitalType: '',
+    operatingHours: '',
+    address: '',
+    district: '',
+    province: '',
+    verificationStatus: 'Pending',
+    logoUrl: null,
+    registrationDocKey: null,
+    mohDocKey: null,
   });
 
   const [doctors, setDoctors] = useState([
-    { id: 1, name: 'Dr.kali' },
-    { id: 2, name: 'Dr.kali' },
-    { id: 3, name: 'Dr.kali' },
-    { id: 4, name: 'Dr.kali' },
-    { id: 5, name: 'Dr.Peter' },
+    { id: 1, name: 'Dr. S. Jayasinghe' },
+    { id: 2, name: 'Dr. K. Perera' },
+    { id: 3, name: 'Dr. M. Fernando' },
+    { id: 4, name: 'Dr. A. Silva' },
   ]);
 
   const [nurses, setNurses] = useState([
-    { id: 1, name: 'Dr.kali' },
-    { id: 2, name: 'Dr.kali' },
-    { id: 3, name: 'Dr.kali' },
-    { id: 4, name: 'Dr.kali' },
-    { id: 5, name: 'Dr.Peter' },
+    { id: 1, name: 'Nurse Anoma' },
+    { id: 2, name: 'Nurse Priyanthi' },
+    { id: 3, name: 'Nurse Dilani' },
   ]);
+
+  const showNotification = (msg, type = 'success') => {
+    setNotification(msg);
+    setNotificationType(type);
+    setTimeout(() => setNotification(''), 3500);
+  };
+
+  const populateState = (user) => {
+    const details = user.profileDetails || {};
+    setHospitalInfo({
+      id: user.registrationNumber || details.registrationNumber || 'VAX-H-000000',
+      regNumber: details.registrationNumber || 'N/A',
+      name: details.hospitalName || user.name || '',
+      email: user.email || '',
+      hospitalNumber: details.contactNumber || user.phoneNumber || '',
+      hospitalType: details.hospitalType || 'General Hospital',
+      operatingHours: details.operatingHours || '24/7 Emergency & Outpatient',
+      address: details.address || '',
+      district: details.district || '',
+      province: details.province || '',
+      verificationStatus: details.verificationStatus != null ? String(details.verificationStatus) : (user.status || 'Pending'),
+      logoUrl: user.profilePhotoUrl || details.logoUrl || null,
+      registrationDocKey: details.registrationDocKey || null,
+      mohDocKey: details.mohDocKey || null,
+    });
+  };
+
+  const loadHospitalProfile = async () => {
+    try {
+      const cached = authService.getUser();
+      if (cached) populateState(cached);
+
+      const freshUser = await authService.getMe();
+      if (freshUser) populateState(freshUser);
+    } catch (err) {
+      console.warn('Could not fetch latest hospital profile:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadHospitalProfile();
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setHospitalInfo((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleToggleEdit = () => {
+  const handleToggleEdit = async () => {
     if (isEditing) {
-      setNotification('Hospital details updated successfully!');
-      setTimeout(() => setNotification(''), 3000);
+      setSaving(true);
+      try {
+        await authService.updateProfile({
+          hospitalName: hospitalInfo.name,
+          phoneNumber: hospitalInfo.hospitalNumber,
+          hospitalType: hospitalInfo.hospitalType,
+          operatingHours: hospitalInfo.operatingHours,
+          address: hospitalInfo.address,
+          district: hospitalInfo.district,
+          province: hospitalInfo.province,
+          profilePhotoUrl: hospitalInfo.logoUrl,
+        });
+        showNotification('Hospital profile updated successfully in the national directory!');
+        setIsEditing(false);
+      } catch (err) {
+        showNotification(err.message || 'Failed to update hospital details.', 'error');
+      } finally {
+        setSaving(false);
+      }
+    } else {
+      setIsEditing(true);
     }
-    setIsEditing((prev) => !prev);
+  };
+
+  const handleLogoUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const photoData = reader.result;
+        setHospitalInfo((prev) => ({ ...prev, logoUrl: photoData }));
+        try {
+          await authService.updateProfile({ profilePhotoUrl: photoData });
+          showNotification('Hospital logo updated successfully!');
+        } catch {
+          showNotification('Updated logo locally.', 'success');
+        }
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleAddDoctor = () => {
-    const docName = window.prompt('Enter Doctor Name:', 'Dr. Samantha');
+    const docName = window.prompt('Enter Doctor Name to assign:', 'Dr. Samantha Perera');
     if (docName && docName.trim()) {
       setDoctors((prev) => [...prev, { id: Date.now(), name: docName.trim() }]);
+      showNotification(`Assigned ${docName.trim()} to hospital clinical roster.`);
     }
   };
 
   const handleAddNurse = () => {
-    const nurseName = window.prompt('Enter Nurse Name:', 'Nurse Anoma');
+    const nurseName = window.prompt('Enter Nurse Name to assign:', 'Nurse Kanthi Silva');
     if (nurseName && nurseName.trim()) {
       setNurses((prev) => [...prev, { id: Date.now(), name: nurseName.trim() }]);
+      showNotification(`Assigned ${nurseName.trim()} to hospital nursing roster.`);
     }
+  };
+
+  const handleExport = () => {
+    showNotification('Exported Hospital Clinical & Verification Sheet (.PDF)');
   };
 
   return (
@@ -64,9 +158,15 @@ export default function HospitalProfileTab() {
         <div
           className="appointment-alert-pill"
           role="alert"
-          style={{ maxWidth: '960px', width: '100%' }}
+          style={{
+            maxWidth: '960px',
+            width: '100%',
+            backgroundColor: notificationType === 'error' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+            borderColor: notificationType === 'error' ? '#ef4444' : '#10b981',
+            color: notificationType === 'error' ? '#f87171' : '#34d399',
+          }}
         >
-          ✓ {notification}
+          {notificationType === 'error' ? '⚠️' : '✓'} {notification}
         </div>
       )}
 
@@ -78,26 +178,43 @@ export default function HospitalProfileTab() {
           {/* Left: Large Avatar with Edit Icon */}
           <div className="profile-avatar-column">
             <div className="profile-avatar-wrap">
-              <svg
-                className="profile-large-silhouette"
-                viewBox="0 0 200 200"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <circle cx="100" cy="100" r="100" fill="#d9dde3" />
-                <circle cx="100" cy="80" r="38" fill="#525862" />
-                <path
-                  d="M40 174C40 140.863 66.863 118 100 118C133.137 118 160 140.863 160 174"
-                  fill="#525862"
+              {hospitalInfo.logoUrl ? (
+                <img
+                  src={hospitalInfo.logoUrl}
+                  alt={hospitalInfo.name || 'Hospital'}
+                  style={{ width: '150px', height: '150px', borderRadius: '50%', objectFit: 'cover', border: '3px solid #0284c7' }}
                 />
-              </svg>
+              ) : (
+                <svg
+                  className="profile-large-silhouette"
+                  viewBox="0 0 200 200"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <circle cx="100" cy="100" r="100" fill="#d9dde3" />
+                  <circle cx="100" cy="80" r="38" fill="#525862" />
+                  <path
+                    d="M40 174C40 140.863 66.863 118 100 118C133.137 118 160 140.863 160 174"
+                    fill="#525862"
+                  />
+                </svg>
+              )}
+
+              {/* Hidden file input for logo upload */}
+              <input
+                type="file"
+                ref={fileInputRef}
+                style={{ display: 'none' }}
+                accept="image/*"
+                onChange={handleLogoUpload}
+              />
 
               {/* Edit Avatar Badge Icon */}
               <button
                 type="button"
                 className="btn-avatar-edit"
-                title="Update Hospital Logo / Photo"
-                onClick={() => alert('Logo upload dialog: You can update your official hospital avatar.')}
+                title="Update Hospital Logo"
+                onClick={() => fileInputRef.current?.click()}
               >
                 <svg
                   width="18"
@@ -121,23 +238,35 @@ export default function HospitalProfileTab() {
             <div className="profile-info-card">
               {/* Card Header Row */}
               <div className="profile-info-header">
-                <h2 className="profile-info-title">
-                  Hospital Information
-                </h2>
+                <div>
+                  <h2 className="profile-info-title">
+                    Hospital Profile &amp; Accreditation
+                  </h2>
+                  <span
+                    style={{
+                      fontSize: '0.8rem',
+                      fontWeight: 700,
+                      color: hospitalInfo.verificationStatus === 'Approved' || hospitalInfo.verificationStatus === '1' ? '#10b981' : '#f59e0b',
+                    }}
+                  >
+                    ● Status: {hospitalInfo.verificationStatus === 'Approved' || hospitalInfo.verificationStatus === '1' ? 'Accredited / Verified' : 'Under Review'}
+                  </span>
+                </div>
                 <div className="profile-header-actions">
                   <button
                     type="button"
                     className="btn-profile-edit"
                     onClick={handleToggleEdit}
+                    disabled={saving}
                   >
-                    {isEditing ? 'Save' : 'Edit'}
+                    {saving ? 'Saving...' : isEditing ? 'Save' : 'Edit'}
                   </button>
 
                   <button
                     type="button"
                     className="btn-profile-export"
                     title="Export / View System Profile"
-                    onClick={() => alert('Exporting hospital profile verification sheet...')}
+                    onClick={handleExport}
                   >
                     <svg
                       width="18"
@@ -160,29 +289,15 @@ export default function HospitalProfileTab() {
               {/* Hospital Information Fields */}
               <div className="profile-fields-list">
                 <div className="profile-field-row">
-                  <span className="profile-field-label">ID</span>
+                  <span className="profile-field-label">VAXORA CODE</span>
                   <span className="profile-field-colon">:</span>
-                  <span className="profile-field-value">{hospitalInfo.id}</span>
+                  <span className="profile-field-value" style={{ fontWeight: 700, color: '#0284c7' }}>
+                    {hospitalInfo.id || (loading ? 'Loading...' : 'N/A')}
+                  </span>
                 </div>
 
                 <div className="profile-field-row">
-                  <span className="profile-field-label">LOCATION</span>
-                  <span className="profile-field-colon">:</span>
-                  {isEditing ? (
-                    <input
-                      type="text"
-                      name="location"
-                      value={hospitalInfo.location}
-                      onChange={handleChange}
-                      className="profile-field-input"
-                    />
-                  ) : (
-                    <span className="profile-field-value">{hospitalInfo.location}</span>
-                  )}
-                </div>
-
-                <div className="profile-field-row">
-                  <span className="profile-field-label">NAME</span>
+                  <span className="profile-field-label">HOSPITAL NAME</span>
                   <span className="profile-field-colon">:</span>
                   {isEditing ? (
                     <input
@@ -193,28 +308,72 @@ export default function HospitalProfileTab() {
                       className="profile-field-input"
                     />
                   ) : (
-                    <span className="profile-field-value">{hospitalInfo.name}</span>
+                    <span className="profile-field-value">{hospitalInfo.name || (loading ? 'Loading...' : 'N/A')}</span>
                   )}
+                </div>
+
+                <div className="profile-field-row">
+                  <span className="profile-field-label">TYPE</span>
+                  <span className="profile-field-colon">:</span>
+                  {isEditing ? (
+                    <input
+                      type="text"
+                      name="hospitalType"
+                      value={hospitalInfo.hospitalType}
+                      onChange={handleChange}
+                      className="profile-field-input"
+                    />
+                  ) : (
+                    <span className="profile-field-value">{hospitalInfo.hospitalType || 'General Hospital'}</span>
+                  )}
+                </div>
+
+                <div className="profile-field-row">
+                  <span className="profile-field-label">HOURS</span>
+                  <span className="profile-field-colon">:</span>
+                  {isEditing ? (
+                    <input
+                      type="text"
+                      name="operatingHours"
+                      value={hospitalInfo.operatingHours}
+                      onChange={handleChange}
+                      className="profile-field-input"
+                    />
+                  ) : (
+                    <span className="profile-field-value">{hospitalInfo.operatingHours || '24/7 Outpatient & Emergency'}</span>
+                  )}
+                </div>
+
+                <div className="profile-field-row">
+                  <span className="profile-field-label">ADDRESS</span>
+                  <span className="profile-field-colon">:</span>
+                  {isEditing ? (
+                    <input
+                      type="text"
+                      name="address"
+                      value={hospitalInfo.address}
+                      onChange={handleChange}
+                      className="profile-field-input"
+                    />
+                  ) : (
+                    <span className="profile-field-value">{hospitalInfo.address || 'Sri Lanka'}</span>
+                  )}
+                </div>
+
+                <div className="profile-field-row">
+                  <span className="profile-field-label">DISTRICT / PROVINCE</span>
+                  <span className="profile-field-colon">:</span>
+                  <span className="profile-field-value">{hospitalInfo.district || 'Colombo'}, {hospitalInfo.province || 'Western'}</span>
                 </div>
 
                 <div className="profile-field-row">
                   <span className="profile-field-label">EMAIL</span>
                   <span className="profile-field-colon">:</span>
-                  {isEditing ? (
-                    <input
-                      type="email"
-                      name="email"
-                      value={hospitalInfo.email}
-                      onChange={handleChange}
-                      className="profile-field-input"
-                    />
-                  ) : (
-                    <span className="profile-field-value">{hospitalInfo.email}</span>
-                  )}
+                  <span className="profile-field-value">{hospitalInfo.email || (loading ? 'Loading...' : 'N/A')}</span>
                 </div>
 
                 <div className="profile-field-row">
-                  <span className="profile-field-label">HOSPITAL NUMBER</span>
+                  <span className="profile-field-label">CONTACT NUMBER</span>
                   <span className="profile-field-colon">:</span>
                   {isEditing ? (
                     <input
@@ -225,8 +384,41 @@ export default function HospitalProfileTab() {
                       className="profile-field-input"
                     />
                   ) : (
-                    <span className="profile-field-value">{hospitalInfo.hospitalNumber}</span>
+                    <span className="profile-field-value">{hospitalInfo.hospitalNumber || 'Not provided'}</span>
                   )}
+                </div>
+
+                {/* Document links */}
+                <div className="profile-field-row" style={{ marginTop: '8px' }}>
+                  <span className="profile-field-label">DOCUMENTS</span>
+                  <span className="profile-field-colon">:</span>
+                  <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                    {hospitalInfo.registrationDocKey ? (
+                      <a
+                        href={hospitalInfo.registrationDocKey}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="admin-action-btn view"
+                        style={{ textDecoration: 'none', fontSize: '0.8rem' }}
+                      >
+                        📄 Reg Certificate
+                      </a>
+                    ) : (
+                      <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>Registration Document on File</span>
+                    )}
+
+                    {hospitalInfo.mohDocKey && (
+                      <a
+                        href={hospitalInfo.mohDocKey}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="admin-action-btn view"
+                        style={{ textDecoration: 'none', fontSize: '0.8rem' }}
+                      >
+                        🏛️ MOH Clearance
+                      </a>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -243,7 +435,7 @@ export default function HospitalProfileTab() {
       >
         {/* Doctors Section */}
         <div className="hospital-staff-section">
-          <h2 className="hospital-staff-heading">Doctors</h2>
+          <h2 className="hospital-staff-heading">Assigned Doctors &amp; Medical Officers</h2>
           <div className="hospital-staff-row">
             {doctors.map((doc) => (
               <div key={doc.id} className="hospital-staff-item">
@@ -271,8 +463,8 @@ export default function HospitalProfileTab() {
               type="button"
               className="hospital-staff-add-btn"
               onClick={handleAddDoctor}
-              title="Add New Doctor"
-              aria-label="Add New Doctor"
+              title="Assign New Doctor"
+              aria-label="Assign New Doctor"
             >
               <span className="hospital-staff-add-icon">+</span>
             </button>
@@ -281,7 +473,7 @@ export default function HospitalProfileTab() {
 
         {/* Nurses Section */}
         <div className="hospital-staff-section">
-          <h2 className="hospital-staff-heading">Nurses</h2>
+          <h2 className="hospital-staff-heading">Assigned Immunization Nurses</h2>
           <div className="hospital-staff-row">
             {nurses.map((nurse) => (
               <div key={nurse.id} className="hospital-staff-item">
@@ -292,11 +484,11 @@ export default function HospitalProfileTab() {
                     fill="none"
                     xmlns="http://www.w3.org/2000/svg"
                   >
-                    <circle cx="50" cy="50" r="50" fill="#d9dde3" />
-                    <circle cx="50" cy="40" r="19" fill="#525862" />
+                    <circle cx="50" cy="50" r="50" fill="#e0f2fe" />
+                    <circle cx="50" cy="40" r="19" fill="#0284c7" />
                     <path
                       d="M20 87C20 70.431 33.431 59 50 59C66.569 59 80 70.431 80 87"
-                      fill="#525862"
+                      fill="#0284c7"
                     />
                   </svg>
                 </div>
@@ -309,8 +501,8 @@ export default function HospitalProfileTab() {
               type="button"
               className="hospital-staff-add-btn"
               onClick={handleAddNurse}
-              title="Add New Nurse"
-              aria-label="Add New Nurse"
+              title="Assign New Nurse"
+              aria-label="Assign New Nurse"
             >
               <span className="hospital-staff-add-icon">+</span>
             </button>

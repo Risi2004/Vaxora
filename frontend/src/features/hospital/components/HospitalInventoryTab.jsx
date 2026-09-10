@@ -377,7 +377,7 @@ export default function HospitalInventoryTab() {
           <div>
             <div className="inventory-badge-row">
               <span className="inventory-moh-tag">MOH Sri Lanka &bull; Cold Chain Certified</span>
-              <span className="inventory-facility-tag">Facility Code: MOH-COL-77042</span>
+              <span className="inventory-facility-tag">Hospital Code: MOH-COL-77042</span>
             </div>
             <h2 className="hospital-manage-title" style={{ textAlign: 'left', margin: '8px 0 4px' }}>
               Vaccine Inventory &amp; Cold Storage Management

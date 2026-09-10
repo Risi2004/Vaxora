@@ -543,7 +543,7 @@ export default function VaccinationHistoryTab() {
                 Administration Date: {selectedCertificate.date}
               </p>
               <p style={{ margin: '0 0 6px', fontSize: '0.9rem', color: '#475569' }}>
-                Facility: {selectedCertificate.location}
+                Hospital: {selectedCertificate.location}
               </p>
               <p style={{ margin: '0 0 6px', fontSize: '0.9rem', color: '#475569' }}>
                 Recipient: {selectedPatient.name} ({selectedPatient.vaxoraId})
