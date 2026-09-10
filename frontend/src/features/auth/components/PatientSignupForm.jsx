@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { authService } from '../services/authService';
 
 export default function PatientSignupForm({ onSuccess }) {
@@ -12,13 +12,28 @@ export default function PatientSignupForm({ onSuccess }) {
     confirmPassword: '',
   });
 
+  const [profilePicFile, setProfilePicFile] = useState(null);
+  const [profilePicName, setProfilePicName] = useState('');
+  const [profilePicPreview, setProfilePicPreview] = useState(null);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const profilePicRef = useRef(null);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
     setError('');
+  };
+
+  const handleProfilePicChange = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setProfilePicFile(file);
+      setProfilePicName(file.name);
+      setProfilePicPreview(URL.createObjectURL(file));
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -36,15 +51,23 @@ export default function PatientSignupForm({ onSuccess }) {
     setError('');
 
     try {
-      const response = await authService.signupPatient({
-        fullName: formData.fullName,
-        nicNumber: formData.nicNumber,
-        dateOfBirth: formData.dateOfBirth ? new Date(formData.dateOfBirth).toISOString() : null,
-        phoneNumber: formData.phoneNumber,
-        email: formData.email,
-        password: formData.password,
-      });
+      const payload = new FormData();
+      payload.append('fullName', formData.fullName);
+      payload.append('nicNumber', formData.nicNumber);
+      if (formData.dateOfBirth) {
+        payload.append('dateOfBirth', new Date(formData.dateOfBirth).toISOString());
+      }
+      if (formData.phoneNumber) {
+        payload.append('phoneNumber', formData.phoneNumber);
+      }
+      payload.append('email', formData.email);
+      payload.append('password', formData.password);
 
+      if (profilePicFile) {
+        payload.append('profilePhoto', profilePicFile);
+      }
+
+      const response = await authService.signupPatient(payload);
       onSuccess?.(response);
     } catch (err) {
       setError(err.message || 'Registration failed. Please try again.');
@@ -68,6 +91,35 @@ export default function PatientSignupForm({ onSuccess }) {
           {error}
         </div>
       )}
+
+      {/* Profile Photo Upload Field */}
+      <div className="auth-input-group">
+        <label className="auth-label">Profile Photo (Optional)</label>
+        <div
+          className="file-upload-box"
+          onClick={() => profilePicRef.current?.click()}
+          role="button"
+          tabIndex={0}
+        >
+          <div className="file-upload-info">
+            {profilePicPreview ? (
+              <img src={profilePicPreview} alt="Preview" className="file-upload-thumb" />
+            ) : (
+              <span>👤</span>
+            )}
+            <span>{profilePicName || 'Upload Profile Photo (JPG/PNG)'}</span>
+          </div>
+          <span className="file-upload-btn-text">Browse</span>
+        </div>
+        <input
+          ref={profilePicRef}
+          type="file"
+          accept="image/png,image/jpeg,image/jpg,image/webp"
+          onChange={handleProfilePicChange}
+          disabled={loading}
+          className="hidden-file-input"
+        />
+      </div>
 
       <div className="auth-input-group">
         <input
@@ -164,8 +216,9 @@ export default function PatientSignupForm({ onSuccess }) {
       </div>
 
       <button type="submit" className="btn-auth-submit" disabled={loading}>
-        {loading ? 'Creating Account...' : 'Register as Citizen'}
+        {loading ? 'Registering...' : 'Register as Patient'}
       </button>
     </form>
   );
 }
+

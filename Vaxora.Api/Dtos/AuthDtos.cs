@@ -22,6 +22,7 @@ public class UserDto
     public string Status { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string? PhoneNumber { get; set; }
+    public string? RegistrationNumber { get; set; }
     public string? ProfilePhotoUrl { get; set; }
     public object? ProfileDetails { get; set; }
 }
@@ -93,6 +94,8 @@ public class PatientSignupDto
     public DateTime DateOfBirth { get; set; }
 
     public string? PhoneNumber { get; set; }
+
+    public IFormFile? ProfilePhoto { get; set; }
 }
 
 public class DoctorSignupDto
@@ -168,4 +171,20 @@ public class HospitalSignupDto
     public IFormFile? Logo { get; set; }
     public IFormFile? RegistrationCertificate { get; set; }
     public IFormFile? MohDocument { get; set; }
+}
+
+public class AdminUserItemDto
+{
+    public Guid Id { get; set; }
+    public string Email { get; set; } = string.Empty;
+    public string Role { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string? PhoneNumber { get; set; }
+    public string? RegistrationNumber { get; set; }
+    public string Identifier { get; set; } = string.Empty;
+    public string FacilityOrDetails { get; set; } = string.Empty;
+    public DateTime CreatedAt { get; set; }
+    public DateTime? LastLoginAt { get; set; }
+    public object? Profile { get; set; }
 }

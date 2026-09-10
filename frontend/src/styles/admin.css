@@ -604,6 +604,19 @@
 }
 
 /* Badges */
+.admin-role-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  white-space: nowrap;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
 .admin-role-badge.doctor {
   background: rgba(37, 99, 235, 0.15);
   color: #60a5fa;
@@ -626,6 +639,12 @@
   background: rgba(148, 163, 184, 0.12);
   color: #cbd5e1;
   border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.admin-role-badge.admin {
+  background: rgba(147, 51, 234, 0.15);
+  color: #c084fc;
+  border: 1px solid rgba(147, 51, 234, 0.3);
 }
 
 .admin-id-pill {

@@ -117,9 +117,10 @@ export const authService = {
 
   // 2. Patient Signup
   async signupPatient(payload) {
+    const isFormData = payload instanceof FormData;
     const data = await apiRequest('/auth/signup/patient', {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: isFormData ? payload : JSON.stringify(payload),
     });
     if (data.token) {
       setSession(data.token, data.refreshToken, data.user);
@@ -249,6 +250,13 @@ export const authService = {
 
   async getAuditLogs(limit = 100) {
     return await apiRequest(`/admin/verification/audit-logs?limit=${limit}`, {
+      method: 'GET',
+    });
+  },
+
+  async getAllUsers(params = {}) {
+    const query = new URLSearchParams(params).toString();
+    return await apiRequest(`/admin/verification/users${query ? `?${query}` : ''}`, {
       method: 'GET',
     });
   }

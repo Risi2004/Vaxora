@@ -11,21 +11,25 @@ public interface IAdminService
     Task<bool> ProcessVerificationDecisionAsync(Guid adminId, Guid targetUserId, VerificationDecisionDto dto);
     Task<bool> UpdateUserStatusAsync(Guid adminId, Guid targetUserId, UserStatusUpdateDto dto);
     Task<List<AuditLog>> GetAuditLogsAsync(int limit = 100);
+    Task<List<AdminUserItemDto>> GetAllUsersAsync(string? role = null, string? status = null, string? search = null);
 }
 
 public class AdminService : IAdminService
 {
     private readonly ApplicationDbContext _context;
     private readonly IR2StorageService _r2Service;
+    private readonly IEmailService _emailService;
     private readonly ILogger<AdminService> _logger;
 
     public AdminService(
         ApplicationDbContext context,
         IR2StorageService r2Service,
+        IEmailService emailService,
         ILogger<AdminService> logger)
     {
         _context = context;
         _r2Service = r2Service;
+        _emailService = emailService;
         _logger = logger;
     }
 
@@ -50,6 +54,7 @@ public class AdminService : IAdminService
                 Role = user.Role.ToString(),
                 Status = user.Status.ToString(),
                 PhoneNumber = user.PhoneNumber,
+                RegistrationNumber = user.RegistrationNumber,
                 CreatedAt = user.CreatedAt
             };
 
@@ -113,6 +118,30 @@ public class AdminService : IAdminService
         }
 
         var isApprove = string.Equals(dto.Decision, "Approve", StringComparison.OrdinalIgnoreCase);
+        var regNumber = targetUser.RegistrationNumber ?? "N/A";
+        string recipientName;
+        string roleTitle;
+
+        if (targetUser.Role == UserRole.DOCTOR)
+        {
+            recipientName = $"Dr. {targetUser.DoctorProfile?.FullName ?? "Doctor"}";
+            roleTitle = "Doctor";
+        }
+        else if (targetUser.Role == UserRole.NURSE)
+        {
+            recipientName = $"Nurse {targetUser.NurseProfile?.FullName ?? "Nurse"}";
+            roleTitle = "Nurse";
+        }
+        else if (targetUser.Role == UserRole.HOSPITAL)
+        {
+            recipientName = targetUser.HospitalProfile?.HospitalName ?? "Hospital Facility";
+            roleTitle = "Hospital Facility";
+        }
+        else
+        {
+            recipientName = "Healthcare Professional";
+            roleTitle = targetUser.Role.ToString();
+        }
 
         if (isApprove)
         {
@@ -144,8 +173,25 @@ public class AdminService : IAdminService
                 UserId = adminId,
                 Role = "ADMIN",
                 Action = "VERIFICATION_APPROVED",
-                Details = $"Admin approved registration for user {targetUser.Email} (Role: {targetUser.Role})",
+                Details = $"Admin approved registration for user {targetUser.Email} (Role: {targetUser.Role}, Reg #{regNumber})",
                 Timestamp = DateTime.UtcNow
+            });
+
+            // Dispatch Account Approved email in background
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await _emailService.SendApprovalEmailAsync(
+                        targetUser.Email,
+                        recipientName,
+                        regNumber,
+                        roleTitle);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Background error dispatching approval email to {Email}", targetUser.Email);
+                }
             });
         }
         else
@@ -176,8 +222,26 @@ public class AdminService : IAdminService
                 UserId = adminId,
                 Role = "ADMIN",
                 Action = "VERIFICATION_REJECTED",
-                Details = $"Admin rejected registration for user {targetUser.Email} (Role: {targetUser.Role}). Reason: {reason}",
+                Details = $"Admin rejected registration for user {targetUser.Email} (Role: {targetUser.Role}, Reg #{regNumber}). Reason: {reason}",
                 Timestamp = DateTime.UtcNow
+            });
+
+            // Dispatch Account Rejected email in background
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await _emailService.SendRejectionEmailAsync(
+                        targetUser.Email,
+                        recipientName,
+                        regNumber,
+                        roleTitle,
+                        reason);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Background error dispatching rejection email to {Email}", targetUser.Email);
+                }
             });
         }
 
@@ -226,5 +290,99 @@ public class AdminService : IAdminService
             .OrderByDescending(a => a.Timestamp)
             .Take(limit)
             .ToListAsync();
+    }
+
+    public async Task<List<AdminUserItemDto>> GetAllUsersAsync(string? role = null, string? status = null, string? search = null)
+    {
+        var query = _context.Users
+            .Include(u => u.PatientProfile)
+            .Include(u => u.DoctorProfile)
+            .Include(u => u.NurseProfile)
+            .Include(u => u.HospitalProfile)
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(role) && !string.Equals(role, "all", StringComparison.OrdinalIgnoreCase) && Enum.TryParse<UserRole>(role, true, out var roleEnum))
+        {
+            query = query.Where(u => u.Role == roleEnum);
+        }
+
+        if (!string.IsNullOrWhiteSpace(status) && !string.Equals(status, "all", StringComparison.OrdinalIgnoreCase) && Enum.TryParse<UserStatus>(status, true, out var statusEnum))
+        {
+            query = query.Where(u => u.Status == statusEnum);
+        }
+
+        var users = await query.OrderByDescending(u => u.CreatedAt).ToListAsync();
+
+        var result = new List<AdminUserItemDto>();
+        foreach (var u in users)
+        {
+            string name = u.Role switch
+            {
+                UserRole.PATIENT => u.PatientProfile?.FullName ?? "Citizen",
+                UserRole.DOCTOR => $"Dr. {u.DoctorProfile?.FullName ?? "Doctor"}",
+                UserRole.NURSE => $"Nurse {u.NurseProfile?.FullName ?? "Nurse"}",
+                UserRole.HOSPITAL => u.HospitalProfile?.HospitalName ?? "Hospital",
+                UserRole.ADMIN => "System Administrator",
+                _ => "User"
+            };
+
+            string identifier = u.Role switch
+            {
+                UserRole.PATIENT => !string.IsNullOrEmpty(u.PatientProfile?.NicNumber) ? $"NIC: {u.PatientProfile.NicNumber}" : "N/A",
+                UserRole.DOCTOR => u.DoctorProfile?.SlmcNumber ?? "N/A",
+                UserRole.NURSE => u.NurseProfile?.SlncNumber ?? "N/A",
+                UserRole.HOSPITAL => u.HospitalProfile?.RegistrationNumber ?? "N/A",
+                UserRole.ADMIN => "MOH-ROOT-ADMIN",
+                _ => "N/A"
+            };
+
+            string facilityOrDetails = u.Role switch
+            {
+                UserRole.PATIENT => "Registered Citizen Record",
+                UserRole.DOCTOR => u.DoctorProfile?.Specialization ?? "General Practitioner",
+                UserRole.NURSE => "Nursing Staff",
+                UserRole.HOSPITAL => $"{u.HospitalProfile?.HospitalType ?? "Hospital"} • {u.HospitalProfile?.District ?? "Sri Lanka"}",
+                UserRole.ADMIN => "Ministry of Health System Admin",
+                _ => "N/A"
+            };
+
+            result.Add(new AdminUserItemDto
+            {
+                Id = u.Id,
+                Email = u.Email,
+                Role = u.Role.ToString().ToLowerInvariant(),
+                Status = u.Status.ToString().ToLowerInvariant(),
+                Name = name,
+                PhoneNumber = u.PhoneNumber,
+                RegistrationNumber = u.RegistrationNumber,
+                Identifier = identifier,
+                FacilityOrDetails = facilityOrDetails,
+                CreatedAt = u.CreatedAt,
+                LastLoginAt = u.LastLoginAt,
+                Profile = u.Role switch
+                {
+                    UserRole.PATIENT => u.PatientProfile,
+                    UserRole.DOCTOR => u.DoctorProfile,
+                    UserRole.NURSE => u.NurseProfile,
+                    UserRole.HOSPITAL => u.HospitalProfile,
+                    _ => null
+                }
+            });
+        }
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var s = search.Trim().ToLowerInvariant();
+            result = result.Where(r =>
+                r.Name.ToLowerInvariant().Contains(s) ||
+                r.Email.ToLowerInvariant().Contains(s) ||
+                r.Identifier.ToLowerInvariant().Contains(s) ||
+                (r.RegistrationNumber != null && r.RegistrationNumber.ToLowerInvariant().Contains(s)) ||
+                r.FacilityOrDetails.ToLowerInvariant().Contains(s) ||
+                (r.PhoneNumber != null && r.PhoneNumber.Contains(s))
+            ).ToList();
+        }
+
+        return result;
     }
 }

@@ -20,7 +20,8 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("signup/patient")]
-    public async Task<IActionResult> SignupPatient([FromBody] PatientSignupDto dto)
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> SignupPatient([FromForm] PatientSignupDto dto)
     {
         try
         {

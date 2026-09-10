@@ -24,12 +24,20 @@ if (File.Exists(envFilePath))
     }
 }
 
+// Configure QuestPDF license
+QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // 1. Configure Database Connection (Neon PostgreSQL / Npgsql)
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
-    ?? builder.Configuration["DATABASE_URL"] 
-    ?? "Host=localhost;Database=vaxoradb;Username=postgres;Password=postgres";
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+if (string.IsNullOrWhiteSpace(connectionString))
+{
+    connectionString = builder.Configuration["DATABASE_URL"]
+        ?? Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")
+        ?? Environment.GetEnvironmentVariable("DATABASE_URL")
+        ?? "Host=localhost;Database=vaxoradb;Username=postgres;Password=postgres";
+}
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
 {
@@ -43,13 +51,25 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IR2StorageService, R2StorageService>();
+builder.Services.AddScoped<IRegistrationNumberService, RegistrationNumberService>();
+builder.Services.AddScoped<IVaccinationCardService, VaccinationCardService>();
+builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
 
 // 3. Configure JWT Authentication & Authorization
-var jwtSecretKey = builder.Configuration["Jwt:SecretKey"] ?? "VaxoraSecureHealthPlatformJwtSecretKey2026!#DefaulteKeyMinimum32BytesLength";
-var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "Vaxora.Api";
-var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "Vaxora.Client";
+var jwtSecretKey = builder.Configuration["Jwt:SecretKey"];
+if (string.IsNullOrWhiteSpace(jwtSecretKey))
+{
+    jwtSecretKey = Environment.GetEnvironmentVariable("Jwt__SecretKey")
+        ?? "VaxoraSecureHealthPlatformJwtSecretKey2026!#DefaulteKeyMinimum32BytesLength";
+}
+
+var jwtIssuer = builder.Configuration["Jwt:Issuer"];
+if (string.IsNullOrWhiteSpace(jwtIssuer)) jwtIssuer = "Vaxora.Api";
+
+var jwtAudience = builder.Configuration["Jwt:Audience"];
+if (string.IsNullOrWhiteSpace(jwtAudience)) jwtAudience = "Vaxora.Client";
 
 builder.Services.AddAuthentication(options =>
 {

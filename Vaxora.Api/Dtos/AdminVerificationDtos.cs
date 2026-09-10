@@ -11,6 +11,7 @@ public class PendingVerificationUserDto
     public string Status { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string? LicenseOrRegNumber { get; set; }
+    public string? RegistrationNumber { get; set; }
     public string? HospitalAffiliationOrType { get; set; }
     public string? PhoneNumber { get; set; }
     public string? ProfilePhotoOrLogoUrl { get; set; }

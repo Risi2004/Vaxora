@@ -285,7 +285,7 @@ export default function NurseSignupForm({ onSuccess }) {
       </div>
 
       <button type="submit" className="btn-auth-submit" disabled={loading}>
-        {loading ? 'Uploading & Submitting...' : 'Register as Nurse'}
+        {loading ? 'Registering...' : 'Register as Nurse'}
       </button>
     </form>
   );

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { authService } from '../../auth';
 
 export default function AdminApprovalsTab() {
@@ -9,156 +9,94 @@ export default function AdminApprovalsTab() {
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [notification, setNotification] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [requests, setRequests] = useState([]);
 
   const showToast = (msg) => {
     setNotification(msg);
     setTimeout(() => setNotification(''), 3500);
   };
 
-  const [requests, setRequests] = useState([
-    {
-      id: 'APP-801',
-      userId: null,
-      type: 'doctor',
-      name: 'Dr. Kasun Abeysekera',
-      email: 'kasun.abey@gmail.com',
-      phone: '076 112 3344',
-      nic: '198923456789',
-      licenseId: 'SLMC-42091',
-      facility: 'Lanka Hospital Colombo',
-      appliedAt: '2026-09-07 07:45 AM',
-      documentName: 'SLMC_Registration_Card_Kasun.pdf',
-      documentType: 'Sri Lanka Medical Council (SLMC) Practitioner License',
-      degree: 'MBBS - University of Kelaniya (2018)',
-      status: 'pending',
-    },
-    {
-      id: 'APP-802',
-      userId: null,
-      type: 'nurse',
-      name: 'Nurse Sanduni Wijesinghe',
-      email: 'sanduni.w@asiri.lk',
-      phone: '070 234 5678',
-      nic: '199689234120',
-      licenseId: 'SLNC-58210',
-      facility: 'Asiri Central Hospital',
-      appliedAt: '2026-09-07 08:12 AM',
-      documentName: 'SLNC_Nursing_License_Sanduni.jpg',
-      documentType: 'Sri Lanka Nursing Council (SLNC) Registration Card',
-      degree: 'BSc Nursing - University of Peradeniya (2020)',
-      status: 'pending',
-    },
-    {
-      id: 'APP-803',
-      userId: null,
-      type: 'hospital',
-      name: 'Nawaloka Medicare Center - Negombo',
-      email: 'negombo@nawaloka.com',
-      phone: '031 223 4455',
-      nic: 'BR: PV-198421',
-      licenseId: 'MOH-PVT-8821',
-      facility: 'Main Street, Negombo (Gampaha District)',
-      appliedAt: '2026-09-06 04:30 PM',
-      documentName: 'MOH_Private_Hospital_Accreditation_2026.pdf',
-      documentType: 'MOH Facility Accreditation & Cold-Chain Certification',
-      degree: 'Category A Vaccination Center (4 Cold Storage Units)',
-      status: 'pending',
-    }
-  ]);
-
-  const fetchBackendPendingApprovals = async () => {
+  const fetchPendingApprovals = useCallback(async () => {
     try {
       setLoading(true);
       const data = await authService.getPendingVerifications();
-      if (Array.isArray(data) && data.length > 0) {
-        const formatted = data.map((item, idx) => ({
-          id: `APP-BE-${item.userId.substring(0, 6)}`,
+      if (Array.isArray(data)) {
+        const formatted = data.map((item) => ({
+          id: `APP-${item.userId.substring(0, 8)}`,
           userId: item.userId,
           type: (item.role || 'doctor').toLowerCase(),
-          name: item.name || 'Healthcare Practitioner',
+          name: item.name || 'Healthcare Applicant',
           email: item.email,
           phone: item.phoneNumber || 'N/A',
-          nic: item.licenseOrRegNumber || 'N/A',
           licenseId: item.licenseOrRegNumber || 'N/A',
+          registrationNumber: item.registrationNumber,
           facility: item.hospitalAffiliationOrType || 'General Healthcare',
           appliedAt: new Date(item.createdAt).toLocaleString(),
-          documentName: item.primaryDocUrl ? 'Verification_Certificate.pdf' : 'Documentation Attached',
+          documentName: item.primaryDocUrl ? 'Verification_Credential.pdf' : 'Document Attached',
           primaryDocUrl: item.primaryDocUrl,
           supportingDocUrl: item.supportingDocUrl,
-          documentType: `${item.role} Official Registration Credential`,
-          degree: item.hospitalAffiliationOrType || 'Verified Professional Submission',
+          profilePhotoUrl: item.profilePhotoOrLogoUrl,
           status: (item.status || 'Pending').toLowerCase(),
         }));
-
-        setRequests((prev) => {
-          // Merge unique by email or id
-          const existingEmails = new Set(formatted.map(f => f.email.toLowerCase()));
-          const staticRemainders = prev.filter(p => !existingEmails.has(p.email.toLowerCase()));
-          return [...formatted, ...staticRemainders];
-        });
+        setRequests(formatted);
+      } else {
+        setRequests([]);
       }
     } catch (err) {
-      console.warn('Could not fetch backend pending verifications (admin may not be logged in or mock):', err.message);
+      console.error('Failed to load pending verifications:', err);
+      showToast(`⚠️ Error loading queue: ${err.message}`);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchBackendPendingApprovals();
-  }, []);
+    fetchPendingApprovals();
+  }, [fetchPendingApprovals]);
 
   // Approve Request
   const handleApprove = async (req) => {
+    if (!req.userId) return;
+    setActionLoading(true);
     try {
-      if (req.userId) {
-        await authService.decideVerification(req.userId, 'Approve');
-      }
-      setRequests((prev) =>
-        prev.map((r) =>
-          r.id === req.id
-            ? { ...r, status: 'approved', decisionNote: 'Approved by Superadmin.' }
-            : r
-        )
-      );
+      await authService.decideVerification(req.userId, 'Approve');
       showToast(`✅ Approved ${req.type.toUpperCase()}: ${req.name} (${req.licenseId}). Account activated.`);
       setIsInspectModalOpen(false);
+      await fetchPendingApprovals();
     } catch (err) {
       showToast(`❌ Failed to approve: ${err.message}`);
+    } finally {
+      setActionLoading(false);
     }
   };
 
   // Reject Request
   const handleRejectSubmit = async (e) => {
     e.preventDefault();
-    if (!selectedRequest) return;
+    if (!selectedRequest || !selectedRequest.userId) return;
     const reason = rejectionReason.trim() || 'Incomplete or unverified credential submission.';
 
+    setActionLoading(true);
     try {
-      if (selectedRequest.userId) {
-        await authService.decideVerification(selectedRequest.userId, 'Reject', reason);
-      }
-      setRequests((prev) =>
-        prev.map((r) =>
-          r.id === selectedRequest.id
-            ? { ...r, status: 'rejected', decisionNote: reason }
-            : r
-        )
-      );
-      showToast(`❌ Application ${selectedRequest.id} (${selectedRequest.name}) rejected.`);
+      await authService.decideVerification(selectedRequest.userId, 'Reject', reason);
+      showToast(`❌ Application for ${selectedRequest.name} rejected.`);
       setIsRejectModalOpen(false);
       setIsInspectModalOpen(false);
       setRejectionReason('');
+      await fetchPendingApprovals();
     } catch (err) {
       showToast(`❌ Failed to reject: ${err.message}`);
+    } finally {
+      setActionLoading(false);
     }
   };
 
   // Filter requests
   const filteredRequests = requests.filter((r) => {
     if (filterType === 'pending' && r.status !== 'pending') return false;
-    if (filterType === 'approved' && r.status !== 'approved') return false;
+    if (filterType === 'approved' && r.status !== 'approved' && r.status !== 'active') return false;
     if (filterType === 'doctor' && r.type !== 'doctor') return false;
     if (filterType === 'nurse' && r.type !== 'nurse') return false;
     if (filterType === 'hospital' && r.type !== 'hospital') return false;
@@ -166,10 +104,10 @@ export default function AdminApprovalsTab() {
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       return (
-        r.name.toLowerCase().includes(q) ||
-        r.licenseId.toLowerCase().includes(q) ||
-        r.facility.toLowerCase().includes(q) ||
-        r.email.toLowerCase().includes(q)
+        (r.name && r.name.toLowerCase().includes(q)) ||
+        (r.licenseId && r.licenseId.toLowerCase().includes(q)) ||
+        (r.facility && r.facility.toLowerCase().includes(q)) ||
+        (r.email && r.email.toLowerCase().includes(q))
       );
     }
     return true;
@@ -199,18 +137,30 @@ export default function AdminApprovalsTab() {
               Practitioner &amp; Facility Approval Queue
             </div>
             <p style={{ margin: '4px 0 0 0', fontSize: '0.82rem', color: '#64748b' }}>
-              Except citizens/patients, all Doctors, Nurses, and Healthcare Facilities must be verified and approved before accessing clinical tools.
+              All Doctors, Nurses, and Healthcare Facilities must be verified and approved before accessing clinical tools.
             </p>
           </div>
 
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <button
+              type="button"
+              className="doctor-filter-btn"
+              onClick={fetchPendingApprovals}
+              disabled={loading}
+              title="Refresh queue from server"
+            >
+              🔄 Refresh
+            </button>
+          </div>
+
           {/* Filter Pills */}
-          <div className="doctor-filter-pills">
+          <div className="doctor-filter-pills" style={{ width: '100%', marginTop: '6px' }}>
             <button
               type="button"
               className={`doctor-filter-btn ${filterType === 'all' ? 'active' : ''}`}
               onClick={() => setFilterType('all')}
             >
-              All Requests ({requests.length})
+              All In Queue ({requests.length})
             </button>
             <button
               type="button"
@@ -263,18 +213,25 @@ export default function AdminApprovalsTab() {
                 <th>Applicant / Organization</th>
                 <th>Category</th>
                 <th>Licensing Code</th>
-                <th>Target Facility / Location</th>
-                <th>Submitted File</th>
+                <th>Facility / Details</th>
+                <th>Verification Document</th>
                 <th>Submission Time</th>
                 <th>Status</th>
                 <th>Approval Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filteredRequests.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan={8} style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
+                    <div style={{ display: 'inline-block', animation: 'spin 1s linear infinite', fontSize: '1.5rem', marginBottom: '8px' }}>⏳</div>
+                    <div>Fetching live verification queue...</div>
+                  </td>
+                </tr>
+              ) : filteredRequests.length === 0 ? (
                 <tr>
                   <td colSpan={8} style={{ textAlign: 'center', padding: '36px', color: '#64748b' }}>
-                    {loading ? 'Fetching live verification queue...' : 'No applications matching this filter.'}
+                    No applications currently pending verification.
                   </td>
                 </tr>
               ) : (
@@ -296,17 +253,24 @@ export default function AdminApprovalsTab() {
                         </span>
                       </div>
                     </td>
-                    <td>
+                    <td style={{ whiteSpace: 'nowrap' }}>
                       <span className={`admin-role-badge ${req.type}`}>
                         {req.type === 'doctor' && '🩺 Doctor'}
                         {req.type === 'nurse' && '👩‍⚕️ Nurse'}
                         {req.type === 'hospital' && '🏥 Hospital'}
                       </span>
                     </td>
-                    <td>
-                      <span className="admin-id-pill" style={{ color: '#38bdf8', borderColor: 'rgba(56, 189, 248, 0.3)' }}>
-                        {req.licenseId}
-                      </span>
+                    <td style={{ whiteSpace: 'nowrap' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
+                        {req.registrationNumber && (
+                          <span className="admin-id-pill" style={{ color: '#34d399', borderColor: 'rgba(52, 211, 153, 0.4)', background: 'rgba(16, 185, 129, 0.12)', fontSize: '0.78rem' }}>
+                            {req.registrationNumber}
+                          </span>
+                        )}
+                        <span className="admin-id-pill" style={{ color: '#38bdf8', borderColor: 'rgba(56, 189, 248, 0.3)', fontSize: '0.74rem' }}>
+                          {req.licenseId}
+                        </span>
+                      </div>
                     </td>
                     <td style={{ fontSize: '0.84rem', color: '#e2e8f0', fontWeight: 600 }}>
                       {req.facility}
@@ -323,33 +287,25 @@ export default function AdminApprovalsTab() {
                           📄 View Document
                         </a>
                       ) : (
-                        <button
-                          type="button"
-                          className="admin-doc-link-btn"
-                          onClick={() => {
-                            setSelectedRequest(req);
-                            setIsInspectModalOpen(true);
-                          }}
-                          title={req.documentName}
-                        >
-                          📄 {req.documentName}
-                        </button>
+                        <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
+                          📄 Document Attached
+                        </span>
                       )}
                     </td>
                     <td style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
                       {req.appliedAt}
                     </td>
-                    <td>
+                    <td style={{ whiteSpace: 'nowrap' }}>
                       {req.status === 'pending' && (
                         <span className="doctor-status-badge status-waiting">
                           ⏳ Pending
                         </span>
                       )}
-                      {req.status === 'active' || req.status === 'approved' ? (
+                      {(req.status === 'active' || req.status === 'approved') && (
                         <span className="doctor-status-badge status-completed">
                           ✓ Approved
                         </span>
-                      ) : null}
+                      )}
                       {req.status === 'rejected' && (
                         <span className="doctor-status-badge status-rejected">
                           ✕ Rejected
@@ -362,6 +318,7 @@ export default function AdminApprovalsTab() {
                           <button
                             type="button"
                             className="doctor-table-btn"
+                            disabled={actionLoading}
                             style={{ background: '#0284c7', color: '#ffffff', borderColor: '#38bdf8' }}
                             onClick={() => handleApprove(req)}
                             title="Approve and activate credentials"
@@ -371,6 +328,7 @@ export default function AdminApprovalsTab() {
                           <button
                             type="button"
                             className="doctor-table-btn"
+                            disabled={actionLoading}
                             style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#f87171', borderColor: 'rgba(239, 68, 68, 0.3)' }}
                             onClick={() => {
                               setSelectedRequest(req);
@@ -436,10 +394,6 @@ export default function AdminApprovalsTab() {
                   <span className="admin-detail-val" style={{ fontWeight: 800, color: '#38bdf8' }}>{selectedRequest.licenseId}</span>
                 </div>
                 <div className="admin-detail-item">
-                  <span className="admin-detail-label">National ID / Business Reg</span>
-                  <span className="admin-detail-val">{selectedRequest.nic}</span>
-                </div>
-                <div className="admin-detail-item">
                   <span className="admin-detail-label">Email Address</span>
                   <span className="admin-detail-val">{selectedRequest.email}</span>
                 </div>
@@ -447,20 +401,21 @@ export default function AdminApprovalsTab() {
                   <span className="admin-detail-label">Phone Number</span>
                   <span className="admin-detail-val">{selectedRequest.phone}</span>
                 </div>
+                <div className="admin-detail-item">
+                  <span className="admin-detail-label">Facility / Specialization</span>
+                  <span className="admin-detail-val">{selectedRequest.facility}</span>
+                </div>
               </div>
 
-              {/* Document Certificate Preview Box */}
-              <div style={{ marginTop: '16px', background: '#111a2e', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '12px', padding: '16px' }}>
-                <span style={{ fontSize: '0.78rem', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>
-                  Uploaded Credential Document:
-                </span>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '8px' }}>
+              {/* Uploaded Documents Box */}
+              <div style={{ marginTop: '16px', padding: '16px', background: '#0b1120', border: '1px solid rgba(56, 189, 248, 0.2)', borderRadius: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div>
-                    <div style={{ fontWeight: 700, color: '#ffffff', fontSize: '0.95rem' }}>
-                      📄 {selectedRequest.documentName}
-                    </div>
-                    <div style={{ fontSize: '0.8rem', color: '#38bdf8', marginTop: '2px' }}>
-                      {selectedRequest.documentType}
+                    <span style={{ fontSize: '0.78rem', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      Primary Licensing Document
+                    </span>
+                    <div style={{ color: '#ffffff', fontWeight: 700, fontSize: '0.95rem', marginTop: '2px' }}>
+                      {selectedRequest.documentName}
                     </div>
                   </div>
                   {selectedRequest.primaryDocUrl ? (
@@ -478,16 +433,20 @@ export default function AdminApprovalsTab() {
                     </span>
                   )}
                 </div>
-                <div style={{ marginTop: '10px', fontSize: '0.84rem', color: '#cbd5e1' }}>
-                  <strong style={{ color: '#ffffff' }}>Affiliation / Specialization:</strong> {selectedRequest.degree}
-                </div>
+                {selectedRequest.supportingDocUrl && (
+                  <div style={{ marginTop: '12px', paddingTop: '10px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ color: '#94a3b8', fontSize: '0.85rem' }}>Supporting Document</span>
+                    <a
+                      href={selectedRequest.supportingDocUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ color: '#38bdf8', fontSize: '0.82rem', textDecoration: 'underline' }}
+                    >
+                      View Supporting File ↗
+                    </a>
+                  </div>
+                )}
               </div>
-
-              {selectedRequest.decisionNote && (
-                <div style={{ marginTop: '14px', padding: '10px 14px', background: '#111a2e', borderRadius: '8px', borderLeft: '4px solid #0284c7', border: '1px solid rgba(255, 255, 255, 0.08)', fontSize: '0.85rem', color: '#ffffff' }}>
-                  <strong style={{ color: '#38bdf8' }}>Review Notes:</strong> {selectedRequest.decisionNote}
-                </div>
-              )}
             </div>
 
             <div className="doctor-modal-footer">
@@ -498,24 +457,26 @@ export default function AdminApprovalsTab() {
               >
                 Close
               </button>
-
               {selectedRequest.status === 'pending' && (
                 <>
                   <button
                     type="button"
-                    className="doctor-btn-defer"
-                    style={{ color: '#dc2626', borderColor: '#fca5a5' }}
-                    onClick={() => setIsRejectModalOpen(true)}
+                    className="doctor-btn-cancel"
+                    style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.3)' }}
+                    onClick={() => {
+                      setIsInspectModalOpen(false);
+                      setIsRejectModalOpen(true);
+                    }}
                   >
-                    ✕ Reject Application
+                    Reject Application...
                   </button>
                   <button
                     type="button"
                     className="doctor-btn-submit"
-                    style={{ background: '#059669' }}
+                    disabled={actionLoading}
                     onClick={() => handleApprove(selectedRequest)}
                   >
-                    ✓ Verify &amp; Issue Official Badge
+                    {actionLoading ? 'Processing...' : 'Approve & Issue Access'}
                   </button>
                 </>
               )}
@@ -524,15 +485,15 @@ export default function AdminApprovalsTab() {
         </div>
       )}
 
-      {/* Reject Application Reason Modal */}
+      {/* Rejection Reason Modal */}
       {isRejectModalOpen && selectedRequest && (
         <div className="doctor-modal-overlay" onClick={() => setIsRejectModalOpen(false)}>
           <div className="doctor-modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '520px' }}>
             <div className="doctor-modal-header" style={{ background: '#dc2626' }}>
               <div>
                 <h3 className="doctor-modal-title">Reject Application</h3>
-                <p style={{ margin: '4px 0 0 0', fontSize: '0.82rem', color: 'rgba(255,255,255,0.9)' }}>
-                  Provide feedback to {selectedRequest.name}
+                <p style={{ margin: '4px 0 0 0', fontSize: '0.82rem', color: 'rgba(255,255,255,0.85)' }}>
+                  Provide reason for rejecting {selectedRequest.name}
                 </p>
               </div>
               <button type="button" className="doctor-modal-close-btn" onClick={() => setIsRejectModalOpen(false)}>
@@ -542,15 +503,19 @@ export default function AdminApprovalsTab() {
 
             <form onSubmit={handleRejectSubmit}>
               <div className="doctor-modal-body">
-                <div className="doctor-form-group">
-                  <label className="doctor-form-label">Reason for Rejection / Required Action</label>
+                <p style={{ fontSize: '0.88rem', color: '#cbd5e1', marginBottom: '14px' }}>
+                  Please enter the formal justification for administrative rejection. This reason will be recorded in the audit trail.
+                </p>
+
+                <div className="auth-input-group">
                   <textarea
-                    className="doctor-form-textarea"
                     rows={4}
+                    className="auth-input"
                     required
+                    placeholder="e.g. SLMC registration number does not match submitted credentials..."
                     value={rejectionReason}
                     onChange={(e) => setRejectionReason(e.target.value)}
-                    placeholder="e.g. SLMC registration card image is illegible or expired. Please re-apply with an updated certificate."
+                    style={{ resize: 'vertical', width: '100%', fontFamily: 'inherit' }}
                   />
                 </div>
               </div>
@@ -565,9 +530,11 @@ export default function AdminApprovalsTab() {
                 </button>
                 <button
                   type="submit"
-                  className="doctor-btn-submit danger"
+                  className="doctor-btn-submit"
+                  disabled={actionLoading}
+                  style={{ background: '#dc2626' }}
                 >
-                  Confirm Rejection
+                  {actionLoading ? 'Submitting...' : 'Confirm Rejection'}
                 </button>
               </div>
             </form>

@@ -107,4 +107,19 @@ public class AdminVerificationController : ControllerBase
             return StatusCode(500, new { message = "Failed to fetch audit logs." });
         }
     }
+
+    [HttpGet("users")]
+    public async Task<IActionResult> GetAllUsers([FromQuery] string? role, [FromQuery] string? status, [FromQuery] string? search)
+    {
+        try
+        {
+            var users = await _adminService.GetAllUsersAsync(role, status, search);
+            return Ok(users);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving user directory");
+            return StatusCode(500, new { message = "Failed to retrieve user directory." });
+        }
+    }
 }

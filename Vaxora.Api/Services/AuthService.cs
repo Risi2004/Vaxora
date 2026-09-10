@@ -26,6 +26,9 @@ public class AuthService : IAuthService
     private readonly IPasswordHasher _passwordHasher;
     private readonly ITokenService _tokenService;
     private readonly IR2StorageService _r2Service;
+    private readonly IRegistrationNumberService _registrationNumberService;
+    private readonly IVaccinationCardService _vaccinationCardService;
+    private readonly IEmailService _emailService;
     private readonly ILogger<AuthService> _logger;
 
     public AuthService(
@@ -33,12 +36,18 @@ public class AuthService : IAuthService
         IPasswordHasher passwordHasher,
         ITokenService tokenService,
         IR2StorageService r2Service,
+        IRegistrationNumberService registrationNumberService,
+        IVaccinationCardService vaccinationCardService,
+        IEmailService emailService,
         ILogger<AuthService> logger)
     {
         _context = context;
         _passwordHasher = passwordHasher;
         _tokenService = tokenService;
         _r2Service = r2Service;
+        _registrationNumberService = registrationNumberService;
+        _vaccinationCardService = vaccinationCardService;
+        _emailService = emailService;
         _logger = logger;
     }
 
@@ -55,6 +64,14 @@ public class AuthService : IAuthService
             throw new InvalidOperationException("An account with this National Identity Card (NIC) number already exists.");
         }
 
+        string? photoUrl = null;
+        if (dto.ProfilePhoto != null)
+        {
+            photoUrl = await _r2Service.UploadFileAsync(dto.ProfilePhoto, "patients/photos");
+        }
+
+        var regNumber = await _registrationNumberService.GenerateRegistrationNumberAsync(UserRole.PATIENT);
+
         var user = new User
         {
             Id = Guid.NewGuid(),
@@ -63,6 +80,7 @@ public class AuthService : IAuthService
             Role = UserRole.PATIENT,
             Status = UserStatus.Active, // Patients are automatically active
             PhoneNumber = dto.PhoneNumber,
+            RegistrationNumber = regNumber,
             CreatedAt = DateTime.UtcNow
         };
 
@@ -74,6 +92,7 @@ public class AuthService : IAuthService
             NicNumber = dto.NicNumber.Trim(),
             DateOfBirth = dto.DateOfBirth.ToUniversalTime(),
             PhoneNumber = dto.PhoneNumber,
+            ProfilePhotoUrl = photoUrl,
             CreatedAt = DateTime.UtcNow
         };
 
@@ -87,7 +106,7 @@ public class AuthService : IAuthService
             UserEmail = user.Email,
             Role = "PATIENT",
             Action = "PATIENT_SIGNUP",
-            Details = $"Patient registered with NIC {profile.NicNumber}",
+            Details = $"Patient registered with NIC {profile.NicNumber} (Reg #{regNumber})",
             Timestamp = DateTime.UtcNow
         });
 
@@ -96,6 +115,39 @@ public class AuthService : IAuthService
         user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(7);
 
         await _context.SaveChangesAsync();
+
+        // Generate Digital Vaccination Card & Send Welcome Email in background
+        try
+        {
+            var cardPdf = _vaccinationCardService.GenerateVaccinationCardPdf(
+                profile.FullName,
+                regNumber,
+                profile.NicNumber,
+                profile.DateOfBirth,
+                profile.PhoneNumber,
+                DateTime.UtcNow);
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await _emailService.SendPatientWelcomeEmailAsync(
+                        user.Email,
+                        profile.FullName,
+                        regNumber,
+                        profile.DateOfBirth,
+                        cardPdf);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Background error dispatching patient welcome email to {Email}", user.Email);
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to generate digital vaccination card for patient {Email}", user.Email);
+        }
 
         var token = _tokenService.GenerateAccessToken(user, profile.FullName);
 
@@ -112,6 +164,8 @@ public class AuthService : IAuthService
                 Status = user.Status.ToString(),
                 Name = profile.FullName,
                 PhoneNumber = user.PhoneNumber,
+                RegistrationNumber = user.RegistrationNumber,
+                ProfilePhotoUrl = photoUrl,
                 ProfileDetails = profile
             },
             Message = "Patient registration successful."
@@ -151,6 +205,8 @@ public class AuthService : IAuthService
             supportingDocKey = await _r2Service.UploadFileAsync(dto.SupportingDocument, "doctors/supporting");
         }
 
+        var regNumber = await _registrationNumberService.GenerateRegistrationNumberAsync(UserRole.DOCTOR);
+
         var user = new User
         {
             Id = Guid.NewGuid(),
@@ -159,6 +215,7 @@ public class AuthService : IAuthService
             Role = UserRole.DOCTOR,
             Status = UserStatus.Pending, // Doctor starts as Pending verification
             PhoneNumber = dto.PhoneNumber,
+            RegistrationNumber = regNumber,
             CreatedAt = DateTime.UtcNow
         };
 
@@ -186,7 +243,7 @@ public class AuthService : IAuthService
             UserEmail = user.Email,
             Role = "DOCTOR",
             Action = "DOCTOR_SIGNUP",
-            Details = $"Doctor applied for registration with SLMC {profile.SlmcNumber} (Status: Pending)",
+            Details = $"Doctor applied for registration with SLMC {profile.SlmcNumber} (Reg #{regNumber}, Status: Pending)",
             Timestamp = DateTime.UtcNow
         });
 
@@ -195,6 +252,23 @@ public class AuthService : IAuthService
         user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(7);
 
         await _context.SaveChangesAsync();
+
+        // Dispatch "Waiting for Approval" email in background
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await _emailService.SendPendingApprovalEmailAsync(
+                    user.Email,
+                    $"Dr. {profile.FullName}",
+                    regNumber,
+                    "Doctor");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Background error dispatching pending approval email to doctor {Email}", user.Email);
+            }
+        });
 
         var token = _tokenService.GenerateAccessToken(user, profile.FullName);
 
@@ -211,6 +285,7 @@ public class AuthService : IAuthService
                 Status = user.Status.ToString(),
                 Name = profile.FullName,
                 PhoneNumber = user.PhoneNumber,
+                RegistrationNumber = user.RegistrationNumber,
                 ProfilePhotoUrl = photoUrl,
                 ProfileDetails = profile
             },
@@ -250,6 +325,8 @@ public class AuthService : IAuthService
             supportingDocKey = await _r2Service.UploadFileAsync(dto.SupportingDocument, "nurses/supporting");
         }
 
+        var regNumber = await _registrationNumberService.GenerateRegistrationNumberAsync(UserRole.NURSE);
+
         var user = new User
         {
             Id = Guid.NewGuid(),
@@ -258,6 +335,7 @@ public class AuthService : IAuthService
             Role = UserRole.NURSE,
             Status = UserStatus.Pending, // Nurse starts as Pending verification
             PhoneNumber = dto.PhoneNumber,
+            RegistrationNumber = regNumber,
             CreatedAt = DateTime.UtcNow
         };
 
@@ -284,7 +362,7 @@ public class AuthService : IAuthService
             UserEmail = user.Email,
             Role = "NURSE",
             Action = "NURSE_SIGNUP",
-            Details = $"Nurse applied for registration with SLNC {profile.SlncNumber} (Status: Pending)",
+            Details = $"Nurse applied for registration with SLNC {profile.SlncNumber} (Reg #{regNumber}, Status: Pending)",
             Timestamp = DateTime.UtcNow
         });
 
@@ -293,6 +371,23 @@ public class AuthService : IAuthService
         user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(7);
 
         await _context.SaveChangesAsync();
+
+        // Dispatch "Waiting for Approval" email in background
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await _emailService.SendPendingApprovalEmailAsync(
+                    user.Email,
+                    $"Nurse {profile.FullName}",
+                    regNumber,
+                    "Nurse");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Background error dispatching pending approval email to nurse {Email}", user.Email);
+            }
+        });
 
         var token = _tokenService.GenerateAccessToken(user, profile.FullName);
 
@@ -309,6 +404,7 @@ public class AuthService : IAuthService
                 Status = user.Status.ToString(),
                 Name = profile.FullName,
                 PhoneNumber = user.PhoneNumber,
+                RegistrationNumber = user.RegistrationNumber,
                 ProfilePhotoUrl = photoUrl,
                 ProfileDetails = profile
             },
@@ -348,6 +444,8 @@ public class AuthService : IAuthService
             mohDocKey = await _r2Service.UploadFileAsync(dto.MohDocument, "hospitals/moh_documents");
         }
 
+        var regNumber = await _registrationNumberService.GenerateRegistrationNumberAsync(UserRole.HOSPITAL);
+
         var user = new User
         {
             Id = Guid.NewGuid(),
@@ -356,6 +454,7 @@ public class AuthService : IAuthService
             Role = UserRole.HOSPITAL,
             Status = UserStatus.Pending, // Hospital starts as Pending verification
             PhoneNumber = dto.ContactNumber,
+            RegistrationNumber = regNumber,
             CreatedAt = DateTime.UtcNow
         };
 
@@ -386,7 +485,7 @@ public class AuthService : IAuthService
             UserEmail = user.Email,
             Role = "HOSPITAL",
             Action = "HOSPITAL_SIGNUP",
-            Details = $"Hospital applied for registration: {profile.HospitalName} (Reg #{profile.RegistrationNumber})",
+            Details = $"Hospital applied for registration: {profile.HospitalName} (Reg #{regNumber}, Lic #{profile.RegistrationNumber})",
             Timestamp = DateTime.UtcNow
         });
 
@@ -395,6 +494,23 @@ public class AuthService : IAuthService
         user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(7);
 
         await _context.SaveChangesAsync();
+
+        // Dispatch "Waiting for Approval" email in background
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await _emailService.SendPendingApprovalEmailAsync(
+                    user.Email,
+                    profile.HospitalName,
+                    regNumber,
+                    "Hospital Facility");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Background error dispatching pending approval email to hospital {Email}", user.Email);
+            }
+        });
 
         var token = _tokenService.GenerateAccessToken(user, profile.HospitalName);
 
@@ -411,6 +527,7 @@ public class AuthService : IAuthService
                 Status = user.Status.ToString(),
                 Name = profile.HospitalName,
                 PhoneNumber = user.PhoneNumber,
+                RegistrationNumber = user.RegistrationNumber,
                 ProfilePhotoUrl = logoUrl,
                 ProfileDetails = profile
             },
@@ -482,6 +599,7 @@ public class AuthService : IAuthService
                 Status = user.Status.ToString(),
                 Name = displayName,
                 PhoneNumber = user.PhoneNumber,
+                RegistrationNumber = user.RegistrationNumber,
                 ProfilePhotoUrl = photoUrl,
                 ProfileDetails = GetUserProfileObject(user)
             },
@@ -529,6 +647,7 @@ public class AuthService : IAuthService
                 Status = user.Status.ToString(),
                 Name = displayName,
                 PhoneNumber = user.PhoneNumber,
+                RegistrationNumber = user.RegistrationNumber,
                 ProfilePhotoUrl = GetUserPhotoUrl(user),
                 ProfileDetails = GetUserProfileObject(user)
             }
@@ -570,6 +689,7 @@ public class AuthService : IAuthService
             Status = user.Status.ToString(),
             Name = GetUserDisplayName(user),
             PhoneNumber = user.PhoneNumber,
+            RegistrationNumber = user.RegistrationNumber,
             ProfilePhotoUrl = GetUserPhotoUrl(user),
             ProfileDetails = GetUserProfileObject(user)
         };
@@ -682,6 +802,7 @@ public class AuthService : IAuthService
     {
         return user.Role switch
         {
+            UserRole.PATIENT => user.PatientProfile?.ProfilePhotoUrl,
             UserRole.DOCTOR => user.DoctorProfile?.ProfilePhotoUrl,
             UserRole.NURSE => user.NurseProfile?.ProfilePhotoUrl,
             UserRole.HOSPITAL => user.HospitalProfile?.LogoUrl,

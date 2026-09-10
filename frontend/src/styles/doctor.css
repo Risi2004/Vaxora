@@ -957,11 +957,16 @@
 }
 
 .doctor-status-badge {
-  display: inline-block;
-  padding: 4px 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  white-space: nowrap;
+  padding: 4px 12px;
   border-radius: 9999px;
   font-size: 0.76rem;
   font-weight: 700;
+  line-height: 1.2;
 }
 
 .status-waiting {

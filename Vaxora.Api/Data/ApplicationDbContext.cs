@@ -41,9 +41,20 @@ public class ApplicationDbContext : DbContext
             .Property(h => h.VerificationStatus)
             .HasConversion<string>();
 
+        // Sequences for Vaxora Registration Numbers
+        modelBuilder.HasSequence<long>("vaxora_seq_patient").StartsAt(1000).IncrementsBy(1);
+        modelBuilder.HasSequence<long>("vaxora_seq_doctor").StartsAt(1000).IncrementsBy(1);
+        modelBuilder.HasSequence<long>("vaxora_seq_nurse").StartsAt(1000).IncrementsBy(1);
+        modelBuilder.HasSequence<long>("vaxora_seq_hospital").StartsAt(1000).IncrementsBy(1);
+        modelBuilder.HasSequence<long>("vaxora_seq_admin").StartsAt(1000).IncrementsBy(1);
+
         // Unique constraints
         modelBuilder.Entity<User>()
             .HasIndex(u => u.Email)
+            .IsUnique();
+
+        modelBuilder.Entity<User>()
+            .HasIndex(u => u.RegistrationNumber)
             .IsUnique();
 
         modelBuilder.Entity<PatientProfile>()

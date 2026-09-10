@@ -299,7 +299,7 @@ export default function DoctorSignupForm({ onSuccess }) {
       </div>
 
       <button type="submit" className="btn-auth-submit" disabled={loading}>
-        {loading ? 'Uploading & Registering...' : 'Register as Medical Practitioner'}
+        {loading ? 'Registering...' : 'Register as Doctor'}
       </button>
     </form>
   );
