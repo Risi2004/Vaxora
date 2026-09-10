@@ -1,0 +1,8 @@
+bin/
+obj/
+.git/
+.env
+.vs/
+.vscode/
+*.user
+*.snk
