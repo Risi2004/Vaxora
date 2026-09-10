@@ -30,6 +30,27 @@ import {
   FeedbackTab as DoctorFeedbackTab,
 } from '../features/doctor';
 
+import {
+  NurseLayout,
+  NurseDashboardOverview,
+  NurseAppointmentsTab,
+  NursePatientsTab,
+  NurseProfileTab,
+  FeedbackTab as NurseFeedbackTab,
+} from '../features/nurse';
+
+import {
+  AdminLayout,
+  AdminDashboardOverview,
+  AdminUsersTab,
+  AdminApprovalsTab,
+  AdminHospitalsTab,
+  AdminCampaignsTab,
+  AdminFeedbackTab,
+  AdminAuditLogsTab,
+  AdminProfileTab,
+} from '../features/admin';
+
 export default function AppRoutes() {
   return (
     <Routes>
@@ -45,7 +66,7 @@ export default function AppRoutes() {
         <Route path="dashboard" element={<DashboardOverview />} />
         <Route path="appointments" element={<AppointmentsTab />} />
         <Route path="vaccination-history" element={<VaccinationHistoryTab />} />
-        <Route path="history" element={<Navigate to="/patient/vaccination-history" replace />} />
+        <Route path="history" element={<VaccinationHistoryTab />} />
         <Route path="feedback" element={<FeedbackTab />} />
         <Route path="profile" element={<PatientProfileTab />} />
       </Route>
@@ -71,6 +92,31 @@ export default function AppRoutes() {
         <Route path="history" element={<Navigate to="/doctor/patients" replace />} />
         <Route path="feedback" element={<DoctorFeedbackTab />} />
         <Route path="profile" element={<DoctorProfileTab />} />
+      </Route>
+
+      {/* Dedicated Nurse Portal Routes */}
+      <Route path="/nurse" element={<NurseLayout />}>
+        <Route index element={<Navigate to="/nurse/dashboard" replace />} />
+        <Route path="dashboard" element={<NurseDashboardOverview />} />
+        <Route path="appointments" element={<NurseAppointmentsTab />} />
+        <Route path="patients" element={<NursePatientsTab />} />
+        <Route path="patient-history" element={<Navigate to="/nurse/patients" replace />} />
+        <Route path="history" element={<Navigate to="/nurse/patients" replace />} />
+        <Route path="feedback" element={<NurseFeedbackTab />} />
+        <Route path="profile" element={<NurseProfileTab />} />
+      </Route>
+
+      {/* Dedicated Admin Portal Routes */}
+      <Route path="/admin" element={<AdminLayout />}>
+        <Route index element={<Navigate to="/admin/dashboard" replace />} />
+        <Route path="dashboard" element={<AdminDashboardOverview />} />
+        <Route path="users" element={<AdminUsersTab />} />
+        <Route path="approvals" element={<AdminApprovalsTab />} />
+        <Route path="hospitals" element={<AdminHospitalsTab />} />
+        <Route path="campaigns" element={<AdminCampaignsTab />} />
+        <Route path="feedback" element={<AdminFeedbackTab />} />
+        <Route path="audit" element={<AdminAuditLogsTab />} />
+        <Route path="profile" element={<AdminProfileTab />} />
       </Route>
 
       {/* Catch-All Fallback */}

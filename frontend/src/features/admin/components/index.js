@@ -1,0 +1,9 @@
+export { default as AdminSidebar } from './AdminSidebar';
+export { default as AdminDashboardOverview } from './AdminDashboardOverview';
+export { default as AdminUsersTab } from './AdminUsersTab';
+export { default as AdminApprovalsTab } from './AdminApprovalsTab';
+export { default as AdminHospitalsTab } from './AdminHospitalsTab';
+export { default as AdminCampaignsTab } from './AdminCampaignsTab';
+export { default as AdminFeedbackTab } from './AdminFeedbackTab';
+export { default as AdminAuditLogsTab } from './AdminAuditLogsTab';
+export { default as AdminProfileTab } from './AdminProfileTab';
