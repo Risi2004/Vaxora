@@ -1,130 +1,148 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import AddStaffRequestModal from './AddStaffRequestModal';
+import staffService from '../services/staffService';
+
+const dutyLabel = {
+  Off: 'Off',
+  OnDuty: 'On Duty',
+  OnBreak: 'On Break',
+};
+
+const nextDutyStatus = {
+  Off: 'OnDuty',
+  OnDuty: 'OnBreak',
+  OnBreak: 'Off',
+};
+
+function mapAffiliationToCard(item) {
+  const isPending = item.status === 'Pending';
+  const roleLabel = item.staffRole === 'DOCTOR' ? 'Doctor' : 'Nurse';
+
+  return {
+    id: item.affiliationId,
+    name: item.staffName,
+    vaxoraId: item.staffRegistrationNumber,
+    role: roleLabel,
+    specialty: item.specialization || (roleLabel === 'Doctor' ? 'Doctor' : 'Nursing Staff'),
+    email: item.email || '—',
+    phone: item.phoneNumber || '—',
+    affiliationStatus: item.status,
+    dutyStatus: item.dutyStatus,
+    status: isPending ? 'Pending Request' : dutyLabel[item.dutyStatus] || item.dutyStatus,
+    avatar: roleLabel === 'Doctor' ? '👨‍⚕️' : '👩‍⚕️',
+    invitedAt: item.invitedAt,
+  };
+}
 
 export default function HospitalStaffTab() {
-  const [activeTab, setActiveTab] = useState('all'); // 'all' | 'doctors' | 'nurses' | 'pending'
+  const [activeTab, setActiveTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [notification, setNotification] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [staffList, setStaffList] = useState([]);
+  const [actionId, setActionId] = useState(null);
 
-  const [staffList, setStaffList] = useState([
-    {
-      id: 1,
-      name: 'Dr. Samantha Perera',
-      vaxoraId: 'VX-DOC-49210',
-      role: 'Doctor',
-      specialty: 'General Medicine & Vaccination',
-      license: 'SLMC-49210',
-      booth: 'Booth 01 (Adult OPD)',
-      status: 'On Duty',
-      administeredToday: 38,
-      avatar: '👨‍⚕️',
-      email: 'samantha.perera@vaxora.health',
-    },
-    {
-      id: 2,
-      name: 'Dr. Nimal Jayawardena',
-      vaxoraId: 'VX-DOC-33108',
-      role: 'Doctor',
-      specialty: 'Immunology Specialist',
-      license: 'SLMC-33108',
-      booth: 'Booth 02 (Senior & Allergy)',
-      status: 'On Duty',
-      administeredToday: 41,
-      avatar: '👨‍⚕️',
-      email: 'nimal.jayawardena@vaxora.health',
-    },
-    {
-      id: 3,
-      name: 'Nurse Anoma Silva',
-      vaxoraId: 'VX-NUR-88120',
-      role: 'Nurse',
-      specialty: 'Senior Vaccination Officer',
-      license: 'SLNC-8812',
-      booth: 'Booth 03 (Fast-Track Routine)',
-      status: 'On Duty',
-      administeredToday: 34,
-      avatar: '👩‍⚕️',
-      email: 'anoma.silva@vaxora.health',
-    },
-    {
-      id: 4,
-      name: 'Nurse Dilani Fernando',
-      vaxoraId: 'VX-NUR-94210',
-      role: 'Nurse',
-      specialty: 'Pediatric Care & Maternal Health',
-      license: 'SLNC-9421',
-      booth: 'Booth 04 (Pediatric Room)',
-      status: 'On Duty',
-      administeredToday: 29,
-      avatar: '👩‍⚕️',
-      email: 'dilani.fernando@vaxora.health',
-    },
-    {
-      id: 5,
-      name: 'Dr. Peter Alwis',
-      vaxoraId: 'VX-DOC-51004',
-      role: 'Doctor',
-      specialty: 'Infectious Diseases',
-      license: 'SLMC-51004',
-      booth: 'Relief / Consultation',
-      status: 'On Break',
-      administeredToday: 18,
-      avatar: '👨‍⚕️',
-      email: 'peter.alwis@vaxora.health',
-    },
-    {
-      id: 6,
-      name: 'Dr. Kalai Selvan',
-      vaxoraId: 'VX-DOC-62190',
-      role: 'Doctor',
-      specialty: 'Consultant Epidemiologist',
-      license: 'SLMC-62190',
-      booth: 'Unassigned (Pending Verification)',
-      status: 'Pending Request',
-      administeredToday: 0,
-      avatar: '👨‍⚕️',
-      email: 'kalai.selvan@vaxora.health',
-      dateSent: 'Yesterday',
-    },
-  ]);
-
-  const handleSendRequest = (newStaffRequest) => {
-    setStaffList((prev) => [newStaffRequest, ...prev]);
-    setNotification(
-      `Affiliation request sent to ${newStaffRequest.name} (Vaxora ID: ${newStaffRequest.vaxoraId})!`
-    );
+  const showToast = (message) => {
+    setNotification(message);
     setTimeout(() => setNotification(''), 4000);
   };
 
-  const handleCancelRequest = (id) => {
-    setStaffList((prev) => prev.filter((s) => s.id !== id));
-    setNotification('Staff request cancelled.');
-    setTimeout(() => setNotification(''), 2500);
+  const loadStaff = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const data = await staffService.getHospitalStaff({ status: 'All' });
+      const mapped = (Array.isArray(data) ? data : [])
+        .filter((item) => item.status === 'Active' || item.status === 'Pending')
+        .map(mapAffiliationToCard);
+      setStaffList(mapped);
+    } catch (err) {
+      setError(err.message || 'Failed to load hospital staff.');
+      setStaffList([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadStaff();
+  }, [loadStaff]);
+
+  const handleSendRequest = async (registrationNumber) => {
+    setIsSubmitting(true);
+    try {
+      const invited = await staffService.inviteStaff(registrationNumber);
+      showToast(`Invitation sent to ${invited.staffName} (${invited.staffRegistrationNumber}).`);
+      await loadStaff();
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  // Filtering
-  const filteredStaff = staffList.filter((staff) => {
-    const matchesSearch =
-      staff.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      staff.vaxoraId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      staff.specialty.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      staff.license.toLowerCase().includes(searchQuery.toLowerCase());
+  const handleCancelRequest = async (affiliationId) => {
+    setActionId(affiliationId);
+    try {
+      await staffService.removeAffiliation(affiliationId);
+      showToast('Staff request cancelled.');
+      await loadStaff();
+    } catch (err) {
+      setError(err.message || 'Failed to cancel request.');
+    } finally {
+      setActionId(null);
+    }
+  };
 
-    if (activeTab === 'all') return matchesSearch;
-    if (activeTab === 'doctors') return matchesSearch && staff.role === 'Doctor';
-    if (activeTab === 'nurses') return matchesSearch && staff.role === 'Nurse';
-    if (activeTab === 'pending') return matchesSearch && staff.status === 'Pending Request';
-    return matchesSearch;
-  });
+  const handleRemoveStaff = async (affiliationId) => {
+    setActionId(affiliationId);
+    try {
+      await staffService.removeAffiliation(affiliationId);
+      showToast('Staff removed from roster.');
+      await loadStaff();
+    } catch (err) {
+      setError(err.message || 'Failed to remove staff.');
+    } finally {
+      setActionId(null);
+    }
+  };
 
-  const doctorsCount = staffList.filter((s) => s.role === 'Doctor' && s.status !== 'Pending Request').length;
-  const nursesCount = staffList.filter((s) => s.role === 'Nurse' && s.status !== 'Pending Request').length;
-  const pendingCount = staffList.filter((s) => s.status === 'Pending Request').length;
+  const handleCycleDuty = async (staff) => {
+    if (staff.affiliationStatus !== 'Active') return;
+    const next = nextDutyStatus[staff.dutyStatus] || 'Off';
+    setActionId(staff.id);
+    try {
+      await staffService.updateDutyStatus(staff.id, next);
+      showToast(`Duty status updated to ${dutyLabel[next] || next}.`);
+      await loadStaff();
+    } catch (err) {
+      setError(err.message || 'Failed to update duty status.');
+    } finally {
+      setActionId(null);
+    }
+  };
+
+  const filteredStaff = useMemo(() => {
+    return staffList.filter((staff) => {
+      const haystack = `${staff.name} ${staff.vaxoraId} ${staff.specialty} ${staff.email}`.toLowerCase();
+      const matchesSearch = haystack.includes(searchQuery.toLowerCase());
+
+      if (!matchesSearch) return false;
+      if (activeTab === 'doctors') return staff.role === 'Doctor';
+      if (activeTab === 'nurses') return staff.role === 'Nurse';
+      if (activeTab === 'pending') return staff.affiliationStatus === 'Pending';
+      return true;
+    });
+  }, [staffList, activeTab, searchQuery]);
+
+  const activeStaff = staffList.filter((s) => s.affiliationStatus === 'Active');
+  const doctorsCount = activeStaff.filter((s) => s.role === 'Doctor').length;
+  const nursesCount = activeStaff.filter((s) => s.role === 'Nurse').length;
+  const pendingCount = staffList.filter((s) => s.affiliationStatus === 'Pending').length;
 
   return (
     <div className="hospital-dashboard-tab">
-      {/* Toast Notification */}
       {notification && (
         <div
           className="appointment-alert-pill"
@@ -135,7 +153,30 @@ export default function HospitalStaffTab() {
         </div>
       )}
 
-      {/* Header Banner */}
+      {error && (
+        <div
+          className="appointment-alert-pill"
+          role="alert"
+          style={{
+            maxWidth: '1400px',
+            width: '100%',
+            marginBottom: '20px',
+            background: '#fef2f2',
+            color: '#b91c1c',
+            borderColor: '#fecaca',
+          }}
+        >
+          {error}
+          <button
+            type="button"
+            onClick={() => setError('')}
+            style={{ marginLeft: '12px', background: 'none', border: 'none', cursor: 'pointer', color: '#b91c1c' }}
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       <div className="hospital-section-card" style={{ marginBottom: '24px' }}>
         <div
           className="section-card-header"
@@ -155,30 +196,39 @@ export default function HospitalStaffTab() {
               <span>👨‍⚕️</span> Hospital Medical Staff &amp; Doctors
             </h2>
             <p className="section-title-desc">
-              All doctors and nurses affiliated with National Healthcare General Hospital.
-              Invite and connect verified healthcare practitioners using their Vaxora ID.
+              Manage affiliated doctors and nurses. Invite verified practitioners with their Vaxora ID.
             </p>
           </div>
 
-          <button
-            type="button"
-            className="btn-hospital-primary"
-            onClick={() => setIsModalOpen(true)}
-            style={{ padding: '10px 20px', fontSize: '0.92rem' }}
-          >
-            <span>+</span> Add New Staff
-          </button>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button
+              type="button"
+              className="btn-hospital-secondary"
+              onClick={loadStaff}
+              disabled={loading}
+              style={{ padding: '10px 16px', fontSize: '0.92rem' }}
+            >
+              Refresh
+            </button>
+            <button
+              type="button"
+              className="btn-hospital-primary"
+              onClick={() => setIsModalOpen(true)}
+              style={{ padding: '10px 20px', fontSize: '0.92rem' }}
+            >
+              <span>+</span> Add New Staff
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Staff Metrics Summary Cards */}
       <div className="hospital-metrics-grid" style={{ marginBottom: '24px' }}>
         <div className="hospital-stat-card">
           <div className="hospital-stat-icon stat-icon-blue">👥</div>
           <div className="hospital-stat-info">
-            <span className="hospital-stat-label">Total Affiliated Staff</span>
-            <span className="hospital-stat-value">{staffList.length}</span>
-            <span className="hospital-stat-meta">Verified Healthcare Practitioners</span>
+            <span className="hospital-stat-label">Active Affiliated Staff</span>
+            <span className="hospital-stat-value">{activeStaff.length}</span>
+            <span className="hospital-stat-meta">Accepted roster members</span>
           </div>
         </div>
 
@@ -187,7 +237,7 @@ export default function HospitalStaffTab() {
           <div className="hospital-stat-info">
             <span className="hospital-stat-label">Doctors</span>
             <span className="hospital-stat-value">{doctorsCount}</span>
-            <span className="hospital-stat-meta">SLMC Registered</span>
+            <span className="hospital-stat-meta">Active affiliations</span>
           </div>
         </div>
 
@@ -196,7 +246,7 @@ export default function HospitalStaffTab() {
           <div className="hospital-stat-info">
             <span className="hospital-stat-label">Nurses</span>
             <span className="hospital-stat-value">{nursesCount}</span>
-            <span className="hospital-stat-meta">SLNC Registered</span>
+            <span className="hospital-stat-meta">Active affiliations</span>
           </div>
         </div>
 
@@ -205,12 +255,11 @@ export default function HospitalStaffTab() {
           <div className="hospital-stat-info">
             <span className="hospital-stat-label">Pending Requests</span>
             <span className="hospital-stat-value">{pendingCount}</span>
-            <span className="hospital-stat-meta">Awaiting doctor/nurse acceptance</span>
+            <span className="hospital-stat-meta">Awaiting acceptance</span>
           </div>
         </div>
       </div>
 
-      {/* Filter and Search Bar */}
       <div
         style={{
           display: 'flex',
@@ -231,7 +280,7 @@ export default function HospitalStaffTab() {
               border: '1px solid #cbd5e1',
             }}
           >
-            All Staff ({staffList.length})
+            All ({staffList.length})
           </button>
 
           <button
@@ -267,13 +316,13 @@ export default function HospitalStaffTab() {
               border: '1px solid #cbd5e1',
             }}
           >
-            Pending Requests ({pendingCount})
+            Pending ({pendingCount})
           </button>
         </div>
 
         <input
           type="text"
-          placeholder="Search staff name, Vaxora ID, specialty..."
+          placeholder="Search name, Vaxora ID, email..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="queue-search-input"
@@ -281,14 +330,20 @@ export default function HospitalStaffTab() {
         />
       </div>
 
-      {/* Staff Cards Grid */}
       <div className="booths-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))' }}>
-        {filteredStaff.length === 0 ? (
+        {loading ? (
           <div
             className="hospital-section-card"
             style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px', color: '#64748b' }}
           >
-            No staff found matching your current filter or search criteria.
+            Loading staff directory...
+          </div>
+        ) : filteredStaff.length === 0 ? (
+          <div
+            className="hospital-section-card"
+            style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px', color: '#64748b' }}
+          >
+            No staff found. Invite a doctor or nurse with their Vaxora ID to get started.
           </div>
         ) : (
           filteredStaff.map((staff) => (
@@ -297,10 +352,9 @@ export default function HospitalStaffTab() {
               className="booth-card"
               style={{
                 padding: '22px',
-                borderLeft: staff.status === 'Pending Request' ? '4px solid #f59e0b' : '4px solid #19469d',
+                borderLeft: staff.affiliationStatus === 'Pending' ? '4px solid #f59e0b' : '4px solid #19469d',
               }}
             >
-              {/* Header */}
               <div className="booth-card-header">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span
@@ -334,9 +388,9 @@ export default function HospitalStaffTab() {
                       background:
                         staff.status === 'On Duty'
                           ? '#22c55e'
-                          : staff.status === 'Pending Request'
-                          ? '#f59e0b'
-                          : '#94a3b8',
+                          : staff.affiliationStatus === 'Pending'
+                            ? '#f59e0b'
+                            : '#94a3b8',
                     }}
                   />
                   <span
@@ -344,9 +398,9 @@ export default function HospitalStaffTab() {
                       color:
                         staff.status === 'On Duty'
                           ? '#15803d'
-                          : staff.status === 'Pending Request'
-                          ? '#b45309'
-                          : '#64748b',
+                          : staff.affiliationStatus === 'Pending'
+                            ? '#b45309'
+                            : '#64748b',
                       fontWeight: 700,
                       fontSize: '0.78rem',
                     }}
@@ -356,7 +410,6 @@ export default function HospitalStaffTab() {
                 </div>
               </div>
 
-              {/* Staff Main Info */}
               <div className="booth-staff-info" style={{ padding: '14px', background: '#f8fafc' }}>
                 <div
                   className="staff-avatar-mini"
@@ -372,20 +425,17 @@ export default function HospitalStaffTab() {
                     {staff.specialty}
                   </span>
                   <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                    License: <strong>{staff.license}</strong>
+                    {staff.email}
                   </span>
                 </div>
               </div>
 
-              {/* Station Allocation / Stats */}
-              <div className="booth-stats-row" style={{ paddingTop: '10px' }}>
-                <span>
-                  Station: <strong>{staff.booth}</strong>
-                </span>
-                {staff.status === 'Pending Request' ? (
+              <div className="booth-stats-row" style={{ paddingTop: '10px', gap: '8px', flexWrap: 'wrap' }}>
+                {staff.affiliationStatus === 'Pending' ? (
                   <button
                     type="button"
                     onClick={() => handleCancelRequest(staff.id)}
+                    disabled={actionId === staff.id}
                     style={{
                       background: 'none',
                       border: 'none',
@@ -395,12 +445,43 @@ export default function HospitalStaffTab() {
                       cursor: 'pointer',
                     }}
                   >
-                    Cancel Request
+                    {actionId === staff.id ? 'Cancelling...' : 'Cancel Request'}
                   </button>
                 ) : (
-                  <span>
-                    Vaccinated: <span className="booth-stat-bold">{staff.administeredToday}</span>
-                  </span>
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handleCycleDuty(staff)}
+                      disabled={actionId === staff.id}
+                      style={{
+                        background: '#eff6ff',
+                        border: '1px solid #bfdbfe',
+                        color: '#1d4ed8',
+                        fontWeight: 600,
+                        fontSize: '0.78rem',
+                        cursor: 'pointer',
+                        borderRadius: '6px',
+                        padding: '4px 10px',
+                      }}
+                    >
+                      {actionId === staff.id ? 'Updating...' : 'Cycle Duty'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveStaff(staff.id)}
+                      disabled={actionId === staff.id}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#dc2626',
+                        fontWeight: 600,
+                        fontSize: '0.78rem',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Remove
+                    </button>
+                  </>
                 )}
               </div>
             </div>
@@ -408,11 +489,11 @@ export default function HospitalStaffTab() {
         )}
       </div>
 
-      {/* Add Staff / Send Request Modal */}
       <AddStaffRequestModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSendRequest={handleSendRequest}
+        isSubmitting={isSubmitting}
       />
     </div>
   );
