@@ -13,6 +13,7 @@ const dutyLabel = {
 export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff' }) {
   const [invitations, setInvitations] = useState([]);
   const [affiliations, setAffiliations] = useState([]);
+  const [shifts, setShifts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
@@ -27,16 +28,25 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff' }) {
     setLoading(true);
     setError('');
     try {
-      const [pending, active] = await Promise.all([
+      const today = new Date();
+      const from = today.toISOString().slice(0, 10);
+      const toDate = new Date(today);
+      toDate.setDate(toDate.getDate() + 14);
+      const to = toDate.toISOString().slice(0, 10);
+
+      const [pending, active, myShifts] = await Promise.all([
         staffService.getMyInvitations(),
         staffService.getMyAffiliations(),
+        staffService.getMyShifts({ from, to }),
       ]);
       setInvitations(Array.isArray(pending) ? pending : []);
       setAffiliations(Array.isArray(active) ? active : []);
+      setShifts(Array.isArray(myShifts) ? myShifts : []);
     } catch (err) {
       setError(err.message || 'Failed to load hospital affiliations.');
       setInvitations([]);
       setAffiliations([]);
+      setShifts([]);
     } finally {
       setLoading(false);
     }
@@ -204,6 +214,42 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff' }) {
                         {actionId === `${item.affiliationId}-duty` ? 'Updating...' : 'Cycle Duty'}
                       </button>
                     </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <div className="doctor-card" style={{ padding: '24px', marginTop: '24px' }}>
+        <h2 className="doctor-card-title" style={{ marginTop: 0 }}>
+          My Shifts (next 14 days)
+        </h2>
+        {loading ? (
+          <p style={{ color: '#64748b' }}>Loading shifts...</p>
+        ) : shifts.length === 0 ? (
+          <p style={{ color: '#64748b' }}>No upcoming shifts assigned yet.</p>
+        ) : (
+          <div className="doctor-table-wrapper">
+            <table className="doctor-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Time</th>
+                  <th>Booth</th>
+                  <th>Notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {shifts.map((shift) => (
+                  <tr key={shift.shiftId}>
+                    <td>{shift.shiftDate}</td>
+                    <td>
+                      {String(shift.startTime).slice(0, 5)} – {String(shift.endTime).slice(0, 5)}
+                    </td>
+                    <td>{shift.boothOrStation || '—'}</td>
+                    <td>{shift.notes || '—'}</td>
                   </tr>
                 ))}
               </tbody>

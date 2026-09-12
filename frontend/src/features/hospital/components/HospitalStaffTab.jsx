@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import AddStaffRequestModal from './AddStaffRequestModal';
+import HospitalShiftsPanel from './HospitalShiftsPanel';
 import staffService from '../services/staffService';
 
 const dutyLabel = {
@@ -35,6 +36,7 @@ function mapAffiliationToCard(item) {
 }
 
 export default function HospitalStaffTab() {
+  const [pageView, setPageView] = useState('directory'); // 'directory' | 'shifts'
   const [activeTab, setActiveTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -200,28 +202,58 @@ export default function HospitalStaffTab() {
             </p>
           </div>
 
-          <div style={{ display: 'flex', gap: '10px' }}>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
             <button
               type="button"
-              className="btn-hospital-secondary"
-              onClick={loadStaff}
-              disabled={loading}
-              style={{ padding: '10px 16px', fontSize: '0.92rem' }}
+              className={`hospital-nav-btn ${pageView === 'directory' ? 'active' : ''}`}
+              onClick={() => setPageView('directory')}
+              style={{
+                background: pageView === 'directory' ? '#19469d' : '#ffffff',
+                border: '1px solid #cbd5e1',
+              }}
             >
-              Refresh
+              Directory
             </button>
             <button
               type="button"
-              className="btn-hospital-primary"
-              onClick={() => setIsModalOpen(true)}
-              style={{ padding: '10px 20px', fontSize: '0.92rem' }}
+              className={`hospital-nav-btn ${pageView === 'shifts' ? 'active' : ''}`}
+              onClick={() => setPageView('shifts')}
+              style={{
+                background: pageView === 'shifts' ? '#19469d' : '#ffffff',
+                border: '1px solid #cbd5e1',
+              }}
             >
-              <span>+</span> Add New Staff
+              Shifts
             </button>
+            {pageView === 'directory' && (
+              <>
+                <button
+                  type="button"
+                  className="btn-hospital-secondary"
+                  onClick={loadStaff}
+                  disabled={loading}
+                  style={{ padding: '10px 16px', fontSize: '0.92rem' }}
+                >
+                  Refresh
+                </button>
+                <button
+                  type="button"
+                  className="btn-hospital-primary"
+                  onClick={() => setIsModalOpen(true)}
+                  style={{ padding: '10px 20px', fontSize: '0.92rem' }}
+                >
+                  <span>+</span> Add New Staff
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>
 
+      {pageView === 'shifts' ? (
+        <HospitalShiftsPanel />
+      ) : (
+      <>
       <div className="hospital-metrics-grid" style={{ marginBottom: '24px' }}>
         <div className="hospital-stat-card">
           <div className="hospital-stat-icon stat-icon-blue">👥</div>
@@ -495,6 +527,8 @@ export default function HospitalStaffTab() {
         onSendRequest={handleSendRequest}
         isSubmitting={isSubmitting}
       />
+      </>
+      )}
     </div>
   );
 }

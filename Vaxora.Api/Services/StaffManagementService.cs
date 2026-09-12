@@ -301,6 +301,8 @@ public class StaffManagementService : IStaffManagementService
         if (affiliation.Status != AffiliationStatus.Active)
             throw new InvalidOperationException("Shifts can only be assigned to active staff.");
 
+        await EnsureNoShiftOverlapAsync(affiliation.StaffUserId, dto.ShiftDate, dto.StartTime, dto.EndTime);
+
         var shift = new StaffShift
         {
             AffiliationId = affiliation.Id,
@@ -369,6 +371,13 @@ public class StaffManagementService : IStaffManagementService
         if (shift.Affiliation.Status != AffiliationStatus.Active)
             throw new InvalidOperationException("Cannot update shifts for inactive staff affiliations.");
 
+        await EnsureNoShiftOverlapAsync(
+            shift.Affiliation.StaffUserId,
+            dto.ShiftDate,
+            dto.StartTime,
+            dto.EndTime,
+            excludeShiftId: shift.Id);
+
         shift.ShiftDate = dto.ShiftDate;
         shift.StartTime = dto.StartTime;
         shift.EndTime = dto.EndTime;
@@ -417,6 +426,33 @@ public class StaffManagementService : IStaffManagementService
     {
         if (end <= start)
             throw new InvalidOperationException("Shift end time must be after start time.");
+    }
+
+    /// <summary>
+    /// Blocks overlapping shifts for the same staff member on the same date (any hospital).
+    /// </summary>
+    private async Task EnsureNoShiftOverlapAsync(
+        Guid staffUserId,
+        DateOnly shiftDate,
+        TimeOnly startTime,
+        TimeOnly endTime,
+        Guid? excludeShiftId = null)
+    {
+        var existing = await _context.StaffShifts
+            .Include(s => s.Affiliation)
+            .Where(s =>
+                s.Affiliation.StaffUserId == staffUserId &&
+                s.Affiliation.Status == AffiliationStatus.Active &&
+                s.ShiftDate == shiftDate &&
+                (!excludeShiftId.HasValue || s.Id != excludeShiftId.Value))
+            .ToListAsync();
+
+        var hasOverlap = existing.Any(s => startTime < s.EndTime && endTime > s.StartTime);
+        if (hasOverlap)
+        {
+            throw new InvalidOperationException(
+                "This staff member already has an overlapping shift on that date and time.");
+        }
     }
 
     private static string GetStaffName(User staffUser)
