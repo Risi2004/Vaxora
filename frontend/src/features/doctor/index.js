@@ -5,6 +5,7 @@ export {
   DoctorAppointmentsTab,
   DoctorPatientsTab,
   DoctorProfileTab,
+  DoctorAffiliationsTab,
   ClinicalAdministerModal,
   AefiReportModal,
   FeedbackTab,

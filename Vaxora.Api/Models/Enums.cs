@@ -23,3 +23,18 @@ public enum VerificationStatus
     Approved,
     Rejected
 }
+
+public enum AffiliationStatus
+{
+    Pending,
+    Active,
+    Rejected,
+    Removed
+}
+
+public enum DutyStatus
+{
+    Off,
+    OnDuty,
+    OnBreak
+}

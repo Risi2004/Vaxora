@@ -15,6 +15,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<NurseProfile> NurseProfiles => Set<NurseProfile>();
     public DbSet<HospitalProfile> HospitalProfiles => Set<HospitalProfile>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<StaffAffiliation> StaffAffiliations => Set<StaffAffiliation>();
+    public DbSet<StaffShift> StaffShifts => Set<StaffShift>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -97,5 +99,42 @@ public class ApplicationDbContext : DbContext
             .WithOne(h => h.User)
             .HasForeignKey<HospitalProfile>(h => h.UserId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        // Staff management
+        modelBuilder.Entity<StaffAffiliation>()
+            .Property(a => a.StaffRole)
+            .HasConversion<string>();
+
+        modelBuilder.Entity<StaffAffiliation>()
+            .Property(a => a.Status)
+            .HasConversion<string>();
+
+        modelBuilder.Entity<StaffAffiliation>()
+            .Property(a => a.DutyStatus)
+            .HasConversion<string>();
+
+        modelBuilder.Entity<StaffAffiliation>()
+            .HasIndex(a => new { a.HospitalUserId, a.StaffUserId });
+
+        modelBuilder.Entity<StaffAffiliation>()
+            .HasOne(a => a.HospitalUser)
+            .WithMany()
+            .HasForeignKey(a => a.HospitalUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<StaffAffiliation>()
+            .HasOne(a => a.StaffUser)
+            .WithMany()
+            .HasForeignKey(a => a.StaffUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<StaffShift>()
+            .HasOne(s => s.Affiliation)
+            .WithMany(a => a.Shifts)
+            .HasForeignKey(s => s.AffiliationId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<StaffShift>()
+            .HasIndex(s => new { s.AffiliationId, s.ShiftDate });
     }
 }
