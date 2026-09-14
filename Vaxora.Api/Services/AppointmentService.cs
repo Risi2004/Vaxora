@@ -388,12 +388,53 @@ public class AppointmentService : IAppointmentService
             throw new KeyNotFoundException("Appointment not found or unauthorized to cancel.");
         }
 
+        if (appointment.Status == "Cancelled")
+        {
+            return true; // Already cancelled
+        }
+
+        // Rule: Patients can only cancel appointments at least 1 day (24h) prior to the appointment date
+        if (!isHospital)
+        {
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            if (appointment.AppointmentDate <= today)
+            {
+                throw new InvalidOperationException("Appointments can only be cancelled at least 1 day prior to the scheduled date. For same-day adjustments, please contact the hospital directly.");
+            }
+        }
+
         appointment.Status = "Cancelled";
         appointment.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
 
-        _logger.LogInformation("Cancelled appointment {AppId} by user {UserId}", appointmentId, userId);
+        _logger.LogInformation("Cancelled appointment {AppId} by {Actor} {UserId}. Slot {Slot} on {Date} is now released.",
+            appointmentId, isHospital ? "Hospital" : "Patient", userId, appointment.TimeSlot, appointment.AppointmentDate);
+
+        // Asynchronously send cancellation email to patient
+        if (!string.IsNullOrWhiteSpace(appointment.PatientEmail))
+        {
+            var cancelledByText = isHospital ? $"Hospital ({appointment.HospitalName})" : "Patient (Self-Service)";
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await _emailService.SendAppointmentCancellationEmailAsync(
+                        appointment.PatientEmail,
+                        appointment.PatientName,
+                        appointment.VaccineName,
+                        appointment.HospitalName,
+                        appointment.AppointmentDate.ToString("dddd, dd MMMM yyyy"),
+                        appointment.TimeSlot,
+                        cancelledByText);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to send cancellation email to {Email} for appointment {AppId}", appointment.PatientEmail, appointment.Id);
+                }
+            });
+        }
+
         return true;
     }
 

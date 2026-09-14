@@ -241,12 +241,25 @@ export default function AppointmentsTab() {
     }
   };
 
+  // Helper: check if appointment is at least 1 day in advance
+  const isEligibleForCancellation = (aptDateStr) => {
+    if (!aptDateStr) return false;
+    const todayStr = new Date().toISOString().split('T')[0];
+    return aptDateStr > todayStr;
+  };
+
   // 8. Handle Appointment Cancellation
-  const handleCancel = async (id) => {
-    if (window.confirm('Are you sure you want to cancel this appointment slot?')) {
+  const handleCancel = async (apt) => {
+    const aptDate = apt.appointmentDate || apt.date;
+    if (!isEligibleForCancellation(aptDate)) {
+      alert('Appointments can only be cancelled at least 1 day (24 hours) prior to the scheduled date. For same-day adjustments, please contact the hospital directly.');
+      return;
+    }
+
+    if (window.confirm('Are you sure you want to cancel this appointment slot? Your 20-minute slot will be made free for other citizens and a cancellation email will be sent to you.')) {
       try {
-        await appointmentService.cancelAppointment(id);
-        showToast('Appointment cancelled successfully.');
+        await appointmentService.cancelAppointment(apt.id || apt.Id);
+        showToast('Appointment cancelled successfully. A confirmation email has been dispatched and the slot is now free.');
         await loadMyAppointments();
       } catch (err) {
         alert(`Failed to cancel appointment: ${err.message}`);
@@ -642,14 +655,31 @@ export default function AppointmentsTab() {
                       </td>
                       <td className="td-action">
                         {(apt.status || '').toLowerCase() !== 'cancelled' ? (
-                          <button
-                            type="button"
-                            className="btn-cancel-appointment"
-                            onClick={() => handleCancel(apt.id || apt.Id)}
-                            title="Cancel this appointment slot"
-                          >
-                            Cancel
-                          </button>
+                          isEligibleForCancellation(apt.appointmentDate || apt.date) ? (
+                            <button
+                              type="button"
+                              className="btn-cancel-appointment"
+                              onClick={() => handleCancel(apt)}
+                              title="Cancel appointment at least 1 day in advance"
+                            >
+                              Cancel
+                            </button>
+                          ) : (
+                            <span
+                              style={{
+                                fontSize: '0.76rem',
+                                color: '#64748b',
+                                fontStyle: 'italic',
+                                display: 'inline-block',
+                                padding: '4px 8px',
+                                background: '#f1f5f9',
+                                borderRadius: '6px',
+                              }}
+                              title="Appointments cannot be cancelled online within 24 hours of the session. Please contact the hospital directly."
+                            >
+                              Locked (Same-Day)
+                            </span>
+                          )
                         ) : (
                           <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Cancelled</span>
                         )}

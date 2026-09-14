@@ -215,6 +215,10 @@ public class AppointmentsController : ControllerBase
             await _appointmentService.CancelAppointmentAsync(userId, id, isHospital);
             return Ok(new { message = "Appointment cancelled successfully." });
         }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
         catch (KeyNotFoundException ex)
         {
             return NotFound(new { message = ex.Message });
