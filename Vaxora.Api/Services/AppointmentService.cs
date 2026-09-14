@@ -20,11 +20,13 @@ public interface IAppointmentService
 public class AppointmentService : IAppointmentService
 {
     private readonly ApplicationDbContext _context;
+    private readonly IEmailService _emailService;
     private readonly ILogger<AppointmentService> _logger;
 
-    public AppointmentService(ApplicationDbContext context, ILogger<AppointmentService> logger)
+    public AppointmentService(ApplicationDbContext context, IEmailService emailService, ILogger<AppointmentService> logger)
     {
         _context = context;
+        _emailService = emailService;
         _logger = logger;
     }
 
@@ -290,6 +292,31 @@ public class AppointmentService : IAppointmentService
 
         _logger.LogInformation("Appointment {AppId} reserved for Patient {Patient} at {Hospital} on {Date} ({Slot})",
             appointment.Id, appointment.PatientName, appointment.HospitalName, appointment.AppointmentDate, appointment.TimeSlot);
+
+        // Asynchronously send booking confirmation email to the patient
+        if (!string.IsNullOrWhiteSpace(patient.Email))
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await _emailService.SendAppointmentBookingConfirmationEmailAsync(
+                        patient.Email,
+                        appointment.PatientName,
+                        appointment.VaccineName,
+                        appointment.HospitalName,
+                        appointment.AppointmentDate.ToString("dddd, dd MMMM yyyy"),
+                        appointment.TimeSlot,
+                        appointment.DoctorName,
+                        appointment.NurseName,
+                        appointment.Notes);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to send booking confirmation email to {Email} for appointment {AppId}", patient.Email, appointment.Id);
+                }
+            });
+        }
 
         return MapToDto(appointment);
     }
