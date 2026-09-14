@@ -18,6 +18,13 @@ public class ApplicationDbContext : DbContext
     public DbSet<StaffAffiliation> StaffAffiliations => Set<StaffAffiliation>();
     public DbSet<StaffShift> StaffShifts => Set<StaffShift>();
 
+    // === INVENTORY MODULE (Added) ===
+    public DbSet<Vaccine> Vaccines => Set<Vaccine>();
+    public DbSet<HospitalFormulary> HospitalFormularies => Set<HospitalFormulary>();
+    public DbSet<Batch> Batches => Set<Batch>();
+    public DbSet<InventoryTransaction> InventoryTransactions => Set<InventoryTransaction>();
+    public DbSet<ColdVault> ColdVaults => Set<ColdVault>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -100,7 +107,44 @@ public class ApplicationDbContext : DbContext
             .HasForeignKey<HospitalProfile>(h => h.UserId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        // Staff management
+        // === INVENTORY MODULE CONFIGURATION (Added) ===
+        modelBuilder.Entity<Vaccine>()
+            .Property(v => v.Category)
+            .HasConversion<string>();
+
+        modelBuilder.Entity<Batch>()
+            .Property(b => b.Status)
+            .HasConversion<string>();
+
+        modelBuilder.Entity<InventoryTransaction>()
+            .Property(t => t.Type)
+            .HasConversion<string>();
+
+        modelBuilder.Entity<InventoryTransaction>()
+            .Property(t => t.WastageReason)
+            .HasConversion<string>();
+
+        modelBuilder.Entity<HospitalFormulary>()
+            .HasIndex(f => new { f.HospitalProfileId, f.VaccineId })
+            .IsUnique();
+
+        modelBuilder.Entity<Batch>()
+            .HasIndex(b => new { b.HospitalProfileId, b.BatchNumber })
+            .IsUnique();
+
+        modelBuilder.Entity<Batch>()
+            .HasIndex(b => b.ExpiryDate);
+
+        modelBuilder.Entity<Batch>()
+            .HasIndex(b => b.HospitalProfileId);
+
+        modelBuilder.Entity<InventoryTransaction>()
+            .HasIndex(t => t.BatchId);
+
+        modelBuilder.Entity<InventoryTransaction>()
+            .HasIndex(t => t.Timestamp);
+
+        // === STAFF MANAGEMENT MODULE CONFIGURATION (Teammate) ===
         modelBuilder.Entity<StaffAffiliation>()
             .Property(a => a.StaffRole)
             .HasConversion<string>();

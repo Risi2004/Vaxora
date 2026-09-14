@@ -16,7 +16,8 @@ export default function VaccineWastageModal({ isOpen, onClose, inventoryItems, o
   const handleChange = (e) => {
     const { name, value } = e.target;
     if (name === 'vaccineId') {
-      const selected = inventoryItems.find((item) => item.id === parseInt(value, 10));
+      // FIX: GUIDs are strings — do not parseInt
+      const selected = inventoryItems.find((item) => item.id === value);
       setFormData((prev) => ({
         ...prev,
         vaccineId: value,
@@ -35,10 +36,10 @@ export default function VaccineWastageModal({ isOpen, onClose, inventoryItems, o
       return;
     }
 
+    // FIX: pass vaccineId (batch GUID) as string, not parsed int
     onLogWastage({
       ...formData,
       quantity: qty,
-      vaccineId: parseInt(formData.vaccineId, 10),
     });
 
     onClose();
