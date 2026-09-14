@@ -25,6 +25,9 @@ public class ApplicationDbContext : DbContext
     public DbSet<InventoryTransaction> InventoryTransactions => Set<InventoryTransaction>();
     public DbSet<ColdVault> ColdVaults => Set<ColdVault>();
 
+    // === VACCINE APPOINTMENT SCHEDULE MODULE ===
+    public DbSet<VaccineSchedule> VaccineSchedules => Set<VaccineSchedule>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

@@ -1,125 +1,282 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { staffService } from '../services/staffService';
+import { inventoryService } from '../services/inventoryService';
+import { scheduleService } from '../services/scheduleService';
+
+const DAYS_OF_WEEK = [
+  { key: 'Monday', label: 'Mon' },
+  { key: 'Tuesday', label: 'Tue' },
+  { key: 'Wednesday', label: 'Wed' },
+  { key: 'Thursday', label: 'Thu' },
+  { key: 'Friday', label: 'Fri' },
+  { key: 'Saturday', label: 'Sat' },
+  { key: 'Sunday', label: 'Sun' },
+];
 
 export default function HospitalAppointmentsTab() {
+  const [doctors, setDoctors] = useState([]);
+  const [nurses, setNurses] = useState([]);
+  const [vaccines, setVaccines] = useState([]);
+  const [schedules, setSchedules] = useState([]);
+  const [loadingOptions, setLoadingOptions] = useState(true);
+  const [loadingSchedules, setLoadingSchedules] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Today and 3 months ahead helper dates
+  const todayStr = new Date().toISOString().split('T')[0];
+  const threeMonthsAhead = new Date();
+  threeMonthsAhead.setMonth(threeMonthsAhead.getMonth() + 3);
+  const defaultEndDateStr = threeMonthsAhead.toISOString().split('T')[0];
+
   // 1. Create a new schedule form state
   const [scheduleForm, setScheduleForm] = useState({
+    scheduleType: 'OneTime', // 'OneTime' | 'Weekly'
     doctor: '',
+    nurse: '',
     vaccineType: '',
-    date: '2025-02-24',
-    time: '',
+    specificDate: todayStr,
+    daysOfWeek: ['Monday', 'Wednesday', 'Friday'],
+    startDate: todayStr,
+    endDate: defaultEndDateStr,
+    startTime: '09:00',
+    endTime: '11:00',
   });
 
-  // 2. Schedules list state
-  const [schedules, setSchedules] = useState([
-    {
-      id: 1,
-      doctor: 'Dr.peter',
-      vaccine: 'Influenza',
-      date: '2025-02-24',
-      time: '11.30 am - 12.30 pm',
-    },
-    {
-      id: 2,
-      doctor: 'Dr. Samantha Perera',
-      vaccine: 'COVID-19 Bivalent',
-      date: '2025-02-24',
-      time: '02.00 pm - 04.00 pm',
-    },
-    {
-      id: 3,
-      doctor: 'Dr. M. F. De Silva',
-      vaccine: 'Hepatitis B',
-      date: '2025-02-25',
-      time: '09.00 am - 11.00 am',
-    },
-  ]);
+  // 2. Appointments list state (mock/live)
+  const [appointments, setAppointments] = useState([]);
 
-  // 3. Appointments list state
-  const [appointments, setAppointments] = useState([
-    {
-      id: 1,
-      pName: 'Kalai',
-      date: '2025-02-24',
-      time: '11.30 am',
-      vaccine: 'Influenza',
-      status: 'pending', // 'pending' | 'accepted' | 'rejected'
-    },
-    {
-      id: 2,
-      pName: 'Nimal Perera',
-      date: '2025-02-24',
-      time: '02.15 pm',
-      vaccine: 'COVID-19 Booster',
-      status: 'pending',
-    },
-    {
-      id: 3,
-      pName: 'Sanduni Malshani',
-      date: '2025-02-25',
-      time: '09.45 am',
-      vaccine: 'MMR Booster',
-      status: 'accepted',
-    },
-    {
-      id: 4,
-      pName: 'Rohan Jayatillake',
-      date: '2025-02-25',
-      time: '11.00 am',
-      vaccine: 'Hepatitis B',
-      status: 'pending',
-    },
-    {
-      id: 5,
-      pName: 'Kasun Fernando',
-      date: '2025-02-26',
-      time: '10.30 am',
-      vaccine: 'Influenza',
-      status: 'pending',
-    },
-  ]);
-
-  // 4. Filter Date state (kept as explicitly requested)
-  const [filterDate, setFilterDate] = useState('2025-02-24');
+  // 3. Filter Date state
+  const [filterDate, setFilterDate] = useState(todayStr);
   const [notification, setNotification] = useState('');
+
+  const showToast = (msg) => {
+    setNotification(msg);
+    setTimeout(() => setNotification(''), 3500);
+  };
+
+  // Fetch hospital staff (doctors and nurses) & formulary vaccines from database
+  const loadOptions = useCallback(async () => {
+    try {
+      setLoadingOptions(true);
+      const [staffData, formularyData, globalVaccinesData] = await Promise.allSettled([
+        staffService.getHospitalStaff({ status: 'All' }),
+        inventoryService.getFormulary(),
+        inventoryService.getGlobalVaccines(),
+      ]);
+
+      // Process Database Staff (Doctors & Nurses)
+      if (staffData.status === 'fulfilled' && Array.isArray(staffData.value)) {
+        const staffList = staffData.value;
+        const docs = staffList.filter(
+          (s) => String(s.staffRole).toUpperCase() === 'DOCTOR' || s.role === 'DOCTOR'
+        );
+        const nrs = staffList.filter(
+          (s) => String(s.staffRole).toUpperCase() === 'NURSE' || s.role === 'NURSE'
+        );
+
+        setDoctors(
+          docs.map((d) => ({
+            id: d.staffUserId || d.id,
+            name: d.staffName || d.fullName || `Dr. ${d.registrationNumber}`,
+            specialization: d.specialization || 'Physician',
+            registrationNumber: d.registrationNumber,
+          }))
+        );
+
+        setNurses(
+          nrs.map((n) => ({
+            id: n.staffUserId || n.id,
+            name: n.staffName || n.fullName || `Nurse ${n.registrationNumber}`,
+            registrationNumber: n.registrationNumber,
+          }))
+        );
+      } else {
+        setDoctors([]);
+        setNurses([]);
+      }
+
+      // Process Database Vaccines (Hospital Formulary or Global Catalog)
+      const vaccineList = [];
+      if (formularyData.status === 'fulfilled' && Array.isArray(formularyData.value) && formularyData.value.length > 0) {
+        formularyData.value.forEach((f) => {
+          vaccineList.push({
+            id: f.id || f.vaccineId,
+            name: f.vaccineName,
+            manufacturer: f.manufacturer || '',
+          });
+        });
+      } else if (globalVaccinesData.status === 'fulfilled' && Array.isArray(globalVaccinesData.value) && globalVaccinesData.value.length > 0) {
+        globalVaccinesData.value.forEach((v) => {
+          vaccineList.push({
+            id: v.id,
+            name: v.name,
+            manufacturer: v.manufacturer || '',
+          });
+        });
+      }
+
+      setVaccines(vaccineList);
+    } catch (err) {
+      console.error('Failed to load appointment schedule options:', err);
+    } finally {
+      setLoadingOptions(false);
+    }
+  }, []);
+
+  // Fetch saved schedules from database
+  const loadSchedules = useCallback(async () => {
+    try {
+      setLoadingSchedules(true);
+      const data = await scheduleService.getHospitalSchedules();
+      if (Array.isArray(data)) {
+        setSchedules(data);
+      } else {
+        setSchedules([]);
+      }
+    } catch (err) {
+      console.error('Failed to load hospital schedules:', err);
+    } finally {
+      setLoadingSchedules(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadOptions();
+    loadSchedules();
+  }, [loadOptions, loadSchedules]);
 
   const handleScheduleChange = (e) => {
     const { name, value } = e.target;
     setScheduleForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleAddSchedule = (e) => {
+  const handleToggleDay = (dayKey) => {
+    setScheduleForm((prev) => {
+      const exists = prev.daysOfWeek.includes(dayKey);
+      const nextDays = exists
+        ? prev.daysOfWeek.filter((d) => d !== dayKey)
+        : [...prev.daysOfWeek, dayKey];
+      return { ...prev, daysOfWeek: nextDays };
+    });
+  };
+
+  const handleSelectAllDays = () => {
+    setScheduleForm((prev) => ({
+      ...prev,
+      daysOfWeek: DAYS_OF_WEEK.map((d) => d.key),
+    }));
+  };
+
+  const handleSelectWeekdays = () => {
+    setScheduleForm((prev) => ({
+      ...prev,
+      daysOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+    }));
+  };
+
+  // Submit and save new schedule slot to database
+  const handleAddSchedule = async (e) => {
     e.preventDefault();
-    if (!scheduleForm.doctor || !scheduleForm.vaccineType || !scheduleForm.date || !scheduleForm.time) {
-      alert('Please fill all fields (Doctor, Vaccine Type, Date, Time).');
+
+    if (!scheduleForm.doctor) {
+      alert('Please select a Doctor for this schedule.');
+      return;
+    }
+    if (!scheduleForm.nurse) {
+      alert('Please select a Nurse for this schedule.');
+      return;
+    }
+    if (!scheduleForm.vaccineType) {
+      alert('Please select a Vaccine Type.');
+      return;
+    }
+    if (!scheduleForm.startTime || !scheduleForm.endTime) {
+      alert('Please select both Start Time and End Time.');
       return;
     }
 
-    setSchedules((prev) => [
-      ...prev,
-      {
-        id: Date.now(),
-        doctor: scheduleForm.doctor,
-        vaccine: scheduleForm.vaccineType,
-        date: scheduleForm.date,
-        time: scheduleForm.time,
-      },
-    ]);
+    const isWeekly = scheduleForm.scheduleType === 'Weekly';
+    if (isWeekly) {
+      if (scheduleForm.daysOfWeek.length === 0) {
+        alert('Please select at least one day of the week (e.g. Mon, Wed).');
+        return;
+      }
+      if (!scheduleForm.startDate || !scheduleForm.endDate) {
+        alert('Please specify the Start Date and End Date range for recurring weekly slots.');
+        return;
+      }
+      if (scheduleForm.endDate < scheduleForm.startDate) {
+        alert('End Date cannot be earlier than Start Date.');
+        return;
+      }
+    } else {
+      if (!scheduleForm.specificDate) {
+        alert('Please select a Date for the one-time schedule.');
+        return;
+      }
+    }
 
-    setScheduleForm({
-      doctor: '',
-      vaccineType: '',
-      date: '2025-02-24',
-      time: '',
-    });
+    // Resolve IDs
+    const selectedDoc = doctors.find((d) => d.name === scheduleForm.doctor);
+    const selectedNurse = nurses.find((n) => n.name === scheduleForm.nurse);
+    const selectedVac = vaccines.find((v) => v.name === scheduleForm.vaccineType);
 
-    setNotification('New schedule created successfully!');
-    setTimeout(() => setNotification(''), 3000);
+    const payload = {
+      doctorUserId: selectedDoc?.id || null,
+      doctorName: scheduleForm.doctor,
+      nurseUserId: selectedNurse?.id || null,
+      nurseName: scheduleForm.nurse,
+      vaccineId: selectedVac?.id || null,
+      vaccineName: scheduleForm.vaccineType,
+      scheduleType: scheduleForm.scheduleType,
+      specificDate: isWeekly ? null : scheduleForm.specificDate,
+      daysOfWeek: isWeekly ? scheduleForm.daysOfWeek : [],
+      startDate: isWeekly ? scheduleForm.startDate : null,
+      endDate: isWeekly ? scheduleForm.endDate : null,
+      startTime: scheduleForm.startTime,
+      endTime: scheduleForm.endTime,
+    };
+
+    try {
+      setSubmitting(true);
+      await scheduleService.createSchedule(payload);
+      showToast('Immunization schedule slot created and saved to database successfully!');
+
+      // Reset form
+      setScheduleForm({
+        scheduleType: 'OneTime',
+        doctor: '',
+        nurse: '',
+        vaccineType: '',
+        specificDate: todayStr,
+        daysOfWeek: ['Monday', 'Wednesday', 'Friday'],
+        startDate: todayStr,
+        endDate: defaultEndDateStr,
+        startTime: '09:00',
+        endTime: '11:00',
+      });
+
+      await loadSchedules();
+    } catch (err) {
+      alert(`Failed to save schedule: ${err.message}`);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handleCancelSchedule = (id) => {
-    setSchedules((prev) => prev.filter((s) => s.id !== id));
-    setNotification('Schedule cancelled.');
-    setTimeout(() => setNotification(''), 2500);
+  // Cancel schedule in database
+  const handleCancelSchedule = async (id) => {
+    if (!window.confirm('Are you sure you want to cancel this immunization schedule slot?')) {
+      return;
+    }
+
+    try {
+      await scheduleService.cancelSchedule(id);
+      showToast('Schedule slot cancelled.');
+      await loadSchedules();
+    } catch (err) {
+      alert(`Failed to cancel schedule: ${err.message}`);
+    }
   };
 
   const handleAcceptAppointment = (id) => {
@@ -127,8 +284,7 @@ export default function HospitalAppointmentsTab() {
     setAppointments((prev) =>
       prev.map((app) => (app.id === id ? { ...app, status: 'accepted' } : app))
     );
-    setNotification(`Appointment for ${target ? target.pName : 'patient'} confirmed!`);
-    setTimeout(() => setNotification(''), 2500);
+    showToast(`Appointment for ${target ? target.pName : 'patient'} confirmed!`);
   };
 
   const handleRejectAppointment = (id) => {
@@ -136,8 +292,7 @@ export default function HospitalAppointmentsTab() {
     setAppointments((prev) =>
       prev.map((app) => (app.id === id ? { ...app, status: 'rejected' } : app))
     );
-    setNotification(`Appointment for ${target ? target.pName : 'patient'} declined.`);
-    setTimeout(() => setNotification(''), 2500);
+    showToast(`Appointment for ${target ? target.pName : 'patient'} declined.`);
   };
 
   // Filter appointments according to filterDate
@@ -170,62 +325,238 @@ export default function HospitalAppointmentsTab() {
           </h2>
 
           <form onSubmit={handleAddSchedule}>
+            {/* Recurrence Selector Bar */}
+            <div className="schedule-recurrence-bar">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '0.88rem', fontWeight: 700, color: '#1d1854' }}>
+                  Recurrence Frequency:
+                </span>
+                <span style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                  (Choose single day or weekly repeating days)
+                </span>
+              </div>
+
+              <div className="schedule-recurrence-options">
+                <button
+                  type="button"
+                  className={`schedule-type-btn ${scheduleForm.scheduleType === 'OneTime' ? 'active' : ''}`}
+                  onClick={() => setScheduleForm((prev) => ({ ...prev, scheduleType: 'OneTime' }))}
+                >
+                  <span>🗓️</span> Single Date Only
+                </button>
+                <button
+                  type="button"
+                  className={`schedule-type-btn ${scheduleForm.scheduleType === 'Weekly' ? 'active' : ''}`}
+                  onClick={() => setScheduleForm((prev) => ({ ...prev, scheduleType: 'Weekly' }))}
+                >
+                  <span>🔁</span> Recurring Weekly
+                </button>
+              </div>
+            </div>
+
+            {/* Recurring Weekly: Days of Week Multi-Selector */}
+            {scheduleForm.scheduleType === 'Weekly' && (
+              <div className="schedule-days-container">
+                <div className="schedule-days-label-row">
+                  <label className="schedule-input-label" style={{ margin: 0 }}>
+                    Select Days of the Week (1 or more days):
+                  </label>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      type="button"
+                      className="schedule-quick-btn"
+                      onClick={handleSelectWeekdays}
+                    >
+                      Weekdays (Mon-Fri)
+                    </button>
+                    <span>•</span>
+                    <button
+                      type="button"
+                      className="schedule-quick-btn"
+                      onClick={handleSelectAllDays}
+                    >
+                      All 7 Days
+                    </button>
+                  </div>
+                </div>
+
+                <div className="schedule-days-pills-row">
+                  {DAYS_OF_WEEK.map((day) => {
+                    const isSelected = scheduleForm.daysOfWeek.includes(day.key);
+                    return (
+                      <button
+                        key={day.key}
+                        type="button"
+                        className={`schedule-day-pill ${isSelected ? 'selected' : ''}`}
+                        onClick={() => handleToggleDay(day.key)}
+                      >
+                        {isSelected ? '✓ ' : ''}{day.key} ({day.label})
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             <div className="schedule-inputs-row">
-              {/* Doctor */}
+              {/* Doctor Dropdown */}
               <div className="schedule-input-group">
                 <label className="schedule-input-label">Doctor</label>
-                <input
-                  type="text"
+                <select
                   name="doctor"
                   value={scheduleForm.doctor}
                   onChange={handleScheduleChange}
-                  className="schedule-input-field"
-                  placeholder="Dr. Name"
-                />
+                  className="schedule-input-field schedule-select-field"
+                  required
+                >
+                  <option value="">
+                    {loadingOptions
+                      ? 'Loading doctors...'
+                      : doctors.length === 0
+                      ? '-- No affiliated doctors found --'
+                      : '-- Select Doctor --'}
+                  </option>
+                  {doctors.map((doc) => (
+                    <option key={doc.id} value={doc.name}>
+                      {doc.name} {doc.specialization ? `(${doc.specialization})` : ''}
+                    </option>
+                  ))}
+                </select>
               </div>
 
-              {/* Vaccine Type */}
+              {/* Nurse Dropdown */}
+              <div className="schedule-input-group">
+                <label className="schedule-input-label">Nurse</label>
+                <select
+                  name="nurse"
+                  value={scheduleForm.nurse}
+                  onChange={handleScheduleChange}
+                  className="schedule-input-field schedule-select-field"
+                  required
+                >
+                  <option value="">
+                    {loadingOptions
+                      ? 'Loading nurses...'
+                      : nurses.length === 0
+                      ? '-- No affiliated nurses found --'
+                      : '-- Select Nurse --'}
+                  </option>
+                  {nurses.map((nurse) => (
+                    <option key={nurse.id} value={nurse.name}>
+                      {nurse.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Vaccine Type Dropdown */}
               <div className="schedule-input-group">
                 <label className="schedule-input-label">Vaccine Type</label>
-                <input
-                  type="text"
+                <select
                   name="vaccineType"
                   value={scheduleForm.vaccineType}
                   onChange={handleScheduleChange}
+                  className="schedule-input-field schedule-select-field"
+                  required
+                >
+                  <option value="">
+                    {loadingOptions
+                      ? 'Loading vaccines...'
+                      : vaccines.length === 0
+                      ? '-- No formulary vaccines found --'
+                      : '-- Select Vaccine --'}
+                  </option>
+                  {vaccines.map((v) => (
+                    <option key={v.id} value={v.name}>
+                      {v.name} {v.manufacturer ? `(${v.manufacturer})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Date Inputs based on Recurrence */}
+              {scheduleForm.scheduleType === 'OneTime' ? (
+                <div className="schedule-input-group">
+                  <label className="schedule-input-label">Specific Date</label>
+                  <input
+                    type="date"
+                    name="specificDate"
+                    value={scheduleForm.specificDate}
+                    min={todayStr}
+                    onChange={handleScheduleChange}
+                    className="schedule-input-field"
+                    required
+                  />
+                </div>
+              ) : (
+                <>
+                  <div className="schedule-input-group">
+                    <label className="schedule-input-label">Active From (Start Date)</label>
+                    <input
+                      type="date"
+                      name="startDate"
+                      value={scheduleForm.startDate}
+                      min={todayStr}
+                      onChange={handleScheduleChange}
+                      className="schedule-input-field"
+                      required
+                    />
+                  </div>
+
+                  <div className="schedule-input-group">
+                    <label className="schedule-input-label">Active Until (End Date)</label>
+                    <input
+                      type="date"
+                      name="endDate"
+                      value={scheduleForm.endDate}
+                      min={scheduleForm.startDate || todayStr}
+                      onChange={handleScheduleChange}
+                      className="schedule-input-field"
+                      required
+                    />
+                  </div>
+                </>
+              )}
+
+              {/* Start Time Picker */}
+              <div className="schedule-input-group">
+                <label className="schedule-input-label">Start Time</label>
+                <input
+                  type="time"
+                  name="startTime"
+                  value={scheduleForm.startTime}
+                  onChange={handleScheduleChange}
                   className="schedule-input-field"
-                  placeholder="Vaccine"
+                  required
                 />
               </div>
 
-              {/* Date */}
+              {/* End Time Picker */}
               <div className="schedule-input-group">
-                <label className="schedule-input-label">Date</label>
+                <label className="schedule-input-label">End Time</label>
                 <input
-                  type="date"
-                  name="date"
-                  value={scheduleForm.date}
+                  type="time"
+                  name="endTime"
+                  value={scheduleForm.endTime}
                   onChange={handleScheduleChange}
                   className="schedule-input-field"
-                />
-              </div>
-
-              {/* Time */}
-              <div className="schedule-input-group">
-                <label className="schedule-input-label">Time</label>
-                <input
-                  type="text"
-                  name="time"
-                  value={scheduleForm.time}
-                  onChange={handleScheduleChange}
-                  className="schedule-input-field"
-                  placeholder="e.g. 11.30 am - 12.30 pm"
+                  required
                 />
               </div>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <button type="submit" className="btn-add-schedule">
-                Add Schedule
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px' }}>
+              <button
+                type="submit"
+                className="btn-add-schedule"
+                disabled={submitting || doctors.length === 0 || nurses.length === 0 || vaccines.length === 0}
+                title={
+                  doctors.length === 0 || nurses.length === 0 || vaccines.length === 0
+                    ? 'Please ensure doctors, nurses, and vaccines are registered in your hospital'
+                    : 'Save schedule slot to database'
+                }
+              >
+                {submitting ? 'Saving...' : 'Add Schedule'}
               </button>
             </div>
           </form>
@@ -233,40 +564,77 @@ export default function HospitalAppointmentsTab() {
 
         {/* 2. Schedules Table Section */}
         <div style={{ marginBottom: '38px' }}>
-          <h2 className="schedule-section-heading">
-            Schedules
-          </h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <h2 className="schedule-section-heading" style={{ margin: 0 }}>
+              Active Schedules
+            </h2>
+            <button
+              type="button"
+              className="hospital-filter-btn"
+              onClick={loadSchedules}
+              disabled={loadingSchedules}
+              title="Refresh schedules from database"
+            >
+              🔄 Refresh
+            </button>
+          </div>
 
           <div className="hospital-appointments-table-wrapper">
             <table className="hospital-appointments-mockup-table">
               <thead>
                 <tr>
-                  <th style={{ width: '25%' }}>Doctor</th>
-                  <th style={{ width: '25%' }}>Vaccine</th>
-                  <th style={{ width: '20%' }}>Date</th>
-                  <th style={{ width: '20%' }}>Time</th>
-                  <th style={{ width: '10%', borderRight: 'none' }}>Action</th>
+                  <th style={{ width: '20%' }}>Doctor</th>
+                  <th style={{ width: '18%' }}>Nurse</th>
+                  <th style={{ width: '18%' }}>Vaccine</th>
+                  <th style={{ width: '22%' }}>Schedule / Recurrence</th>
+                  <th style={{ width: '14%' }}>Time Slot</th>
+                  <th style={{ width: '8%', borderRight: 'none' }}>Action</th>
                 </tr>
               </thead>
               <tbody>
-                {schedules.length === 0 ? (
+                {loadingSchedules ? (
                   <tr>
-                    <td colSpan={5} className="empty-table-cell">
-                      No active schedules created yet.
+                    <td colSpan={6} className="empty-table-cell">
+                      Loading saved schedules from database...
+                    </td>
+                  </tr>
+                ) : schedules.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="empty-table-cell">
+                      No active schedules created yet. Use the form above to add one-time or weekly recurring slots.
                     </td>
                   </tr>
                 ) : (
                   schedules.map((item) => (
                     <tr key={item.id}>
-                      <td>{item.doctor}</td>
-                      <td>{item.vaccine}</td>
-                      <td>{item.date}</td>
-                      <td>{item.time}</td>
+                      <td>{item.doctorName}</td>
+                      <td>{item.nurseName}</td>
+                      <td>{item.vaccineName}</td>
+                      <td style={{ fontSize: '0.92rem' }}>
+                        {item.scheduleType === 'Weekly' ? (
+                          <div>
+                            <span style={{ fontWeight: 700, color: '#1e40af' }}>🔁 Weekly: </span>
+                            <span>{item.daysOfWeek?.join(', ') || 'Weekly'}</span>
+                            {item.startDate && item.endDate && (
+                              <div style={{ fontSize: '0.78rem', color: '#475569', marginTop: '2px' }}>
+                                ({item.startDate} to {item.endDate})
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div>
+                            <span style={{ fontWeight: 700, color: '#0f766e' }}>🗓️ One-Time: </span>
+                            <span>{item.specificDate || item.date}</span>
+                          </div>
+                        )}
+                      </td>
+                      <td>{item.formattedTime || `${item.startTime} - ${item.endTime}`}</td>
                       <td style={{ borderRight: 'none' }}>
                         <button
                           type="button"
                           className="btn-cancel-schedule"
                           onClick={() => handleCancelSchedule(item.id)}
+                          title="Cancel and remove schedule slot"
                         >
                           Cancel
                         </button>
@@ -306,13 +674,15 @@ export default function HospitalAppointmentsTab() {
               >
                 All Dates ({appointments.length})
               </button>
-              <button
-                type="button"
-                className={`hospital-filter-btn ${filterDate === '2025-02-24' ? 'active' : ''}`}
-                onClick={() => setFilterDate('2025-02-24')}
-              >
-                2025-02-24
-              </button>
+              {filterDate && (
+                <button
+                  type="button"
+                  className="hospital-filter-btn active"
+                  onClick={() => setFilterDate(filterDate)}
+                >
+                  {filterDate}
+                </button>
+              )}
             </div>
           </div>
 
@@ -331,22 +701,24 @@ export default function HospitalAppointmentsTab() {
                 {filteredAppointments.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="empty-table-cell">
-                      No patient appointments found for date {filterDate}.{' '}
-                      <button
-                        type="button"
-                        onClick={() => setFilterDate('')}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: '#19469d',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                          textDecoration: 'underline',
-                          marginLeft: '6px',
-                        }}
-                      >
-                        Show All Dates
-                      </button>
+                      No patient appointments found for date {filterDate || 'all dates'}.{' '}
+                      {filterDate && (
+                        <button
+                          type="button"
+                          onClick={() => setFilterDate('')}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: '#19469d',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            textDecoration: 'underline',
+                            marginLeft: '6px',
+                          }}
+                        >
+                          Show All Dates
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ) : (
