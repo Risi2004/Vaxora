@@ -64,6 +64,10 @@ export const staffService = {
     });
   },
 
+  searchCandidates(query, limit = 10) {
+    return apiRequest(`/staff/candidates${buildQuery({ q: query, limit })}`);
+  },
+
   getHospitalStaff({ role, dutyStatus, search, status } = {}) {
     return apiRequest(`/staff/hospital${buildQuery({ role, dutyStatus, search, status })}`);
   },

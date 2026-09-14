@@ -51,6 +51,33 @@ public class StaffManagementController : ControllerBase
         }
     }
 
+    [HttpGet("candidates")]
+    [Authorize(Roles = "HOSPITAL")]
+    public async Task<IActionResult> SearchCandidates([FromQuery] string? q, [FromQuery] int limit = 10)
+    {
+        if (!TryGetUserId(out var hospitalUserId))
+            return Unauthorized(new { message = "Invalid identity claim." });
+
+        try
+        {
+            var result = await _staffService.SearchInviteCandidatesAsync(hospitalUserId, q ?? string.Empty, limit);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error searching staff candidates");
+            return StatusCode(500, new { message = "Failed to search staff candidates." });
+        }
+    }
+
     [HttpPost("invitations/{affiliationId:guid}/respond")]
     [Authorize(Roles = "DOCTOR,NURSE")]
     public async Task<IActionResult> RespondToInvitation(Guid affiliationId, [FromBody] AffiliationDecisionDto dto)

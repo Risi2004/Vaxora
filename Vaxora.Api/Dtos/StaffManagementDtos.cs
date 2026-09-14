@@ -9,6 +9,17 @@ public class InviteStaffDto
     public string RegistrationNumber { get; set; } = string.Empty;
 }
 
+public class StaffCandidateDto
+{
+    public Guid UserId { get; set; }
+    public string RegistrationNumber { get; set; } = string.Empty;
+    public string FullName { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public string Role { get; set; } = string.Empty;
+    public string? Specialization { get; set; }
+    public bool AlreadyAffiliated { get; set; }
+}
+
 public class AffiliationDecisionDto
 {
     [Required]
