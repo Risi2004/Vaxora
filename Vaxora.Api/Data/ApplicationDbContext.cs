@@ -16,6 +16,13 @@ public class ApplicationDbContext : DbContext
     public DbSet<HospitalProfile> HospitalProfiles => Set<HospitalProfile>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
+    // === INVENTORY MODULE (Added) ===
+    public DbSet<Vaccine> Vaccines => Set<Vaccine>();
+    public DbSet<HospitalFormulary> HospitalFormularies => Set<HospitalFormulary>();
+    public DbSet<Batch> Batches => Set<Batch>();
+    public DbSet<InventoryTransaction> InventoryTransactions => Set<InventoryTransaction>();
+    public DbSet<ColdVault> ColdVaults => Set<ColdVault>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -97,5 +104,45 @@ public class ApplicationDbContext : DbContext
             .WithOne(h => h.User)
             .HasForeignKey<HospitalProfile>(h => h.UserId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        // === INVENTORY MODULE CONFIGURATION (Added) ===
+        modelBuilder.Entity<Vaccine>()
+            .Property(v => v.Category)
+            .HasConversion<string>();
+
+        modelBuilder.Entity<Batch>()
+            .Property(b => b.Status)
+            .HasConversion<string>();
+
+        modelBuilder.Entity<InventoryTransaction>()
+            .Property(t => t.Type)
+            .HasConversion<string>();
+
+        modelBuilder.Entity<InventoryTransaction>()
+            .Property(t => t.WastageReason)
+            .HasConversion<string>();
+
+        // Unique: one vaccine entry per hospital formulary
+        modelBuilder.Entity<HospitalFormulary>()
+            .HasIndex(f => new { f.HospitalProfileId, f.VaccineId })
+            .IsUnique();
+
+        // Unique: batch number per hospital
+        modelBuilder.Entity<Batch>()
+            .HasIndex(b => new { b.HospitalProfileId, b.BatchNumber })
+            .IsUnique();
+
+        // Performance indexes
+        modelBuilder.Entity<Batch>()
+            .HasIndex(b => b.ExpiryDate);
+
+        modelBuilder.Entity<Batch>()
+            .HasIndex(b => b.HospitalProfileId);
+
+        modelBuilder.Entity<InventoryTransaction>()
+            .HasIndex(t => t.BatchId);
+
+        modelBuilder.Entity<InventoryTransaction>()
+            .HasIndex(t => t.Timestamp);
     }
 }

@@ -50,6 +50,25 @@ public static class DbInitializer
                 await context.SaveChangesAsync();
                 logger.LogInformation("Administrator account successfully seeded: {AdminEmail}", adminEmail);
             }
+
+            // === INVENTORY MODULE: SEED GLOBAL VACCINES (Added) ===
+            if (!await context.Vaccines.AnyAsync())
+            {
+                var globalVaccines = new List<Vaccine>
+                {
+                    new Vaccine { Name = "Pfizer-BioNTech Bivalent (mRNA)", Manufacturer = "Pfizer Inc. & BioNTech", Category = VaccineCategory.MRNA, DosesPerVial = 6, RequiredTemp = "-75°C Ultra Cold", DefaultMinThreshold = 400 },
+                    new Vaccine { Name = "Moderna Spikevax mRNA-1273", Manufacturer = "ModernaTX, Inc.", Category = VaccineCategory.MRNA, DosesPerVial = 5, RequiredTemp = "-20°C Freezer", DefaultMinThreshold = 300 },
+                    new Vaccine { Name = "Influenza Quadrivalent (Seasonal)", Manufacturer = "Sanofi Pasteur", Category = VaccineCategory.Seasonal, DosesPerVial = 1, RequiredTemp = "2°C to 8°C Chilled", DefaultMinThreshold = 200 },
+                    new Vaccine { Name = "Hepatitis B Recombinant", Manufacturer = "GlaxoSmithKline (GSK)", Category = VaccineCategory.Routine, DosesPerVial = 1, RequiredTemp = "2°C to 8°C Chilled", DefaultMinThreshold = 200 },
+                    new Vaccine { Name = "MMR (Measles, Mumps, Rubella)", Manufacturer = "Merck & Co.", Category = VaccineCategory.Pediatric, DosesPerVial = 1, RequiredTemp = "2°C to 8°C Chilled", DefaultMinThreshold = 250 },
+                    new Vaccine { Name = "Tdap (Tetanus, Diphtheria, Pertussis)", Manufacturer = "Serum Institute / Sanofi", Category = VaccineCategory.Routine, DosesPerVial = 1, RequiredTemp = "2°C to 8°C Chilled", DefaultMinThreshold = 150 },
+                    new Vaccine { Name = "Rabies Inactivated Vaccine (Verorab)", Manufacturer = "Sanofi Pasteur", Category = VaccineCategory.Routine, DosesPerVial = 1, RequiredTemp = "2°C to 8°C Chilled", DefaultMinThreshold = 80 }
+                };
+
+                context.Vaccines.AddRange(globalVaccines);
+                await context.SaveChangesAsync();
+                logger.LogInformation("Seeded {Count} global vaccines.", globalVaccines.Count);
+            }
         }
         catch (Exception ex)
         {
