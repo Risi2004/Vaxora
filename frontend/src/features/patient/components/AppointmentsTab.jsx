@@ -1,34 +1,42 @@
-import React, { useState, useEffect } from 'react';
-
-const TIME_SLOTS = [
-  '09.00 am',
-  '10.30 am',
-  '11.30 am',
-  '02.00 pm',
-  '03.30 pm',
-  '04.30 pm',
-];
+import React, { useState, useEffect, useCallback } from 'react';
+import { appointmentService } from '../services/appointmentService';
 
 export default function AppointmentsTab() {
   const [vaccinesList, setVaccinesList] = useState([]);
   const [availableHospitals, setAvailableHospitals] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [availableDates, setAvailableDates] = useState([]);
+  const [availableSlots, setAvailableSlots] = useState([]);
   
+  const [loadingVaccines, setLoadingVaccines] = useState(true);
+  const [loadingDates, setLoadingDates] = useState(false);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [loadingAppointments, setLoadingAppointments] = useState(true);
+
   const [formData, setFormData] = useState({
     vaccine: '',
+    vaccineId: null,
     hospital: '',
+    hospitalUserId: null,
     date: '',
     time: '',
+    scheduleId: null,
+    notes: '',
   });
 
   const [appointments, setAppointments] = useState([]);
   const [notification, setNotification] = useState('');
 
-  // Fetch live vaccines & hospital offerings strictly from database API
+  const showToast = (msg) => {
+    setNotification(msg);
+    setTimeout(() => setNotification(''), 4000);
+  };
+
+  // 1. Fetch available vaccines and hospitals from database
   useEffect(() => {
     const fetchVaccines = async () => {
       try {
-        setIsLoading(true);
+        setLoadingVaccines(true);
         const token = localStorage.getItem('vaxora_token') || sessionStorage.getItem('vaxora_token');
         const res = await fetch('/api/inventory/vaccines-with-hospitals', {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -41,9 +49,9 @@ export default function AppointmentsTab() {
               name: v.name,
               category: v.category || 'Routine',
               manufacturer: v.manufacturer || '',
-              // Hospitals offering this vaccine strictly from database HospitalFormularies
               hospitals: (v.hospitals || []).map((h) => ({
-                id: h.id,
+                id: h.id, // Hospital user or profile ID
+                userId: h.userId || h.id,
                 name: h.name,
                 location: h.district || h.location || 'Sri Lanka',
                 type: h.type || 'Approved Hospital',
@@ -53,55 +61,132 @@ export default function AppointmentsTab() {
           }
         }
       } catch (err) {
-        console.error('Error fetching live vaccines from DB:', err);
+        console.error('Error fetching vaccines with hospitals:', err);
       } finally {
-        setIsLoading(false);
+        setLoadingVaccines(false);
       }
     };
 
     fetchVaccines();
   }, []);
 
-  // Today's minimum selectable date (ISO format YYYY-MM-DD)
-  const today = new Date().toISOString().split('T')[0];
+  // 2. Fetch logged-in patient's saved appointments from database
+  const loadMyAppointments = useCallback(async () => {
+    try {
+      setLoadingAppointments(true);
+      const data = await appointmentService.getPatientAppointments();
+      if (Array.isArray(data)) {
+        setAppointments(data);
+      } else {
+        setAppointments([]);
+      }
+    } catch (err) {
+      console.error('Error loading patient appointments:', err);
+    } finally {
+      setLoadingAppointments(false);
+    }
+  }, []);
 
-  // 1. Handle Vaccine Selection Change
+  useEffect(() => {
+    loadMyAppointments();
+  }, [loadMyAppointments]);
+
+  // 3. Handle Vaccine Selection Change
   const handleVaccineChange = (e) => {
     const selectedName = e.target.value;
     const selectedObj = vaccinesList.find((v) => v.name === selectedName);
-    
+
     const hospitals = selectedObj?.hospitals || [];
     setAvailableHospitals(hospitals);
+    setAvailableDates([]);
+    setAvailableSlots([]);
 
-    // Reset downstream fields when vaccine changes
+    // Reset downstream fields
     setFormData({
       vaccine: selectedName,
+      vaccineId: selectedObj?.id || null,
       hospital: '',
+      hospitalUserId: null,
       date: '',
       time: '',
+      scheduleId: null,
+      notes: '',
     });
   };
 
-  // 2. Handle Hospital Selection Change
-  const handleHospitalChange = (e) => {
-    const selectedHospital = e.target.value;
+  // 4. Handle Hospital Selection Change -> Loads available dates for vaccine
+  const handleHospitalChange = async (e) => {
+    const selectedHospitalUserId = e.target.value;
+    const selectedHospitalObj = availableHospitals.find(
+      (h) => String(h.userId || h.id) === String(selectedHospitalUserId)
+    );
+
+    const hospitalDisplayName = selectedHospitalObj
+      ? `${selectedHospitalObj.name} (${selectedHospitalObj.location})`
+      : '';
+
     setFormData((prev) => ({
       ...prev,
-      hospital: selectedHospital,
+      hospital: hospitalDisplayName,
+      hospitalUserId: selectedHospitalUserId,
       date: '',
       time: '',
+      scheduleId: null,
     }));
+
+    setAvailableDates([]);
+    setAvailableSlots([]);
+
+    if (selectedHospitalUserId && formData.vaccine) {
+      try {
+        setLoadingDates(true);
+        const dates = await appointmentService.getAvailableDates(
+          selectedHospitalUserId,
+          formData.vaccine
+        );
+        setAvailableDates(Array.isArray(dates) ? dates : []);
+      } catch (err) {
+        console.error('Failed to load available dates:', err);
+        setAvailableDates([]);
+      } finally {
+        setLoadingDates(false);
+      }
+    }
   };
 
-  // 3. Handle Date & Time Changes
-  const handleDateChange = (e) => {
+  // 5. Handle Date Selection Change -> Loads available 20-minute time slots
+  const handleDateChange = async (e) => {
+    const selectedDate = e.target.value;
+    const selectedDateObj = availableDates.find((d) => d.Date === selectedDate || d.date === selectedDate);
+
     setFormData((prev) => ({
       ...prev,
-      date: e.target.value,
+      date: selectedDate,
       time: '',
+      scheduleId: selectedDateObj?.scheduleId || selectedDateObj?.ScheduleId || null,
     }));
+
+    setAvailableSlots([]);
+
+    if (formData.hospitalUserId && formData.vaccine && selectedDate) {
+      try {
+        setLoadingSlots(true);
+        const slots = await appointmentService.getAvailableSlots(
+          formData.hospitalUserId,
+          formData.vaccine,
+          selectedDate
+        );
+        setAvailableSlots(Array.isArray(slots) ? slots : []);
+      } catch (err) {
+        console.error('Failed to load available slots:', err);
+        setAvailableSlots([]);
+      } finally {
+        setLoadingSlots(false);
+      }
+    }
   };
 
+  // 6. Handle Time Slot Selection
   const handleTimeChange = (e) => {
     setFormData((prev) => ({
       ...prev,
@@ -109,35 +194,63 @@ export default function AppointmentsTab() {
     }));
   };
 
-  // 4. Handle Form Submission
-  const handleBook = (e) => {
+  // 7. Handle Form Submission -> Persists Appointment to Database
+  const handleBook = async (e) => {
     e.preventDefault();
-    if (!formData.vaccine || !formData.hospital || !formData.date || !formData.time) {
+    if (!formData.vaccine || !formData.hospitalUserId || !formData.date || !formData.time) {
       alert('Please complete all steps (Vaccine, Hospital, Date, and Time).');
       return;
     }
 
-    const newApt = {
-      id: Date.now(),
-      vaccine: formData.vaccine,
-      date: formData.date,
-      time: formData.time,
-      location: formData.hospital,
+    const payload = {
+      hospitalUserId: formData.hospitalUserId,
+      vaccineName: formData.vaccine,
+      vaccineId: formData.vaccineId,
+      vaccineScheduleId: formData.scheduleId,
+      appointmentDate: formData.date,
+      timeSlot: formData.time,
+      notes: formData.notes || null,
     };
 
-    setAppointments((prev) => [newApt, ...prev]);
-    setFormData({ vaccine: '', hospital: '', date: '', time: '' });
-    setAvailableHospitals([]);
-    setNotification('Appointment booked successfully!');
-    setTimeout(() => setNotification(''), 4000);
+    try {
+      setSubmitting(true);
+      await appointmentService.bookAppointment(payload);
+      showToast('Appointment reserved and saved successfully in database!');
+
+      // Reset form
+      setFormData({
+        vaccine: '',
+        vaccineId: null,
+        hospital: '',
+        hospitalUserId: null,
+        date: '',
+        time: '',
+        scheduleId: null,
+        notes: '',
+      });
+      setAvailableHospitals([]);
+      setAvailableDates([]);
+      setAvailableSlots([]);
+
+      // Reload appointments from database
+      await loadMyAppointments();
+    } catch (err) {
+      alert(`Booking failed: ${err.message}`);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  // 5. Handle Appointment Cancellation
-  const handleCancel = (id) => {
-    if (window.confirm('Are you sure you want to cancel this appointment?')) {
-      setAppointments((prev) => prev.filter((apt) => apt.id !== id));
-      setNotification('Appointment cancelled.');
-      setTimeout(() => setNotification(''), 3000);
+  // 8. Handle Appointment Cancellation
+  const handleCancel = async (id) => {
+    if (window.confirm('Are you sure you want to cancel this appointment slot?')) {
+      try {
+        await appointmentService.cancelAppointment(id);
+        showToast('Appointment cancelled successfully.');
+        await loadMyAppointments();
+      } catch (err) {
+        alert(`Failed to cancel appointment: ${err.message}`);
+      }
     }
   };
 
@@ -157,7 +270,7 @@ export default function AppointmentsTab() {
         text: `No hospitals are currently offering "${formData.vaccine}". Please select another vaccine.`,
       };
     }
-    if (!formData.hospital) {
+    if (!formData.hospitalUserId) {
       return {
         type: 'guide-success',
         icon: '🏥',
@@ -168,32 +281,34 @@ export default function AppointmentsTab() {
       return {
         type: 'guide-prompt',
         icon: '📅',
-        text: 'Step 3: Select your preferred appointment date.',
+        text: availableDates.length > 0
+          ? `Step 3: Choose an available session date (${availableDates.length} date(s) found).`
+          : 'Step 3: Checking available schedule dates from hospital...',
       };
     }
     if (!formData.time) {
       return {
         type: 'guide-prompt',
         icon: '⏰',
-        text: 'Step 4: Select an available time slot.',
+        text: 'Step 4: Select an available 20-minute time slot.',
       };
     }
     return {
       type: 'guide-success',
       icon: '✅',
-      text: 'Ready! Click "Book Appointment" to confirm your vaccination slot.',
+      text: 'Ready! Click "Book Appointment" to reserve your vaccination slot.',
     };
   };
 
   const stepInfo = getStepGuide();
   const isVaccineSelected = Boolean(formData.vaccine);
-  const isHospitalSelected = Boolean(formData.hospital);
+  const isHospitalSelected = Boolean(formData.hospitalUserId);
   const isDateSelected = Boolean(formData.date);
-  const isFormComplete = Boolean(formData.vaccine && formData.hospital && formData.date && formData.time);
+  const isFormComplete = Boolean(formData.vaccine && formData.hospitalUserId && formData.date && formData.time);
 
   return (
     <div className="manage-appointments-wrapper">
-      {/* Outer White Card Container matching screenshot */}
+      {/* Outer White Card Container */}
       <div className="manage-appointments-card">
         {/* Main Heading */}
         <h1 className="manage-appointments-title">
@@ -203,7 +318,7 @@ export default function AppointmentsTab() {
         {/* Notification Alert */}
         {notification && (
           <div className="appointment-alert-pill" role="alert">
-            {notification}
+            ✓ {notification}
           </div>
         )}
 
@@ -233,11 +348,11 @@ export default function AppointmentsTab() {
                     value={formData.vaccine}
                     onChange={handleVaccineChange}
                     className="book-form-select"
-                    disabled={isLoading}
+                    disabled={loadingVaccines}
                     required
                   >
                     <option value="" disabled>
-                      {isLoading ? 'Loading vaccines from database...' : 'Select Vaccine'}
+                      {loadingVaccines ? 'Loading vaccines from database...' : 'Select Vaccine'}
                     </option>
                     {vaccinesList.map((v) => (
                       <option key={v.id} value={v.name}>
@@ -268,8 +383,8 @@ export default function AppointmentsTab() {
                 <div className={`select-dropdown-wrap ${!isVaccineSelected ? 'disabled' : ''}`}>
                   <select
                     id="select-hospital"
-                    name="hospital"
-                    value={formData.hospital}
+                    name="hospitalUserId"
+                    value={formData.hospitalUserId || ''}
                     onChange={handleHospitalChange}
                     className="book-form-select"
                     disabled={!isVaccineSelected || availableHospitals.length === 0}
@@ -283,7 +398,7 @@ export default function AppointmentsTab() {
                         : 'Select Hospital'}
                     </option>
                     {availableHospitals.map((hosp) => (
-                      <option key={hosp.id} value={`${hosp.name} (${hosp.location})`}>
+                      <option key={hosp.userId || hosp.id} value={hosp.userId || hosp.id}>
                         {hosp.name} - {hosp.location}
                       </option>
                     ))}
@@ -301,7 +416,7 @@ export default function AppointmentsTab() {
                 )}
               </div>
 
-              {/* 3. Date (Disabled until Hospital is chosen) */}
+              {/* 3. Available Date Dropdown (Unlocked after Hospital is chosen) */}
               <div className="book-form-group">
                 <label
                   className={`book-form-label ${!isHospitalSelected ? 'disabled' : ''}`}
@@ -309,33 +424,62 @@ export default function AppointmentsTab() {
                 >
                   Date <span style={{ color: '#dc2626' }}>*</span>
                 </label>
-                <div className={`date-input-wrap ${!isHospitalSelected ? 'disabled' : ''}`}>
-                  <input
+                <div className={`select-dropdown-wrap ${!isHospitalSelected ? 'disabled' : ''}`}>
+                  <select
                     id="select-date"
-                    type="date"
                     name="date"
                     value={formData.date}
                     onChange={handleDateChange}
-                    min={today}
-                    disabled={!isHospitalSelected}
-                    className="book-form-input date-picker"
+                    className="book-form-select"
+                    disabled={!isHospitalSelected || loadingDates}
                     required
-                  />
+                  >
+                    <option value="" disabled>
+                      {!isHospitalSelected
+                        ? 'Select Hospital first...'
+                        : loadingDates
+                        ? 'Loading available schedule dates...'
+                        : availableDates.length === 0
+                        ? 'No upcoming sessions scheduled by hospital'
+                        : 'Select Available Date'}
+                    </option>
+                    {availableDates.map((d) => {
+                      const dateVal = d.date || d.Date;
+                      const display = d.displayText || d.DisplayText || `${dateVal} (${d.dayOfWeek || d.DayOfWeek})`;
+                      return (
+                        <option key={dateVal} value={dateVal}>
+                          📅 {display}
+                        </option>
+                      );
+                    })}
+                  </select>
                 </div>
-                {!isHospitalSelected && (
+                {!isHospitalSelected ? (
                   <span className="field-helper-hint">
                     Select a hospital to enable date selection
+                  </span>
+                ) : loadingDates ? (
+                  <span className="field-helper-hint">
+                    Fetching hospital immunization schedules...
+                  </span>
+                ) : availableDates.length === 0 ? (
+                  <span className="field-helper-hint hint-warning">
+                    ⚠️ Hospital has not yet posted active schedule slots for this vaccine.
+                  </span>
+                ) : (
+                  <span className="field-helper-hint hint-success">
+                    ✓ {availableDates.length} upcoming session date(s) available
                   </span>
                 )}
               </div>
 
-              {/* 4. Time (Disabled until Date is chosen) */}
+              {/* 4. 20-Minute Time Slot Dropdown (Unlocked after Date is chosen) */}
               <div className="book-form-group">
                 <label
                   className={`book-form-label ${!isDateSelected ? 'disabled' : ''}`}
                   htmlFor="select-time"
                 >
-                  Time <span style={{ color: '#dc2626' }}>*</span>
+                  Time Slot (20-Minute Sessions) <span style={{ color: '#dc2626' }}>*</span>
                 </label>
                 <div className={`select-dropdown-wrap ${!isDateSelected ? 'disabled' : ''}`}>
                   <select
@@ -344,22 +488,49 @@ export default function AppointmentsTab() {
                     value={formData.time}
                     onChange={handleTimeChange}
                     className="book-form-select"
-                    disabled={!isDateSelected}
+                    disabled={!isDateSelected || loadingSlots}
                     required
                   >
                     <option value="" disabled>
-                      {!isDateSelected ? 'Select Date first...' : 'Select Time'}
+                      {!isDateSelected
+                        ? 'Select Date first...'
+                        : loadingSlots
+                        ? 'Loading 20-minute slots...'
+                        : availableSlots.length === 0
+                        ? 'No slots available'
+                        : 'Select 20-Min Time Slot'}
                     </option>
-                    {TIME_SLOTS.map((slot) => (
-                      <option key={slot} value={slot}>
-                        {slot}
-                      </option>
-                    ))}
+                    {availableSlots.map((slotObj) => {
+                      const slotText = slotObj.slot || slotObj.Slot;
+                      const isBooked = slotObj.isBooked || slotObj.IsBooked;
+                      return (
+                        <option
+                          key={slotText}
+                          value={slotText}
+                          disabled={isBooked}
+                          style={isBooked ? { color: '#94a3b8', background: '#f1f5f9' } : { color: '#0f172a' }}
+                        >
+                          {isBooked ? `⛔ ${slotText} (Booked - Unavailable)` : `🟢 ${slotText} (Available)`}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
-                {!isDateSelected && (
+                {!isDateSelected ? (
                   <span className="field-helper-hint">
-                    Select a date to view available time slots
+                    Select a date to view available 20-min slots
+                  </span>
+                ) : loadingSlots ? (
+                  <span className="field-helper-hint">
+                    Calculating 20-minute intervals and checking existing bookings...
+                  </span>
+                ) : availableSlots.filter((s) => !s.isBooked && !s.IsBooked).length === 0 ? (
+                  <span className="field-helper-hint hint-warning">
+                    ⚠️ All 20-minute slots on this date are fully booked. Please select another date.
+                  </span>
+                ) : (
+                  <span className="field-helper-hint hint-success">
+                    ✓ {availableSlots.filter((s) => !s.isBooked && !s.IsBooked).length} slot(s) open for booking (each slot = 20 min)
                   </span>
                 )}
               </div>
@@ -370,14 +541,14 @@ export default function AppointmentsTab() {
               <button
                 type="submit"
                 className="btn-book-appointment"
-                disabled={!isFormComplete}
+                disabled={!isFormComplete || submitting}
                 title={
                   !isFormComplete
                     ? 'Please complete all steps to book your appointment'
                     : 'Click to book appointment'
                 }
               >
-                Book Appointment
+                {submitting ? 'Reserving Slot...' : 'Book Appointment'}
               </button>
             </div>
           </form>
@@ -385,9 +556,20 @@ export default function AppointmentsTab() {
 
         {/* Appointments Lower Section */}
         <div className="appointments-list-section">
-          <h2 className="appointments-section-heading">
-            Appointments
-          </h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <h2 className="appointments-section-heading" style={{ margin: 0 }}>
+              Appointments
+            </h2>
+            <button
+              type="button"
+              className="hospital-filter-btn"
+              onClick={loadMyAppointments}
+              disabled={loadingAppointments}
+              style={{ padding: '6px 14px', fontSize: '0.85rem' }}
+            >
+              🔄 Refresh
+            </button>
+          </div>
 
           <div className="appointments-table-container">
             <table className="custom-appointments-table">
@@ -395,33 +577,82 @@ export default function AppointmentsTab() {
                 <tr>
                   <th className="th-vaccine">Vaccine</th>
                   <th className="th-date">Date</th>
-                  <th className="th-time">Time</th>
-                  <th className="th-location">Location</th>
+                  <th className="th-time">Time Slot</th>
+                  <th className="th-location">Hospital / Center</th>
+                  <th style={{ padding: '14px 16px', textAlign: 'center' }}>Status</th>
                   <th className="th-action">Action</th>
                 </tr>
               </thead>
               <tbody>
-                {appointments.length === 0 ? (
+                {loadingAppointments ? (
                   <tr>
-                    <td colSpan="5" className="empty-appointments-cell">
-                      No current appointments scheduled.
+                    <td colSpan="6" className="empty-appointments-cell">
+                      Loading your appointments from database...
+                    </td>
+                  </tr>
+                ) : appointments.length === 0 ? (
+                  <tr>
+                    <td colSpan="6" className="empty-appointments-cell">
+                      No current appointments scheduled. Select a vaccine above to book your slot.
                     </td>
                   </tr>
                 ) : (
                   appointments.map((apt) => (
-                    <tr key={apt.id}>
-                      <td className="td-vaccine">{apt.vaccine}</td>
-                      <td className="td-date">{apt.date}</td>
-                      <td className="td-time">{apt.time}</td>
-                      <td className="td-location">{apt.location}</td>
-                      <td className="td-action">
-                        <button
-                          type="button"
-                          className="btn-cancel-appointment"
-                          onClick={() => handleCancel(apt.id)}
+                    <tr key={apt.id || apt.Id}>
+                      <td className="td-vaccine">
+                        <div style={{ fontWeight: 600 }}>{apt.vaccineName || apt.vaccine}</div>
+                        {apt.doctorName && (
+                          <div style={{ fontSize: '0.78rem', color: '#64748b' }}>
+                            Dr. {apt.doctorName}
+                          </div>
+                        )}
+                      </td>
+                      <td className="td-date">{apt.appointmentDate || apt.date}</td>
+                      <td className="td-time">
+                        <span style={{ fontWeight: 600, color: '#1e40af' }}>
+                          {apt.timeSlot || apt.time}
+                        </span>
+                      </td>
+                      <td className="td-location">{apt.hospitalName || apt.location}</td>
+                      <td style={{ textAlign: 'center' }}>
+                        <span
+                          style={{
+                            display: 'inline-block',
+                            padding: '4px 10px',
+                            borderRadius: '12px',
+                            fontSize: '0.78rem',
+                            fontWeight: 700,
+                            textTransform: 'uppercase',
+                            backgroundColor:
+                              (apt.status || '').toLowerCase() === 'confirmed'
+                                ? '#dcfce7'
+                                : (apt.status || '').toLowerCase() === 'cancelled'
+                                ? '#fee2e2'
+                                : '#e0f2fe',
+                            color:
+                              (apt.status || '').toLowerCase() === 'confirmed'
+                                ? '#15803d'
+                                : (apt.status || '').toLowerCase() === 'cancelled'
+                                ? '#b91c1c'
+                                : '#0369a1',
+                          }}
                         >
-                          Cancel
-                        </button>
+                          {apt.status || 'Confirmed'}
+                        </span>
+                      </td>
+                      <td className="td-action">
+                        {(apt.status || '').toLowerCase() !== 'cancelled' ? (
+                          <button
+                            type="button"
+                            className="btn-cancel-appointment"
+                            onClick={() => handleCancel(apt.id || apt.Id)}
+                            title="Cancel this appointment slot"
+                          >
+                            Cancel
+                          </button>
+                        ) : (
+                          <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Cancelled</span>
+                        )}
                       </td>
                     </tr>
                   ))

@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
 import { staffService } from '../services/staffService';
 import { inventoryService } from '../services/inventoryService';
 import { scheduleService } from '../services/scheduleService';
+import { appointmentService } from '../../patient/services/appointmentService';
 
 const DAYS_OF_WEEK = [
   { key: 'Monday', label: 'Mon' },
@@ -140,10 +140,25 @@ export default function HospitalAppointmentsTab() {
     }
   }, []);
 
+  // Fetch appointments for this hospital from database
+  const loadHospitalAppointments = useCallback(async () => {
+    try {
+      const data = await appointmentService.getHospitalAppointments();
+      if (Array.isArray(data)) {
+        setAppointments(data);
+      } else {
+        setAppointments([]);
+      }
+    } catch (err) {
+      console.error('Failed to load hospital appointments:', err);
+    }
+  }, []);
+
   useEffect(() => {
     loadOptions();
     loadSchedules();
-  }, [loadOptions, loadSchedules]);
+    loadHospitalAppointments();
+  }, [loadOptions, loadSchedules, loadHospitalAppointments]);
 
   const handleScheduleChange = (e) => {
     const { name, value } = e.target;
@@ -279,25 +294,30 @@ export default function HospitalAppointmentsTab() {
     }
   };
 
-  const handleAcceptAppointment = (id) => {
-    const target = appointments.find((a) => a.id === id);
-    setAppointments((prev) =>
-      prev.map((app) => (app.id === id ? { ...app, status: 'accepted' } : app))
-    );
-    showToast(`Appointment for ${target ? target.pName : 'patient'} confirmed!`);
+  const handleAcceptAppointment = async (id) => {
+    try {
+      await appointmentService.updateAppointmentStatus(id, { status: 'Confirmed' });
+      showToast('Patient appointment confirmed successfully!');
+      await loadHospitalAppointments();
+    } catch (err) {
+      alert(`Failed to confirm appointment: ${err.message}`);
+    }
   };
 
-  const handleRejectAppointment = (id) => {
-    const target = appointments.find((a) => a.id === id);
-    setAppointments((prev) =>
-      prev.map((app) => (app.id === id ? { ...app, status: 'rejected' } : app))
-    );
-    showToast(`Appointment for ${target ? target.pName : 'patient'} declined.`);
+  const handleRejectAppointment = async (id) => {
+    if (!window.confirm('Are you sure you want to decline/cancel this appointment?')) return;
+    try {
+      await appointmentService.cancelAppointment(id);
+      showToast('Appointment declined/cancelled.');
+      await loadHospitalAppointments();
+    } catch (err) {
+      alert(`Failed to cancel appointment: ${err.message}`);
+    }
   };
 
   // Filter appointments according to filterDate
   const filteredAppointments = filterDate
-    ? appointments.filter((app) => app.date === filterDate)
+    ? appointments.filter((app) => (app.appointmentDate || app.date) === filterDate)
     : appointments;
 
   return (
@@ -723,19 +743,37 @@ export default function HospitalAppointmentsTab() {
                   </tr>
                 ) : (
                   filteredAppointments.map((item) => (
-                    <tr key={item.id}>
-                      <td>{item.pName}</td>
-                      <td>{item.date}</td>
-                      <td>{item.time}</td>
-                      <td>{item.vaccine}</td>
+                    <tr key={item.id || item.Id}>
+                      <td>
+                        <div style={{ fontWeight: 600 }}>{item.patientName || item.pName || 'Patient'}</div>
+                        {(item.patientNic || item.patientPhone) && (
+                          <div style={{ fontSize: '0.78rem', color: '#64748b' }}>
+                            {item.patientNic ? `NIC: ${item.patientNic}` : ''} {item.patientPhone ? `• Tel: ${item.patientPhone}` : ''}
+                          </div>
+                        )}
+                      </td>
+                      <td>{item.appointmentDate || item.date}</td>
+                      <td>
+                        <span style={{ fontWeight: 600, color: '#1e40af' }}>
+                          {item.timeSlot || item.time}
+                        </span>
+                      </td>
+                      <td>
+                        <div>{item.vaccineName || item.vaccine}</div>
+                        {item.doctorName && (
+                          <div style={{ fontSize: '0.78rem', color: '#64748b' }}>
+                            Dr. {item.doctorName}
+                          </div>
+                        )}
+                      </td>
                       <td style={{ borderRight: 'none' }}>
-                        {item.status === 'pending' ? (
+                        {(item.status || '').toLowerCase() === 'pending' ? (
                           <div className="mockup-actions-cell">
                             <button
                               type="button"
                               className="btn-mockup-check"
                               title="Accept Appointment"
-                              onClick={() => handleAcceptAppointment(item.id)}
+                              onClick={() => handleAcceptAppointment(item.id || item.Id)}
                             >
                               ✓
                             </button>
@@ -743,15 +781,26 @@ export default function HospitalAppointmentsTab() {
                               type="button"
                               className="btn-mockup-reject"
                               title="Decline Appointment"
-                              onClick={() => handleRejectAppointment(item.id)}
+                              onClick={() => handleRejectAppointment(item.id || item.Id)}
                             >
                               ✕
                             </button>
                           </div>
-                        ) : item.status === 'accepted' ? (
-                          <span className="mockup-status-badge accepted">
-                            Confirmed ✓
-                          </span>
+                        ) : (item.status || '').toLowerCase() === 'confirmed' || (item.status || '').toLowerCase() === 'accepted' ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span className="mockup-status-badge accepted">
+                              Confirmed ✓
+                            </span>
+                            <button
+                              type="button"
+                              className="btn-cancel-schedule"
+                              style={{ padding: '2px 8px', fontSize: '0.75rem' }}
+                              onClick={() => handleRejectAppointment(item.id || item.Id)}
+                              title="Cancel appointment"
+                            >
+                              Cancel
+                            </button>
+                          </div>
                         ) : (
                           <span className="mockup-status-badge rejected">
                             Cancelled ✕
