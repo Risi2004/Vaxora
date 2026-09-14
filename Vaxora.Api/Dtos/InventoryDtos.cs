@@ -15,6 +15,27 @@ public class VaccineDto
     public int DefaultMinThreshold { get; set; }
 }
 
+public class HospitalSummaryDto
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Location { get; set; } = string.Empty;
+    public string? District { get; set; }
+    public string? Type { get; set; }
+    public string? ContactNumber { get; set; }
+}
+
+public class VaccineWithHospitalsDto
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Manufacturer { get; set; } = string.Empty;
+    public string Category { get; set; } = string.Empty;
+    public int DosesPerVial { get; set; }
+    public string RequiredTemp { get; set; } = string.Empty;
+    public List<HospitalSummaryDto> Hospitals { get; set; } = new();
+}
+
 public class FormularyEntryDto
 {
     public Guid Id { get; set; }

@@ -512,9 +512,12 @@ public class EmailService : IEmailService
         var fromName = GetConfigValue("Smtp:FromName", "SMTP_FROM_NAME") ?? "Vaxora Immunization Platform";
         var enableSslStr = GetConfigValue("Smtp:EnableSsl", "SMTP_ENABLE_SSL") ?? "true";
 
-        if (string.IsNullOrWhiteSpace(host) || string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
+        toEmail = toEmail?.Trim() ?? string.Empty;
+        toName = string.IsNullOrWhiteSpace(toName) ? (toEmail.Contains('@') ? toEmail.Split('@')[0] : "User") : toName.Trim();
+
+        if (string.IsNullOrWhiteSpace(host) || string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password) || string.IsNullOrWhiteSpace(toEmail))
         {
-            _logger.LogWarning("SMTP credentials not fully configured (Host: {Host}, User: {User}). Skipping live email dispatch for '{Subject}' to '{Recipient}'.", host, username, subject, toEmail);
+            _logger.LogWarning("SMTP credentials or recipient not fully configured (Host: {Host}, User: {User}, Recipient: {Recipient}). Skipping live email dispatch for '{Subject}'.", host, username, toEmail, subject);
             return false;
         }
 

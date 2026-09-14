@@ -8,6 +8,7 @@ namespace Vaxora.Api.Services;
 public interface IInventoryService
 {
     Task<List<VaccineDto>> GetGlobalVaccinesAsync();
+    Task<List<VaccineWithHospitalsDto>> GetVaccinesWithHospitalsAsync();
     Task<List<FormularyEntryDto>> GetFormularyAsync(Guid userId);
     Task<FormularyEntryDto> RegisterFormularyAsync(Guid userId, RegisterFormularyDto dto);
     Task<bool> RemoveFormularyAsync(Guid userId, Guid formularyId);
@@ -134,6 +135,50 @@ public class InventoryService : IInventoryService
                 DefaultMinThreshold = v.DefaultMinThreshold
             })
             .ToListAsync();
+    }
+
+    public async Task<List<VaccineWithHospitalsDto>> GetVaccinesWithHospitalsAsync()
+    {
+        var vaccines = await _context.Vaccines
+            .OrderBy(v => v.Name)
+            .ToListAsync();
+
+        var formularies = await _context.HospitalFormularies
+            .Include(f => f.HospitalProfile)
+            .ToListAsync();
+
+        var result = new List<VaccineWithHospitalsDto>();
+
+        foreach (var v in vaccines)
+        {
+            var offeringHospitals = formularies
+                .Where(f => f.VaccineId == v.Id && f.HospitalProfile != null)
+                .Select(f => new HospitalSummaryDto
+                {
+                    Id = f.HospitalProfile.Id,
+                    Name = f.HospitalProfile.HospitalName,
+                    Location = f.HospitalProfile.Address,
+                    District = f.HospitalProfile.District,
+                    Type = f.HospitalProfile.HospitalType,
+                    ContactNumber = f.HospitalProfile.ContactNumber
+                })
+                .GroupBy(h => h.Id)
+                .Select(g => g.First())
+                .ToList();
+
+            result.Add(new VaccineWithHospitalsDto
+            {
+                Id = v.Id,
+                Name = v.Name,
+                Manufacturer = v.Manufacturer,
+                Category = ComputeCategory(v.Category),
+                DosesPerVial = v.DosesPerVial,
+                RequiredTemp = v.RequiredTemp,
+                Hospitals = offeringHospitals
+            });
+        }
+
+        return result;
     }
 
     // ==================== FORMULARY ====================

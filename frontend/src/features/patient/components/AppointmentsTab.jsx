@@ -1,6 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+
+const TIME_SLOTS = [
+  '09.00 am',
+  '10.30 am',
+  '11.30 am',
+  '02.00 pm',
+  '03.30 pm',
+  '04.30 pm',
+];
 
 export default function AppointmentsTab() {
+  const [vaccinesList, setVaccinesList] = useState([]);
+  const [availableHospitals, setAvailableHospitals] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  
   const [formData, setFormData] = useState({
     vaccine: '',
     hospital: '',
@@ -8,27 +21,99 @@ export default function AppointmentsTab() {
     time: '',
   });
 
-  const [appointments, setAppointments] = useState([
-    {
-      id: 1,
-      vaccine: 'Influenza',
-      date: '2025-02-24',
-      time: '11.30 am',
-      location: 'Delmon hospital',
-    },
-  ]);
-
+  const [appointments, setAppointments] = useState([]);
   const [notification, setNotification] = useState('');
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+  // Fetch live vaccines & hospital offerings strictly from database API
+  useEffect(() => {
+    const fetchVaccines = async () => {
+      try {
+        setIsLoading(true);
+        const token = localStorage.getItem('vaxora_token') || sessionStorage.getItem('vaxora_token');
+        const res = await fetch('/api/inventory/vaccines-with-hospitals', {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (res.ok) {
+          const apiVaccines = await res.json();
+          if (Array.isArray(apiVaccines)) {
+            const mapped = apiVaccines.map((v) => ({
+              id: v.id,
+              name: v.name,
+              category: v.category || 'Routine',
+              manufacturer: v.manufacturer || '',
+              // Hospitals offering this vaccine strictly from database HospitalFormularies
+              hospitals: (v.hospitals || []).map((h) => ({
+                id: h.id,
+                name: h.name,
+                location: h.district || h.location || 'Sri Lanka',
+                type: h.type || 'Approved Hospital',
+              })),
+            }));
+            setVaccinesList(mapped);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching live vaccines from DB:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchVaccines();
+  }, []);
+
+  // Today's minimum selectable date (ISO format YYYY-MM-DD)
+  const today = new Date().toISOString().split('T')[0];
+
+  // 1. Handle Vaccine Selection Change
+  const handleVaccineChange = (e) => {
+    const selectedName = e.target.value;
+    const selectedObj = vaccinesList.find((v) => v.name === selectedName);
+    
+    const hospitals = selectedObj?.hospitals || [];
+    setAvailableHospitals(hospitals);
+
+    // Reset downstream fields when vaccine changes
+    setFormData({
+      vaccine: selectedName,
+      hospital: '',
+      date: '',
+      time: '',
+    });
   };
 
+  // 2. Handle Hospital Selection Change
+  const handleHospitalChange = (e) => {
+    const selectedHospital = e.target.value;
+    setFormData((prev) => ({
+      ...prev,
+      hospital: selectedHospital,
+      date: '',
+      time: '',
+    }));
+  };
+
+  // 3. Handle Date & Time Changes
+  const handleDateChange = (e) => {
+    setFormData((prev) => ({
+      ...prev,
+      date: e.target.value,
+      time: '',
+    }));
+  };
+
+  const handleTimeChange = (e) => {
+    setFormData((prev) => ({
+      ...prev,
+      time: e.target.value,
+    }));
+  };
+
+  // 4. Handle Form Submission
   const handleBook = (e) => {
     e.preventDefault();
     if (!formData.vaccine || !formData.hospital || !formData.date || !formData.time) {
-      alert('Please select all required fields (Vaccine, Hospital, Date, and Time).');
+      alert('Please complete all steps (Vaccine, Hospital, Date, and Time).');
       return;
     }
 
@@ -42,10 +127,12 @@ export default function AppointmentsTab() {
 
     setAppointments((prev) => [newApt, ...prev]);
     setFormData({ vaccine: '', hospital: '', date: '', time: '' });
+    setAvailableHospitals([]);
     setNotification('Appointment booked successfully!');
     setTimeout(() => setNotification(''), 4000);
   };
 
+  // 5. Handle Appointment Cancellation
   const handleCancel = (id) => {
     if (window.confirm('Are you sure you want to cancel this appointment?')) {
       setAppointments((prev) => prev.filter((apt) => apt.id !== id));
@@ -53,6 +140,56 @@ export default function AppointmentsTab() {
       setTimeout(() => setNotification(''), 3000);
     }
   };
+
+  // Dynamic step message
+  const getStepGuide = () => {
+    if (!formData.vaccine) {
+      return {
+        type: 'guide-prompt',
+        icon: '👉',
+        text: 'Step 1: Please select a vaccine from the list below to check which hospitals are offering it.',
+      };
+    }
+    if (availableHospitals.length === 0) {
+      return {
+        type: 'guide-warning',
+        icon: '⚠️',
+        text: `No hospitals are currently offering "${formData.vaccine}". Please select another vaccine.`,
+      };
+    }
+    if (!formData.hospital) {
+      return {
+        type: 'guide-success',
+        icon: '🏥',
+        text: `Step 2: ${availableHospitals.length} hospital(s) found offering ${formData.vaccine}. Choose your preferred hospital.`,
+      };
+    }
+    if (!formData.date) {
+      return {
+        type: 'guide-prompt',
+        icon: '📅',
+        text: 'Step 3: Select your preferred appointment date.',
+      };
+    }
+    if (!formData.time) {
+      return {
+        type: 'guide-prompt',
+        icon: '⏰',
+        text: 'Step 4: Select an available time slot.',
+      };
+    }
+    return {
+      type: 'guide-success',
+      icon: '✅',
+      text: 'Ready! Click "Book Appointment" to confirm your vaccination slot.',
+    };
+  };
+
+  const stepInfo = getStepGuide();
+  const isVaccineSelected = Boolean(formData.vaccine);
+  const isHospitalSelected = Boolean(formData.hospital);
+  const isDateSelected = Boolean(formData.date);
+  const isFormComplete = Boolean(formData.vaccine && formData.hospital && formData.date && formData.time);
 
   return (
     <div className="manage-appointments-wrapper">
@@ -76,110 +213,170 @@ export default function AppointmentsTab() {
             Book a New Appointment
           </h2>
 
+          {/* Dynamic Step Guidance Prompt */}
+          <div className={`booking-step-guide ${stepInfo.type}`}>
+            <span style={{ fontSize: '1.2rem', marginRight: '6px' }}>{stepInfo.icon}</span>
+            <span>{stepInfo.text}</span>
+          </div>
+
           <form onSubmit={handleBook} className="book-appointment-form">
             <div className="book-form-grid">
-              {/* Select Vaccine */}
+              {/* 1. Select Vaccine (Always Enabled) */}
               <div className="book-form-group">
                 <label className="book-form-label" htmlFor="select-vaccine">
-                  Select Vaccine
+                  Select Vaccine <span style={{ color: '#dc2626' }}>*</span>
                 </label>
                 <div className="select-dropdown-wrap">
                   <select
                     id="select-vaccine"
                     name="vaccine"
                     value={formData.vaccine}
-                    onChange={handleChange}
+                    onChange={handleVaccineChange}
                     className="book-form-select"
+                    disabled={isLoading}
                     required
                   >
                     <option value="" disabled>
-                      Select Vaccine
+                      {isLoading ? 'Loading vaccines from database...' : 'Select Vaccine'}
                     </option>
-                    <option value="Influenza">Influenza</option>
-                    <option value="COVID-19 Booster">COVID-19 mRNA Booster</option>
-                    <option value="Hepatitis B">Hepatitis B (Recombinant)</option>
-                    <option value="Tetanus, Diphtheria (Td)">Tetanus, Diphtheria (Td)</option>
-                    <option value="HPV 9-Valent">HPV 9-Valent (Gardasil)</option>
-                    <option value="Yellow Fever">Yellow Fever</option>
+                    {vaccinesList.map((v) => (
+                      <option key={v.id} value={v.name}>
+                        {v.name} ({v.category})
+                      </option>
+                    ))}
                   </select>
                 </div>
+                {!isVaccineSelected ? (
+                  <span className="field-helper-hint hint-warning">
+                    * Required: Select a vaccine to unlock hospital list
+                  </span>
+                ) : (
+                  <span className="field-helper-hint hint-success">
+                    ✓ Vaccine selected: {formData.vaccine}
+                  </span>
+                )}
               </div>
 
-              {/* Select Hospital */}
+              {/* 2. Select Hospital (Disabled until Vaccine is chosen) */}
               <div className="book-form-group">
-                <label className="book-form-label" htmlFor="select-hospital">
-                  Select Hospital
+                <label
+                  className={`book-form-label ${!isVaccineSelected ? 'disabled' : ''}`}
+                  htmlFor="select-hospital"
+                >
+                  Select Hospital <span style={{ color: '#dc2626' }}>*</span>
                 </label>
-                <div className="select-dropdown-wrap">
+                <div className={`select-dropdown-wrap ${!isVaccineSelected ? 'disabled' : ''}`}>
                   <select
                     id="select-hospital"
                     name="hospital"
                     value={formData.hospital}
-                    onChange={handleChange}
+                    onChange={handleHospitalChange}
                     className="book-form-select"
+                    disabled={!isVaccineSelected || availableHospitals.length === 0}
                     required
                   >
                     <option value="" disabled>
-                      Select Hospital
+                      {!isVaccineSelected
+                        ? 'Select Vaccine first...'
+                        : availableHospitals.length === 0
+                        ? 'No hospitals offering this vaccine'
+                        : 'Select Hospital'}
                     </option>
-                    <option value="Delmon hospital">Delmon hospital</option>
-                    <option value="National Hospital of Sri Lanka">National Hospital of Sri Lanka</option>
-                    <option value="Asiri Central Hospital">Asiri Central Hospital</option>
-                    <option value="The Lanka Hospitals">The Lanka Hospitals</option>
-                    <option value="Durdans Hospital">Durdans Hospital</option>
-                    <option value="Teaching Hospital Kandy">Teaching Hospital Kandy</option>
+                    {availableHospitals.map((hosp) => (
+                      <option key={hosp.id} value={`${hosp.name} (${hosp.location})`}>
+                        {hosp.name} - {hosp.location}
+                      </option>
+                    ))}
                   </select>
                 </div>
+                {isVaccineSelected && availableHospitals.length > 0 && (
+                  <span className="field-helper-hint hint-success">
+                    ✓ {availableHospitals.length} hospital(s) offering this vaccine
+                  </span>
+                )}
+                {isVaccineSelected && availableHospitals.length === 0 && (
+                  <span className="field-helper-hint hint-warning">
+                    ⚠️ No hospitals currently offer this vaccine
+                  </span>
+                )}
               </div>
 
-              {/* Date */}
+              {/* 3. Date (Disabled until Hospital is chosen) */}
               <div className="book-form-group">
-                <label className="book-form-label" htmlFor="select-date">
-                  Date
+                <label
+                  className={`book-form-label ${!isHospitalSelected ? 'disabled' : ''}`}
+                  htmlFor="select-date"
+                >
+                  Date <span style={{ color: '#dc2626' }}>*</span>
                 </label>
-                <div className="date-input-wrap">
+                <div className={`date-input-wrap ${!isHospitalSelected ? 'disabled' : ''}`}>
                   <input
                     id="select-date"
                     type="date"
                     name="date"
                     value={formData.date}
-                    onChange={handleChange}
+                    onChange={handleDateChange}
+                    min={today}
+                    disabled={!isHospitalSelected}
                     className="book-form-input date-picker"
                     required
                   />
                 </div>
+                {!isHospitalSelected && (
+                  <span className="field-helper-hint">
+                    Select a hospital to enable date selection
+                  </span>
+                )}
               </div>
 
-              {/* Time */}
+              {/* 4. Time (Disabled until Date is chosen) */}
               <div className="book-form-group">
-                <label className="book-form-label" htmlFor="select-time">
-                  Time
+                <label
+                  className={`book-form-label ${!isDateSelected ? 'disabled' : ''}`}
+                  htmlFor="select-time"
+                >
+                  Time <span style={{ color: '#dc2626' }}>*</span>
                 </label>
-                <div className="select-dropdown-wrap">
+                <div className={`select-dropdown-wrap ${!isDateSelected ? 'disabled' : ''}`}>
                   <select
                     id="select-time"
                     name="time"
                     value={formData.time}
-                    onChange={handleChange}
+                    onChange={handleTimeChange}
                     className="book-form-select"
+                    disabled={!isDateSelected}
                     required
                   >
                     <option value="" disabled>
-                      Select Time
+                      {!isDateSelected ? 'Select Date first...' : 'Select Time'}
                     </option>
-                    <option value="09.00 am">09.00 am</option>
-                    <option value="10.30 am">10.30 am</option>
-                    <option value="11.30 am">11.30 am</option>
-                    <option value="02.00 pm">02.00 pm</option>
-                    <option value="03.30 pm">03.30 pm</option>
+                    {TIME_SLOTS.map((slot) => (
+                      <option key={slot} value={slot}>
+                        {slot}
+                      </option>
+                    ))}
                   </select>
                 </div>
+                {!isDateSelected && (
+                  <span className="field-helper-hint">
+                    Select a date to view available time slots
+                  </span>
+                )}
               </div>
             </div>
 
             {/* Book Appointment CTA Button */}
             <div className="book-btn-wrap">
-              <button type="submit" className="btn-book-appointment">
+              <button
+                type="submit"
+                className="btn-book-appointment"
+                disabled={!isFormComplete}
+                title={
+                  !isFormComplete
+                    ? 'Please complete all steps to book your appointment'
+                    : 'Click to book appointment'
+                }
+              >
                 Book Appointment
               </button>
             </div>
