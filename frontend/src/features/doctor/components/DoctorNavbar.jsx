@@ -42,6 +42,7 @@ export default function DoctorNavbar() {
     { path: '/doctor/dashboard', label: 'Home' },
     { path: '/doctor/appointments', label: 'Appointments' },
     { path: '/doctor/patients', label: 'Patient history' },
+    { path: '/doctor/affiliations', label: 'Affiliations' },
     { path: '/doctor/feedback', label: 'Feedback' },
   ];
 

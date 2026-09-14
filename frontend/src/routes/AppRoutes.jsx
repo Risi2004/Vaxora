@@ -29,6 +29,7 @@ import {
   DoctorAppointmentsTab,
   DoctorPatientsTab,
   DoctorProfileTab,
+  DoctorAffiliationsTab,
   FeedbackTab as DoctorFeedbackTab,
 } from '../features/doctor';
 
@@ -38,6 +39,7 @@ import {
   NurseAppointmentsTab,
   NursePatientsTab,
   NurseProfileTab,
+  NurseAffiliationsTab,
   FeedbackTab as NurseFeedbackTab,
 } from '../features/nurse';
 
@@ -114,6 +116,7 @@ export default function AppRoutes() {
         <Route path="patients" element={<DoctorPatientsTab />} />
         <Route path="patient-history" element={<Navigate to="/doctor/patients" replace />} />
         <Route path="history" element={<Navigate to="/doctor/patients" replace />} />
+        <Route path="affiliations" element={<DoctorAffiliationsTab />} />
         <Route path="feedback" element={<DoctorFeedbackTab />} />
         <Route path="profile" element={<DoctorProfileTab />} />
       </Route>
@@ -133,6 +136,7 @@ export default function AppRoutes() {
         <Route path="patients" element={<NursePatientsTab />} />
         <Route path="patient-history" element={<Navigate to="/nurse/patients" replace />} />
         <Route path="history" element={<Navigate to="/nurse/patients" replace />} />
+        <Route path="affiliations" element={<NurseAffiliationsTab />} />
         <Route path="feedback" element={<NurseFeedbackTab />} />
         <Route path="profile" element={<NurseProfileTab />} />
       </Route>

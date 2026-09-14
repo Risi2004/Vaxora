@@ -15,6 +15,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<NurseProfile> NurseProfiles => Set<NurseProfile>();
     public DbSet<HospitalProfile> HospitalProfiles => Set<HospitalProfile>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<StaffAffiliation> StaffAffiliations => Set<StaffAffiliation>();
+    public DbSet<StaffShift> StaffShifts => Set<StaffShift>();
 
     // === INVENTORY MODULE (Added) ===
     public DbSet<Vaccine> Vaccines => Set<Vaccine>();
@@ -122,17 +124,14 @@ public class ApplicationDbContext : DbContext
             .Property(t => t.WastageReason)
             .HasConversion<string>();
 
-        // Unique: one vaccine entry per hospital formulary
         modelBuilder.Entity<HospitalFormulary>()
             .HasIndex(f => new { f.HospitalProfileId, f.VaccineId })
             .IsUnique();
 
-        // Unique: batch number per hospital
         modelBuilder.Entity<Batch>()
             .HasIndex(b => new { b.HospitalProfileId, b.BatchNumber })
             .IsUnique();
 
-        // Performance indexes
         modelBuilder.Entity<Batch>()
             .HasIndex(b => b.ExpiryDate);
 
@@ -144,5 +143,42 @@ public class ApplicationDbContext : DbContext
 
         modelBuilder.Entity<InventoryTransaction>()
             .HasIndex(t => t.Timestamp);
+
+        // === STAFF MANAGEMENT MODULE CONFIGURATION (Teammate) ===
+        modelBuilder.Entity<StaffAffiliation>()
+            .Property(a => a.StaffRole)
+            .HasConversion<string>();
+
+        modelBuilder.Entity<StaffAffiliation>()
+            .Property(a => a.Status)
+            .HasConversion<string>();
+
+        modelBuilder.Entity<StaffAffiliation>()
+            .Property(a => a.DutyStatus)
+            .HasConversion<string>();
+
+        modelBuilder.Entity<StaffAffiliation>()
+            .HasIndex(a => new { a.HospitalUserId, a.StaffUserId });
+
+        modelBuilder.Entity<StaffAffiliation>()
+            .HasOne(a => a.HospitalUser)
+            .WithMany()
+            .HasForeignKey(a => a.HospitalUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<StaffAffiliation>()
+            .HasOne(a => a.StaffUser)
+            .WithMany()
+            .HasForeignKey(a => a.StaffUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<StaffShift>()
+            .HasOne(s => s.Affiliation)
+            .WithMany(a => a.Shifts)
+            .HasForeignKey(s => s.AffiliationId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<StaffShift>()
+            .HasIndex(s => new { s.AffiliationId, s.ShiftDate });
     }
 }

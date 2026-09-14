@@ -42,6 +42,7 @@ export default function NurseNavbar() {
     { path: '/nurse/dashboard', label: 'Home' },
     { path: '/nurse/appointments', label: 'Appointments' },
     { path: '/nurse/patients', label: 'Patient history' },
+    { path: '/nurse/affiliations', label: 'Affiliations' },
     { path: '/nurse/feedback', label: 'Feedback' },
   ];
 

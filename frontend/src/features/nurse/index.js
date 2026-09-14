@@ -5,6 +5,7 @@ export {
   NurseAppointmentsTab,
   NursePatientsTab,
   NurseProfileTab,
+  NurseAffiliationsTab,
   NurseClinicalAdministerModal,
   NurseAefiReportModal,
   FeedbackTab,
