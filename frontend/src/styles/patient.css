@@ -956,12 +956,20 @@
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
   display: flex;
   align-items: center;
-  transition: border-color var(--transition-fast);
+  transition: all var(--transition-fast);
 }
 
 .select-dropdown-wrap:focus-within,
 .date-input-wrap:focus-within {
   border-color: #1a489c;
+}
+
+.select-dropdown-wrap.disabled,
+.date-input-wrap.disabled {
+  background-color: #f1f5f9;
+  border-color: #e2e8f0;
+  cursor: not-allowed;
+  opacity: 0.72;
 }
 
 .book-form-select {
@@ -982,6 +990,25 @@
   background-size: 16px;
 }
 
+.book-form-select:disabled {
+  color: #94a3b8;
+  cursor: not-allowed;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2394a3b8'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2.5' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 16px;
+}
+
+.book-form-input:disabled {
+  color: #94a3b8;
+  cursor: not-allowed;
+  background: transparent;
+}
+
+.book-form-label.disabled {
+  color: #94a3b8;
+}
+
 .book-form-input {
   width: 100%;
   height: 46px;
@@ -992,6 +1019,56 @@
   font-family: var(--font-body);
   color: #1e293b;
   outline: none;
+}
+
+/* Step Prompt Guide Box */
+.booking-step-guide {
+  background: #ffffff;
+  border-left: 4px solid #19469d;
+  border-radius: 10px;
+  padding: 12px 18px;
+  margin-bottom: 22px;
+  display: flex;
+  align-items: center;
+  font-size: 0.94rem;
+  color: #1e293b;
+  font-weight: 600;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+  transition: all var(--transition-fast);
+}
+
+.booking-step-guide.guide-prompt {
+  border-left-color: #19469d;
+  background-color: #ffffff;
+  color: #1e293b;
+}
+
+.booking-step-guide.guide-warning {
+  border-left-color: #f59e0b;
+  background-color: #fffbeb;
+  color: #92400e;
+}
+
+.booking-step-guide.guide-success {
+  border-left-color: #10b981;
+  background-color: #ecfdf5;
+  color: #065f46;
+}
+
+.field-helper-hint {
+  font-size: 0.8rem;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.field-helper-hint.hint-success {
+  color: #0d9488;
+  font-weight: 600;
+}
+
+.field-helper-hint.hint-warning {
+  color: #d97706;
+  font-weight: 600;
 }
 
 .book-btn-wrap {
@@ -1014,10 +1091,18 @@
   transition: all var(--transition-smooth);
 }
 
-.btn-book-appointment:hover {
+.btn-book-appointment:hover:not(:disabled) {
   background-color: #133983;
   transform: translateY(-1px);
   box-shadow: 0 6px 16px rgba(25, 70, 157, 0.45);
+}
+
+.btn-book-appointment:disabled {
+  background-color: #94a3b8;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+  opacity: 0.65;
 }
 
 /* Lower Section: Appointments Table */

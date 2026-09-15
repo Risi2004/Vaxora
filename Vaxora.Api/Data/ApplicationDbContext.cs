@@ -25,6 +25,10 @@ public class ApplicationDbContext : DbContext
     public DbSet<InventoryTransaction> InventoryTransactions => Set<InventoryTransaction>();
     public DbSet<ColdVault> ColdVaults => Set<ColdVault>();
 
+    // === VACCINE APPOINTMENT SCHEDULE & BOOKING MODULE ===
+    public DbSet<VaccineSchedule> VaccineSchedules => Set<VaccineSchedule>();
+    public DbSet<Appointment> Appointments => Set<Appointment>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -164,13 +168,13 @@ public class ApplicationDbContext : DbContext
             .HasOne(a => a.HospitalUser)
             .WithMany()
             .HasForeignKey(a => a.HospitalUserId)
-            .OnDelete(DeleteBehavior.Restrict);
+            .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<StaffAffiliation>()
             .HasOne(a => a.StaffUser)
             .WithMany()
             .HasForeignKey(a => a.StaffUserId)
-            .OnDelete(DeleteBehavior.Restrict);
+            .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<StaffShift>()
             .HasOne(s => s.Affiliation)
