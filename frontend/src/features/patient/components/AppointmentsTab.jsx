@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { appointmentService } from '../services/appointmentService';
 
 export default function AppointmentsTab() {
@@ -12,6 +12,11 @@ export default function AppointmentsTab() {
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [loadingAppointments, setLoadingAppointments] = useState(true);
+
+  // Popup calendar states
+  const [showCalendarPopup, setShowCalendarPopup] = useState(false);
+  const [calendarViewDate, setCalendarViewDate] = useState(() => new Date());
+  const calendarRef = useRef(null);
 
   const [formData, setFormData] = useState({
     vaccine: '',
@@ -75,20 +80,41 @@ export default function AppointmentsTab() {
         if (res.ok) {
           const apiVaccines = await res.json();
           if (Array.isArray(apiVaccines)) {
-            const mapped = apiVaccines.map((v) => ({
-              id: v.id,
-              name: v.name,
-              category: v.category || 'Routine',
-              manufacturer: v.manufacturer || '',
-              hospitals: (v.hospitals || []).map((h) => ({
+            const vaccineMap = new Map();
+            apiVaccines.forEach((v) => {
+              const vName = (v.name || '').trim();
+              if (!vName) return;
+              const key = vName.toLowerCase();
+              const hospList = (v.hospitals || []).map((h) => ({
                 id: h.id, // Hospital user or profile ID
                 userId: h.userId || h.id,
                 name: h.name,
                 location: h.district || h.location || 'Sri Lanka',
                 type: h.type || 'Approved Hospital',
-              })),
-            }));
-            setVaccinesList(mapped);
+              }));
+
+              if (!vaccineMap.has(key)) {
+                vaccineMap.set(key, {
+                  id: v.id,
+                  name: vName,
+                  category: v.category || 'Routine',
+                  manufacturer: v.manufacturer || '',
+                  hospitals: hospList,
+                });
+              } else {
+                // Merge hospitals without duplicates
+                const existing = vaccineMap.get(key);
+                const existingHospIds = new Set(existing.hospitals.map((h) => h.id || h.userId));
+                hospList.forEach((h) => {
+                  if (!existingHospIds.has(h.id || h.userId)) {
+                    existing.hospitals.push(h);
+                    existingHospIds.add(h.id || h.userId);
+                  }
+                });
+              }
+            });
+
+            setVaccinesList(Array.from(vaccineMap.values()));
           }
         }
       } catch (err) {
@@ -180,8 +206,15 @@ export default function AppointmentsTab() {
         const validDates = Array.isArray(dates) ? dates : [];
         setAvailableDates(validDates);
 
-        // Pre-read fee from first available schedule slot
+        // Pre-read fee from first available schedule slot and set calendar view to earliest session
         if (validDates.length > 0) {
+          const firstDateStr = validDates[0].date || validDates[0].Date;
+          if (firstDateStr) {
+            const parts = firstDateStr.split('-').map(Number);
+            if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+              setCalendarViewDate(new Date(parts[0], parts[1] - 1, 1));
+            }
+          }
           const fee = Number(validDates[0].price ?? validDates[0].Price ?? 0);
           setSelectedFee(fee);
         }
@@ -194,10 +227,73 @@ export default function AppointmentsTab() {
     }
   };
 
-  // 5. Handle Date Selection Change -> Loads available 20-minute time slots
-  const handleDateChange = async (e) => {
-    const selectedDate = e.target.value;
-    const selectedDateObj = availableDates.find((d) => (d.Date || d.date) === selectedDate);
+  // Available dates map for quick O(1) lookup
+  const availableDatesMap = useMemo(() => {
+    const map = new Map();
+    availableDates.forEach((d) => {
+      const dateVal = d.date || d.Date;
+      if (dateVal) {
+        map.set(dateVal, d);
+      }
+    });
+    return map;
+  }, [availableDates]);
+
+  // Information about currently selected date
+  const selectedDateInfo = useMemo(() => {
+    if (!formData.date) return null;
+    return availableDatesMap.get(formData.date) || null;
+  }, [formData.date, availableDatesMap]);
+
+  // Close calendar popup when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (calendarRef.current && !calendarRef.current.contains(e.target)) {
+        setShowCalendarPopup(false);
+      }
+    };
+    if (showCalendarPopup) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showCalendarPopup]);
+
+  // Calendar month navigation
+  const handlePrevMonth = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setCalendarViewDate((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+  };
+
+  const handleNextMonth = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setCalendarViewDate((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+  };
+
+  // Generate days array for calendar grid
+  const calendarDays = useMemo(() => {
+    const year = calendarViewDate.getFullYear();
+    const month = calendarViewDate.getMonth();
+    const firstDayIndex = new Date(year, month, 1).getDay(); // 0 = Sun
+    const totalDays = new Date(year, month + 1, 0).getDate();
+
+    const days = [];
+    for (let i = 0; i < firstDayIndex; i++) {
+      days.push(null);
+    }
+    for (let d = 1; d <= totalDays; d++) {
+      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      days.push({ day: d, dateStr });
+    }
+    return days;
+  }, [calendarViewDate]);
+
+  // 5. Handle Date Selection -> Loads available 20-minute time slots
+  const handleSelectDate = async (selectedDate) => {
+    const selectedDateObj = availableDatesMap.get(selectedDate);
 
     // Update fee specifically for this date/schedule
     if (selectedDateObj) {
@@ -213,6 +309,7 @@ export default function AppointmentsTab() {
     }));
 
     setAvailableSlots([]);
+    setShowCalendarPopup(false);
 
     if (formData.hospitalUserId && formData.vaccine && selectedDate) {
       try {
@@ -230,6 +327,11 @@ export default function AppointmentsTab() {
         setLoadingSlots(false);
       }
     }
+  };
+
+  // Fallback for native select change if needed
+  const handleDateChange = (e) => {
+    handleSelectDate(e.target.value);
   };
 
   // 6. Handle Time Slot Selection
@@ -571,44 +673,155 @@ export default function AppointmentsTab() {
                 )}
               </div>
 
-              {/* 3. Available Date Dropdown (Unlocked after Hospital is chosen) */}
-              <div className="book-form-group">
+              {/* 3. Available Date - Interactive Popup Calendar View */}
+              <div className="book-form-group" ref={calendarRef} style={{ position: 'relative' }}>
                 <label
                   className={`book-form-label ${!isHospitalSelected ? 'disabled' : ''}`}
-                  htmlFor="select-date"
+                  htmlFor="select-date-trigger"
                 >
                   Date <span style={{ color: '#dc2626' }}>*</span>
                 </label>
+
                 <div className={`select-dropdown-wrap ${!isHospitalSelected ? 'disabled' : ''}`}>
-                  <select
-                    id="select-date"
-                    name="date"
-                    value={formData.date}
-                    onChange={handleDateChange}
-                    className="book-form-select"
-                    disabled={!isHospitalSelected || loadingDates}
-                    required
+                  <button
+                    id="select-date-trigger"
+                    type="button"
+                    className="cal-trigger-button"
+                    onClick={() => {
+                      if (isHospitalSelected && !loadingDates && availableDates.length > 0) {
+                        setShowCalendarPopup((prev) => !prev);
+                      }
+                    }}
+                    disabled={!isHospitalSelected || loadingDates || availableDates.length === 0}
                   >
-                    <option value="" disabled>
-                      {!isHospitalSelected
-                        ? 'Select Hospital first...'
-                        : loadingDates
-                        ? 'Loading available schedule dates...'
-                        : availableDates.length === 0
-                        ? 'No upcoming sessions scheduled by hospital'
-                        : 'Select Available Date'}
-                    </option>
-                    {availableDates.map((d) => {
-                      const dateVal = d.date || d.Date;
-                      const display = d.displayText || d.DisplayText || `${dateVal} (${d.dayOfWeek || d.DayOfWeek})`;
-                      return (
-                        <option key={dateVal} value={dateVal}>
-                          📅 {display}
-                        </option>
-                      );
-                    })}
-                  </select>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <span>📅</span>
+                      <span style={{ color: formData.date ? '#0f172a' : '#94a3b8', fontWeight: formData.date ? '600' : 'normal' }}>
+                        {!isHospitalSelected
+                          ? 'Select Hospital first...'
+                          : loadingDates
+                          ? 'Loading available schedule dates...'
+                          : availableDates.length === 0
+                          ? 'No upcoming sessions scheduled'
+                          : formData.date
+                          ? `${formData.date} (${selectedDateInfo?.dayOfWeek || ''})`
+                          : 'Click to select available date from calendar'}
+                      </span>
+                    </span>
+                    <span style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                      {showCalendarPopup ? '▲' : '▼'}
+                    </span>
+                  </button>
                 </div>
+
+                {/* Calendar Popup Dropdown Card */}
+                {showCalendarPopup && (
+                  <div className="cal-popup-card">
+                    {/* Month / Year navigation header */}
+                    <div className="cal-popup-header">
+                      <button
+                        type="button"
+                        className="cal-nav-btn"
+                        onClick={handlePrevMonth}
+                        title="Previous Month"
+                      >
+                        ◀
+                      </button>
+                      <span className="cal-month-title">
+                        {calendarViewDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
+                      </span>
+                      <button
+                        type="button"
+                        className="cal-nav-btn"
+                        onClick={handleNextMonth}
+                        title="Next Month"
+                      >
+                        ▶
+                      </button>
+                    </div>
+
+                    {/* Weekday labels */}
+                    <div className="cal-weekdays-row">
+                      <span>Su</span>
+                      <span>Mo</span>
+                      <span>Tu</span>
+                      <span>We</span>
+                      <span>Th</span>
+                      <span>Fr</span>
+                      <span>Sa</span>
+                    </div>
+
+                    {/* Days Grid */}
+                    <div className="cal-days-grid">
+                      {calendarDays.map((cell, idx) => {
+                        if (!cell) {
+                          return <div key={`empty-${idx}`} className="cal-cell empty" />;
+                        }
+
+                        const isAvailable = availableDatesMap.has(cell.dateStr);
+                        const isSelected = formData.date === cell.dateStr;
+                        const session = availableDatesMap.get(cell.dateStr);
+
+                        if (isAvailable) {
+                          return (
+                            <button
+                              key={cell.dateStr}
+                              type="button"
+                              className={`cal-cell available ${isSelected ? 'selected' : ''}`}
+                              onClick={() => handleSelectDate(cell.dateStr)}
+                              title={`${cell.dateStr} (${session?.dayOfWeek || ''}): ${session?.startTime || '09:00'} - ${session?.endTime || '11:00'} • Dr. ${session?.doctorName || 'Physician'}`}
+                            >
+                              <span>{cell.day}</span>
+                              <span className="cal-available-dot" />
+                            </button>
+                          );
+                        }
+
+                        return (
+                          <div key={cell.dateStr} className="cal-cell disabled">
+                            <span>{cell.day}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Footer / Legend */}
+                    <div className="cal-popup-footer">
+                      <div className="cal-legend">
+                        <span className="legend-item">
+                          <span className="legend-dot available" /> Available
+                        </span>
+                        <span className="legend-item">
+                          <span className="legend-dot selected" /> Selected
+                        </span>
+                      </div>
+                      <span className="cal-available-count">
+                        {availableDates.length} date{availableDates.length !== 1 ? 's' : ''}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Selected Date Session Details Card */}
+                {formData.date && selectedDateInfo && (
+                  <div className="cal-selection-detail-card">
+                    <div className="cal-detail-left">
+                      <span>✅</span>
+                      <span>
+                        <strong>{formData.date} ({selectedDateInfo.dayOfWeek})</strong>: {selectedDateInfo.startTime} - {selectedDateInfo.endTime}
+                        {selectedDateInfo.doctorName ? ` (Dr. ${selectedDateInfo.doctorName})` : ''}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      className="cal-change-btn"
+                      onClick={() => setShowCalendarPopup(true)}
+                    >
+                      Change date
+                    </button>
+                  </div>
+                )}
+
                 {!isHospitalSelected ? (
                   <span className="field-helper-hint">
                     Select a hospital to enable date selection
@@ -623,7 +836,7 @@ export default function AppointmentsTab() {
                   </span>
                 ) : (
                   <span className="field-helper-hint hint-success">
-                    ✓ {availableDates.length} upcoming session date(s) available
+                    ✓ {availableDates.length} upcoming session date(s) marked in calendar
                   </span>
                 )}
               </div>

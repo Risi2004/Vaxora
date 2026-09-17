@@ -98,26 +98,32 @@ export default function HospitalAppointmentsTab() {
       }
 
       // Process Database Vaccines (Hospital Formulary or Global Catalog)
-      const vaccineList = [];
+      const vaccineMap = new Map();
       if (formularyData.status === 'fulfilled' && Array.isArray(formularyData.value) && formularyData.value.length > 0) {
         formularyData.value.forEach((f) => {
-          vaccineList.push({
-            id: f.id || f.vaccineId,
-            name: f.vaccineName,
-            manufacturer: f.manufacturer || '',
-          });
+          const vName = (f.vaccineName || f.name || '').trim();
+          if (vName && !vaccineMap.has(vName.toLowerCase())) {
+            vaccineMap.set(vName.toLowerCase(), {
+              id: f.id || f.vaccineId,
+              name: vName,
+              manufacturer: f.manufacturer || '',
+            });
+          }
         });
       } else if (globalVaccinesData.status === 'fulfilled' && Array.isArray(globalVaccinesData.value) && globalVaccinesData.value.length > 0) {
         globalVaccinesData.value.forEach((v) => {
-          vaccineList.push({
-            id: v.id,
-            name: v.name,
-            manufacturer: v.manufacturer || '',
-          });
+          const vName = (v.name || '').trim();
+          if (vName && !vaccineMap.has(vName.toLowerCase())) {
+            vaccineMap.set(vName.toLowerCase(), {
+              id: v.id,
+              name: vName,
+              manufacturer: v.manufacturer || '',
+            });
+          }
         });
       }
 
-      setVaccines(vaccineList);
+      setVaccines(Array.from(vaccineMap.values()));
     } catch (err) {
       console.error('Failed to load appointment schedule options:', err);
     } finally {
