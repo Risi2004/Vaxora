@@ -27,14 +27,18 @@ public class PayHereService : IPayHereService
     }
 
     public string MerchantId =>
-        _configuration["PayHere:MerchantId"]
-        ?? Environment.GetEnvironmentVariable("PayHere__MerchantId")
-        ?? "1221111"; // PayHere Sandbox default test merchant ID
+        !string.IsNullOrWhiteSpace(_configuration["PayHere:MerchantId"])
+            ? _configuration["PayHere:MerchantId"]!
+            : (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("PayHere__MerchantId"))
+                ? Environment.GetEnvironmentVariable("PayHere__MerchantId")!
+                : "1236001");
 
     private string MerchantSecret =>
-        _configuration["PayHere:MerchantSecret"]
-        ?? Environment.GetEnvironmentVariable("PayHere__MerchantSecret")
-        ?? "4Tu7bW3783a451N7489X6h4587h472"; // Sandbox test merchant secret
+        !string.IsNullOrWhiteSpace(_configuration["PayHere:MerchantSecret"])
+            ? _configuration["PayHere:MerchantSecret"]!
+            : (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("PayHere__MerchantSecret"))
+                ? Environment.GetEnvironmentVariable("PayHere__MerchantSecret")!
+                : "MzQ3NDU1MzY3MzM1NjkzOTU1ODYzMTQ0MTk0NDkwOTgxMjkyNzk=");
 
     public string CheckoutUrl =>
         _configuration["PayHere:CheckoutUrl"]
@@ -75,6 +79,9 @@ public class PayHereService : IPayHereService
         var nameParts = patientFullName.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
         var firstName = nameParts.Length > 0 ? nameParts[0] : "Patient";
         var lastName = nameParts.Length > 1 ? nameParts[1] : "Vaxora";
+
+        _logger.LogInformation("Creating PayHere checkout parameters: MerchantId={MerchantId}, OrderId={OrderId}, Amount={Amount}, Hash={Hash}",
+            MerchantId, orderId, formattedAmount, hash);
 
         return new PayHereInitResponseDto
         {
