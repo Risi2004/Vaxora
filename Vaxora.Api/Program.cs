@@ -26,9 +26,6 @@ if (File.Exists(envFilePath))
     }
 }
 
-// Configure QuestPDF license
-QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
-
 var builder = WebApplication.CreateBuilder(args);
 
 // 1. Configure Database Connection (Neon PostgreSQL / Npgsql)
