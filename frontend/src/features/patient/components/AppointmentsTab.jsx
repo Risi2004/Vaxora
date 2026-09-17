@@ -34,14 +34,7 @@ export default function AppointmentsTab() {
 
   // Payment integration states
   const [selectedFee, setSelectedFee] = useState(0);
-  const [payHereModalData, setPayHereModalData] = useState(null);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
-  const [cardDetails, setCardDetails] = useState({
-    cardNumber: '4532 8892 4110 3981',
-    cardHolder: '',
-    expiry: '12/28',
-    cvv: '884',
-  });
 
   const showToast = (msg) => {
     setNotification(msg);
@@ -401,21 +394,14 @@ export default function AppointmentsTab() {
           if (section) section.scrollIntoView({ behavior: 'smooth' });
         }, 200);
       } else {
-        // Online Card Payment via In-App Portal Modal
+        // Online Card Payment via PayHere Gateway
         // Appointment is created in PendingPayment status.
         const checkoutPayload = await appointmentService.initPayHere(res.id || res.Id);
-        setPayHereModalData({
-          ...checkoutPayload,
-          appointmentId: res.id || res.Id,
-        });
-        const cardName = `${checkoutPayload.firstName || ''} ${checkoutPayload.lastName || ''}`.trim();
-        setCardDetails((prev) => ({
-          ...prev,
-          cardHolder: cardName || prev.cardHolder || 'VALUED PATIENT',
-        }));
-
         resetBookingForm();
         await loadMyAppointments();
+
+        // Directly launch official PayHere popup without any intermediate built-in checkout
+        launchPayHere(checkoutPayload, res.id || res.Id);
       }
     } catch (err) {
       alert(`Booking failed: ${err.message}`);
@@ -441,107 +427,18 @@ export default function AppointmentsTab() {
     setAvailableSlots([]);
   };
 
-  // Initiate In-App Card Checkout for pending appointments
-  const handlePayNow = async (apt) => {
-    try {
-      setIsProcessingPayment(true);
-      const checkoutPayload = await appointmentService.initPayHere(apt.id || apt.Id);
-      setPayHereModalData({
-        ...checkoutPayload,
-        appointmentId: apt.id || apt.Id,
-      });
-      const cardName = `${checkoutPayload.firstName || ''} ${checkoutPayload.lastName || ''}`.trim();
-      setCardDetails((prev) => ({
-        ...prev,
-        cardHolder: cardName || prev.cardHolder || 'VALUED PATIENT',
-      }));
-    } catch (err) {
-      alert(`Failed to initiate payment: ${err.message}`);
-    } finally {
-      setIsProcessingPayment(false);
-    }
-  };
-
-  // Card input format handlers
-  const handleCardNumberChange = (e) => {
-    const raw = e.target.value.replace(/\D/g, '').slice(0, 16);
-    const formatted = raw.match(/.{1,4}/g)?.join(' ') || raw;
-    setCardDetails((prev) => ({ ...prev, cardNumber: formatted }));
-  };
-
-  const handleExpiryChange = (e) => {
-    let raw = e.target.value.replace(/\D/g, '').slice(0, 4);
-    if (raw.length > 2) {
-      raw = raw.slice(0, 2) + '/' + raw.slice(2);
-    }
-    setCardDetails((prev) => ({ ...prev, expiry: raw }));
-  };
-
-  const handleCvvChange = (e) => {
-    const raw = e.target.value.replace(/\D/g, '').slice(0, 4);
-    setCardDetails((prev) => ({ ...prev, cvv: raw }));
-  };
-
-  // In-app Card Payment processor - stays entirely inside popup modal
-  const handleProcessCardPayment = async () => {
-    if (!payHereModalData?.appointmentId) return;
-
-    const rawNum = cardDetails.cardNumber.replace(/\s/g, '');
-    if (rawNum.length < 13) {
-      alert('Please enter a valid 16-digit card number.');
-      return;
-    }
-    if (!cardDetails.cardHolder?.trim()) {
-      alert('Please enter the cardholder name.');
-      return;
-    }
-    if (!cardDetails.expiry || cardDetails.expiry.length < 5) {
-      alert('Please enter a valid expiry date (MM/YY).');
-      return;
-    }
-    if (!cardDetails.cvv || cardDetails.cvv.length < 3) {
-      alert('Please enter a valid CVV (3-4 digits).');
-      return;
-    }
-
-    try {
-      setIsProcessingPayment(true);
-      // Brief simulated gateway authorization latency (700ms)
-      await new Promise((resolve) => setTimeout(resolve, 700));
-
-      const generatedTxId = `CARD-TXN-${Date.now().toString().slice(-8)}`;
-      await appointmentService.confirmPayment(payHereModalData.appointmentId, generatedTxId);
-
-      showToast('🎉 Payment successful! Your vaccination appointment is confirmed. Confirmation email and payment transaction receipt have been sent.');
-      setPayHereModalData(null);
-      await loadMyAppointments();
-
-      setTimeout(() => {
-        const section = document.querySelector('.appointments-list-section');
-        if (section) section.scrollIntoView({ behavior: 'smooth' });
-      }, 250);
-    } catch (err) {
-      alert(`Payment confirmation failed: ${err.message}`);
-    } finally {
-      setIsProcessingPayment(false);
-    }
-  };
-
-  // Official PayHere JavaScript SDK Popup
-  const handleLaunchPayHereOfficialPopup = () => {
-    if (!payHereModalData?.appointmentId) return;
-
+  // Direct PayHere Official JavaScript SDK Popup Launcher
+  const launchPayHere = (checkoutPayload, aptId) => {
     if (!window.payhere) {
-      alert('PayHere library is loading or blocked. Please use the direct card payment option.');
+      alert('PayHere payment library is still loading or blocked by your browser. Please refresh and try again.');
       return;
     }
 
     window.payhere.onCompleted = async function onCompleted(orderId) {
-      console.log('PayHere official payment completed. OrderID:', orderId);
+      console.log('PayHere payment completed. OrderID:', orderId);
       try {
-        await appointmentService.confirmPayment(payHereModalData.appointmentId, orderId || `PH-${Date.now().toString().slice(-8)}`);
-        showToast('🎉 PayHere payment verified! Your vaccination appointment is confirmed.');
-        setPayHereModalData(null);
+        await appointmentService.confirmPayment(aptId, orderId || `PH-${Date.now().toString().slice(-8)}`);
+        showToast('🎉 PayHere payment verified! Booking confirmed. Confirmation email and payment transaction receipt have been sent.');
         await loadMyAppointments();
         setTimeout(() => {
           const section = document.querySelector('.appointments-list-section');
@@ -549,39 +446,55 @@ export default function AppointmentsTab() {
         }, 250);
       } catch (err) {
         alert(`Failed to confirm PayHere payment on server: ${err.message}`);
+        await loadMyAppointments();
       }
     };
 
     window.payhere.onDismissed = function onDismissed() {
-      console.log('PayHere popup closed by user.');
+      showToast('PayHere checkout closed. You can complete payment anytime by clicking "Pay Now" on your appointment.');
+      loadMyAppointments();
     };
 
     window.payhere.onError = function onError(error) {
       console.error('PayHere error:', error);
-      alert(`PayHere Error: ${error}\n\nNote: If PayHere reports "Unauthorized payment request", make sure your own Sandbox Merchant ID & Secret are set in appsettings.json.`);
+      alert(`PayHere error: ${error}`);
+      loadMyAppointments();
     };
 
     const payment = {
       sandbox: true,
-      merchant_id: payHereModalData.merchantId,
-      return_url: payHereModalData.returnUrl,
-      cancel_url: payHereModalData.cancelUrl,
-      notify_url: payHereModalData.notifyUrl,
-      order_id: payHereModalData.orderId,
-      items: payHereModalData.items,
-      amount: payHereModalData.formattedAmount,
-      currency: payHereModalData.currency,
-      hash: payHereModalData.hash,
-      first_name: payHereModalData.firstName,
-      last_name: payHereModalData.lastName,
-      email: payHereModalData.email,
-      phone: payHereModalData.phone,
-      address: payHereModalData.address,
-      city: payHereModalData.city,
-      country: payHereModalData.country,
+      merchant_id: checkoutPayload.merchantId,
+      return_url: checkoutPayload.returnUrl,
+      cancel_url: checkoutPayload.cancelUrl,
+      notify_url: checkoutPayload.notifyUrl,
+      order_id: checkoutPayload.orderId,
+      items: checkoutPayload.items,
+      amount: checkoutPayload.formattedAmount,
+      currency: checkoutPayload.currency,
+      hash: checkoutPayload.hash,
+      first_name: checkoutPayload.firstName,
+      last_name: checkoutPayload.lastName,
+      email: checkoutPayload.email,
+      phone: checkoutPayload.phone,
+      address: checkoutPayload.address,
+      city: checkoutPayload.city,
+      country: checkoutPayload.country,
     };
 
     window.payhere.startPayment(payment);
+  };
+
+  // Initiate PayHere Checkout for pending appointments
+  const handlePayNow = async (apt) => {
+    try {
+      setIsProcessingPayment(true);
+      const checkoutPayload = await appointmentService.initPayHere(apt.id || apt.Id);
+      launchPayHere(checkoutPayload, apt.id || apt.Id);
+    } catch (err) {
+      alert(`Failed to launch PayHere: ${err.message}`);
+    } finally {
+      setIsProcessingPayment(false);
+    }
   };
 
   // Helper: check if appointment is at least 1 day in advance
@@ -1280,381 +1193,6 @@ export default function AppointmentsTab() {
           </div>
         </div>
       </div>
-
-      {/* In-App Secure Card Payment Modal */}
-      {payHereModalData && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(15, 23, 42, 0.7)',
-            backdropFilter: 'blur(6px)',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            zIndex: 9999,
-            padding: '16px',
-          }}
-        >
-          <div
-            style={{
-              backgroundColor: '#ffffff',
-              borderRadius: '20px',
-              maxWidth: '500px',
-              width: '100%',
-              boxShadow: '0 25px 60px -15px rgba(15, 23, 42, 0.35)',
-              overflow: 'hidden',
-              border: '1px solid #e2e8f0',
-              maxHeight: '92vh',
-              display: 'flex',
-              flexDirection: 'column',
-              animation: 'fadeIn 0.2s ease-out',
-            }}
-          >
-            {/* Modal Header */}
-            <div
-              style={{
-                background: 'linear-gradient(135deg, #0f172a 0%, #0369a1 100%)',
-                padding: '22px 24px',
-                color: '#ffffff',
-                position: 'relative',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
-                <span style={{ fontSize: '1.5rem' }}>💳</span>
-                <span
-                  style={{
-                    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-                    padding: '3px 10px',
-                    borderRadius: '12px',
-                    fontSize: '0.72rem',
-                    fontWeight: 700,
-                    letterSpacing: '0.05em',
-                    textTransform: 'uppercase',
-                  }}
-                >
-                  🔒 256-Bit SSL Encrypted
-                </span>
-              </div>
-              <h3 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 800, color: '#ffffff' }}>Secure Card Payment</h3>
-              <p style={{ margin: '4px 0 0 0', color: '#bae6fd', fontSize: '0.84rem' }}>
-                Complete payment to confirm your vaccination appointment
-              </p>
-              <button
-                type="button"
-                onClick={() => setPayHereModalData(null)}
-                disabled={isProcessingPayment}
-                style={{
-                  position: 'absolute',
-                  top: '18px',
-                  right: '18px',
-                  background: 'rgba(255, 255, 255, 0.1)',
-                  border: 'none',
-                  color: '#ffffff',
-                  width: '32px',
-                  height: '32px',
-                  borderRadius: '50%',
-                  fontSize: '1.1rem',
-                  cursor: isProcessingPayment ? 'not-allowed' : 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  transition: 'background-color 0.2s',
-                }}
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* Modal Body - Scrollable */}
-            <div style={{ padding: '22px 24px', overflowY: 'auto' }}>
-              {/* Order Summary Box */}
-              <div
-                style={{
-                  background: '#f8fafc',
-                  borderRadius: '14px',
-                  padding: '16px',
-                  border: '1px solid #e2e8f0',
-                  marginBottom: '20px',
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '0.84rem' }}>
-                  <span style={{ color: '#64748b' }}>Order Ref:</span>
-                  <span style={{ fontWeight: 700, fontFamily: 'monospace', color: '#0f172a' }}>{payHereModalData.orderId}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '0.84rem' }}>
-                  <span style={{ color: '#64748b' }}>Service:</span>
-                  <span style={{ fontWeight: 600, color: '#0f172a', textAlign: 'right', maxWidth: '65%' }}>{payHereModalData.items}</span>
-                </div>
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    borderTop: '1px dashed #cbd5e1',
-                    paddingTop: '10px',
-                    marginTop: '8px',
-                  }}
-                >
-                  <span style={{ color: '#0f172a', fontWeight: 700, fontSize: '0.95rem' }}>Amount to Pay:</span>
-                  <span style={{ color: '#0284c7', fontWeight: 800, fontSize: '1.35rem' }}>
-                    Rs. {parseFloat(payHereModalData.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </span>
-                </div>
-              </div>
-
-              {/* Supported Card Badges */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-                <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  Card Details
-                </span>
-                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '2px 6px', background: '#f1f5f9', borderRadius: '4px', color: '#1e40af', border: '1px solid #cbd5e1' }}>VISA</span>
-                  <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '2px 6px', background: '#f1f5f9', borderRadius: '4px', color: '#ea580c', border: '1px solid #cbd5e1' }}>Mastercard</span>
-                  <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '2px 6px', background: '#f1f5f9', borderRadius: '4px', color: '#0284c7', border: '1px solid #cbd5e1' }}>AMEX</span>
-                </div>
-              </div>
-
-              {/* Card Inputs Form */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '20px' }}>
-                {/* 1. Card Number */}
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>
-                    Card Number <span style={{ color: '#dc2626' }}>*</span>
-                  </label>
-                  <div style={{ position: 'relative' }}>
-                    <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '1.1rem', color: '#94a3b8' }}>
-                      💳
-                    </span>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      value={cardDetails.cardNumber}
-                      onChange={handleCardNumberChange}
-                      placeholder="4532 8892 4110 3981"
-                      maxLength={19}
-                      disabled={isProcessingPayment}
-                      style={{
-                        width: '100%',
-                        padding: '11px 12px 11px 40px',
-                        border: '1.5px solid #cbd5e1',
-                        borderRadius: '10px',
-                        fontSize: '0.98rem',
-                        fontWeight: 600,
-                        fontFamily: 'monospace',
-                        letterSpacing: '0.05em',
-                        color: '#0f172a',
-                        boxSizing: 'border-box',
-                        outline: 'none',
-                        transition: 'border-color 0.2s',
-                      }}
-                      onFocus={(e) => (e.target.style.borderColor = '#0284c7')}
-                      onBlur={(e) => (e.target.style.borderColor = '#cbd5e1')}
-                    />
-                  </div>
-                </div>
-
-                {/* 2. Cardholder Name */}
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>
-                    Cardholder Name <span style={{ color: '#dc2626' }}>*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={cardDetails.cardHolder}
-                    onChange={(e) => setCardDetails((prev) => ({ ...prev, cardHolder: e.target.value.toUpperCase() }))}
-                    placeholder="FULL NAME ON CARD"
-                    disabled={isProcessingPayment}
-                    style={{
-                      width: '100%',
-                      padding: '11px 12px',
-                      border: '1.5px solid #cbd5e1',
-                      borderRadius: '10px',
-                      fontSize: '0.92rem',
-                      fontWeight: 600,
-                      color: '#0f172a',
-                      boxSizing: 'border-box',
-                      outline: 'none',
-                      transition: 'border-color 0.2s',
-                    }}
-                    onFocus={(e) => (e.target.style.borderColor = '#0284c7')}
-                    onBlur={(e) => (e.target.style.borderColor = '#cbd5e1')}
-                  />
-                </div>
-
-                {/* 3. Expiry and CVV Row */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>
-                      Expiry Date <span style={{ color: '#dc2626' }}>*</span>
-                    </label>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      value={cardDetails.expiry}
-                      onChange={handleExpiryChange}
-                      placeholder="MM/YY"
-                      maxLength={5}
-                      disabled={isProcessingPayment}
-                      style={{
-                        width: '100%',
-                        padding: '11px 12px',
-                        border: '1.5px solid #cbd5e1',
-                        borderRadius: '10px',
-                        fontSize: '0.95rem',
-                        fontWeight: 600,
-                        fontFamily: 'monospace',
-                        color: '#0f172a',
-                        boxSizing: 'border-box',
-                        outline: 'none',
-                        transition: 'border-color 0.2s',
-                      }}
-                      onFocus={(e) => (e.target.style.borderColor = '#0284c7')}
-                      onBlur={(e) => (e.target.style.borderColor = '#cbd5e1')}
-                    />
-                  </div>
-
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>
-                      CVV / CVC <span style={{ color: '#dc2626' }}>*</span>
-                    </label>
-                    <input
-                      type="password"
-                      inputMode="numeric"
-                      value={cardDetails.cvv}
-                      onChange={handleCvvChange}
-                      placeholder="•••"
-                      maxLength={4}
-                      disabled={isProcessingPayment}
-                      style={{
-                        width: '100%',
-                        padding: '11px 12px',
-                        border: '1.5px solid #cbd5e1',
-                        borderRadius: '10px',
-                        fontSize: '0.95rem',
-                        fontWeight: 700,
-                        letterSpacing: '0.2em',
-                        color: '#0f172a',
-                        boxSizing: 'border-box',
-                        outline: 'none',
-                        transition: 'border-color 0.2s',
-                      }}
-                      onFocus={(e) => (e.target.style.borderColor = '#0284c7')}
-                      onBlur={(e) => (e.target.style.borderColor = '#cbd5e1')}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Email Guarantee Notice */}
-              <div
-                style={{
-                  fontSize: '0.82rem',
-                  color: '#0369a1',
-                  marginBottom: '20px',
-                  lineHeight: 1.45,
-                  background: '#f0f9ff',
-                  borderLeft: '4px solid #0284c7',
-                  padding: '10px 14px',
-                  borderRadius: '6px',
-                }}
-              >
-                🔒 <strong>Dual Instant Confirmation:</strong> Upon payment, two emails are immediately dispatched to <strong>{payHereModalData.email}</strong>: (1) Booking Confirmation and (2) Payment Transaction Receipt.
-              </div>
-
-              {/* Action Buttons */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {/* Option 1: Official PayHere JavaScript SDK Popup */}
-                <button
-                  type="button"
-                  onClick={handleLaunchPayHereOfficialPopup}
-                  disabled={isProcessingPayment}
-                  style={{
-                    width: '100%',
-                    padding: '13px',
-                    background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
-                    color: '#ffffff',
-                    border: 'none',
-                    borderRadius: '12px',
-                    fontWeight: 700,
-                    fontSize: '0.98rem',
-                    cursor: isProcessingPayment ? 'not-allowed' : 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px',
-                    boxShadow: '0 4px 12px rgba(2, 132, 199, 0.35)',
-                    transition: 'all 0.2s ease',
-                  }}
-                >
-                  <span>⚡ Launch Official PayHere Popup</span>
-                </button>
-
-                {/* Option 2: Direct In-App Card Payment */}
-                <button
-                  type="button"
-                  onClick={handleProcessCardPayment}
-                  disabled={isProcessingPayment}
-                  style={{
-                    width: '100%',
-                    padding: '13px',
-                    backgroundColor: isProcessingPayment ? '#94a3b8' : '#0f172a',
-                    color: '#ffffff',
-                    border: 'none',
-                    borderRadius: '12px',
-                    fontWeight: 700,
-                    fontSize: '0.96rem',
-                    cursor: isProcessingPayment ? 'not-allowed' : 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '10px',
-                    boxShadow: isProcessingPayment ? 'none' : '0 4px 14px rgba(15, 23, 42, 0.25)',
-                    transition: 'all 0.2s ease',
-                  }}
-                >
-                  {isProcessingPayment ? (
-                    <>
-                      <span style={{ display: 'inline-block', animation: 'spin 1s linear infinite' }}>⏳</span>
-                      <span>Authorizing Payment...</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>💳 Pay Now with Card</span>
-                      <span style={{ opacity: 0.9 }}>
-                        (Rs. {parseFloat(payHereModalData.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
-                      </span>
-                    </>
-                  )}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setPayHereModalData(null)}
-                  disabled={isProcessingPayment}
-                  style={{
-                    width: '100%',
-                    padding: '11px',
-                    backgroundColor: 'transparent',
-                    color: '#64748b',
-                    border: '1px solid #cbd5e1',
-                    borderRadius: '10px',
-                    fontWeight: 600,
-                    fontSize: '0.9rem',
-                    cursor: isProcessingPayment ? 'not-allowed' : 'pointer',
-                    transition: 'all 0.2s ease',
-                  }}
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
