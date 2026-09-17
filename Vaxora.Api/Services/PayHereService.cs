@@ -27,18 +27,14 @@ public class PayHereService : IPayHereService
     }
 
     public string MerchantId =>
-        !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("PayHere__MerchantId"))
-            ? Environment.GetEnvironmentVariable("PayHere__MerchantId")!
-            : (!string.IsNullOrWhiteSpace(_configuration["PayHere:MerchantId"])
-                ? _configuration["PayHere:MerchantId"]!
-                : "1236001");
+        Environment.GetEnvironmentVariable("PayHere__MerchantId")
+        ?? _configuration["PayHere:MerchantId"]
+        ?? throw new InvalidOperationException("PayHere:MerchantId is not configured. Please set PayHere__MerchantId in your .env file.");
 
     private string MerchantSecret =>
-        !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("PayHere__MerchantSecret"))
-            ? Environment.GetEnvironmentVariable("PayHere__MerchantSecret")!
-            : (!string.IsNullOrWhiteSpace(_configuration["PayHere:MerchantSecret"])
-                ? _configuration["PayHere:MerchantSecret"]!
-                : "NDIwMDA1MjE0MzM2ODI2NjQxNjIxNzY3MTMyNTg4NDkwOTE2NDM3");
+        Environment.GetEnvironmentVariable("PayHere__MerchantSecret")
+        ?? _configuration["PayHere:MerchantSecret"]
+        ?? throw new InvalidOperationException("PayHere:MerchantSecret is not configured. Please set PayHere__MerchantSecret in your .env file.");
 
     public string CheckoutUrl =>
         _configuration["PayHere:CheckoutUrl"]
