@@ -77,10 +77,14 @@ export const appointmentService = {
     });
   },
 
-  // 4. Get appointments booked by current patient
+  // 4. Get appointments booked by current patient (with cache busting)
   getPatientAppointments() {
-    return apiRequest('/appointments/patient', {
+    return apiRequest(`/appointments/patient?_t=${Date.now()}`, {
       method: 'GET',
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        Pragma: 'no-cache',
+      },
     });
   },
 

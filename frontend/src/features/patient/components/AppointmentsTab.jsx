@@ -42,7 +42,37 @@ export default function AppointmentsTab() {
     setTimeout(() => setNotification(''), 5000);
   };
 
-  // 0. Listen for PayHere return URL query parameters (success or cancel)
+  // 1. Fetch logged-in patient's saved appointments from database
+  const loadMyAppointments = useCallback(async () => {
+    try {
+      setLoadingAppointments(true);
+      const data = await appointmentService.getPatientAppointments();
+      if (Array.isArray(data)) {
+        setAppointments(data);
+      } else {
+        setAppointments([]);
+      }
+    } catch (err) {
+      console.error('Error loading patient appointments:', err);
+    } finally {
+      setLoadingAppointments(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadMyAppointments();
+  }, [loadMyAppointments]);
+
+  // Auto-refresh appointments whenever user focuses or switches back to tab
+  useEffect(() => {
+    const handleWindowFocus = () => {
+      loadMyAppointments();
+    };
+    window.addEventListener('focus', handleWindowFocus);
+    return () => window.removeEventListener('focus', handleWindowFocus);
+  }, [loadMyAppointments]);
+
+  // 2. Listen for PayHere return URL query parameters (success or cancel)
   useEffect(() => {
     const query = new URLSearchParams(window.location.search);
     const paymentParam = query.get('payment');
@@ -55,19 +85,25 @@ export default function AppointmentsTab() {
           await appointmentService.confirmPayment(aptId, orderId || 'PAYHERE-RETURN');
           showToast('🎉 Payment successful! Your appointment is confirmed and receipts have been emailed.');
           window.history.replaceState({}, document.title, window.location.pathname);
-          loadMyAppointments();
+          await loadMyAppointments();
+          setTimeout(() => {
+            const section = document.querySelector('.appointments-list-section');
+            if (section) section.scrollIntoView({ behavior: 'smooth' });
+          }, 250);
         } catch (err) {
           console.error('Failed to confirm payment on return:', err);
+          await loadMyAppointments();
         }
       };
       handleReturnSuccess();
     } else if (paymentParam === 'cancelled') {
       showToast('PayHere payment was cancelled. You can complete payment anytime from your appointments list.');
       window.history.replaceState({}, document.title, window.location.pathname);
+      loadMyAppointments();
     }
-  }, []);
+  }, [loadMyAppointments]);
 
-  // 1. Fetch available vaccines and hospitals from database
+  // 3. Fetch available vaccines and hospitals from database
   useEffect(() => {
     const fetchVaccines = async () => {
       try {
@@ -125,27 +161,6 @@ export default function AppointmentsTab() {
 
     fetchVaccines();
   }, []);
-
-  // 2. Fetch logged-in patient's saved appointments from database
-  const loadMyAppointments = useCallback(async () => {
-    try {
-      setLoadingAppointments(true);
-      const data = await appointmentService.getPatientAppointments();
-      if (Array.isArray(data)) {
-        setAppointments(data);
-      } else {
-        setAppointments([]);
-      }
-    } catch (err) {
-      console.error('Error loading patient appointments:', err);
-    } finally {
-      setLoadingAppointments(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadMyAppointments();
-  }, [loadMyAppointments]);
 
   // 3. Handle Vaccine Selection Change
   const handleVaccineChange = (e) => {
@@ -375,6 +390,10 @@ export default function AppointmentsTab() {
         showToast('✓ Free appointment confirmed! Booking details sent to your email.');
         resetBookingForm();
         await loadMyAppointments();
+        setTimeout(() => {
+          const section = document.querySelector('.appointments-list-section');
+          if (section) section.scrollIntoView({ behavior: 'smooth' });
+        }, 200);
       } else {
         // Online Card Payment via PayHere Gateway
         // Appointment is created in PendingPayment status.
