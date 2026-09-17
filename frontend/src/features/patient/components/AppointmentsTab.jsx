@@ -1282,7 +1282,7 @@ export default function AppointmentsTab() {
                   🔒 256-Bit SSL Encrypted
                 </span>
               </div>
-              <h3 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 800 }}>Secure Card Payment</h3>
+              <h3 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 800, color: '#ffffff' }}>Secure Card Payment</h3>
               <p style={{ margin: '4px 0 0 0', color: '#bae6fd', fontSize: '0.84rem' }}>
                 Complete payment to confirm your vaccination appointment
               </p>
