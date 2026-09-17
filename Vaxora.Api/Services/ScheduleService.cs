@@ -83,6 +83,7 @@ public class ScheduleService : IScheduleService
             EndDate = isWeekly ? dto.EndDate : null,
             StartTime = dto.StartTime.Trim(),
             EndTime = dto.EndTime.Trim(),
+            Price = Math.Max(0.00m, dto.Price),
             Status = "Active",
             CreatedAt = DateTime.UtcNow
         };
@@ -202,6 +203,8 @@ public class ScheduleService : IScheduleService
             EndTime = s.EndTime,
             FormattedTime = formattedTime,
             DisplayRecurrence = displayRecurrence,
+            Price = s.Price,
+            FormattedPrice = s.Price <= 0 ? "Free (0 LKR)" : $"LKR {s.Price:N2}",
             Status = s.Status,
             CreatedAt = s.CreatedAt
         };

@@ -147,12 +147,18 @@ public class InventoryService : IInventoryService
             .Include(f => f.HospitalProfile)
             .ToListAsync();
 
+        var groupedVaccines = vaccines
+            .GroupBy(v => v.Name.Trim(), StringComparer.OrdinalIgnoreCase);
+
         var result = new List<VaccineWithHospitalsDto>();
 
-        foreach (var v in vaccines)
+        foreach (var group in groupedVaccines)
         {
+            var first = group.First();
+            var vaccineIds = group.Select(v => v.Id).ToHashSet();
+
             var offeringHospitals = formularies
-                .Where(f => f.VaccineId == v.Id && f.HospitalProfile != null)
+                .Where(f => vaccineIds.Contains(f.VaccineId) && f.HospitalProfile != null)
                 .Select(f => new HospitalSummaryDto
                 {
                     Id = f.HospitalProfile.UserId,
@@ -168,14 +174,20 @@ public class InventoryService : IInventoryService
                 .Select(g => g.First())
                 .ToList();
 
+            var manufacturers = group
+                .Select(v => v.Manufacturer)
+                .Where(m => !string.IsNullOrWhiteSpace(m))
+                .Distinct()
+                .ToList();
+
             result.Add(new VaccineWithHospitalsDto
             {
-                Id = v.Id,
-                Name = v.Name,
-                Manufacturer = v.Manufacturer,
-                Category = ComputeCategory(v.Category),
-                DosesPerVial = v.DosesPerVial,
-                RequiredTemp = v.RequiredTemp,
+                Id = first.Id,
+                Name = first.Name,
+                Manufacturer = manufacturers.Count > 0 ? string.Join(", ", manufacturers) : first.Manufacturer,
+                Category = ComputeCategory(first.Category),
+                DosesPerVial = first.DosesPerVial,
+                RequiredTemp = first.RequiredTemp,
                 Hospitals = offeringHospitals
             });
         }

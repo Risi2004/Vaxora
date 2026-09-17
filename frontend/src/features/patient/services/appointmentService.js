@@ -77,10 +77,14 @@ export const appointmentService = {
     });
   },
 
-  // 4. Get appointments booked by current patient
+  // 4. Get appointments booked by current patient (with cache busting)
   getPatientAppointments() {
-    return apiRequest('/appointments/patient', {
+    return apiRequest(`/appointments/patient?_t=${Date.now()}`, {
       method: 'GET',
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        Pragma: 'no-cache',
+      },
     });
   },
 
@@ -107,6 +111,22 @@ export const appointmentService = {
   cancelAppointment(id) {
     return apiRequest(`/appointments/${id}/cancel`, {
       method: 'DELETE',
+    });
+  },
+
+  // 8. Initialize PayHere payment parameters
+  initPayHere(appointmentId) {
+    return apiRequest('/payment/payhere-init', {
+      method: 'POST',
+      body: JSON.stringify({ appointmentId }),
+    });
+  },
+
+  // 9. Confirm PayHere payment
+  confirmPayment(appointmentId, paymentId = '') {
+    return apiRequest('/payment/confirm', {
+      method: 'POST',
+      body: JSON.stringify({ appointmentId, paymentId }),
     });
   },
 };

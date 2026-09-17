@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { appointmentService } from '../services/appointmentService';
 
 export default function AppointmentsTab() {
@@ -12,6 +12,11 @@ export default function AppointmentsTab() {
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [loadingAppointments, setLoadingAppointments] = useState(true);
+
+  // Popup calendar states
+  const [showCalendarPopup, setShowCalendarPopup] = useState(false);
+  const [calendarViewDate, setCalendarViewDate] = useState(() => new Date());
+  const calendarRef = useRef(null);
 
   const [formData, setFormData] = useState({
     vaccine: '',
@@ -27,50 +32,16 @@ export default function AppointmentsTab() {
   const [appointments, setAppointments] = useState([]);
   const [notification, setNotification] = useState('');
 
+  // Payment integration states
+  const [selectedFee, setSelectedFee] = useState(0);
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+
   const showToast = (msg) => {
     setNotification(msg);
-    setTimeout(() => setNotification(''), 4000);
+    setTimeout(() => setNotification(''), 5000);
   };
 
-  // 1. Fetch available vaccines and hospitals from database
-  useEffect(() => {
-    const fetchVaccines = async () => {
-      try {
-        setLoadingVaccines(true);
-        const token = localStorage.getItem('vaxora_token') || sessionStorage.getItem('vaxora_token');
-        const res = await fetch('/api/inventory/vaccines-with-hospitals', {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-        if (res.ok) {
-          const apiVaccines = await res.json();
-          if (Array.isArray(apiVaccines)) {
-            const mapped = apiVaccines.map((v) => ({
-              id: v.id,
-              name: v.name,
-              category: v.category || 'Routine',
-              manufacturer: v.manufacturer || '',
-              hospitals: (v.hospitals || []).map((h) => ({
-                id: h.id, // Hospital user or profile ID
-                userId: h.userId || h.id,
-                name: h.name,
-                location: h.district || h.location || 'Sri Lanka',
-                type: h.type || 'Approved Hospital',
-              })),
-            }));
-            setVaccinesList(mapped);
-          }
-        }
-      } catch (err) {
-        console.error('Error fetching vaccines with hospitals:', err);
-      } finally {
-        setLoadingVaccines(false);
-      }
-    };
-
-    fetchVaccines();
-  }, []);
-
-  // 2. Fetch logged-in patient's saved appointments from database
+  // 1. Fetch logged-in patient's saved appointments from database
   const loadMyAppointments = useCallback(async () => {
     try {
       setLoadingAppointments(true);
@@ -91,6 +62,105 @@ export default function AppointmentsTab() {
     loadMyAppointments();
   }, [loadMyAppointments]);
 
+  // Auto-refresh appointments whenever user focuses or switches back to tab
+  useEffect(() => {
+    const handleWindowFocus = () => {
+      loadMyAppointments();
+    };
+    window.addEventListener('focus', handleWindowFocus);
+    return () => window.removeEventListener('focus', handleWindowFocus);
+  }, [loadMyAppointments]);
+
+  // 2. Listen for PayHere return URL query parameters (success or cancel)
+  useEffect(() => {
+    const query = new URLSearchParams(window.location.search);
+    const paymentParam = query.get('payment');
+    const aptId = query.get('apt_id');
+    const orderId = query.get('order_id');
+
+    if (paymentParam === 'success' && aptId) {
+      const handleReturnSuccess = async () => {
+        try {
+          await appointmentService.confirmPayment(aptId, orderId || 'PAYHERE-RETURN');
+          showToast('🎉 Payment successful! Your appointment is confirmed and receipts have been emailed.');
+          window.history.replaceState({}, document.title, window.location.pathname);
+          await loadMyAppointments();
+          setTimeout(() => {
+            const section = document.querySelector('.appointments-list-section');
+            if (section) section.scrollIntoView({ behavior: 'smooth' });
+          }, 250);
+        } catch (err) {
+          console.error('Failed to confirm payment on return:', err);
+          await loadMyAppointments();
+        }
+      };
+      handleReturnSuccess();
+    } else if (paymentParam === 'cancelled') {
+      showToast('PayHere payment was cancelled. You can complete payment anytime from your appointments list.');
+      window.history.replaceState({}, document.title, window.location.pathname);
+      loadMyAppointments();
+    }
+  }, [loadMyAppointments]);
+
+  // 3. Fetch available vaccines and hospitals from database
+  useEffect(() => {
+    const fetchVaccines = async () => {
+      try {
+        setLoadingVaccines(true);
+        const token = localStorage.getItem('vaxora_token') || sessionStorage.getItem('vaxora_token');
+        const res = await fetch('/api/inventory/vaccines-with-hospitals', {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (res.ok) {
+          const apiVaccines = await res.json();
+          if (Array.isArray(apiVaccines)) {
+            const vaccineMap = new Map();
+            apiVaccines.forEach((v) => {
+              const vName = (v.name || '').trim();
+              if (!vName) return;
+              const key = vName.toLowerCase();
+              const hospList = (v.hospitals || []).map((h) => ({
+                id: h.id, // Hospital user or profile ID
+                userId: h.userId || h.id,
+                name: h.name,
+                location: h.district || h.location || 'Sri Lanka',
+                type: h.type || 'Approved Hospital',
+              }));
+
+              if (!vaccineMap.has(key)) {
+                vaccineMap.set(key, {
+                  id: v.id,
+                  name: vName,
+                  category: v.category || 'Routine',
+                  manufacturer: v.manufacturer || '',
+                  hospitals: hospList,
+                });
+              } else {
+                // Merge hospitals without duplicates
+                const existing = vaccineMap.get(key);
+                const existingHospIds = new Set(existing.hospitals.map((h) => h.id || h.userId));
+                hospList.forEach((h) => {
+                  if (!existingHospIds.has(h.id || h.userId)) {
+                    existing.hospitals.push(h);
+                    existingHospIds.add(h.id || h.userId);
+                  }
+                });
+              }
+            });
+
+            setVaccinesList(Array.from(vaccineMap.values()));
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching vaccines with hospitals:', err);
+      } finally {
+        setLoadingVaccines(false);
+      }
+    };
+
+    fetchVaccines();
+  }, []);
+
   // 3. Handle Vaccine Selection Change
   const handleVaccineChange = (e) => {
     const selectedName = e.target.value;
@@ -100,6 +170,7 @@ export default function AppointmentsTab() {
     setAvailableHospitals(hospitals);
     setAvailableDates([]);
     setAvailableSlots([]);
+    setSelectedFee(0);
 
     // Reset downstream fields
     setFormData({
@@ -136,6 +207,7 @@ export default function AppointmentsTab() {
 
     setAvailableDates([]);
     setAvailableSlots([]);
+    setSelectedFee(0);
 
     if (selectedHospitalUserId && formData.vaccine) {
       try {
@@ -144,7 +216,21 @@ export default function AppointmentsTab() {
           selectedHospitalUserId,
           formData.vaccine
         );
-        setAvailableDates(Array.isArray(dates) ? dates : []);
+        const validDates = Array.isArray(dates) ? dates : [];
+        setAvailableDates(validDates);
+
+        // Pre-read fee from first available schedule slot and set calendar view to earliest session
+        if (validDates.length > 0) {
+          const firstDateStr = validDates[0].date || validDates[0].Date;
+          if (firstDateStr) {
+            const parts = firstDateStr.split('-').map(Number);
+            if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+              setCalendarViewDate(new Date(parts[0], parts[1] - 1, 1));
+            }
+          }
+          const fee = Number(validDates[0].price ?? validDates[0].Price ?? 0);
+          setSelectedFee(fee);
+        }
       } catch (err) {
         console.error('Failed to load available dates:', err);
         setAvailableDates([]);
@@ -154,10 +240,79 @@ export default function AppointmentsTab() {
     }
   };
 
-  // 5. Handle Date Selection Change -> Loads available 20-minute time slots
-  const handleDateChange = async (e) => {
-    const selectedDate = e.target.value;
-    const selectedDateObj = availableDates.find((d) => d.Date === selectedDate || d.date === selectedDate);
+  // Available dates map for quick O(1) lookup
+  const availableDatesMap = useMemo(() => {
+    const map = new Map();
+    availableDates.forEach((d) => {
+      const dateVal = d.date || d.Date;
+      if (dateVal) {
+        map.set(dateVal, d);
+      }
+    });
+    return map;
+  }, [availableDates]);
+
+  // Information about currently selected date
+  const selectedDateInfo = useMemo(() => {
+    if (!formData.date) return null;
+    return availableDatesMap.get(formData.date) || null;
+  }, [formData.date, availableDatesMap]);
+
+  // Close calendar popup when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (calendarRef.current && !calendarRef.current.contains(e.target)) {
+        setShowCalendarPopup(false);
+      }
+    };
+    if (showCalendarPopup) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showCalendarPopup]);
+
+  // Calendar month navigation
+  const handlePrevMonth = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setCalendarViewDate((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+  };
+
+  const handleNextMonth = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setCalendarViewDate((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+  };
+
+  // Generate days array for calendar grid
+  const calendarDays = useMemo(() => {
+    const year = calendarViewDate.getFullYear();
+    const month = calendarViewDate.getMonth();
+    const firstDayIndex = new Date(year, month, 1).getDay(); // 0 = Sun
+    const totalDays = new Date(year, month + 1, 0).getDate();
+
+    const days = [];
+    for (let i = 0; i < firstDayIndex; i++) {
+      days.push(null);
+    }
+    for (let d = 1; d <= totalDays; d++) {
+      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      days.push({ day: d, dateStr });
+    }
+    return days;
+  }, [calendarViewDate]);
+
+  // 5. Handle Date Selection -> Loads available 20-minute time slots
+  const handleSelectDate = async (selectedDate) => {
+    const selectedDateObj = availableDatesMap.get(selectedDate);
+
+    // Update fee specifically for this date/schedule
+    if (selectedDateObj) {
+      const fee = Number(selectedDateObj.price ?? selectedDateObj.Price ?? 0);
+      setSelectedFee(fee);
+    }
 
     setFormData((prev) => ({
       ...prev,
@@ -167,6 +322,7 @@ export default function AppointmentsTab() {
     }));
 
     setAvailableSlots([]);
+    setShowCalendarPopup(false);
 
     if (formData.hospitalUserId && formData.vaccine && selectedDate) {
       try {
@@ -186,6 +342,11 @@ export default function AppointmentsTab() {
     }
   };
 
+  // Fallback for native select change if needed
+  const handleDateChange = (e) => {
+    handleSelectDate(e.target.value);
+  };
+
   // 6. Handle Time Slot Selection
   const handleTimeChange = (e) => {
     setFormData((prev) => ({
@@ -202,6 +363,9 @@ export default function AppointmentsTab() {
       return;
     }
 
+    const isFree = selectedFee <= 0;
+    const chosenMethod = isFree ? 'Free' : 'PayHere';
+
     const payload = {
       hospitalUserId: formData.hospitalUserId,
       vaccineName: formData.vaccine,
@@ -210,34 +374,126 @@ export default function AppointmentsTab() {
       appointmentDate: formData.date,
       timeSlot: formData.time,
       notes: formData.notes || null,
+      paymentMethod: chosenMethod,
     };
 
     try {
       setSubmitting(true);
-      await appointmentService.bookAppointment(payload);
-      showToast('Appointment reserved and saved successfully in database!');
+      const res = await appointmentService.bookAppointment(payload);
 
-      // Reset form
-      setFormData({
-        vaccine: '',
-        vaccineId: null,
-        hospital: '',
-        hospitalUserId: null,
-        date: '',
-        time: '',
-        scheduleId: null,
-        notes: '',
-      });
-      setAvailableHospitals([]);
-      setAvailableDates([]);
-      setAvailableSlots([]);
+      // Verify the returned appointment status and fee from the server
+      const resFee = Number(res?.fee ?? res?.Fee ?? selectedFee);
+      const resStatus = String(res?.status ?? res?.Status ?? '').toLowerCase();
 
-      // Reload appointments from database
-      await loadMyAppointments();
+      if (resFee <= 0 || resStatus === 'confirmed') {
+        showToast('✓ Free appointment confirmed! Booking details sent to your email.');
+        resetBookingForm();
+        await loadMyAppointments();
+        setTimeout(() => {
+          const section = document.querySelector('.appointments-list-section');
+          if (section) section.scrollIntoView({ behavior: 'smooth' });
+        }, 200);
+      } else {
+        // Online Card Payment via PayHere Gateway
+        // Appointment is created in PendingPayment status.
+        const checkoutPayload = await appointmentService.initPayHere(res.id || res.Id);
+        resetBookingForm();
+        await loadMyAppointments();
+
+        // Directly launch official PayHere popup without any intermediate built-in checkout
+        launchPayHere(checkoutPayload, res.id || res.Id);
+      }
     } catch (err) {
       alert(`Booking failed: ${err.message}`);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const resetBookingForm = () => {
+    setFormData({
+      vaccine: '',
+      vaccineId: null,
+      hospital: '',
+      hospitalUserId: null,
+      date: '',
+      time: '',
+      scheduleId: null,
+      notes: '',
+    });
+    setSelectedFee(0);
+    setAvailableHospitals([]);
+    setAvailableDates([]);
+    setAvailableSlots([]);
+  };
+
+  // Direct PayHere Official JavaScript SDK Popup Launcher
+  const launchPayHere = (checkoutPayload, aptId) => {
+    if (!window.payhere) {
+      alert('PayHere payment library is still loading or blocked by your browser. Please refresh and try again.');
+      return;
+    }
+
+    window.payhere.onCompleted = async function onCompleted(orderId) {
+      console.log('PayHere payment completed. OrderID:', orderId);
+      try {
+        await appointmentService.confirmPayment(aptId, orderId || `PH-${Date.now().toString().slice(-8)}`);
+        showToast('🎉 PayHere payment verified! Booking confirmed. Confirmation email and payment transaction receipt have been sent.');
+        await loadMyAppointments();
+        setTimeout(() => {
+          const section = document.querySelector('.appointments-list-section');
+          if (section) section.scrollIntoView({ behavior: 'smooth' });
+        }, 250);
+      } catch (err) {
+        alert(`Failed to confirm PayHere payment on server: ${err.message}`);
+        await loadMyAppointments();
+      }
+    };
+
+    window.payhere.onDismissed = function onDismissed() {
+      showToast('PayHere checkout closed. You can complete payment anytime by clicking "Pay Now" on your appointment.');
+      loadMyAppointments();
+    };
+
+    window.payhere.onError = function onError(error) {
+      console.error('PayHere error:', error);
+      alert(`PayHere error: ${error}`);
+      loadMyAppointments();
+    };
+
+    const payment = {
+      sandbox: true,
+      merchant_id: checkoutPayload.merchantId,
+      return_url: checkoutPayload.returnUrl,
+      cancel_url: checkoutPayload.cancelUrl,
+      notify_url: checkoutPayload.notifyUrl,
+      order_id: checkoutPayload.orderId,
+      items: checkoutPayload.items,
+      amount: checkoutPayload.formattedAmount,
+      currency: checkoutPayload.currency,
+      hash: checkoutPayload.hash,
+      first_name: checkoutPayload.firstName,
+      last_name: checkoutPayload.lastName,
+      email: checkoutPayload.email,
+      phone: checkoutPayload.phone,
+      address: checkoutPayload.address,
+      city: checkoutPayload.city,
+      country: checkoutPayload.country,
+    };
+
+    window.payhere.startPayment(payment);
+  };
+
+  // Initiate PayHere Checkout for pending appointments
+  const handlePayNow = async (apt) => {
+    try {
+      setIsProcessingPayment(true);
+      const checkoutPayload = await appointmentService.initPayHere(apt.id || apt.Id);
+      launchPayHere(checkoutPayload, apt.id || apt.Id);
+    } catch (err) {
+      alert(`Failed to launch PayHere: ${err.message}`);
+    } finally {
+      setIsProcessingPayment(false);
     }
   };
 
@@ -429,44 +685,168 @@ export default function AppointmentsTab() {
                 )}
               </div>
 
-              {/* 3. Available Date Dropdown (Unlocked after Hospital is chosen) */}
-              <div className="book-form-group">
+              {/* 3. Available Date - Interactive Popup Calendar View */}
+              <div className="book-form-group" ref={calendarRef} style={{ position: 'relative' }}>
                 <label
                   className={`book-form-label ${!isHospitalSelected ? 'disabled' : ''}`}
-                  htmlFor="select-date"
+                  htmlFor="select-date-trigger"
                 >
                   Date <span style={{ color: '#dc2626' }}>*</span>
                 </label>
+
                 <div className={`select-dropdown-wrap ${!isHospitalSelected ? 'disabled' : ''}`}>
-                  <select
-                    id="select-date"
-                    name="date"
-                    value={formData.date}
-                    onChange={handleDateChange}
-                    className="book-form-select"
-                    disabled={!isHospitalSelected || loadingDates}
-                    required
+                  <button
+                    id="select-date-trigger"
+                    type="button"
+                    className="cal-trigger-button"
+                    onClick={() => {
+                      if (isHospitalSelected && !loadingDates && availableDates.length > 0) {
+                        setShowCalendarPopup((prev) => !prev);
+                      }
+                    }}
+                    disabled={!isHospitalSelected || loadingDates || availableDates.length === 0}
                   >
-                    <option value="" disabled>
-                      {!isHospitalSelected
-                        ? 'Select Hospital first...'
-                        : loadingDates
-                        ? 'Loading available schedule dates...'
-                        : availableDates.length === 0
-                        ? 'No upcoming sessions scheduled by hospital'
-                        : 'Select Available Date'}
-                    </option>
-                    {availableDates.map((d) => {
-                      const dateVal = d.date || d.Date;
-                      const display = d.displayText || d.DisplayText || `${dateVal} (${d.dayOfWeek || d.DayOfWeek})`;
-                      return (
-                        <option key={dateVal} value={dateVal}>
-                          📅 {display}
-                        </option>
-                      );
-                    })}
-                  </select>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <span>📅</span>
+                      <span style={{ color: formData.date ? '#0f172a' : '#94a3b8', fontWeight: formData.date ? '600' : 'normal' }}>
+                        {!isHospitalSelected
+                          ? 'Select Hospital first...'
+                          : loadingDates
+                          ? 'Loading available schedule dates...'
+                          : availableDates.length === 0
+                          ? 'No upcoming sessions scheduled'
+                          : formData.date
+                          ? `${formData.date} (${selectedDateInfo?.dayOfWeek || ''})`
+                          : 'Click to select available date from calendar'}
+                      </span>
+                    </span>
+                    <span style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                      {showCalendarPopup ? '▲' : '▼'}
+                    </span>
+                  </button>
                 </div>
+
+                {/* Calendar Popup Dropdown Card */}
+                {showCalendarPopup && (
+                  <div className="cal-popup-card">
+                    {/* Month / Year navigation header */}
+                    <div className="cal-popup-header">
+                      <button
+                        type="button"
+                        className="cal-nav-btn"
+                        onClick={handlePrevMonth}
+                        title="Previous Month"
+                      >
+                        ◀
+                      </button>
+                      <span className="cal-month-title">
+                        {calendarViewDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
+                      </span>
+                      <button
+                        type="button"
+                        className="cal-nav-btn"
+                        onClick={handleNextMonth}
+                        title="Next Month"
+                      >
+                        ▶
+                      </button>
+                    </div>
+
+                    {/* Weekday labels */}
+                    <div className="cal-weekdays-row">
+                      <span>Su</span>
+                      <span>Mo</span>
+                      <span>Tu</span>
+                      <span>We</span>
+                      <span>Th</span>
+                      <span>Fr</span>
+                      <span>Sa</span>
+                    </div>
+
+                    {/* Days Grid */}
+                    <div className="cal-days-grid">
+                      {calendarDays.map((cell, idx) => {
+                        if (!cell) {
+                          return <div key={`empty-${idx}`} className="cal-cell empty" />;
+                        }
+
+                        const isAvailable = availableDatesMap.has(cell.dateStr);
+                        const isSelected = formData.date === cell.dateStr;
+                        const session = availableDatesMap.get(cell.dateStr);
+
+                        if (isAvailable) {
+                          return (
+                            <button
+                              key={cell.dateStr}
+                              type="button"
+                              className={`cal-cell available ${isSelected ? 'selected' : ''}`}
+                              onClick={() => handleSelectDate(cell.dateStr)}
+                              title={`${cell.dateStr} (${session?.dayOfWeek || ''}): ${session?.startTime || '09:00'} - ${session?.endTime || '11:00'} • Dr. ${session?.doctorName || 'Physician'}`}
+                            >
+                              <span>{cell.day}</span>
+                              <span className="cal-available-dot" />
+                            </button>
+                          );
+                        }
+
+                        return (
+                          <div key={cell.dateStr} className="cal-cell disabled">
+                            <span>{cell.day}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Footer / Legend */}
+                    <div className="cal-popup-footer">
+                      <div className="cal-legend">
+                        <span className="legend-item">
+                          <span className="legend-dot available" /> Available
+                        </span>
+                        <span className="legend-item">
+                          <span className="legend-dot selected" /> Selected
+                        </span>
+                      </div>
+                      <span className="cal-available-count">
+                        {availableDates.length} date{availableDates.length !== 1 ? 's' : ''}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Selected Date Session Details Card */}
+                {formData.date && selectedDateInfo && (
+                  <div className="cal-selection-detail-card">
+                    <div className="cal-detail-left">
+                      <div className="cal-check-badge">✓</div>
+                      <div className="cal-detail-text">
+                        <div className="cal-detail-date">
+                          <strong>{formData.date} ({selectedDateInfo.dayOfWeek})</strong>
+                          <span className="cal-time-pill">
+                            {selectedDateInfo.startTime} - {selectedDateInfo.endTime}
+                          </span>
+                        </div>
+                        {selectedDateInfo.doctorName && (
+                          <div className="cal-detail-sub">
+                            <span>👨‍⚕️ Dr. {selectedDateInfo.doctorName.replace(/^Dr\.\s*/i, '')}</span>
+                            {selectedDateInfo.formattedPrice && (
+                              <span className="cal-fee-tag">• {selectedDateInfo.formattedPrice}</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="cal-change-btn"
+                      onClick={() => setShowCalendarPopup(true)}
+                    >
+                      <span>📅</span>
+                      <span>Change Date</span>
+                    </button>
+                  </div>
+                )}
+
                 {!isHospitalSelected ? (
                   <span className="field-helper-hint">
                     Select a hospital to enable date selection
@@ -481,7 +861,7 @@ export default function AppointmentsTab() {
                   </span>
                 ) : (
                   <span className="field-helper-hint hint-success">
-                    ✓ {availableDates.length} upcoming session date(s) available
+                    ✓ {availableDates.length} upcoming session date(s) marked in calendar
                   </span>
                 )}
               </div>
@@ -549,6 +929,70 @@ export default function AppointmentsTab() {
               </div>
             </div>
 
+            {/* Vaccine Fee & Payment Choice Banner */}
+            {formData.vaccine && formData.hospitalUserId && (
+              <div
+                style={{
+                  margin: '22px 0 10px 0',
+                  padding: '20px',
+                  borderRadius: '14px',
+                  background: selectedFee > 0 ? '#f0f9ff' : '#f0fdf4',
+                  border: `1.5px solid ${selectedFee > 0 ? '#38bdf8' : '#86efac'}`,
+                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                  <div>
+                    <div style={{ fontSize: '0.82rem', textTransform: 'uppercase', letterSpacing: '0.6px', color: selectedFee > 0 ? '#0369a1' : '#15803d', fontWeight: 800 }}>
+                      Vaccination Fee (Configured by Hospital)
+                    </div>
+                    <div style={{ fontSize: '1.45rem', fontWeight: 800, color: selectedFee > 0 ? '#0284c7' : '#16a34a', marginTop: '2px' }}>
+                      {selectedFee > 0 ? `Rs. ${selectedFee.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : 'Free (0 Rs - Fully Subsidized)'}
+                    </div>
+                  </div>
+                  <div
+                    style={{
+                      padding: '6px 14px',
+                      borderRadius: '20px',
+                      background: selectedFee > 0 ? '#e0f2fe' : '#dcfce7',
+                      color: selectedFee > 0 ? '#0369a1' : '#15803d',
+                      fontSize: '0.82rem',
+                      fontWeight: 700,
+                    }}
+                  >
+                    {selectedFee > 0 ? 'Payment Required' : '✓ No Gateway Required'}
+                  </div>
+                </div>
+
+                {/* If fee > 0: Card payment required notice */}
+                {selectedFee > 0 && (
+                  <div style={{ marginTop: '16px', paddingTop: '14px', borderTop: '1px solid #bae6fd' }}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        padding: '12px 16px',
+                        borderRadius: '10px',
+                        border: '1px solid #bae6fd',
+                        background: '#ffffff',
+                      }}
+                    >
+                      <span style={{ fontSize: '1.4rem' }}>💳</span>
+                      <div>
+                        <div style={{ fontWeight: 700, color: '#0369a1', fontSize: '0.92rem' }}>
+                          Online Card Payment Required
+                        </div>
+                        <div style={{ fontSize: '0.82rem', color: '#64748b', marginTop: '2px', lineHeight: 1.4 }}>
+                          Payment of <strong>Rs. {selectedFee.toLocaleString()}</strong> is completed securely via online card payment to confirm your booking.
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Book Appointment CTA Button */}
             <div className="book-btn-wrap">
               <button
@@ -561,7 +1005,11 @@ export default function AppointmentsTab() {
                     : 'Click to book appointment'
                 }
               >
-                {submitting ? 'Reserving Slot...' : 'Book Appointment'}
+                {submitting
+                  ? 'Processing Booking...'
+                  : selectedFee <= 0
+                  ? 'Confirm & Book Free Spot'
+                  : `Pay Now (Rs. ${selectedFee.toLocaleString()})`}
               </button>
             </div>
           </form>
@@ -592,6 +1040,7 @@ export default function AppointmentsTab() {
                   <th className="th-date">Date</th>
                   <th className="th-time">Time Slot</th>
                   <th className="th-location">Hospital / Center</th>
+                  <th style={{ padding: '14px 16px', textAlign: 'center' }}>Fee &amp; Payment</th>
                   <th style={{ padding: '14px 16px', textAlign: 'center' }}>Status</th>
                   <th className="th-action">Action</th>
                 </tr>
@@ -599,93 +1048,145 @@ export default function AppointmentsTab() {
               <tbody>
                 {loadingAppointments ? (
                   <tr>
-                    <td colSpan="6" className="empty-appointments-cell">
+                    <td colSpan="7" className="empty-appointments-cell">
                       Loading your appointments from database...
                     </td>
                   </tr>
                 ) : appointments.length === 0 ? (
                   <tr>
-                    <td colSpan="6" className="empty-appointments-cell">
+                    <td colSpan="7" className="empty-appointments-cell">
                       No current appointments scheduled. Select a vaccine above to book your slot.
                     </td>
                   </tr>
                 ) : (
-                  appointments.map((apt) => (
-                    <tr key={apt.id || apt.Id}>
-                      <td className="td-vaccine">
-                        <div style={{ fontWeight: 600 }}>{apt.vaccineName || apt.vaccine}</div>
-                        {apt.doctorName && (
-                          <div style={{ fontSize: '0.78rem', color: '#64748b' }}>
-                            Dr. {apt.doctorName}
+                  appointments.map((apt) => {
+                    const feeNum = Number(apt.fee ?? apt.Fee ?? 0);
+                    const payMethod = apt.paymentMethod || apt.PaymentMethod || 'Free';
+                    const payStatus = apt.paymentStatus || apt.PaymentStatus || 'Paid';
+                    const isPendingPayment = (apt.status || '').toLowerCase() === 'pendingpayment' || payStatus === 'PendingOnline';
+
+                    return (
+                      <tr key={apt.id || apt.Id}>
+                        <td className="td-vaccine">
+                          <div style={{ fontWeight: 600 }}>{apt.vaccineName || apt.vaccine}</div>
+                          {apt.doctorName && (
+                            <div style={{ fontSize: '0.78rem', color: '#64748b' }}>
+                              Dr. {apt.doctorName}
+                            </div>
+                          )}
+                        </td>
+                        <td className="td-date">{apt.appointmentDate || apt.date}</td>
+                        <td className="td-time">
+                          <span style={{ fontWeight: 600, color: '#1e40af' }}>
+                            {apt.timeSlot || apt.time}
+                          </span>
+                        </td>
+                        <td className="td-location">{apt.hospitalName || apt.location}</td>
+                        <td style={{ textAlign: 'center' }}>
+                          <div style={{ fontWeight: 700, fontSize: '0.9rem', color: feeNum > 0 ? '#0284c7' : '#16a34a' }}>
+                            {feeNum > 0 ? `LKR ${feeNum.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : 'Free'}
                           </div>
-                        )}
-                      </td>
-                      <td className="td-date">{apt.appointmentDate || apt.date}</td>
-                      <td className="td-time">
-                        <span style={{ fontWeight: 600, color: '#1e40af' }}>
-                          {apt.timeSlot || apt.time}
-                        </span>
-                      </td>
-                      <td className="td-location">{apt.hospitalName || apt.location}</td>
-                      <td style={{ textAlign: 'center' }}>
-                        <span
-                          style={{
-                            display: 'inline-block',
-                            padding: '4px 10px',
-                            borderRadius: '12px',
-                            fontSize: '0.78rem',
-                            fontWeight: 700,
-                            textTransform: 'uppercase',
-                            backgroundColor:
-                              (apt.status || '').toLowerCase() === 'confirmed'
-                                ? '#dcfce7'
-                                : (apt.status || '').toLowerCase() === 'cancelled'
-                                ? '#fee2e2'
-                                : '#e0f2fe',
-                            color:
-                              (apt.status || '').toLowerCase() === 'confirmed'
-                                ? '#15803d'
-                                : (apt.status || '').toLowerCase() === 'cancelled'
-                                ? '#b91c1c'
-                                : '#0369a1',
-                          }}
-                        >
-                          {apt.status || 'Confirmed'}
-                        </span>
-                      </td>
-                      <td className="td-action">
-                        {(apt.status || '').toLowerCase() !== 'cancelled' ? (
-                          isEligibleForCancellation(apt.appointmentDate || apt.date) ? (
-                            <button
-                              type="button"
-                              className="btn-cancel-appointment"
-                              onClick={() => handleCancel(apt)}
-                              title="Cancel appointment at least 1 day in advance"
-                            >
-                              Cancel
-                            </button>
+                          <div style={{ marginTop: '3px' }}>
+                            {feeNum <= 0 ? (
+                              <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: '10px', fontSize: '0.74rem', fontWeight: 700, backgroundColor: '#dcfce7', color: '#15803d' }}>
+                                ✓ Subsidized
+                              </span>
+                            ) : payStatus === 'Paid' ? (
+                              <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: '10px', fontSize: '0.74rem', fontWeight: 700, backgroundColor: '#dcfce7', color: '#15803d' }}>
+                                ✓ Paid Online
+                              </span>
+                            ) : (
+                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                                <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: '10px', fontSize: '0.72rem', fontWeight: 700, backgroundColor: '#fee2e2', color: '#b91c1c' }}>
+                                  Payment Due
+                                </span>
+                                {(apt.status || '').toLowerCase() !== 'cancelled' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handlePayNow(apt)}
+                                    disabled={isProcessingPayment}
+                                    style={{
+                                      padding: '3px 8px',
+                                      backgroundColor: '#0284c7',
+                                      color: '#ffffff',
+                                      border: 'none',
+                                      borderRadius: '4px',
+                                      fontSize: '0.72rem',
+                                      fontWeight: 700,
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    💳 Pay Now
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <span
+                            style={{
+                              display: 'inline-block',
+                              padding: '4px 10px',
+                              borderRadius: '12px',
+                              fontSize: '0.78rem',
+                              fontWeight: 700,
+                              textTransform: 'uppercase',
+                              backgroundColor:
+                                (apt.status || '').toLowerCase() === 'confirmed'
+                                  ? '#dcfce7'
+                                  : (apt.status || '').toLowerCase() === 'cancelled'
+                                  ? '#fee2e2'
+                                  : (apt.status || '').toLowerCase() === 'pendingpayment'
+                                  ? '#fef3c7'
+                                  : '#e0f2fe',
+                              color:
+                                (apt.status || '').toLowerCase() === 'confirmed'
+                                  ? '#15803d'
+                                  : (apt.status || '').toLowerCase() === 'cancelled'
+                                  ? '#b91c1c'
+                                  : (apt.status || '').toLowerCase() === 'pendingpayment'
+                                  ? '#b45309'
+                                  : '#0369a1',
+                            }}
+                          >
+                            {apt.status || 'Confirmed'}
+                          </span>
+                        </td>
+                        <td className="td-action">
+                          {(apt.status || '').toLowerCase() !== 'cancelled' ? (
+                            isEligibleForCancellation(apt.appointmentDate || apt.date) ? (
+                              <button
+                                type="button"
+                                className="btn-cancel-appointment"
+                                onClick={() => handleCancel(apt)}
+                                title="Cancel appointment at least 1 day in advance"
+                              >
+                                Cancel
+                              </button>
+                            ) : (
+                              <span
+                                style={{
+                                  fontSize: '0.76rem',
+                                  color: '#64748b',
+                                  fontStyle: 'italic',
+                                  display: 'inline-block',
+                                  padding: '4px 8px',
+                                  background: '#f1f5f9',
+                                  borderRadius: '6px',
+                                }}
+                                title="Appointments cannot be cancelled online within 24 hours of the session. Please contact the hospital directly."
+                              >
+                                Locked (Same-Day)
+                              </span>
+                            )
                           ) : (
-                            <span
-                              style={{
-                                fontSize: '0.76rem',
-                                color: '#64748b',
-                                fontStyle: 'italic',
-                                display: 'inline-block',
-                                padding: '4px 8px',
-                                background: '#f1f5f9',
-                                borderRadius: '6px',
-                              }}
-                              title="Appointments cannot be cancelled online within 24 hours of the session. Please contact the hospital directly."
-                            >
-                              Locked (Same-Day)
-                            </span>
-                          )
-                        ) : (
-                          <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Cancelled</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))
+                            <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Cancelled</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>

@@ -35,6 +35,9 @@ public class CreateVaccineScheduleDto
 
     [Required]
     public string EndTime { get; set; } = "11:00";
+
+    [Range(0, 1000000, ErrorMessage = "Price must be greater than or equal to 0.")]
+    public decimal Price { get; set; } = 0.00m;
 }
 
 public class VaccineScheduleDto
@@ -57,6 +60,8 @@ public class VaccineScheduleDto
     public string EndTime { get; set; } = string.Empty;
     public string FormattedTime { get; set; } = string.Empty;
     public string DisplayRecurrence { get; set; } = string.Empty;
+    public decimal Price { get; set; } = 0.00m;
+    public string FormattedPrice { get; set; } = "Free (0 LKR)";
     public string Status { get; set; } = "Active";
     public DateTime CreatedAt { get; set; }
 }

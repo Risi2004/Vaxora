@@ -12,6 +12,8 @@ public class AvailableDateDto
     public string StartTime { get; set; } = string.Empty;
     public string EndTime { get; set; } = string.Empty;
     public Guid ScheduleId { get; set; }
+    public decimal Price { get; set; } = 0.00m;
+    public string FormattedPrice { get; set; } = "Free";
 }
 
 public class TimeSlotDto
@@ -42,6 +44,8 @@ public class BookAppointmentRequestDto
     public string TimeSlot { get; set; } = string.Empty; // e.g., "09:00 AM - 09:20 AM"
 
     public string? Notes { get; set; }
+
+    public string PaymentMethod { get; set; } = "Free"; // "Free", "PayHere"
 }
 
 public class AppointmentResponseDto
@@ -64,6 +68,10 @@ public class AppointmentResponseDto
     public string? StartTime { get; set; }
     public string? EndTime { get; set; }
     public string Status { get; set; } = "Confirmed";
+    public decimal Fee { get; set; } = 0.00m;
+    public string PaymentMethod { get; set; } = "Free";
+    public string PaymentStatus { get; set; } = "Paid";
+    public string? PaymentTransactionId { get; set; }
     public string? Notes { get; set; }
     public DateTime CreatedAt { get; set; }
 }
@@ -74,4 +82,41 @@ public class UpdateAppointmentStatusDto
     public string Status { get; set; } = "Confirmed"; // "Confirmed", "Rejected", "Completed", "Cancelled"
 
     public string? Remarks { get; set; }
+}
+
+public class PayHereInitRequestDto
+{
+    [Required]
+    public Guid AppointmentId { get; set; }
+}
+
+public class PayHereInitResponseDto
+{
+    public string MerchantId { get; set; } = string.Empty;
+    public string OrderId { get; set; } = string.Empty;
+    public string Items { get; set; } = string.Empty;
+    public decimal Amount { get; set; }
+    public string FormattedAmount { get; set; } = string.Empty;
+    public string Currency { get; set; } = "LKR";
+    public string Hash { get; set; } = string.Empty;
+    public string CheckoutUrl { get; set; } = string.Empty;
+    public string ReturnUrl { get; set; } = string.Empty;
+    public string CancelUrl { get; set; } = string.Empty;
+    public string NotifyUrl { get; set; } = string.Empty;
+    public string FirstName { get; set; } = string.Empty;
+    public string LastName { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public string Phone { get; set; } = string.Empty;
+    public string Address { get; set; } = string.Empty;
+    public string City { get; set; } = string.Empty;
+    public string Country { get; set; } = "Sri Lanka";
+}
+
+public class ConfirmPayHerePaymentRequestDto
+{
+    [Required]
+    public Guid AppointmentId { get; set; }
+
+    [Required]
+    public string PaymentId { get; set; } = string.Empty;
 }

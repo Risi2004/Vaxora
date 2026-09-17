@@ -22,7 +22,22 @@ public interface IEmailService
         string timeSlot,
         string? doctorName,
         string? nurseName,
-        string? notes);
+        string? notes,
+        decimal fee = 0.00m,
+        string paymentMethod = "Free",
+        string paymentStatus = "Paid");
+    Task<bool> SendPaymentReceiptEmailAsync(
+        string toEmail,
+        string patientName,
+        string vaccineName,
+        string hospitalName,
+        string appointmentDate,
+        string timeSlot,
+        decimal amountPaid,
+        string currency,
+        string transactionId,
+        string orderId,
+        DateTime paymentTime);
     Task<bool> SendAppointmentCancellationEmailAsync(
         string toEmail,
         string patientName,
@@ -513,9 +528,23 @@ public class EmailService : IEmailService
         string timeSlot,
         string? doctorName,
         string? nurseName,
-        string? notes)
+        string? notes,
+        decimal fee = 0.00m,
+        string paymentMethod = "Free",
+        string paymentStatus = "Paid")
     {
         var subject = $"Appointment Confirmed • {vaccineName} at {hospitalName} ({appointmentDate})";
+        
+        string paymentSummaryHtml;
+        if (fee <= 0)
+        {
+            paymentSummaryHtml = @"<span style='color: #16a34a; font-weight: 700;'>✓ Free (Government / Subsidized)</span>";
+        }
+        else
+        {
+            paymentSummaryHtml = $@"<span style='color: #0284c7; font-weight: 700;'>LKR {fee:N2} (Paid Online via PayHere Gateway)</span>";
+        }
+
         var bodyHtml = $@"
 <!DOCTYPE html>
 <html lang='en'>
@@ -570,6 +599,10 @@ public class EmailService : IEmailService
                   <td style='padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #64748b; font-size: 14px;'>Assigned Nurse:</td>
                   <td style='padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #0f172a; font-weight: 600; font-size: 14px;'>👩‍⚕️ Nurse {nurseName}</td>
                 </tr>" : "")}
+                <tr>
+                  <td style='padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #64748b; font-size: 14px;'>Payment &amp; Fee:</td>
+                  <td style='padding: 10px 0; border-bottom: 1px solid #e2e8f0; font-size: 14px;'>{paymentSummaryHtml}</td>
+                </tr>
                 {(!string.IsNullOrWhiteSpace(notes) ? $@"<tr>
                   <td style='padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #64748b; font-size: 14px;'>Medical Notes:</td>
                   <td style='padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #0f172a; font-size: 13.5px;'>{notes}</td>
@@ -605,6 +638,118 @@ public class EmailService : IEmailService
           <tr>
             <td style='background-color: #f8fafc; padding: 22px 24px; text-align: center; border-top: 1px solid #e2e8f0;'>
               <p style='margin: 0; color: #64748b; font-size: 12px;'>&copy; {DateTime.UtcNow.Year} Vaxora National Immunization Platform. All rights reserved.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>";
+
+        return await SendEmailAsync(toEmail, patientName, subject, bodyHtml);
+    }
+
+    public async Task<bool> SendPaymentReceiptEmailAsync(
+        string toEmail,
+        string patientName,
+        string vaccineName,
+        string hospitalName,
+        string appointmentDate,
+        string timeSlot,
+        decimal amountPaid,
+        string currency,
+        string transactionId,
+        string orderId,
+        DateTime paymentTime)
+    {
+        var subject = $"Payment Receipt • {orderId} • LKR {amountPaid:N2} for {vaccineName}";
+        var bodyHtml = $@"
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+  <meta charset='utf-8'>
+  <title>{subject}</title>
+</head>
+<body style='margin: 0; padding: 24px; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, ""Segoe UI"", Roboto, Helvetica, Arial, sans-serif; color: #1e293b; -webkit-font-smoothing: antialiased;'>
+  <table role='presentation' width='100%' border='0' cellspacing='0' cellpadding='0' style='background-color: #f1f5f9; padding: 20px 0;'>
+    <tr>
+      <td align='center'>
+        <table role='presentation' width='100%' border='0' cellspacing='0' cellpadding='0' style='max-width: 600px; background-color: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);'>
+          <!-- Header -->
+          <tr>
+            <td style='background: linear-gradient(135deg, #1e3a8a 0%, #0284c7 100%); padding: 32px 24px; text-align: center;'>
+              <div style='display: inline-block; background-color: rgba(255, 255, 255, 0.2); border-radius: 50%; width: 48px; height: 48px; line-height: 48px; font-size: 24px; margin-bottom: 10px;'>🧾</div>
+              <h1 style='margin: 0; color: #ffffff; font-size: 26px; font-weight: 800; letter-spacing: 2px;'>VAXORA</h1>
+              <p style='margin: 6px 0 0 0; color: #e0f2fe; font-size: 13px; font-weight: 500;'>Official Payment Receipt &amp; Transaction Confirmation</p>
+            </td>
+          </tr>
+          <!-- Content -->
+          <tr>
+            <td style='padding: 34px 28px; background-color: #ffffff;'>
+              <p style='margin: 0 0 16px 0; color: #0f172a; font-size: 16px; line-height: 1.5;'>Dear <strong>{patientName}</strong>,</p>
+              <p style='margin: 0 0 20px 0; color: #334155; font-size: 15px; line-height: 1.6;'>Thank you for your payment. Your vaccination fee has been successfully processed via the <strong>PayHere Payment Gateway</strong>.</p>
+              
+              <!-- Payment Summary Box -->
+              <div style='background-color: #f0fdf4; border: 2px solid #16a34a; border-radius: 10px; padding: 22px; margin: 24px 0; text-align: center;'>
+                <div style='color: #15803d; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 6px;'>Amount Paid Successfully</div>
+                <div style='color: #16a34a; font-size: 32px; font-weight: 800; letter-spacing: 1px;'>{currency} {amountPaid:N2}</div>
+                <div style='color: #15803d; font-size: 13px; font-weight: 600; margin-top: 4px;'>✓ Status: PAID &amp; VERIFIED</div>
+              </div>
+
+              <!-- Transaction Information Table -->
+              <table role='presentation' width='100%' border='0' cellspacing='0' cellpadding='0' style='margin: 20px 0; border-collapse: collapse;'>
+                <tr>
+                  <td style='padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #64748b; font-size: 14px; width: 40%;'>Order Reference:</td>
+                  <td style='padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #0f172a; font-weight: 700; font-size: 14px; font-family: monospace;'>{orderId}</td>
+                </tr>
+                <tr>
+                  <td style='padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #64748b; font-size: 14px;'>Transaction ID:</td>
+                  <td style='padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #0284c7; font-weight: 700; font-size: 14px; font-family: monospace;'>{transactionId}</td>
+                </tr>
+                <tr>
+                  <td style='padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #64748b; font-size: 14px;'>Payment Method:</td>
+                  <td style='padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #0f172a; font-size: 14px;'>PayHere (Card / Mobile Wallet / NetBanking)</td>
+                </tr>
+                <tr>
+                  <td style='padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #64748b; font-size: 14px;'>Payment Date &amp; Time:</td>
+                  <td style='padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #0f172a; font-size: 14px;'>{paymentTime:dd MMMM yyyy, HH:mm:ss} UTC</td>
+                </tr>
+                <tr>
+                  <td style='padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #64748b; font-size: 14px;'>Vaccine:</td>
+                  <td style='padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #0f172a; font-weight: 600; font-size: 14px;'>{vaccineName}</td>
+                </tr>
+                <tr>
+                  <td style='padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #64748b; font-size: 14px;'>Hospital / Clinic:</td>
+                  <td style='padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #0f172a; font-weight: 600; font-size: 14px;'>{hospitalName}</td>
+                </tr>
+                <tr>
+                  <td style='padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #64748b; font-size: 14px;'>Appointment Slot:</td>
+                  <td style='padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #0f172a; font-size: 14px;'>{appointmentDate} ({timeSlot})</td>
+                </tr>
+              </table>
+
+              <!-- Notice Box -->
+              <div style='background-color: #f8fafc; border-left: 4px solid #0284c7; padding: 14px 18px; border-radius: 6px; margin: 24px 0;'>
+                <p style='margin: 0; color: #334155; font-size: 13.5px; line-height: 1.5;'>
+                  💡 <strong>Tax &amp; Compliance:</strong> This receipt serves as proof of payment for your clinical vaccination appointment at {hospitalName}. You do not need to make any additional payments at the hospital counter.
+                </p>
+              </div>
+
+              <!-- Action Button -->
+              <div style='text-align: center; margin: 28px 0;'>
+                <a href='http://localhost:5173/patient/appointments' style='display: inline-block; background-color: #0284c7; color: #ffffff !important; padding: 14px 34px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 15px; box-shadow: 0 4px 14px rgba(2, 132, 199, 0.35);' target='_blank'>Go to My Appointments</a>
+              </div>
+
+              <p style='margin: 0; color: #64748b; font-size: 12.5px; line-height: 1.5;'>
+                Please retain this electronic receipt for your financial records. If you have any billing questions, contact support@vaxora.health.gov.lk.
+              </p>
+            </td>
+          </tr>
+          <!-- Footer -->
+          <tr>
+            <td style='background-color: #f8fafc; padding: 22px 24px; text-align: center; border-top: 1px solid #e2e8f0;'>
+              <p style='margin: 0; color: #64748b; font-size: 12px;'>&copy; {DateTime.UtcNow.Year} Vaxora National Immunization Platform &bull; PayHere Secured Gateway</p>
             </td>
           </tr>
         </table>
