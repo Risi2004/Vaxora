@@ -9,7 +9,7 @@ namespace Vaxora.Api.Controllers;
 
 [ApiController]
 [Route("api/patient-vaccinations")]
-[Authorize(Roles = "DOCTOR,NURSE,HOSPITAL,ADMIN")]
+[Authorize(Roles = "DOCTOR,NURSE,HOSPITAL,ADMIN,PATIENT")]
 public class PatientVaccinationController : ControllerBase
 {
     private readonly IPatientVaccinationService _service;
@@ -24,6 +24,16 @@ public class PatientVaccinationController : ControllerBase
     [HttpGet("patients/{patientProfileId:guid}/timeline")]
     public async Task<IActionResult> GetTimeline(Guid patientProfileId)
     {
+        if (!TryGetUserId(out var currentUserId))
+            return Unauthorized(new { message = "Invalid identity claim." });
+
+        var role = User.FindFirst(ClaimTypes.Role)?.Value ?? string.Empty;
+        if (string.Equals(role, "PATIENT", StringComparison.OrdinalIgnoreCase))
+        {
+            var owns = await _service.IsOwnedByUserAsync(patientProfileId, currentUserId);
+            if (!owns) return Forbid();
+        }
+
         try
         {
             var result = await _service.GetTimelineAsync(patientProfileId);
@@ -38,6 +48,7 @@ public class PatientVaccinationController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
+    [Authorize(Roles = "DOCTOR,NURSE,HOSPITAL,ADMIN")]
     public async Task<IActionResult> GetById(Guid id)
     {
         try

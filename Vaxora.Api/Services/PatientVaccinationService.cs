@@ -10,6 +10,7 @@ public interface IPatientVaccinationService
     Task<PatientVaccinationTimelineDto> GetTimelineAsync(Guid patientProfileId);
     Task<PatientVaccinationRecordDto> GetByIdAsync(Guid id);
     Task<PatientVaccinationRecordDto> CreateAsync(Guid actorUserId, Guid patientProfileId, CreatePatientVaccinationDto dto);
+    Task<bool> IsOwnedByUserAsync(Guid patientProfileId, Guid userId);
 }
 
 public class PatientVaccinationService : IPatientVaccinationService
@@ -198,4 +199,11 @@ public class PatientVaccinationService : IPatientVaccinationService
         AdverseEventNotes = r.AdverseEventNotes,
         CreatedAt = r.CreatedAt
     };
+
+    public async Task<bool> IsOwnedByUserAsync(Guid patientProfileId, Guid userId)
+    {
+        return await _context.PatientProfiles
+            .AsNoTracking()
+            .AnyAsync(p => p.Id == patientProfileId && p.UserId == userId);
+    }
 }
