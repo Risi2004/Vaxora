@@ -27,18 +27,18 @@ public class PayHereService : IPayHereService
     }
 
     public string MerchantId =>
-        !string.IsNullOrWhiteSpace(_configuration["PayHere:MerchantId"])
-            ? _configuration["PayHere:MerchantId"]!
-            : (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("PayHere__MerchantId"))
-                ? Environment.GetEnvironmentVariable("PayHere__MerchantId")!
+        !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("PayHere__MerchantId"))
+            ? Environment.GetEnvironmentVariable("PayHere__MerchantId")!
+            : (!string.IsNullOrWhiteSpace(_configuration["PayHere:MerchantId"])
+                ? _configuration["PayHere:MerchantId"]!
                 : "1236001");
 
     private string MerchantSecret =>
-        !string.IsNullOrWhiteSpace(_configuration["PayHere:MerchantSecret"])
-            ? _configuration["PayHere:MerchantSecret"]!
-            : (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("PayHere__MerchantSecret"))
-                ? Environment.GetEnvironmentVariable("PayHere__MerchantSecret")!
-                : "MzQ3NDU1MzY3MzM1NjkzOTU1ODYzMTQ0MTk0NDkwOTgxMjkyNzk=");
+        !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("PayHere__MerchantSecret"))
+            ? Environment.GetEnvironmentVariable("PayHere__MerchantSecret")!
+            : (!string.IsNullOrWhiteSpace(_configuration["PayHere:MerchantSecret"])
+                ? _configuration["PayHere:MerchantSecret"]!
+                : "NDIwMDA1MjE0MzM2ODI2NjQxNjIxNzY3MTMyNTg4NDkwOTE2NDM3");
 
     public string CheckoutUrl =>
         _configuration["PayHere:CheckoutUrl"]
