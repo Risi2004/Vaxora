@@ -28,7 +28,7 @@ public class ApplicationDbContext : DbContext
     // === VACCINE APPOINTMENT SCHEDULE & BOOKING MODULE ===
     public DbSet<VaccineSchedule> VaccineSchedules => Set<VaccineSchedule>();
     public DbSet<Appointment> Appointments => Set<Appointment>();
-
+    public DbSet<PatientVaccinationRecord> PatientVaccinationRecords => Set<PatientVaccinationRecord>();
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -195,5 +195,46 @@ public class ApplicationDbContext : DbContext
             .Property(a => a.Fee)
             .HasPrecision(18, 2)
             .HasDefaultValue(0.00m);
+
+        modelBuilder.Entity<PatientVaccinationRecord>()
+            .Property(r => r.Route)
+            .HasConversion<string>();
+
+        modelBuilder.Entity<PatientVaccinationRecord>()
+            .Property(r => r.Site)
+            .HasConversion<string>();
+
+        modelBuilder.Entity<PatientVaccinationRecord>()
+            .HasIndex(r => new { r.PatientProfileId, r.AdministeredAt });
+
+        modelBuilder.Entity<PatientVaccinationRecord>()
+            .HasIndex(r => r.VaccineId);
+
+        modelBuilder.Entity<PatientVaccinationRecord>()
+            .HasIndex(r => r.BatchId);
+
+        modelBuilder.Entity<PatientVaccinationRecord>()
+            .HasOne(r => r.PatientProfile)
+            .WithMany()
+            .HasForeignKey(r => r.PatientProfileId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<PatientVaccinationRecord>()
+            .HasOne(r => r.Vaccine)
+            .WithMany()
+            .HasForeignKey(r => r.VaccineId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<PatientVaccinationRecord>()
+            .HasOne(r => r.Batch)
+            .WithMany()
+            .HasForeignKey(r => r.BatchId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<PatientVaccinationRecord>()
+            .HasOne(r => r.AdministeredByUser)
+            .WithMany()
+            .HasForeignKey(r => r.AdministeredByUserId)
+            .OnDelete(DeleteBehavior.SetNull);
     }
 }
