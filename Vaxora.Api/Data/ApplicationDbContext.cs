@@ -28,8 +28,15 @@ public class ApplicationDbContext : DbContext
     // === VACCINE APPOINTMENT SCHEDULE & BOOKING MODULE ===
     public DbSet<VaccineSchedule> VaccineSchedules => Set<VaccineSchedule>();
     public DbSet<Appointment> Appointments => Set<Appointment>();
+
+    // === PATIENT VACCINATION RECORD MODULE ===
     public DbSet<PatientVaccinationRecord> PatientVaccinationRecords => Set<PatientVaccinationRecord>();
+
+    // === PATIENT MEDICAL HISTORY MODULE ===
     public DbSet<PatientMedicalHistory> PatientMedicalHistories => Set<PatientMedicalHistory>();
+
+    // === PATIENT VISIT MODULE ===
+    public DbSet<PatientVisit> PatientVisits => Set<PatientVisit>();
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -272,6 +279,48 @@ public class ApplicationDbContext : DbContext
             .HasOne(r => r.RecordedByUser)
             .WithMany()
             .HasForeignKey(r => r.RecordedByUserId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        // === PATIENT VISIT CONFIGURATION ===
+        modelBuilder.Entity<PatientVisit>()
+            .Property(v => v.VisitType)
+            .HasConversion<string>();
+
+        modelBuilder.Entity<PatientVisit>()
+            .Property(v => v.Status)
+            .HasConversion<string>();
+
+        modelBuilder.Entity<PatientVisit>()
+            .HasIndex(v => new { v.PatientProfileId, v.VisitDate });
+
+        modelBuilder.Entity<PatientVisit>()
+            .HasIndex(v => v.Status);
+
+        modelBuilder.Entity<PatientVisit>()
+            .HasIndex(v => v.FollowUpDate);
+
+        modelBuilder.Entity<PatientVisit>()
+            .HasOne(v => v.PatientProfile)
+            .WithMany()
+            .HasForeignKey(v => v.PatientProfileId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<PatientVisit>()
+            .HasOne(v => v.DoctorUser)
+            .WithMany()
+            .HasForeignKey(v => v.DoctorUserId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<PatientVisit>()
+            .HasOne(v => v.NurseUser)
+            .WithMany()
+            .HasForeignKey(v => v.NurseUserId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<PatientVisit>()
+            .HasOne(v => v.HospitalProfile)
+            .WithMany()
+            .HasForeignKey(v => v.HospitalProfileId)
             .OnDelete(DeleteBehavior.SetNull);
     }
 }

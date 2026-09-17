@@ -48,3 +48,22 @@ public enum MedicalRecordStatus
     InRemission,
     Chronic
 }
+
+public enum VisitType
+{
+    Checkup,
+    Vaccination,
+    FollowUp,
+    Emergency,
+    WalkIn,
+    Telemedicine
+}
+
+public enum VisitStatus
+{
+    Scheduled,
+    InProgress,
+    Completed,
+    Cancelled,
+    NoShow
+}
