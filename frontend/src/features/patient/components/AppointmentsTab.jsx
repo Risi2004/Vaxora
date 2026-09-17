@@ -1334,10 +1334,10 @@ export default function AppointmentsTab() {
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {/* Primary: Real PayHere Sandbox Checkout */}
                 <button
                   type="button"
                   onClick={handleProceedToPayHereCheckout}
+                  disabled={isProcessingPayment}
                   style={{
                     width: '100%',
                     padding: '14px',
@@ -1347,57 +1347,36 @@ export default function AppointmentsTab() {
                     borderRadius: '10px',
                     fontWeight: 700,
                     fontSize: '1rem',
-                    cursor: 'pointer',
+                    cursor: isProcessingPayment ? 'not-allowed' : 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: '8px',
                     boxShadow: '0 4px 12px rgba(2, 132, 199, 0.35)',
+                    transition: 'background-color 0.2s ease',
                   }}
                 >
-                  <span>🚀 Open PayHere Gateway Sandbox</span>
-                </button>
-
-                {/* Instant Simulation: Useful in dev/test sandbox */}
-                <button
-                  type="button"
-                  onClick={handleSimulatePaymentSuccess}
-                  disabled={isProcessingPayment}
-                  style={{
-                    width: '100%',
-                    padding: '12px',
-                    backgroundColor: '#16a34a',
-                    color: '#ffffff',
-                    border: 'none',
-                    borderRadius: '10px',
-                    fontWeight: 700,
-                    fontSize: '0.92rem',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px',
-                  }}
-                >
-                  {isProcessingPayment ? 'Verifying & Sending Receipts...' : '⚡ Test Instant Sandbox Payment Success'}
+                  <span>Pay Now</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setPayHereModalData(null)}
+                  disabled={isProcessingPayment}
                   style={{
                     width: '100%',
-                    padding: '10px',
+                    padding: '12px',
                     backgroundColor: 'transparent',
                     color: '#64748b',
                     border: '1px solid #cbd5e1',
                     borderRadius: '10px',
                     fontWeight: 600,
-                    fontSize: '0.88rem',
-                    cursor: 'pointer',
+                    fontSize: '0.92rem',
+                    cursor: isProcessingPayment ? 'not-allowed' : 'pointer',
+                    transition: 'all 0.2s ease',
                   }}
                 >
-                  Cancel & Pay Later
+                  Cancel
                 </button>
               </div>
             </div>
