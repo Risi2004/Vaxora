@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { appointmentService } from '../services/appointmentService';
+import BookingAgentChat from './BookingAgentChat';
 
 export default function AppointmentsTab() {
+  const [showAgentModal, setShowAgentModal] = useState(false);
   const [vaccinesList, setVaccinesList] = useState([]);
   const [availableHospitals, setAvailableHospitals] = useState([]);
   const [availableDates, setAvailableDates] = useState([]);
@@ -592,10 +594,50 @@ export default function AppointmentsTab() {
         )}
 
         {/* Inner Light Blue Card: Book a New Appointment */}
-        <div className="book-appointment-box">
-          <h2 className="book-appointment-heading">
-            Book a New Appointment
-          </h2>
+        <div className="book-appointment-box" style={{ marginBottom: '32px' }}>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '16px',
+            flexWrap: 'wrap',
+            gap: '12px'
+          }}>
+            <h2 className="book-appointment-heading" style={{ margin: 0 }}>
+              Book a New Appointment
+            </h2>
+            <button
+              type="button"
+              onClick={() => setShowAgentModal(true)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '9px 18px',
+                background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '10px',
+                fontSize: '14px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                boxShadow: '0 4px 12px rgba(2, 132, 199, 0.35)',
+                transition: 'all 0.2s ease'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}
+              onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+            >
+              <span style={{ fontSize: '18px' }}>🤖</span>
+              <span>Open Booking Agent</span>
+              <span style={{
+                background: 'rgba(255, 255, 255, 0.25)',
+                padding: '2px 8px',
+                borderRadius: '12px',
+                fontSize: '11px',
+                fontWeight: 600
+              }}>AI</span>
+            </button>
+          </div>
 
           {/* Dynamic Step Guidance Prompt */}
           <div className={`booking-step-guide ${stepInfo.type}`}>
@@ -604,7 +646,7 @@ export default function AppointmentsTab() {
           </div>
 
           <form onSubmit={handleBook} className="book-appointment-form">
-            <div className="book-form-grid">
+              <div className="book-form-grid">
               {/* 1. Select Vaccine (Always Enabled) */}
               <div className="book-form-group">
                 <label className="book-form-label" htmlFor="select-vaccine">
@@ -1014,6 +1056,43 @@ export default function AppointmentsTab() {
             </div>
           </form>
         </div>
+
+        {/* Booking Agent Modal Popup */}
+        {showAgentModal && (
+          <div
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(15, 23, 42, 0.65)',
+              backdropFilter: 'blur(5px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 9999,
+              padding: '20px'
+            }}
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setShowAgentModal(false);
+            }}
+          >
+            <div style={{
+              width: '100%',
+              maxWidth: '760px',
+              borderRadius: '16px',
+              overflow: 'hidden',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)'
+            }}>
+              <BookingAgentChat
+                onClose={() => setShowAgentModal(false)}
+                onAppointmentCreated={loadMyAppointments}
+                launchPayHere={launchPayHere}
+              />
+            </div>
+          </div>
+        )}
 
         {/* Appointments Lower Section */}
         <div className="appointments-list-section">
