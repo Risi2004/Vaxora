@@ -155,7 +155,9 @@ public class InventoryService : IInventoryService
                 .Where(f => f.VaccineId == v.Id && f.HospitalProfile != null)
                 .Select(f => new HospitalSummaryDto
                 {
-                    Id = f.HospitalProfile.Id,
+                    Id = f.HospitalProfile.UserId,
+                    UserId = f.HospitalProfile.UserId,
+                    HospitalProfileId = f.HospitalProfile.Id,
                     Name = f.HospitalProfile.HospitalName,
                     Location = f.HospitalProfile.Address,
                     District = f.HospitalProfile.District,

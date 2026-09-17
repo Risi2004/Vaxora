@@ -34,9 +34,17 @@ public class AppointmentService : IAppointmentService
     {
         var vName = vaccineName.Trim().ToLowerInvariant();
 
+        // Resolve hospital User ID (in case HospitalProfile.Id was passed instead of User.Id)
+        var hospitalProfile = await _context.HospitalProfiles
+            .AsNoTracking()
+            .FirstOrDefaultAsync(hp => hp.Id == hospitalUserId || hp.UserId == hospitalUserId);
+
+        var resolvedHospitalUserId = hospitalProfile?.UserId ?? hospitalUserId;
+        var resolvedProfileId = hospitalProfile?.Id;
+
         var schedules = await _context.VaccineSchedules
             .AsNoTracking()
-            .Where(s => s.HospitalUserId == hospitalUserId &&
+            .Where(s => (s.HospitalUserId == resolvedHospitalUserId || (resolvedProfileId.HasValue && s.HospitalProfileId == resolvedProfileId.Value)) &&
                         s.Status == "Active" &&
                         s.VaccineName.ToLower().Contains(vName))
             .ToListAsync();
@@ -46,7 +54,7 @@ public class AppointmentService : IAppointmentService
             // Fallback: check all active schedules for this hospital if vaccine matching is broad
             schedules = await _context.VaccineSchedules
                 .AsNoTracking()
-                .Where(s => s.HospitalUserId == hospitalUserId && s.Status == "Active")
+                .Where(s => (s.HospitalUserId == resolvedHospitalUserId || (resolvedProfileId.HasValue && s.HospitalProfileId == resolvedProfileId.Value)) && s.Status == "Active")
                 .ToListAsync();
         }
 
@@ -139,9 +147,17 @@ public class AppointmentService : IAppointmentService
         var dayName = date.DayOfWeek.ToString();
         var dayShort = dayName[..Math.Min(3, dayName.Length)];
 
+        // Resolve hospital User ID (in case HospitalProfile.Id was passed instead of User.Id)
+        var hospitalProfile = await _context.HospitalProfiles
+            .AsNoTracking()
+            .FirstOrDefaultAsync(hp => hp.Id == hospitalUserId || hp.UserId == hospitalUserId);
+
+        var resolvedHospitalUserId = hospitalProfile?.UserId ?? hospitalUserId;
+        var resolvedProfileId = hospitalProfile?.Id;
+
         var schedules = await _context.VaccineSchedules
             .AsNoTracking()
-            .Where(s => s.HospitalUserId == hospitalUserId && s.Status == "Active")
+            .Where(s => (s.HospitalUserId == resolvedHospitalUserId || (resolvedProfileId.HasValue && s.HospitalProfileId == resolvedProfileId.Value)) && s.Status == "Active")
             .ToListAsync();
 
         // Filter schedules matching this date
@@ -182,7 +198,7 @@ public class AppointmentService : IAppointmentService
         // Fetch already booked appointments for this hospital and date (not cancelled)
         var bookedAppointments = await _context.Appointments
             .AsNoTracking()
-            .Where(a => a.HospitalUserId == hospitalUserId &&
+            .Where(a => (a.HospitalUserId == resolvedHospitalUserId || (resolvedProfileId.HasValue && a.HospitalProfileId == resolvedProfileId.Value)) &&
                         a.AppointmentDate == date &&
                         a.Status != "Cancelled")
             .ToListAsync();
@@ -225,16 +241,18 @@ public class AppointmentService : IAppointmentService
 
         var hospital = await _context.Users
             .Include(u => u.HospitalProfile)
-            .FirstOrDefaultAsync(u => u.Id == dto.HospitalUserId && u.Role == UserRole.HOSPITAL);
+            .FirstOrDefaultAsync(u => (u.Id == dto.HospitalUserId || (u.HospitalProfile != null && u.HospitalProfile.Id == dto.HospitalUserId)) && u.Role == UserRole.HOSPITAL);
 
         if (hospital == null)
         {
             throw new KeyNotFoundException("Selected hospital not found.");
         }
 
+        var resolvedHospitalUserId = hospital.Id;
+
         // Validate slot collision: 20-minute slots cannot be booked more than once
         var existingAppointment = await _context.Appointments
-            .FirstOrDefaultAsync(a => a.HospitalUserId == dto.HospitalUserId &&
+            .FirstOrDefaultAsync(a => a.HospitalUserId == resolvedHospitalUserId &&
                                       a.AppointmentDate == dto.AppointmentDate &&
                                       a.TimeSlot == dto.TimeSlot &&
                                       a.Status != "Cancelled");
@@ -247,7 +265,7 @@ public class AppointmentService : IAppointmentService
         // Find matching active schedule for doctor/nurse attribution
         var dayName = dto.AppointmentDate.DayOfWeek.ToString();
         var schedule = await _context.VaccineSchedules
-            .FirstOrDefaultAsync(s => s.HospitalUserId == dto.HospitalUserId &&
+            .FirstOrDefaultAsync(s => (s.HospitalUserId == resolvedHospitalUserId || (hospital.HospitalProfile != null && s.HospitalProfileId == hospital.HospitalProfile.Id)) &&
                                       s.Status == "Active" &&
                                       (s.Id == dto.VaccineScheduleId ||
                                        s.SpecificDate == dto.AppointmentDate ||
@@ -270,7 +288,7 @@ public class AppointmentService : IAppointmentService
             PatientNic = patient.PatientProfile?.NicNumber,
             PatientPhone = patient.PatientProfile?.PhoneNumber ?? patient.PhoneNumber,
             PatientEmail = patient.Email,
-            HospitalUserId = dto.HospitalUserId,
+            HospitalUserId = resolvedHospitalUserId,
             HospitalProfileId = hospital.HospitalProfile?.Id,
             HospitalName = hospitalName,
             VaccineScheduleId = schedule?.Id ?? dto.VaccineScheduleId,

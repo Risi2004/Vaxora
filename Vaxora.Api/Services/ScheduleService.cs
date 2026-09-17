@@ -139,7 +139,12 @@ public class ScheduleService : IScheduleService
 
         if (hospitalUserId.HasValue)
         {
-            query = query.Where(s => s.HospitalUserId == hospitalUserId.Value);
+            var hId = hospitalUserId.Value;
+            var hp = await _context.HospitalProfiles.AsNoTracking().FirstOrDefaultAsync(p => p.Id == hId || p.UserId == hId);
+            var resUserId = hp?.UserId ?? hId;
+            var resProfId = hp?.Id;
+
+            query = query.Where(s => s.HospitalUserId == resUserId || (resProfId.HasValue && s.HospitalProfileId == resProfId.Value));
         }
 
         if (!string.IsNullOrWhiteSpace(vaccineName))
