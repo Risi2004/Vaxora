@@ -2586,37 +2586,114 @@
 }
 
 .cal-selection-detail-card {
-  margin-top: 8px;
+  margin-top: 10px;
   padding: 10px 14px;
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
-  border-radius: 12px;
+  background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
+  border: 1.5px solid #a7f3d0;
+  border-radius: 14px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 0.82rem;
-  color: #166534;
+  gap: 12px;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.08);
   animation: calFadeIn 0.2s ease;
 }
 
 .cal-detail-left {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  min-width: 0;
+}
+
+.cal-check-badge {
+  width: 26px;
+  height: 26px;
+  min-width: 26px;
+  background: #10b981;
+  color: #ffffff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.82rem;
+  font-weight: 700;
+  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.35);
+}
+
+.cal-detail-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.cal-detail-date {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 0.86rem;
+  color: #065f46;
+}
+
+.cal-time-pill {
+  display: inline-block;
+  background: #d1fae5;
+  color: #047857;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.cal-detail-sub {
+  font-size: 0.77rem;
+  color: #047857;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cal-fee-tag {
+  color: #059669;
+  font-weight: 600;
 }
 
 .cal-change-btn {
-  background: transparent;
-  border: none;
-  color: #2563eb;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 15px;
+  background: #ffffff;
+  color: #0284c7;
+  border: 1.5px solid #bae6fd;
+  border-radius: 9999px;
+  font-size: 0.8rem;
   font-weight: 600;
-  font-size: 0.78rem;
+  font-family: var(--font-body);
   cursor: pointer;
-  text-decoration: underline;
-  padding: 0;
+  white-space: nowrap;
+  flex-shrink: 0;
+  box-shadow: 0 2px 5px rgba(2, 132, 199, 0.08);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  text-decoration: none;
 }
 
 .cal-change-btn:hover {
-  color: #1d4ed8;
+  background: #0284c7;
+  color: #ffffff;
+  border-color: #0284c7;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.25);
 }
+
+.cal-change-btn:active {
+  transform: translateY(0);
+}
+
 

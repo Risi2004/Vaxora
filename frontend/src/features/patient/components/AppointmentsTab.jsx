@@ -806,18 +806,31 @@ export default function AppointmentsTab() {
                 {formData.date && selectedDateInfo && (
                   <div className="cal-selection-detail-card">
                     <div className="cal-detail-left">
-                      <span>✅</span>
-                      <span>
-                        <strong>{formData.date} ({selectedDateInfo.dayOfWeek})</strong>: {selectedDateInfo.startTime} - {selectedDateInfo.endTime}
-                        {selectedDateInfo.doctorName ? ` (Dr. ${selectedDateInfo.doctorName})` : ''}
-                      </span>
+                      <div className="cal-check-badge">✓</div>
+                      <div className="cal-detail-text">
+                        <div className="cal-detail-date">
+                          <strong>{formData.date} ({selectedDateInfo.dayOfWeek})</strong>
+                          <span className="cal-time-pill">
+                            {selectedDateInfo.startTime} - {selectedDateInfo.endTime}
+                          </span>
+                        </div>
+                        {selectedDateInfo.doctorName && (
+                          <div className="cal-detail-sub">
+                            <span>👨‍⚕️ Dr. {selectedDateInfo.doctorName.replace(/^Dr\.\s*/i, '')}</span>
+                            {selectedDateInfo.formattedPrice && (
+                              <span className="cal-fee-tag">• {selectedDateInfo.formattedPrice}</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
                     <button
                       type="button"
                       className="cal-change-btn"
                       onClick={() => setShowCalendarPopup(true)}
                     >
-                      Change date
+                      <span>📅</span>
+                      <span>Change Date</span>
                     </button>
                   </div>
                 )}
