@@ -160,9 +160,12 @@ public class AppointmentService : IAppointmentService
         var resolvedHospitalUserId = hospitalProfile?.UserId ?? hospitalUserId;
         var resolvedProfileId = hospitalProfile?.Id;
 
+        var vName = vaccineName.Trim().ToLowerInvariant();
         var schedules = await _context.VaccineSchedules
             .AsNoTracking()
-            .Where(s => (s.HospitalUserId == resolvedHospitalUserId || (resolvedProfileId.HasValue && s.HospitalProfileId == resolvedProfileId.Value)) && s.Status == "Active")
+            .Where(s => (s.HospitalUserId == resolvedHospitalUserId || (resolvedProfileId.HasValue && s.HospitalProfileId == resolvedProfileId.Value)) &&
+                        s.Status == "Active" &&
+                        (string.IsNullOrWhiteSpace(vName) || s.VaccineName.ToLower().Contains(vName)))
             .ToListAsync();
 
         // Filter schedules matching this date
@@ -267,14 +270,40 @@ public class AppointmentService : IAppointmentService
             throw new InvalidOperationException($"The slot '{dto.TimeSlot}' on {dto.AppointmentDate:yyyy-MM-dd} is already booked by another patient. Please select a different time slot.");
         }
 
-        // Find matching active schedule for doctor/nurse attribution
-        var dayName = dto.AppointmentDate.DayOfWeek.ToString();
-        var schedule = await _context.VaccineSchedules
-            .FirstOrDefaultAsync(s => (s.HospitalUserId == resolvedHospitalUserId || (hospital.HospitalProfile != null && s.HospitalProfileId == hospital.HospitalProfile.Id)) &&
-                                      s.Status == "Active" &&
-                                      (s.Id == dto.VaccineScheduleId ||
-                                       s.SpecificDate == dto.AppointmentDate ||
-                                       (s.ScheduleType == "Weekly" && s.DaysOfWeek != null && s.DaysOfWeek.Contains(dayName))));
+        // Find matching active schedule for doctor/nurse attribution and fee calculation
+        VaccineSchedule? schedule = null;
+        var vName = dto.VaccineName.Trim().ToLowerInvariant();
+
+        // 1. First priority: match exact schedule ID if provided
+        if (dto.VaccineScheduleId.HasValue && dto.VaccineScheduleId.Value != Guid.Empty)
+        {
+            schedule = await _context.VaccineSchedules
+                .FirstOrDefaultAsync(s => s.Id == dto.VaccineScheduleId.Value && s.Status == "Active");
+        }
+
+        // 2. Second priority: match schedule by hospital, matching vaccine name, and date/recurrence
+        if (schedule == null)
+        {
+            var dayName = dto.AppointmentDate.DayOfWeek.ToString();
+            var dayShort = dayName[..Math.Min(3, dayName.Length)];
+
+            schedule = await _context.VaccineSchedules
+                .FirstOrDefaultAsync(s => (s.HospitalUserId == resolvedHospitalUserId || (hospital.HospitalProfile != null && s.HospitalProfileId == hospital.HospitalProfile.Id)) &&
+                                          s.Status == "Active" &&
+                                          (s.VaccineName.ToLower() == vName || s.VaccineName.ToLower().Contains(vName)) &&
+                                          (s.SpecificDate == dto.AppointmentDate ||
+                                           (s.ScheduleType == "Weekly" && s.DaysOfWeek != null &&
+                                            (s.DaysOfWeek.Contains(dayName) || s.DaysOfWeek.Contains(dayShort)))));
+        }
+
+        // 3. Fallback: match any active schedule for this hospital and vaccine name
+        if (schedule == null)
+        {
+            schedule = await _context.VaccineSchedules
+                .FirstOrDefaultAsync(s => (s.HospitalUserId == resolvedHospitalUserId || (hospital.HospitalProfile != null && s.HospitalProfileId == hospital.HospitalProfile.Id)) &&
+                                          s.Status == "Active" &&
+                                          (s.VaccineName.ToLower() == vName || s.VaccineName.ToLower().Contains(vName)));
+        }
 
         var patientName = patient.PatientProfile?.FullName;
         if (string.IsNullOrWhiteSpace(patientName))

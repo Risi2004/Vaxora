@@ -367,17 +367,21 @@ export default function AppointmentsTab() {
       setSubmitting(true);
       const res = await appointmentService.bookAppointment(payload);
 
-      if (isFree) {
+      // Verify the returned appointment status and fee from the server
+      const resFee = Number(res?.fee ?? res?.Fee ?? selectedFee);
+      const resStatus = String(res?.status ?? res?.Status ?? '').toLowerCase();
+
+      if (resFee <= 0 || resStatus === 'confirmed') {
         showToast('✓ Free appointment confirmed! Booking details sent to your email.');
         resetBookingForm();
         await loadMyAppointments();
       } else {
         // Online Card Payment via PayHere Gateway
         // Appointment is created in PendingPayment status.
-        const checkoutPayload = await appointmentService.initPayHere(res.id);
+        const checkoutPayload = await appointmentService.initPayHere(res.id || res.Id);
         setPayHereModalData({
           ...checkoutPayload,
-          appointmentId: res.id,
+          appointmentId: res.id || res.Id,
         });
 
         resetBookingForm();
