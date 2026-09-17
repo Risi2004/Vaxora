@@ -20,3 +20,31 @@ public enum InjectionSite
     Oral,
     Nasal
 }
+
+public enum MedicalRecordType
+{
+    Diagnosis,
+    Allergy,
+    Surgery,
+    Medication,
+    FamilyHistory,
+    LifestyleNote,
+    LabResult
+}
+
+public enum MedicalRecordSeverity
+{
+    Info,
+    Mild,
+    Moderate,
+    Severe,
+    Critical
+}
+
+public enum MedicalRecordStatus
+{
+    Active,
+    Resolved,
+    InRemission,
+    Chronic
+}
