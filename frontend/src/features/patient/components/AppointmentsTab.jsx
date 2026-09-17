@@ -527,6 +527,63 @@ export default function AppointmentsTab() {
     }
   };
 
+  // Official PayHere JavaScript SDK Popup
+  const handleLaunchPayHereOfficialPopup = () => {
+    if (!payHereModalData?.appointmentId) return;
+
+    if (!window.payhere) {
+      alert('PayHere library is loading or blocked. Please use the direct card payment option.');
+      return;
+    }
+
+    window.payhere.onCompleted = async function onCompleted(orderId) {
+      console.log('PayHere official payment completed. OrderID:', orderId);
+      try {
+        await appointmentService.confirmPayment(payHereModalData.appointmentId, orderId || `PH-${Date.now().toString().slice(-8)}`);
+        showToast('🎉 PayHere payment verified! Your vaccination appointment is confirmed.');
+        setPayHereModalData(null);
+        await loadMyAppointments();
+        setTimeout(() => {
+          const section = document.querySelector('.appointments-list-section');
+          if (section) section.scrollIntoView({ behavior: 'smooth' });
+        }, 250);
+      } catch (err) {
+        alert(`Failed to confirm PayHere payment on server: ${err.message}`);
+      }
+    };
+
+    window.payhere.onDismissed = function onDismissed() {
+      console.log('PayHere popup closed by user.');
+    };
+
+    window.payhere.onError = function onError(error) {
+      console.error('PayHere error:', error);
+      alert(`PayHere Error: ${error}\n\nNote: If PayHere reports "Unauthorized payment request", make sure your own Sandbox Merchant ID & Secret are set in appsettings.json.`);
+    };
+
+    const payment = {
+      sandbox: true,
+      merchant_id: payHereModalData.merchantId,
+      return_url: payHereModalData.returnUrl,
+      cancel_url: payHereModalData.cancelUrl,
+      notify_url: payHereModalData.notifyUrl,
+      order_id: payHereModalData.orderId,
+      items: payHereModalData.items,
+      amount: payHereModalData.formattedAmount,
+      currency: payHereModalData.currency,
+      hash: payHereModalData.hash,
+      first_name: payHereModalData.firstName,
+      last_name: payHereModalData.lastName,
+      email: payHereModalData.email,
+      phone: payHereModalData.phone,
+      address: payHereModalData.address,
+      city: payHereModalData.city,
+      country: payHereModalData.country,
+    };
+
+    window.payhere.startPayment(payment);
+  };
+
   // Helper: check if appointment is at least 1 day in advance
   const isEligibleForCancellation = (aptDateStr) => {
     if (!aptDateStr) return false;
@@ -1510,25 +1567,52 @@ export default function AppointmentsTab() {
 
               {/* Action Buttons */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {/* Option 1: Official PayHere JavaScript SDK Popup */}
+                <button
+                  type="button"
+                  onClick={handleLaunchPayHereOfficialPopup}
+                  disabled={isProcessingPayment}
+                  style={{
+                    width: '100%',
+                    padding: '13px',
+                    background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '12px',
+                    fontWeight: 700,
+                    fontSize: '0.98rem',
+                    cursor: isProcessingPayment ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    boxShadow: '0 4px 12px rgba(2, 132, 199, 0.35)',
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  <span>⚡ Launch Official PayHere Popup</span>
+                </button>
+
+                {/* Option 2: Direct In-App Card Payment */}
                 <button
                   type="button"
                   onClick={handleProcessCardPayment}
                   disabled={isProcessingPayment}
                   style={{
                     width: '100%',
-                    padding: '14px',
-                    backgroundColor: isProcessingPayment ? '#94a3b8' : '#0284c7',
+                    padding: '13px',
+                    backgroundColor: isProcessingPayment ? '#94a3b8' : '#0f172a',
                     color: '#ffffff',
                     border: 'none',
                     borderRadius: '12px',
                     fontWeight: 700,
-                    fontSize: '1rem',
+                    fontSize: '0.96rem',
                     cursor: isProcessingPayment ? 'not-allowed' : 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: '10px',
-                    boxShadow: isProcessingPayment ? 'none' : '0 4px 14px rgba(2, 132, 199, 0.4)',
+                    boxShadow: isProcessingPayment ? 'none' : '0 4px 14px rgba(15, 23, 42, 0.25)',
                     transition: 'all 0.2s ease',
                   }}
                 >
@@ -1539,7 +1623,7 @@ export default function AppointmentsTab() {
                     </>
                   ) : (
                     <>
-                      <span>Pay Now</span>
+                      <span>💳 Pay Now with Card</span>
                       <span style={{ opacity: 0.9 }}>
                         (Rs. {parseFloat(payHereModalData.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
                       </span>
