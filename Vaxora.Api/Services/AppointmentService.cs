@@ -15,6 +15,7 @@ public interface IAppointmentService
     Task<List<AppointmentResponseDto>> GetHospitalAppointmentsAsync(Guid hospitalUserId, DateOnly? date = null, string? status = null);
     Task<AppointmentResponseDto> UpdateAppointmentStatusAsync(Guid hospitalUserId, Guid appointmentId, UpdateAppointmentStatusDto dto);
     Task<bool> CancelAppointmentAsync(Guid userId, Guid appointmentId, bool isHospital = false);
+    Task<AppointmentResponseDto> ConfirmPayHerePaymentAsync(Guid appointmentId, string transactionId, string? orderId = null);
 }
 
 public class AppointmentService : IAppointmentService
@@ -84,7 +85,9 @@ public class AppointmentService : IAppointmentService
                         NurseName = schedule.NurseName,
                         StartTime = schedule.StartTime,
                         EndTime = schedule.EndTime,
-                        ScheduleId = schedule.Id
+                        ScheduleId = schedule.Id,
+                        Price = schedule.Price,
+                        FormattedPrice = schedule.Price <= 0 ? "Free" : $"LKR {schedule.Price:N2}"
                     });
                 }
             }
@@ -127,7 +130,9 @@ public class AppointmentService : IAppointmentService
                             NurseName = schedule.NurseName,
                             StartTime = schedule.StartTime,
                             EndTime = schedule.EndTime,
-                            ScheduleId = schedule.Id
+                            ScheduleId = schedule.Id,
+                            Price = schedule.Price,
+                            FormattedPrice = schedule.Price <= 0 ? "Free" : $"LKR {schedule.Price:N2}"
                         });
                     }
                 }
@@ -279,6 +284,34 @@ public class AppointmentService : IAppointmentService
 
         var hospitalName = hospital.HospitalProfile?.HospitalName ?? "Hospital Center";
 
+        var scheduleFee = schedule?.Price ?? 0.00m;
+        var isFree = scheduleFee <= 0;
+        var isPayHere = !isFree && string.Equals(dto.PaymentMethod, "PayHere", StringComparison.OrdinalIgnoreCase);
+        var isHospital = !isFree && !isPayHere; // Selected pay at hospital counter
+
+        string appointmentStatus;
+        string paymentMethod;
+        string paymentStatus;
+
+        if (isFree)
+        {
+            appointmentStatus = "Confirmed";
+            paymentMethod = "Free";
+            paymentStatus = "Paid";
+        }
+        else if (isHospital)
+        {
+            appointmentStatus = "Confirmed";
+            paymentMethod = "Hospital";
+            paymentStatus = "PendingAtHospital";
+        }
+        else
+        {
+            appointmentStatus = "PendingPayment";
+            paymentMethod = "PayHere";
+            paymentStatus = "PendingOnline";
+        }
+
         var appointment = new Appointment
         {
             Id = Guid.NewGuid(),
@@ -300,7 +333,10 @@ public class AppointmentService : IAppointmentService
             NurseName = schedule?.NurseName,
             AppointmentDate = dto.AppointmentDate,
             TimeSlot = dto.TimeSlot.Trim(),
-            Status = "Confirmed",
+            Status = appointmentStatus,
+            Fee = isFree ? 0.00m : scheduleFee,
+            PaymentMethod = paymentMethod,
+            PaymentStatus = paymentStatus,
             Notes = dto.Notes?.Trim(),
             CreatedAt = DateTime.UtcNow
         };
@@ -308,11 +344,12 @@ public class AppointmentService : IAppointmentService
         _context.Appointments.Add(appointment);
         await _context.SaveChangesAsync();
 
-        _logger.LogInformation("Appointment {AppId} reserved for Patient {Patient} at {Hospital} on {Date} ({Slot})",
-            appointment.Id, appointment.PatientName, appointment.HospitalName, appointment.AppointmentDate, appointment.TimeSlot);
+        _logger.LogInformation("Appointment {AppId} created for Patient {Patient} at {Hospital} on {Date} ({Slot}) - Status: {Status}, Fee: {Fee}, PaymentMethod: {PaymentMethod}",
+            appointment.Id, appointment.PatientName, appointment.HospitalName, appointment.AppointmentDate, appointment.TimeSlot, appointment.Status, appointment.Fee, appointment.PaymentMethod);
 
-        // Asynchronously send booking confirmation email to the patient
-        if (!string.IsNullOrWhiteSpace(patient.Email))
+        // Send booking confirmation email immediately ONLY if appointment is Confirmed (Free or PayAtHospital)
+        // If PayHere, confirmation email is sent ONLY upon successful payment!
+        if (appointment.Status == "Confirmed" && !string.IsNullOrWhiteSpace(patient.Email))
         {
             _ = Task.Run(async () =>
             {
@@ -327,7 +364,10 @@ public class AppointmentService : IAppointmentService
                         appointment.TimeSlot,
                         appointment.DoctorName,
                         appointment.NurseName,
-                        appointment.Notes);
+                        appointment.Notes,
+                        appointment.Fee,
+                        appointment.PaymentMethod,
+                        appointment.PaymentStatus);
                 }
                 catch (Exception ex)
                 {
@@ -456,6 +496,107 @@ public class AppointmentService : IAppointmentService
         return true;
     }
 
+    public async Task<AppointmentResponseDto> ConfirmPayHerePaymentAsync(Guid appointmentId, string transactionId, string? orderId = null)
+    {
+        var appointment = await _context.Appointments
+            .FirstOrDefaultAsync(a => a.Id == appointmentId);
+
+        if (appointment == null)
+        {
+            throw new KeyNotFoundException($"Appointment {appointmentId} not found.");
+        }
+
+        if (appointment.PaymentStatus == "Paid" && appointment.Status == "Confirmed")
+        {
+            _logger.LogInformation("Appointment {AppId} is already paid and confirmed.", appointmentId);
+            return MapToDto(appointment);
+        }
+
+        appointment.Status = "Confirmed";
+        appointment.PaymentStatus = "Paid";
+        appointment.PaymentTransactionId = transactionId;
+        appointment.UpdatedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation("Confirmed PayHere payment for Appointment {AppId} (Tx: {TxId}, Order: {OrderId})",
+            appointment.Id, transactionId, orderId ?? "N/A");
+
+        var resolvedOrderId = !string.IsNullOrWhiteSpace(orderId)
+            ? orderId
+            : $"APT-{appointment.Id.ToString("N")[..12].ToUpperInvariant()}";
+
+        // Asynchronously dispatch BOTH emails:
+        // 1. Booking Confirmation Email
+        // 2. Transaction Payment Receipt Email
+        if (!string.IsNullOrWhiteSpace(appointment.PatientEmail))
+        {
+            var patientEmail = appointment.PatientEmail;
+            var patientName = appointment.PatientName;
+            var vaccineName = appointment.VaccineName;
+            var hospitalName = appointment.HospitalName;
+            var appointmentDate = appointment.AppointmentDate.ToString("dddd, dd MMMM yyyy");
+            var timeSlot = appointment.TimeSlot;
+            var doctorName = appointment.DoctorName;
+            var nurseName = appointment.NurseName;
+            var notes = appointment.Notes;
+            var fee = appointment.Fee;
+            var payMethod = appointment.PaymentMethod;
+            var payStatus = appointment.PaymentStatus;
+            var txId = transactionId;
+            var ordId = resolvedOrderId;
+            var paymentTime = DateTime.UtcNow;
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    // Email 1: Booking Confirmation Email
+                    await _emailService.SendAppointmentBookingConfirmationEmailAsync(
+                        patientEmail,
+                        patientName,
+                        vaccineName,
+                        hospitalName,
+                        appointmentDate,
+                        timeSlot,
+                        doctorName,
+                        nurseName,
+                        notes,
+                        fee,
+                        payMethod,
+                        payStatus);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to send booking confirmation email after payment to {Email} for appointment {AppId}", patientEmail, appointmentId);
+                }
+
+                try
+                {
+                    // Email 2: Payment Receipt Email
+                    await _emailService.SendPaymentReceiptEmailAsync(
+                        patientEmail,
+                        patientName,
+                        vaccineName,
+                        hospitalName,
+                        appointmentDate,
+                        timeSlot,
+                        fee,
+                        "LKR",
+                        txId,
+                        ordId,
+                        paymentTime);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to send payment receipt email to {Email} for appointment {AppId}", patientEmail, appointmentId);
+                }
+            });
+        }
+
+        return MapToDto(appointment);
+    }
+
     private static List<TimeSlotDto> Generate20MinSlots(string startTimeStr, string endTimeStr)
     {
         var result = new List<TimeSlotDto>();
@@ -538,6 +679,10 @@ public class AppointmentService : IAppointmentService
             StartTime = a.StartTime,
             EndTime = a.EndTime,
             Status = a.Status,
+            Fee = a.Fee,
+            PaymentMethod = a.PaymentMethod,
+            PaymentStatus = a.PaymentStatus,
+            PaymentTransactionId = a.PaymentTransactionId,
             Notes = a.Notes,
             CreatedAt = a.CreatedAt
         };

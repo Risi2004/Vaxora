@@ -18,6 +18,22 @@ public static class DbInitializer
             // Automatically apply any pending migrations
             await context.Database.MigrateAsync();
 
+            // Safe column checks for pricing and payment integration
+            try
+            {
+                await context.Database.ExecuteSqlRawAsync(@"
+                    ALTER TABLE ""VaccineSchedules"" ADD COLUMN IF NOT EXISTS ""Price"" NUMERIC(18,2) NOT NULL DEFAULT 0.00;
+                    ALTER TABLE ""Appointments"" ADD COLUMN IF NOT EXISTS ""Fee"" NUMERIC(18,2) NOT NULL DEFAULT 0.00;
+                    ALTER TABLE ""Appointments"" ADD COLUMN IF NOT EXISTS ""PaymentMethod"" VARCHAR(50) NOT NULL DEFAULT 'Free';
+                    ALTER TABLE ""Appointments"" ADD COLUMN IF NOT EXISTS ""PaymentStatus"" VARCHAR(50) NOT NULL DEFAULT 'Paid';
+                    ALTER TABLE ""Appointments"" ADD COLUMN IF NOT EXISTS ""PaymentTransactionId"" VARCHAR(100) NULL;
+                ");
+            }
+            catch (Exception exSql)
+            {
+                logger.LogWarning(exSql, "Non-fatal notice during database schema sync: {Message}", exSql.Message);
+            }
+
             // Seed Admin if not exists
             var adminEmail = configuration["AdminSeed:Email"] ?? "admin@vaxora.health.gov.lk";
             var adminPassword = configuration["AdminSeed:Password"] ?? "Admin@Vaxora2026";

@@ -41,6 +41,7 @@ export default function HospitalAppointmentsTab() {
     endDate: defaultEndDateStr,
     startTime: '09:00',
     endTime: '11:00',
+    price: '0.00',
   });
 
   // 2. Appointments list state (mock/live)
@@ -232,6 +233,13 @@ export default function HospitalAppointmentsTab() {
       }
     }
 
+    // Validate price
+    const parsedPrice = parseFloat(scheduleForm.price || 0);
+    if (isNaN(parsedPrice) || parsedPrice < 0) {
+      alert('Please specify a valid vaccine price (enter 0 for free / subsidized vaccinations).');
+      return;
+    }
+
     // Resolve IDs
     const selectedDoc = doctors.find((d) => d.name === scheduleForm.doctor);
     const selectedNurse = nurses.find((n) => n.name === scheduleForm.nurse);
@@ -251,6 +259,7 @@ export default function HospitalAppointmentsTab() {
       endDate: isWeekly ? scheduleForm.endDate : null,
       startTime: scheduleForm.startTime,
       endTime: scheduleForm.endTime,
+      price: parsedPrice,
     };
 
     try {
@@ -270,6 +279,7 @@ export default function HospitalAppointmentsTab() {
         endDate: defaultEndDateStr,
         startTime: '09:00',
         endTime: '11:00',
+        price: '0.00',
       });
 
       await loadSchedules();
@@ -564,6 +574,27 @@ export default function HospitalAppointmentsTab() {
                   required
                 />
               </div>
+
+              {/* Vaccine Fee Per Person (LKR) */}
+              <div className="schedule-input-group">
+                <label className="schedule-input-label">
+                  Vaccine Fee / Person (LKR)
+                  <span style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: 'normal', marginLeft: '6px' }}>
+                    (0 = Free)
+                  </span>
+                </label>
+                <input
+                  type="number"
+                  name="price"
+                  value={scheduleForm.price}
+                  onChange={handleScheduleChange}
+                  min="0"
+                  step="1"
+                  placeholder="0.00"
+                  className="schedule-input-field"
+                  required
+                />
+              </div>
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px' }}>
@@ -604,24 +635,25 @@ export default function HospitalAppointmentsTab() {
             <table className="hospital-appointments-mockup-table">
               <thead>
                 <tr>
-                  <th style={{ width: '20%' }}>Doctor</th>
-                  <th style={{ width: '18%' }}>Nurse</th>
-                  <th style={{ width: '18%' }}>Vaccine</th>
-                  <th style={{ width: '22%' }}>Schedule / Recurrence</th>
-                  <th style={{ width: '14%' }}>Time Slot</th>
-                  <th style={{ width: '8%', borderRight: 'none' }}>Action</th>
+                  <th style={{ width: '18%' }}>Doctor</th>
+                  <th style={{ width: '16%' }}>Nurse</th>
+                  <th style={{ width: '16%' }}>Vaccine</th>
+                  <th style={{ width: '20%' }}>Schedule / Recurrence</th>
+                  <th style={{ width: '12%' }}>Time Slot</th>
+                  <th style={{ width: '11%' }}>Fee (Per Person)</th>
+                  <th style={{ width: '7%', borderRight: 'none' }}>Action</th>
                 </tr>
               </thead>
               <tbody>
                 {loadingSchedules ? (
                   <tr>
-                    <td colSpan={6} className="empty-table-cell">
+                    <td colSpan={7} className="empty-table-cell">
                       Loading saved schedules from database...
                     </td>
                   </tr>
                 ) : schedules.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="empty-table-cell">
+                    <td colSpan={7} className="empty-table-cell">
                       No active schedules created yet. Use the form above to add one-time or weekly recurring slots.
                     </td>
                   </tr>
@@ -650,6 +682,17 @@ export default function HospitalAppointmentsTab() {
                         )}
                       </td>
                       <td>{item.formattedTime || `${item.startTime} - ${item.endTime}`}</td>
+                      <td>
+                        {item.price && Number(item.price) > 0 ? (
+                          <span style={{ fontWeight: 700, color: '#0284c7' }}>
+                            LKR {Number(item.price).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          </span>
+                        ) : (
+                          <span style={{ fontWeight: 700, color: '#16a34a' }}>
+                            Free (0 LKR)
+                          </span>
+                        )}
+                      </td>
                       <td style={{ borderRight: 'none' }}>
                         <button
                           type="button"

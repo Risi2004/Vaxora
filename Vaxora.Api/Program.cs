@@ -59,6 +59,7 @@ builder.Services.AddScoped<IInventoryService, InventoryService>();
 builder.Services.AddScoped<IStaffManagementService, StaffManagementService>();
 builder.Services.AddScoped<IScheduleService, ScheduleService>();
 builder.Services.AddScoped<IAppointmentService, AppointmentService>();
+builder.Services.AddScoped<IPayHereService, PayHereService>();
 
 // 3. Configure JWT Authentication & Authorization
 var jwtSecretKey = builder.Configuration["Jwt:SecretKey"];

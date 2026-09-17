@@ -109,6 +109,22 @@ export const appointmentService = {
       method: 'DELETE',
     });
   },
+
+  // 8. Initialize PayHere payment parameters
+  initPayHere(appointmentId) {
+    return apiRequest('/payment/payhere-init', {
+      method: 'POST',
+      body: JSON.stringify({ appointmentId }),
+    });
+  },
+
+  // 9. Confirm PayHere payment
+  confirmPayment(appointmentId, paymentId = '') {
+    return apiRequest('/payment/confirm', {
+      method: 'POST',
+      body: JSON.stringify({ appointmentId, paymentId }),
+    });
+  },
 };
 
 export default appointmentService;

@@ -184,5 +184,16 @@ public class ApplicationDbContext : DbContext
 
         modelBuilder.Entity<StaffShift>()
             .HasIndex(s => new { s.AffiliationId, s.ShiftDate });
+
+        // === PRICING & PAYMENT CONFIGURATION ===
+        modelBuilder.Entity<VaccineSchedule>()
+            .Property(s => s.Price)
+            .HasPrecision(18, 2)
+            .HasDefaultValue(0.00m);
+
+        modelBuilder.Entity<Appointment>()
+            .Property(a => a.Fee)
+            .HasPrecision(18, 2)
+            .HasDefaultValue(0.00m);
     }
 }

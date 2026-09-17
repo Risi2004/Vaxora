@@ -27,10 +27,41 @@ export default function AppointmentsTab() {
   const [appointments, setAppointments] = useState([]);
   const [notification, setNotification] = useState('');
 
+  // Payment integration states
+  const [selectedFee, setSelectedFee] = useState(0);
+  const [paymentMethod, setPaymentMethod] = useState('Hospital'); // 'Hospital' | 'PayHere'
+  const [payHereModalData, setPayHereModalData] = useState(null);
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+
   const showToast = (msg) => {
     setNotification(msg);
-    setTimeout(() => setNotification(''), 4000);
+    setTimeout(() => setNotification(''), 5000);
   };
+
+  // 0. Listen for PayHere return URL query parameters (success or cancel)
+  useEffect(() => {
+    const query = new URLSearchParams(window.location.search);
+    const paymentParam = query.get('payment');
+    const aptId = query.get('apt_id');
+    const orderId = query.get('order_id');
+
+    if (paymentParam === 'success' && aptId) {
+      const handleReturnSuccess = async () => {
+        try {
+          await appointmentService.confirmPayment(aptId, orderId || 'PAYHERE-RETURN');
+          showToast('🎉 Payment successful! Your appointment is confirmed and receipts have been emailed.');
+          window.history.replaceState({}, document.title, window.location.pathname);
+          loadMyAppointments();
+        } catch (err) {
+          console.error('Failed to confirm payment on return:', err);
+        }
+      };
+      handleReturnSuccess();
+    } else if (paymentParam === 'cancelled') {
+      showToast('PayHere payment was cancelled. You can complete payment anytime from your appointments list.');
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
 
   // 1. Fetch available vaccines and hospitals from database
   useEffect(() => {
@@ -100,6 +131,7 @@ export default function AppointmentsTab() {
     setAvailableHospitals(hospitals);
     setAvailableDates([]);
     setAvailableSlots([]);
+    setSelectedFee(0);
 
     // Reset downstream fields
     setFormData({
@@ -136,6 +168,7 @@ export default function AppointmentsTab() {
 
     setAvailableDates([]);
     setAvailableSlots([]);
+    setSelectedFee(0);
 
     if (selectedHospitalUserId && formData.vaccine) {
       try {
@@ -144,7 +177,14 @@ export default function AppointmentsTab() {
           selectedHospitalUserId,
           formData.vaccine
         );
-        setAvailableDates(Array.isArray(dates) ? dates : []);
+        const validDates = Array.isArray(dates) ? dates : [];
+        setAvailableDates(validDates);
+
+        // Pre-read fee from first available schedule slot
+        if (validDates.length > 0) {
+          const fee = Number(validDates[0].price ?? validDates[0].Price ?? 0);
+          setSelectedFee(fee);
+        }
       } catch (err) {
         console.error('Failed to load available dates:', err);
         setAvailableDates([]);
@@ -157,7 +197,13 @@ export default function AppointmentsTab() {
   // 5. Handle Date Selection Change -> Loads available 20-minute time slots
   const handleDateChange = async (e) => {
     const selectedDate = e.target.value;
-    const selectedDateObj = availableDates.find((d) => d.Date === selectedDate || d.date === selectedDate);
+    const selectedDateObj = availableDates.find((d) => (d.Date || d.date) === selectedDate);
+
+    // Update fee specifically for this date/schedule
+    if (selectedDateObj) {
+      const fee = Number(selectedDateObj.price ?? selectedDateObj.Price ?? 0);
+      setSelectedFee(fee);
+    }
 
     setFormData((prev) => ({
       ...prev,
@@ -202,6 +248,9 @@ export default function AppointmentsTab() {
       return;
     }
 
+    const isFree = selectedFee <= 0;
+    const chosenMethod = isFree ? 'Free' : paymentMethod; // 'Free' | 'Hospital' | 'PayHere'
+
     const payload = {
       hospitalUserId: formData.hospitalUserId,
       vaccineName: formData.vaccine,
@@ -210,35 +259,128 @@ export default function AppointmentsTab() {
       appointmentDate: formData.date,
       timeSlot: formData.time,
       notes: formData.notes || null,
+      paymentMethod: chosenMethod,
     };
 
     try {
       setSubmitting(true);
-      await appointmentService.bookAppointment(payload);
-      showToast('Appointment reserved and saved successfully in database!');
+      const res = await appointmentService.bookAppointment(payload);
 
-      // Reset form
-      setFormData({
-        vaccine: '',
-        vaccineId: null,
-        hospital: '',
-        hospitalUserId: null,
-        date: '',
-        time: '',
-        scheduleId: null,
-        notes: '',
-      });
-      setAvailableHospitals([]);
-      setAvailableDates([]);
-      setAvailableSlots([]);
+      if (isFree) {
+        showToast('✓ Free appointment confirmed! Booking details sent to your email.');
+        resetBookingForm();
+        await loadMyAppointments();
+      } else if (chosenMethod === 'Hospital') {
+        showToast(`✓ Appointment confirmed! Spot booked. Please pay Rs. ${selectedFee.toLocaleString()} at the hospital counter on arrival.`);
+        resetBookingForm();
+        await loadMyAppointments();
+      } else {
+        // Pay via PayHere Gateway
+        // Appointment is created in PendingPayment status.
+        const checkoutPayload = await appointmentService.initPayHere(res.id);
+        setPayHereModalData({
+          ...checkoutPayload,
+          appointmentId: res.id,
+        });
 
-      // Reload appointments from database
-      await loadMyAppointments();
+        resetBookingForm();
+        await loadMyAppointments();
+      }
     } catch (err) {
       alert(`Booking failed: ${err.message}`);
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const resetBookingForm = () => {
+    setFormData({
+      vaccine: '',
+      vaccineId: null,
+      hospital: '',
+      hospitalUserId: null,
+      date: '',
+      time: '',
+      scheduleId: null,
+      notes: '',
+    });
+    setSelectedFee(0);
+    setAvailableHospitals([]);
+    setAvailableDates([]);
+    setAvailableSlots([]);
+  };
+
+  // Initiate PayHere Checkout for pending appointments
+  const handlePayNow = async (apt) => {
+    try {
+      setIsProcessingPayment(true);
+      const checkoutPayload = await appointmentService.initPayHere(apt.id || apt.Id);
+      setPayHereModalData({
+        ...checkoutPayload,
+        appointmentId: apt.id || apt.Id,
+      });
+    } catch (err) {
+      alert(`Failed to initiate PayHere: ${err.message}`);
+    } finally {
+      setIsProcessingPayment(false);
+    }
+  };
+
+  // Simulate Sandbox Payment Success (instant one-click in development)
+  const handleSimulatePaymentSuccess = async () => {
+    if (!payHereModalData?.appointmentId) return;
+    try {
+      setIsProcessingPayment(true);
+      const mockPaymentId = `PH-MOCK-${Date.now().toString().slice(-8)}`;
+      await appointmentService.confirmPayment(payHereModalData.appointmentId, mockPaymentId);
+      showToast('🎉 Payment verified! Booking confirmed. Confirmation email and payment transaction receipt have been sent.');
+      setPayHereModalData(null);
+      await loadMyAppointments();
+    } catch (err) {
+      alert(`Payment confirmation failed: ${err.message}`);
+    } finally {
+      setIsProcessingPayment(false);
+    }
+  };
+
+  // Redirect to official PayHere Sandbox Checkout Form
+  const handleProceedToPayHereCheckout = () => {
+    if (!payHereModalData) return;
+
+    // Create a dynamic HTML form and submit to PayHere sandbox URL
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = payHereModalData.checkoutUrl || 'https://sandbox.payhere.lk/pay/checkout';
+
+    const fields = {
+      merchant_id: payHereModalData.merchantId,
+      return_url: payHereModalData.returnUrl,
+      cancel_url: payHereModalData.cancelUrl,
+      notify_url: payHereModalData.notifyUrl,
+      first_name: payHereModalData.firstName,
+      last_name: payHereModalData.lastName,
+      email: payHereModalData.email,
+      phone: payHereModalData.phone,
+      address: payHereModalData.address,
+      city: payHereModalData.city,
+      country: payHereModalData.country,
+      order_id: payHereModalData.orderId,
+      items: payHereModalData.items,
+      currency: payHereModalData.currency,
+      amount: payHereModalData.formattedAmount,
+      hash: payHereModalData.hash,
+    };
+
+    Object.entries(fields).forEach(([key, val]) => {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = key;
+      input.value = val ?? '';
+      form.appendChild(input);
+    });
+
+    document.body.appendChild(form);
+    form.submit();
   };
 
   // Helper: check if appointment is at least 1 day in advance
@@ -549,6 +691,119 @@ export default function AppointmentsTab() {
               </div>
             </div>
 
+            {/* Vaccine Fee & Payment Choice Banner */}
+            {formData.vaccine && formData.hospitalUserId && (
+              <div
+                style={{
+                  margin: '22px 0 10px 0',
+                  padding: '20px',
+                  borderRadius: '14px',
+                  background: selectedFee > 0 ? '#f0f9ff' : '#f0fdf4',
+                  border: `1.5px solid ${selectedFee > 0 ? '#38bdf8' : '#86efac'}`,
+                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                  <div>
+                    <div style={{ fontSize: '0.82rem', textTransform: 'uppercase', letterSpacing: '0.6px', color: selectedFee > 0 ? '#0369a1' : '#15803d', fontWeight: 800 }}>
+                      Vaccination Fee (Configured by Hospital)
+                    </div>
+                    <div style={{ fontSize: '1.45rem', fontWeight: 800, color: selectedFee > 0 ? '#0284c7' : '#16a34a', marginTop: '2px' }}>
+                      {selectedFee > 0 ? `Rs. ${selectedFee.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : 'Free (0 Rs - Fully Subsidized)'}
+                    </div>
+                  </div>
+                  <div
+                    style={{
+                      padding: '6px 14px',
+                      borderRadius: '20px',
+                      background: selectedFee > 0 ? '#e0f2fe' : '#dcfce7',
+                      color: selectedFee > 0 ? '#0369a1' : '#15803d',
+                      fontSize: '0.82rem',
+                      fontWeight: 700,
+                    }}
+                  >
+                    {selectedFee > 0 ? 'Payment Required' : '✓ No Gateway Required'}
+                  </div>
+                </div>
+
+                {/* If fee > 0: Ask whether paying at hospital or through gateway */}
+                {selectedFee > 0 && (
+                  <div style={{ marginTop: '16px', paddingTop: '14px', borderTop: '1px solid #bae6fd' }}>
+                    <div style={{ fontWeight: 700, fontSize: '0.94rem', color: '#0f172a', marginBottom: '10px' }}>
+                      Choose How You Wish to Pay:
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '12px' }}>
+                      {/* Option 1: Pay at Hospital */}
+                      <label
+                        style={{
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: '12px',
+                          padding: '14px',
+                          borderRadius: '10px',
+                          border: `2px solid ${paymentMethod === 'Hospital' ? '#0284c7' : '#cbd5e1'}`,
+                          background: paymentMethod === 'Hospital' ? '#ffffff' : '#f8fafc',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                          boxShadow: paymentMethod === 'Hospital' ? '0 2px 10px rgba(2, 132, 199, 0.15)' : 'none',
+                        }}
+                      >
+                        <input
+                          type="radio"
+                          name="paymentChoice"
+                          value="Hospital"
+                          checked={paymentMethod === 'Hospital'}
+                          onChange={() => setPaymentMethod('Hospital')}
+                          style={{ marginTop: '4px', cursor: 'pointer' }}
+                        />
+                        <div>
+                          <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.95rem' }}>
+                            🏥 Pay at Hospital Counter
+                          </div>
+                          <div style={{ fontSize: '0.82rem', color: '#64748b', marginTop: '3px', lineHeight: 1.4 }}>
+                            Simply book the spot now. Pay <strong>Rs. {selectedFee.toLocaleString()}</strong> via cash or card when you arrive at the clinic counter.
+                          </div>
+                        </div>
+                      </label>
+
+                      {/* Option 2: Pay Online via PayHere Gateway */}
+                      <label
+                        style={{
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: '12px',
+                          padding: '14px',
+                          borderRadius: '10px',
+                          border: `2px solid ${paymentMethod === 'PayHere' ? '#0284c7' : '#cbd5e1'}`,
+                          background: paymentMethod === 'PayHere' ? '#ffffff' : '#f8fafc',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                          boxShadow: paymentMethod === 'PayHere' ? '0 2px 10px rgba(2, 132, 199, 0.15)' : 'none',
+                        }}
+                      >
+                        <input
+                          type="radio"
+                          name="paymentChoice"
+                          value="PayHere"
+                          checked={paymentMethod === 'PayHere'}
+                          onChange={() => setPaymentMethod('PayHere')}
+                          style={{ marginTop: '4px', cursor: 'pointer' }}
+                        />
+                        <div>
+                          <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.95rem' }}>
+                            💳 Pay Online via PayHere Gateway
+                          </div>
+                          <div style={{ fontSize: '0.82rem', color: '#64748b', marginTop: '3px', lineHeight: 1.4 }}>
+                            Redirect to PayHere gateway. Spot is officially confirmed and separate transaction receipt is emailed once payment succeeds.
+                          </div>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Book Appointment CTA Button */}
             <div className="book-btn-wrap">
               <button
@@ -561,7 +816,13 @@ export default function AppointmentsTab() {
                     : 'Click to book appointment'
                 }
               >
-                {submitting ? 'Reserving Slot...' : 'Book Appointment'}
+                {submitting
+                  ? 'Processing Booking...'
+                  : selectedFee <= 0
+                  ? 'Confirm & Book Free Spot'
+                  : paymentMethod === 'Hospital'
+                  ? 'Confirm Spot (Pay at Hospital)'
+                  : `Proceed to PayHere (Rs. ${selectedFee.toLocaleString()})`}
               </button>
             </div>
           </form>
@@ -592,6 +853,7 @@ export default function AppointmentsTab() {
                   <th className="th-date">Date</th>
                   <th className="th-time">Time Slot</th>
                   <th className="th-location">Hospital / Center</th>
+                  <th style={{ padding: '14px 16px', textAlign: 'center' }}>Fee &amp; Payment</th>
                   <th style={{ padding: '14px 16px', textAlign: 'center' }}>Status</th>
                   <th className="th-action">Action</th>
                 </tr>
@@ -599,99 +861,323 @@ export default function AppointmentsTab() {
               <tbody>
                 {loadingAppointments ? (
                   <tr>
-                    <td colSpan="6" className="empty-appointments-cell">
+                    <td colSpan="7" className="empty-appointments-cell">
                       Loading your appointments from database...
                     </td>
                   </tr>
                 ) : appointments.length === 0 ? (
                   <tr>
-                    <td colSpan="6" className="empty-appointments-cell">
+                    <td colSpan="7" className="empty-appointments-cell">
                       No current appointments scheduled. Select a vaccine above to book your slot.
                     </td>
                   </tr>
                 ) : (
-                  appointments.map((apt) => (
-                    <tr key={apt.id || apt.Id}>
-                      <td className="td-vaccine">
-                        <div style={{ fontWeight: 600 }}>{apt.vaccineName || apt.vaccine}</div>
-                        {apt.doctorName && (
-                          <div style={{ fontSize: '0.78rem', color: '#64748b' }}>
-                            Dr. {apt.doctorName}
+                  appointments.map((apt) => {
+                    const feeNum = Number(apt.fee ?? apt.Fee ?? 0);
+                    const payMethod = apt.paymentMethod || apt.PaymentMethod || 'Free';
+                    const payStatus = apt.paymentStatus || apt.PaymentStatus || 'Paid';
+                    const isPendingPayment = (apt.status || '').toLowerCase() === 'pendingpayment' || payStatus === 'PendingOnline';
+
+                    return (
+                      <tr key={apt.id || apt.Id}>
+                        <td className="td-vaccine">
+                          <div style={{ fontWeight: 600 }}>{apt.vaccineName || apt.vaccine}</div>
+                          {apt.doctorName && (
+                            <div style={{ fontSize: '0.78rem', color: '#64748b' }}>
+                              Dr. {apt.doctorName}
+                            </div>
+                          )}
+                        </td>
+                        <td className="td-date">{apt.appointmentDate || apt.date}</td>
+                        <td className="td-time">
+                          <span style={{ fontWeight: 600, color: '#1e40af' }}>
+                            {apt.timeSlot || apt.time}
+                          </span>
+                        </td>
+                        <td className="td-location">{apt.hospitalName || apt.location}</td>
+                        <td style={{ textAlign: 'center' }}>
+                          <div style={{ fontWeight: 700, fontSize: '0.9rem', color: feeNum > 0 ? '#0284c7' : '#16a34a' }}>
+                            {feeNum > 0 ? `LKR ${feeNum.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : 'Free'}
                           </div>
-                        )}
-                      </td>
-                      <td className="td-date">{apt.appointmentDate || apt.date}</td>
-                      <td className="td-time">
-                        <span style={{ fontWeight: 600, color: '#1e40af' }}>
-                          {apt.timeSlot || apt.time}
-                        </span>
-                      </td>
-                      <td className="td-location">{apt.hospitalName || apt.location}</td>
-                      <td style={{ textAlign: 'center' }}>
-                        <span
-                          style={{
-                            display: 'inline-block',
-                            padding: '4px 10px',
-                            borderRadius: '12px',
-                            fontSize: '0.78rem',
-                            fontWeight: 700,
-                            textTransform: 'uppercase',
-                            backgroundColor:
-                              (apt.status || '').toLowerCase() === 'confirmed'
-                                ? '#dcfce7'
-                                : (apt.status || '').toLowerCase() === 'cancelled'
-                                ? '#fee2e2'
-                                : '#e0f2fe',
-                            color:
-                              (apt.status || '').toLowerCase() === 'confirmed'
-                                ? '#15803d'
-                                : (apt.status || '').toLowerCase() === 'cancelled'
-                                ? '#b91c1c'
-                                : '#0369a1',
-                          }}
-                        >
-                          {apt.status || 'Confirmed'}
-                        </span>
-                      </td>
-                      <td className="td-action">
-                        {(apt.status || '').toLowerCase() !== 'cancelled' ? (
-                          isEligibleForCancellation(apt.appointmentDate || apt.date) ? (
-                            <button
-                              type="button"
-                              className="btn-cancel-appointment"
-                              onClick={() => handleCancel(apt)}
-                              title="Cancel appointment at least 1 day in advance"
-                            >
-                              Cancel
-                            </button>
+                          <div style={{ marginTop: '3px' }}>
+                            {feeNum <= 0 ? (
+                              <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: '10px', fontSize: '0.74rem', fontWeight: 700, backgroundColor: '#dcfce7', color: '#15803d' }}>
+                                ✓ Subsidized
+                              </span>
+                            ) : payMethod === 'Hospital' ? (
+                              <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: '10px', fontSize: '0.74rem', fontWeight: 700, backgroundColor: '#fef3c7', color: '#b45309' }}>
+                                🏥 Pay at Hospital
+                              </span>
+                            ) : payStatus === 'Paid' ? (
+                              <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: '10px', fontSize: '0.74rem', fontWeight: 700, backgroundColor: '#dcfce7', color: '#15803d' }}>
+                                ✓ Paid Online
+                              </span>
+                            ) : (
+                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                                <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: '10px', fontSize: '0.72rem', fontWeight: 700, backgroundColor: '#fee2e2', color: '#b91c1c' }}>
+                                  Payment Due
+                                </span>
+                                {(apt.status || '').toLowerCase() !== 'cancelled' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handlePayNow(apt)}
+                                    disabled={isProcessingPayment}
+                                    style={{
+                                      padding: '3px 8px',
+                                      backgroundColor: '#0284c7',
+                                      color: '#ffffff',
+                                      border: 'none',
+                                      borderRadius: '4px',
+                                      fontSize: '0.72rem',
+                                      fontWeight: 700,
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    💳 Pay Now
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <span
+                            style={{
+                              display: 'inline-block',
+                              padding: '4px 10px',
+                              borderRadius: '12px',
+                              fontSize: '0.78rem',
+                              fontWeight: 700,
+                              textTransform: 'uppercase',
+                              backgroundColor:
+                                (apt.status || '').toLowerCase() === 'confirmed'
+                                  ? '#dcfce7'
+                                  : (apt.status || '').toLowerCase() === 'cancelled'
+                                  ? '#fee2e2'
+                                  : (apt.status || '').toLowerCase() === 'pendingpayment'
+                                  ? '#fef3c7'
+                                  : '#e0f2fe',
+                              color:
+                                (apt.status || '').toLowerCase() === 'confirmed'
+                                  ? '#15803d'
+                                  : (apt.status || '').toLowerCase() === 'cancelled'
+                                  ? '#b91c1c'
+                                  : (apt.status || '').toLowerCase() === 'pendingpayment'
+                                  ? '#b45309'
+                                  : '#0369a1',
+                            }}
+                          >
+                            {apt.status || 'Confirmed'}
+                          </span>
+                        </td>
+                        <td className="td-action">
+                          {(apt.status || '').toLowerCase() !== 'cancelled' ? (
+                            isEligibleForCancellation(apt.appointmentDate || apt.date) ? (
+                              <button
+                                type="button"
+                                className="btn-cancel-appointment"
+                                onClick={() => handleCancel(apt)}
+                                title="Cancel appointment at least 1 day in advance"
+                              >
+                                Cancel
+                              </button>
+                            ) : (
+                              <span
+                                style={{
+                                  fontSize: '0.76rem',
+                                  color: '#64748b',
+                                  fontStyle: 'italic',
+                                  display: 'inline-block',
+                                  padding: '4px 8px',
+                                  background: '#f1f5f9',
+                                  borderRadius: '6px',
+                                }}
+                                title="Appointments cannot be cancelled online within 24 hours of the session. Please contact the hospital directly."
+                              >
+                                Locked (Same-Day)
+                              </span>
+                            )
                           ) : (
-                            <span
-                              style={{
-                                fontSize: '0.76rem',
-                                color: '#64748b',
-                                fontStyle: 'italic',
-                                display: 'inline-block',
-                                padding: '4px 8px',
-                                background: '#f1f5f9',
-                                borderRadius: '6px',
-                              }}
-                              title="Appointments cannot be cancelled online within 24 hours of the session. Please contact the hospital directly."
-                            >
-                              Locked (Same-Day)
-                            </span>
-                          )
-                        ) : (
-                          <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Cancelled</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))
+                            <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Cancelled</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
           </div>
         </div>
       </div>
+
+      {/* PayHere Checkout Modal */}
+      {payHereModalData && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 9999,
+            padding: '20px',
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#ffffff',
+              borderRadius: '16px',
+              maxWidth: '520px',
+              width: '100%',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              overflow: 'hidden',
+              border: '1px solid #e2e8f0',
+            }}
+          >
+            {/* Modal Header */}
+            <div
+              style={{
+                background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                padding: '24px',
+                color: '#ffffff',
+                textAlign: 'center',
+                position: 'relative',
+              }}
+            >
+              <div style={{ fontSize: '2rem', marginBottom: '8px' }}>💳</div>
+              <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 800 }}>PayHere Payment Gateway</h3>
+              <p style={{ margin: '6px 0 0 0', color: '#e0f2fe', fontSize: '0.88rem' }}>
+                Secure Online Payment for Vaccination Appointment
+              </p>
+              <button
+                type="button"
+                onClick={() => setPayHereModalData(null)}
+                style={{
+                  position: 'absolute',
+                  top: '16px',
+                  right: '16px',
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#ffffff',
+                  fontSize: '1.4rem',
+                  cursor: 'pointer',
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: '24px' }}>
+              <div style={{ background: '#f8fafc', borderRadius: '12px', padding: '16px', border: '1px solid #e2e8f0', marginBottom: '18px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '0.88rem' }}>
+                  <span style={{ color: '#64748b' }}>Order Reference:</span>
+                  <span style={{ fontWeight: 700, fontFamily: 'monospace', color: '#0f172a' }}>{payHereModalData.orderId}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '0.88rem' }}>
+                  <span style={{ color: '#64748b' }}>Service:</span>
+                  <span style={{ fontWeight: 600, color: '#0f172a', textAlign: 'right', maxWidth: '60%' }}>{payHereModalData.items}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed #cbd5e1', paddingTop: '10px', marginTop: '10px' }}>
+                  <span style={{ color: '#0f172a', fontWeight: 700, fontSize: '1.05rem' }}>Total Fee:</span>
+                  <span style={{ color: '#0284c7', fontWeight: 800, fontSize: '1.3rem' }}>
+                    {payHereModalData.currency} {parseFloat(payHereModalData.amount || 0).toFixed(2)}
+                  </span>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  fontSize: '0.85rem',
+                  color: '#0369a1',
+                  marginBottom: '20px',
+                  lineHeight: 1.5,
+                  background: '#f0f9ff',
+                  borderLeft: '4px solid #0284c7',
+                  padding: '12px 14px',
+                  borderRadius: '6px',
+                }}
+              >
+                🔒 <strong>Conditional Confirmation:</strong> Your spot will be confirmed only when the payment is completed. Two emails will be automatically sent to <strong>{payHereModalData.email}</strong>: (1) Booking Confirmation and (2) Payment Transaction Receipt.
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {/* Primary: Real PayHere Sandbox Checkout */}
+                <button
+                  type="button"
+                  onClick={handleProceedToPayHereCheckout}
+                  style={{
+                    width: '100%',
+                    padding: '14px',
+                    backgroundColor: '#0284c7',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '10px',
+                    fontWeight: 700,
+                    fontSize: '1rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    boxShadow: '0 4px 12px rgba(2, 132, 199, 0.35)',
+                  }}
+                >
+                  <span>🚀 Open PayHere Gateway Sandbox</span>
+                </button>
+
+                {/* Instant Simulation: Useful in dev/test sandbox */}
+                <button
+                  type="button"
+                  onClick={handleSimulatePaymentSuccess}
+                  disabled={isProcessingPayment}
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    backgroundColor: '#16a34a',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '10px',
+                    fontWeight: 700,
+                    fontSize: '0.92rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                  }}
+                >
+                  {isProcessingPayment ? 'Verifying & Sending Receipts...' : '⚡ Test Instant Sandbox Payment Success'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setPayHereModalData(null)}
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    backgroundColor: 'transparent',
+                    color: '#64748b',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '10px',
+                    fontWeight: 600,
+                    fontSize: '0.88rem',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Cancel & Pay Later
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

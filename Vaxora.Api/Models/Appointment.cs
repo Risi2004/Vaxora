@@ -69,7 +69,18 @@ public class Appointment
 
     [Required]
     [MaxLength(50)]
-    public string Status { get; set; } = "Confirmed"; // "Pending", "Confirmed", "Completed", "Cancelled"
+    public string Status { get; set; } = "Confirmed"; // "PendingPayment", "Confirmed", "Completed", "Cancelled"
+
+    public decimal Fee { get; set; } = 0.00m; // Vaccination fee in LKR (0 = Free)
+
+    [MaxLength(50)]
+    public string PaymentMethod { get; set; } = "Free"; // "Free", "Hospital", "PayHere"
+
+    [MaxLength(50)]
+    public string PaymentStatus { get; set; } = "Paid"; // "Paid", "PendingAtHospital", "PendingOnline", "Failed"
+
+    [MaxLength(100)]
+    public string? PaymentTransactionId { get; set; } // PayHere payment/order reference
 
     [MaxLength(1000)]
     public string? Notes { get; set; }

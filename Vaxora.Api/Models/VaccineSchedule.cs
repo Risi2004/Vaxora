@@ -55,6 +55,8 @@ public class VaccineSchedule
     [MaxLength(50)]
     public string Status { get; set; } = "Active"; // "Active", "Cancelled"
 
+    public decimal Price { get; set; } = 0.00m; // Vaccine fee per person in LKR (0 = Free)
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     // Navigation properties
