@@ -540,10 +540,6 @@ public class EmailService : IEmailService
         {
             paymentSummaryHtml = @"<span style='color: #16a34a; font-weight: 700;'>✓ Free (Government / Subsidized)</span>";
         }
-        else if (string.Equals(paymentMethod, "Hospital", StringComparison.OrdinalIgnoreCase))
-        {
-            paymentSummaryHtml = $@"<span style='color: #d97706; font-weight: 700;'>LKR {fee:N2} (Pay at Hospital Counter upon arrival)</span>";
-        }
         else
         {
             paymentSummaryHtml = $@"<span style='color: #0284c7; font-weight: 700;'>LKR {fee:N2} (Paid Online via PayHere Gateway)</span>";
@@ -623,7 +619,6 @@ public class EmailService : IEmailService
                 <ul style='margin: 0; padding-left: 20px; color: #334155; font-size: 13.5px; line-height: 1.6;'>
                   <li>Please arrive <strong>5-10 minutes prior</strong> to your scheduled 20-minute time slot.</li>
                   <li>Bring your <strong>National Identity Card (NIC)</strong> or Vaxora Digital Vaccination Card.</li>
-                  {(fee > 0 && string.Equals(paymentMethod, "Hospital", StringComparison.OrdinalIgnoreCase) ? $"<li>Please prepare <strong>LKR {fee:N2}</strong> to pay at the hospital counter.</li>" : "")}
                   <li>Wear loose, comfortable clothing around the upper arm.</li>
                   <li>If you feel unwell or have a fever on the day of appointment, please reschedule via the portal.</li>
                 </ul>

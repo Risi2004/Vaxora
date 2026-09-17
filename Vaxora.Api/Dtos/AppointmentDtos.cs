@@ -45,7 +45,7 @@ public class BookAppointmentRequestDto
 
     public string? Notes { get; set; }
 
-    public string PaymentMethod { get; set; } = "Free"; // "Free", "Hospital", "PayHere"
+    public string PaymentMethod { get; set; } = "Free"; // "Free", "PayHere"
 }
 
 public class AppointmentResponseDto

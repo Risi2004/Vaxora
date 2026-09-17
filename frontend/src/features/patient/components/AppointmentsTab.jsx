@@ -34,7 +34,6 @@ export default function AppointmentsTab() {
 
   // Payment integration states
   const [selectedFee, setSelectedFee] = useState(0);
-  const [paymentMethod, setPaymentMethod] = useState('Hospital'); // 'Hospital' | 'PayHere'
   const [payHereModalData, setPayHereModalData] = useState(null);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
@@ -351,7 +350,7 @@ export default function AppointmentsTab() {
     }
 
     const isFree = selectedFee <= 0;
-    const chosenMethod = isFree ? 'Free' : paymentMethod; // 'Free' | 'Hospital' | 'PayHere'
+    const chosenMethod = isFree ? 'Free' : 'PayHere';
 
     const payload = {
       hospitalUserId: formData.hospitalUserId,
@@ -372,12 +371,8 @@ export default function AppointmentsTab() {
         showToast('✓ Free appointment confirmed! Booking details sent to your email.');
         resetBookingForm();
         await loadMyAppointments();
-      } else if (chosenMethod === 'Hospital') {
-        showToast(`✓ Appointment confirmed! Spot booked. Please pay Rs. ${selectedFee.toLocaleString()} at the hospital counter on arrival.`);
-        resetBookingForm();
-        await loadMyAppointments();
       } else {
-        // Pay via PayHere Gateway
+        // Online Card Payment via PayHere Gateway
         // Appointment is created in PendingPayment status.
         const checkoutPayload = await appointmentService.initPayHere(res.id);
         setPayHereModalData({
@@ -952,78 +947,29 @@ export default function AppointmentsTab() {
                   </div>
                 </div>
 
-                {/* If fee > 0: Ask whether paying at hospital or through gateway */}
+                {/* If fee > 0: Card payment required notice */}
                 {selectedFee > 0 && (
                   <div style={{ marginTop: '16px', paddingTop: '14px', borderTop: '1px solid #bae6fd' }}>
-                    <div style={{ fontWeight: 700, fontSize: '0.94rem', color: '#0f172a', marginBottom: '10px' }}>
-                      Choose How You Wish to Pay:
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '12px' }}>
-                      {/* Option 1: Pay at Hospital */}
-                      <label
-                        style={{
-                          display: 'flex',
-                          alignItems: 'flex-start',
-                          gap: '12px',
-                          padding: '14px',
-                          borderRadius: '10px',
-                          border: `2px solid ${paymentMethod === 'Hospital' ? '#0284c7' : '#cbd5e1'}`,
-                          background: paymentMethod === 'Hospital' ? '#ffffff' : '#f8fafc',
-                          cursor: 'pointer',
-                          transition: 'all 0.2s ease',
-                          boxShadow: paymentMethod === 'Hospital' ? '0 2px 10px rgba(2, 132, 199, 0.15)' : 'none',
-                        }}
-                      >
-                        <input
-                          type="radio"
-                          name="paymentChoice"
-                          value="Hospital"
-                          checked={paymentMethod === 'Hospital'}
-                          onChange={() => setPaymentMethod('Hospital')}
-                          style={{ marginTop: '4px', cursor: 'pointer' }}
-                        />
-                        <div>
-                          <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.95rem' }}>
-                            🏥 Pay at Hospital Counter
-                          </div>
-                          <div style={{ fontSize: '0.82rem', color: '#64748b', marginTop: '3px', lineHeight: 1.4 }}>
-                            Simply book the spot now. Pay <strong>Rs. {selectedFee.toLocaleString()}</strong> via cash or card when you arrive at the clinic counter.
-                          </div>
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        padding: '12px 16px',
+                        borderRadius: '10px',
+                        border: '1px solid #bae6fd',
+                        background: '#ffffff',
+                      }}
+                    >
+                      <span style={{ fontSize: '1.4rem' }}>💳</span>
+                      <div>
+                        <div style={{ fontWeight: 700, color: '#0369a1', fontSize: '0.92rem' }}>
+                          Online Card Payment Required
                         </div>
-                      </label>
-
-                      {/* Option 2: Pay Online via PayHere Gateway */}
-                      <label
-                        style={{
-                          display: 'flex',
-                          alignItems: 'flex-start',
-                          gap: '12px',
-                          padding: '14px',
-                          borderRadius: '10px',
-                          border: `2px solid ${paymentMethod === 'PayHere' ? '#0284c7' : '#cbd5e1'}`,
-                          background: paymentMethod === 'PayHere' ? '#ffffff' : '#f8fafc',
-                          cursor: 'pointer',
-                          transition: 'all 0.2s ease',
-                          boxShadow: paymentMethod === 'PayHere' ? '0 2px 10px rgba(2, 132, 199, 0.15)' : 'none',
-                        }}
-                      >
-                        <input
-                          type="radio"
-                          name="paymentChoice"
-                          value="PayHere"
-                          checked={paymentMethod === 'PayHere'}
-                          onChange={() => setPaymentMethod('PayHere')}
-                          style={{ marginTop: '4px', cursor: 'pointer' }}
-                        />
-                        <div>
-                          <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.95rem' }}>
-                            💳 Pay Online via PayHere Gateway
-                          </div>
-                          <div style={{ fontSize: '0.82rem', color: '#64748b', marginTop: '3px', lineHeight: 1.4 }}>
-                            Redirect to PayHere gateway. Spot is officially confirmed and separate transaction receipt is emailed once payment succeeds.
-                          </div>
+                        <div style={{ fontSize: '0.82rem', color: '#64748b', marginTop: '2px', lineHeight: 1.4 }}>
+                          Payment of <strong>Rs. {selectedFee.toLocaleString()}</strong> is completed securely online via PayHere card payment to confirm your booking.
                         </div>
-                      </label>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1046,9 +992,7 @@ export default function AppointmentsTab() {
                   ? 'Processing Booking...'
                   : selectedFee <= 0
                   ? 'Confirm & Book Free Spot'
-                  : paymentMethod === 'Hospital'
-                  ? 'Confirm Spot (Pay at Hospital)'
-                  : `Proceed to PayHere (Rs. ${selectedFee.toLocaleString()})`}
+                  : `Pay Now (Rs. ${selectedFee.toLocaleString()})`}
               </button>
             </div>
           </form>
@@ -1129,10 +1073,6 @@ export default function AppointmentsTab() {
                             {feeNum <= 0 ? (
                               <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: '10px', fontSize: '0.74rem', fontWeight: 700, backgroundColor: '#dcfce7', color: '#15803d' }}>
                                 ✓ Subsidized
-                              </span>
-                            ) : payMethod === 'Hospital' ? (
-                              <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: '10px', fontSize: '0.74rem', fontWeight: 700, backgroundColor: '#fef3c7', color: '#b45309' }}>
-                                🏥 Pay at Hospital
                               </span>
                             ) : payStatus === 'Paid' ? (
                               <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: '10px', fontSize: '0.74rem', fontWeight: 700, backgroundColor: '#dcfce7', color: '#15803d' }}>

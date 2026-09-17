@@ -77,7 +77,7 @@ public class Appointment
     public string PaymentMethod { get; set; } = "Free"; // "Free", "Hospital", "PayHere"
 
     [MaxLength(50)]
-    public string PaymentStatus { get; set; } = "Paid"; // "Paid", "PendingAtHospital", "PendingOnline", "Failed"
+    public string PaymentStatus { get; set; } = "Paid"; // "Paid", "PendingOnline", "Failed"
 
     [MaxLength(100)]
     public string? PaymentTransactionId { get; set; } // PayHere payment/order reference

@@ -286,8 +286,6 @@ public class AppointmentService : IAppointmentService
 
         var scheduleFee = schedule?.Price ?? 0.00m;
         var isFree = scheduleFee <= 0;
-        var isPayHere = !isFree && string.Equals(dto.PaymentMethod, "PayHere", StringComparison.OrdinalIgnoreCase);
-        var isHospital = !isFree && !isPayHere; // Selected pay at hospital counter
 
         string appointmentStatus;
         string paymentMethod;
@@ -299,14 +297,9 @@ public class AppointmentService : IAppointmentService
             paymentMethod = "Free";
             paymentStatus = "Paid";
         }
-        else if (isHospital)
-        {
-            appointmentStatus = "Confirmed";
-            paymentMethod = "Hospital";
-            paymentStatus = "PendingAtHospital";
-        }
         else
         {
+            // Paid appointments require portal card payment (PayHere)
             appointmentStatus = "PendingPayment";
             paymentMethod = "PayHere";
             paymentStatus = "PendingOnline";
@@ -347,7 +340,7 @@ public class AppointmentService : IAppointmentService
         _logger.LogInformation("Appointment {AppId} created for Patient {Patient} at {Hospital} on {Date} ({Slot}) - Status: {Status}, Fee: {Fee}, PaymentMethod: {PaymentMethod}",
             appointment.Id, appointment.PatientName, appointment.HospitalName, appointment.AppointmentDate, appointment.TimeSlot, appointment.Status, appointment.Fee, appointment.PaymentMethod);
 
-        // Send booking confirmation email immediately ONLY if appointment is Confirmed (Free or PayAtHospital)
+        // Send booking confirmation email immediately ONLY if appointment is Confirmed (Free)
         // If PayHere, confirmation email is sent ONLY upon successful payment!
         if (appointment.Status == "Confirmed" && !string.IsNullOrWhiteSpace(patient.Email))
         {
