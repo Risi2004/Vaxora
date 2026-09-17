@@ -18,6 +18,8 @@ public class VaccineDto
 public class HospitalSummaryDto
 {
     public Guid Id { get; set; }
+    public Guid UserId { get; set; }
+    public Guid HospitalProfileId { get; set; }
     public string Name { get; set; } = string.Empty;
     public string Location { get; set; } = string.Empty;
     public string? District { get; set; }
