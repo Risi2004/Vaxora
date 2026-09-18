@@ -60,6 +60,9 @@ builder.Services.AddScoped<IStaffManagementService, StaffManagementService>();
 builder.Services.AddScoped<IScheduleService, ScheduleService>();
 builder.Services.AddScoped<IAppointmentService, AppointmentService>();
 builder.Services.AddScoped<IPayHereService, PayHereService>();
+builder.Services.AddScoped<IPatientVaccinationService, PatientVaccinationService>();
+builder.Services.AddScoped<IPatientMedicalHistoryService, PatientMedicalHistoryService>();
+builder.Services.AddScoped<IPatientVisitService, PatientVisitService>();
 
 // 3. Configure JWT Authentication & Authorization
 var jwtSecretKey = builder.Configuration["Jwt:SecretKey"];

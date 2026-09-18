@@ -29,6 +29,14 @@ public class ApplicationDbContext : DbContext
     public DbSet<VaccineSchedule> VaccineSchedules => Set<VaccineSchedule>();
     public DbSet<Appointment> Appointments => Set<Appointment>();
 
+    // === PATIENT VACCINATION RECORD MODULE ===
+    public DbSet<PatientVaccinationRecord> PatientVaccinationRecords => Set<PatientVaccinationRecord>();
+
+    // === PATIENT MEDICAL HISTORY MODULE ===
+    public DbSet<PatientMedicalHistory> PatientMedicalHistories => Set<PatientMedicalHistory>();
+
+    // === PATIENT VISIT MODULE ===
+    public DbSet<PatientVisit> PatientVisits => Set<PatientVisit>();
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -195,5 +203,124 @@ public class ApplicationDbContext : DbContext
             .Property(a => a.Fee)
             .HasPrecision(18, 2)
             .HasDefaultValue(0.00m);
+
+
+        // === PATIENT VACCINATION RECORDS CONFIGURATION ===
+        modelBuilder.Entity<PatientVaccinationRecord>()
+            .Property(r => r.Route)
+            .HasConversion<string>();
+
+        modelBuilder.Entity<PatientVaccinationRecord>()
+            .Property(r => r.Site)
+            .HasConversion<string>();
+
+        modelBuilder.Entity<PatientVaccinationRecord>()
+            .HasIndex(r => new { r.PatientProfileId, r.AdministeredAt });
+
+        modelBuilder.Entity<PatientVaccinationRecord>()
+            .HasIndex(r => r.VaccineId);
+
+        modelBuilder.Entity<PatientVaccinationRecord>()
+            .HasIndex(r => r.BatchId);
+
+        modelBuilder.Entity<PatientVaccinationRecord>()
+            .HasOne(r => r.PatientProfile)
+            .WithMany()
+            .HasForeignKey(r => r.PatientProfileId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<PatientVaccinationRecord>()
+            .HasOne(r => r.Vaccine)
+            .WithMany()
+            .HasForeignKey(r => r.VaccineId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<PatientVaccinationRecord>()
+            .HasOne(r => r.Batch)
+            .WithMany()
+            .HasForeignKey(r => r.BatchId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<PatientVaccinationRecord>()
+            .HasOne(r => r.AdministeredByUser)
+            .WithMany()
+            .HasForeignKey(r => r.AdministeredByUserId)
+            .OnDelete(DeleteBehavior.SetNull);
+        
+        // === PATIENT MEDICAL HISTORY MODULE CONFIGURATION (Added) ===
+        modelBuilder.Entity<PatientMedicalHistory>()
+            .Property(r => r.RecordType)
+            .HasConversion<string>();
+
+        modelBuilder.Entity<PatientMedicalHistory>()
+            .Property(r => r.Severity)
+            .HasConversion<string>();
+
+        modelBuilder.Entity<PatientMedicalHistory>()
+            .Property(r => r.Status)
+            .HasConversion<string>();
+
+        modelBuilder.Entity<PatientMedicalHistory>()
+            .HasIndex(r => new { r.PatientProfileId, r.DiagnosedAt });
+
+        modelBuilder.Entity<PatientMedicalHistory>()
+            .HasIndex(r => r.RecordType);
+
+        modelBuilder.Entity<PatientMedicalHistory>()
+            .HasIndex(r => r.Status);
+
+        modelBuilder.Entity<PatientMedicalHistory>()
+            .HasOne(r => r.PatientProfile)
+            .WithMany()
+            .HasForeignKey(r => r.PatientProfileId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<PatientMedicalHistory>()
+            .HasOne(r => r.RecordedByUser)
+            .WithMany()
+            .HasForeignKey(r => r.RecordedByUserId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        // === PATIENT VISIT CONFIGURATION ===
+        modelBuilder.Entity<PatientVisit>()
+            .Property(v => v.VisitType)
+            .HasConversion<string>();
+
+        modelBuilder.Entity<PatientVisit>()
+            .Property(v => v.Status)
+            .HasConversion<string>();
+
+        modelBuilder.Entity<PatientVisit>()
+            .HasIndex(v => new { v.PatientProfileId, v.VisitDate });
+
+        modelBuilder.Entity<PatientVisit>()
+            .HasIndex(v => v.Status);
+
+        modelBuilder.Entity<PatientVisit>()
+            .HasIndex(v => v.FollowUpDate);
+
+        modelBuilder.Entity<PatientVisit>()
+            .HasOne(v => v.PatientProfile)
+            .WithMany()
+            .HasForeignKey(v => v.PatientProfileId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<PatientVisit>()
+            .HasOne(v => v.DoctorUser)
+            .WithMany()
+            .HasForeignKey(v => v.DoctorUserId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<PatientVisit>()
+            .HasOne(v => v.NurseUser)
+            .WithMany()
+            .HasForeignKey(v => v.NurseUserId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<PatientVisit>()
+            .HasOne(v => v.HospitalProfile)
+            .WithMany()
+            .HasForeignKey(v => v.HospitalProfileId)
+            .OnDelete(DeleteBehavior.SetNull);
     }
 }
