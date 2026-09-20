@@ -995,6 +995,45 @@ public class AuthService : IAuthService
             Timestamp = DateTime.UtcNow
         });
 
+        // Clean up staff affiliations (where user is either the staff member or the hospital)
+        var affiliations = await _context.StaffAffiliations
+            .Include(a => a.Shifts)
+            .Where(a => a.HospitalUserId == userId || a.StaffUserId == userId)
+            .ToListAsync();
+
+        if (affiliations.Count != 0)
+        {
+            foreach (var aff in affiliations)
+            {
+                if (aff.Shifts.Count != 0)
+                {
+                    _context.StaffShifts.RemoveRange(aff.Shifts);
+                }
+            }
+            _context.StaffAffiliations.RemoveRange(affiliations);
+        }
+
+        // Clean up hospital inventory/formulary/vaults if deleting a hospital
+        if (user.HospitalProfile != null)
+        {
+            var hospitalId = user.HospitalProfile.Id;
+            var formularies = await _context.HospitalFormularies.Where(f => f.HospitalProfileId == hospitalId).ToListAsync();
+            _context.HospitalFormularies.RemoveRange(formularies);
+
+            var vaults = await _context.ColdVaults.Where(v => v.HospitalProfileId == hospitalId).ToListAsync();
+            _context.ColdVaults.RemoveRange(vaults);
+
+            var batches = await _context.Batches.Include(b => b.Transactions).Where(b => b.HospitalProfileId == hospitalId).ToListAsync();
+            foreach (var b in batches)
+            {
+                if (b.Transactions.Count != 0)
+                {
+                    _context.InventoryTransactions.RemoveRange(b.Transactions);
+                }
+            }
+            _context.Batches.RemoveRange(batches);
+        }
+
         _context.Users.Remove(user);
         await _context.SaveChangesAsync();
 

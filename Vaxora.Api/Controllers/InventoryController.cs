@@ -33,6 +33,7 @@ public class InventoryController : ControllerBase
     // ==================== VACCINES ====================
 
     [HttpGet("vaccines")]
+    [AllowAnonymous]
     public async Task<IActionResult> GetVaccines()
     {
         try
@@ -44,6 +45,22 @@ public class InventoryController : ControllerBase
         {
             _logger.LogError(ex, "Error fetching vaccines");
             return StatusCode(500, new { message = "Failed to fetch vaccines." });
+        }
+    }
+
+    [HttpGet("vaccines-with-hospitals")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetVaccinesWithHospitals()
+    {
+        try
+        {
+            var result = await _inventoryService.GetVaccinesWithHospitalsAsync();
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching vaccines with hospitals");
+            return StatusCode(500, new { message = "Failed to fetch vaccine hospital availability." });
         }
     }
 

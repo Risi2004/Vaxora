@@ -8,6 +8,7 @@ namespace Vaxora.Api.Services;
 public interface IInventoryService
 {
     Task<List<VaccineDto>> GetGlobalVaccinesAsync();
+    Task<List<VaccineWithHospitalsDto>> GetVaccinesWithHospitalsAsync();
     Task<List<FormularyEntryDto>> GetFormularyAsync(Guid userId);
     Task<FormularyEntryDto> RegisterFormularyAsync(Guid userId, RegisterFormularyDto dto);
     Task<bool> RemoveFormularyAsync(Guid userId, Guid formularyId);
@@ -134,6 +135,64 @@ public class InventoryService : IInventoryService
                 DefaultMinThreshold = v.DefaultMinThreshold
             })
             .ToListAsync();
+    }
+
+    public async Task<List<VaccineWithHospitalsDto>> GetVaccinesWithHospitalsAsync()
+    {
+        var vaccines = await _context.Vaccines
+            .OrderBy(v => v.Name)
+            .ToListAsync();
+
+        var formularies = await _context.HospitalFormularies
+            .Include(f => f.HospitalProfile)
+            .ToListAsync();
+
+        var groupedVaccines = vaccines
+            .GroupBy(v => v.Name.Trim(), StringComparer.OrdinalIgnoreCase);
+
+        var result = new List<VaccineWithHospitalsDto>();
+
+        foreach (var group in groupedVaccines)
+        {
+            var first = group.First();
+            var vaccineIds = group.Select(v => v.Id).ToHashSet();
+
+            var offeringHospitals = formularies
+                .Where(f => vaccineIds.Contains(f.VaccineId) && f.HospitalProfile != null)
+                .Select(f => new HospitalSummaryDto
+                {
+                    Id = f.HospitalProfile.UserId,
+                    UserId = f.HospitalProfile.UserId,
+                    HospitalProfileId = f.HospitalProfile.Id,
+                    Name = f.HospitalProfile.HospitalName,
+                    Location = f.HospitalProfile.Address,
+                    District = f.HospitalProfile.District,
+                    Type = f.HospitalProfile.HospitalType,
+                    ContactNumber = f.HospitalProfile.ContactNumber
+                })
+                .GroupBy(h => h.Id)
+                .Select(g => g.First())
+                .ToList();
+
+            var manufacturers = group
+                .Select(v => v.Manufacturer)
+                .Where(m => !string.IsNullOrWhiteSpace(m))
+                .Distinct()
+                .ToList();
+
+            result.Add(new VaccineWithHospitalsDto
+            {
+                Id = first.Id,
+                Name = first.Name,
+                Manufacturer = manufacturers.Count > 0 ? string.Join(", ", manufacturers) : first.Manufacturer,
+                Category = ComputeCategory(first.Category),
+                DosesPerVial = first.DosesPerVial,
+                RequiredTemp = first.RequiredTemp,
+                Hospitals = offeringHospitals
+            });
+        }
+
+        return result;
     }
 
     // ==================== FORMULARY ====================

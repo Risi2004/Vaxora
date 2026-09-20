@@ -180,20 +180,28 @@ public class AdminService : IAdminService
             targetUser.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
 
+            var userEmail = targetUser.Email;
+            var regNum = regNumber;
+            var recName = recipientName;
+            var rTitle = roleTitle;
+
+            _logger.LogInformation("Admin approved registration for user {Email} (Role: {Role}, Reg #{RegNum}). Dispatching approval email to {Recipient}...", userEmail, rTitle, regNum, recName);
+
             // Dispatch Account Approved email in background
             _ = Task.Run(async () =>
             {
                 try
                 {
                     await _emailService.SendApprovalEmailAsync(
-                        targetUser.Email,
-                        recipientName,
-                        regNumber,
-                        roleTitle);
+                        userEmail,
+                        recName,
+                        regNum,
+                        rTitle);
+                    _logger.LogInformation("Approval email successfully sent to {Email} ({Role})", userEmail, rTitle);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Background error dispatching approval email to {Email}", targetUser.Email);
+                    _logger.LogError(ex, "Background error dispatching approval email to {Email}", userEmail);
                 }
             });
         }
@@ -216,20 +224,42 @@ public class AdminService : IAdminService
                 Timestamp = DateTime.UtcNow
             });
 
-            // 2. Automatically delete the rejected user from the database (cascades to profile)
+            // 2. Clean up affiliations if any exist
+            var affiliations = await _context.StaffAffiliations
+                .Include(a => a.Shifts)
+                .Where(a => a.HospitalUserId == targetUser.Id || a.StaffUserId == targetUser.Id)
+                .ToListAsync();
+
+            if (affiliations.Count != 0)
+            {
+                foreach (var aff in affiliations)
+                {
+                    if (aff.Shifts.Count != 0)
+                    {
+                        _context.StaffShifts.RemoveRange(aff.Shifts);
+                    }
+                }
+                _context.StaffAffiliations.RemoveRange(affiliations);
+            }
+
+            // 3. Automatically delete the rejected user from the database (cascades to profile)
             _context.Users.Remove(targetUser);
             await _context.SaveChangesAsync();
 
-            // 3. Dispatch Account Rejected email with reason to user
+            // 4. Dispatch Account Rejected email with reason to user
+            var regNum = regNumber;
+            var recName = recipientName;
+            var rTitle = roleTitle;
+
             _ = Task.Run(async () =>
             {
                 try
                 {
                     await _emailService.SendRejectionEmailAsync(
                         userEmail,
-                        recipientName,
-                        regNumber,
-                        roleTitle,
+                        recName,
+                        regNum,
+                        rTitle,
                         reason);
                 }
                 catch (Exception ex)
@@ -246,7 +276,12 @@ public class AdminService : IAdminService
 
     public async Task<bool> UpdateUserStatusAsync(Guid adminId, Guid targetUserId, UserStatusUpdateDto dto)
     {
-        var targetUser = await _context.Users.FindAsync(targetUserId);
+        var targetUser = await _context.Users
+            .Include(u => u.DoctorProfile)
+            .Include(u => u.NurseProfile)
+            .Include(u => u.HospitalProfile)
+            .FirstOrDefaultAsync(u => u.Id == targetUserId);
+
         if (targetUser == null)
         {
             throw new KeyNotFoundException("User not found.");
@@ -259,19 +294,81 @@ public class AdminService : IAdminService
 
         if (Enum.TryParse<UserStatus>(dto.Status, true, out var newStatus))
         {
+            var oldStatus = targetUser.Status;
             targetUser.Status = newStatus;
             targetUser.UpdatedAt = DateTime.UtcNow;
+
+            if (newStatus == UserStatus.Active)
+            {
+                if (targetUser.DoctorProfile != null)
+                {
+                    targetUser.DoctorProfile.VerificationStatus = VerificationStatus.Approved;
+                    targetUser.DoctorProfile.VerifiedAt = DateTime.UtcNow;
+                    targetUser.DoctorProfile.VerifiedByAdminId = adminId;
+                }
+                else if (targetUser.NurseProfile != null)
+                {
+                    targetUser.NurseProfile.VerificationStatus = VerificationStatus.Approved;
+                    targetUser.NurseProfile.VerifiedAt = DateTime.UtcNow;
+                    targetUser.NurseProfile.VerifiedByAdminId = adminId;
+                }
+                else if (targetUser.HospitalProfile != null)
+                {
+                    targetUser.HospitalProfile.VerificationStatus = VerificationStatus.Approved;
+                    targetUser.HospitalProfile.VerifiedAt = DateTime.UtcNow;
+                    targetUser.HospitalProfile.VerifiedByAdminId = adminId;
+                }
+            }
 
             _context.AuditLogs.Add(new AuditLog
             {
                 UserId = adminId,
                 Role = "ADMIN",
                 Action = "USER_STATUS_UPDATE",
-                Details = $"Admin changed status of {targetUser.Email} to {newStatus}",
+                Details = $"Admin changed status of {targetUser.Email} from {oldStatus} to {newStatus}",
                 Timestamp = DateTime.UtcNow
             });
 
             await _context.SaveChangesAsync();
+
+            // If account was activated from pending, send approval email
+            if (newStatus == UserStatus.Active && oldStatus != UserStatus.Active)
+            {
+                var userEmail = targetUser.Email;
+                var regNum = targetUser.RegistrationNumber ?? "N/A";
+                string recName = targetUser.Role switch
+                {
+                    UserRole.DOCTOR => $"Dr. {targetUser.DoctorProfile?.FullName ?? "Doctor"}",
+                    UserRole.NURSE => $"Nurse {targetUser.NurseProfile?.FullName ?? "Nurse"}",
+                    UserRole.HOSPITAL => targetUser.HospitalProfile?.HospitalName ?? "Hospital",
+                    _ => "Healthcare Professional"
+                };
+                string rTitle = targetUser.Role switch
+                {
+                    UserRole.DOCTOR => "Doctor",
+                    UserRole.NURSE => "Nurse",
+                    UserRole.HOSPITAL => "Hospital",
+                    _ => targetUser.Role.ToString()
+                };
+
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await _emailService.SendApprovalEmailAsync(
+                            userEmail,
+                            recName,
+                            regNum,
+                            rTitle);
+                        _logger.LogInformation("Approval email successfully sent on status update to {Email} ({Role})", userEmail, rTitle);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Background error dispatching approval email on status update to {Email}", userEmail);
+                    }
+                });
+            }
+
             return true;
         }
 

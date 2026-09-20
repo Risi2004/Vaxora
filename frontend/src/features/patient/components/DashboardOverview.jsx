@@ -1,8 +1,33 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { authService, getUser } from '../../auth';
 
-export default function DashboardOverview() {
+export default function DashboardOverview({ onNavigateTab, onOpenBookModal }) {
   const navigate = useNavigate();
+
+  const [displayName, setDisplayName] = useState(() => {
+    const cached = typeof authService?.getUser === 'function' ? authService.getUser() : (getUser ? getUser() : null);
+    return cached?.name || cached?.profileDetails?.fullName || '';
+  });
+
+  useEffect(() => {
+    const fetchLatestProfile = async () => {
+      try {
+        if (typeof authService?.getMe === 'function') {
+          const fresh = await authService.getMe();
+          const name = fresh?.name || fresh?.profileDetails?.fullName;
+          if (name) {
+            setDisplayName(name);
+          }
+        }
+      } catch (err) {
+        console.warn('Could not fetch latest user profile for dashboard banner:', err);
+      }
+    };
+
+    fetchLatestProfile();
+  }, []);
+
   const scheduleItems = [
     {
       id: 1,
@@ -47,7 +72,7 @@ export default function DashboardOverview() {
       {/* 1. Welcome Banner */}
       <div className="patient-welcome-banner">
         <div className="welcome-text-group">
-          <h1>Welcome back, Kumar! 👋</h1>
+          <h1>Welcome back{displayName ? `, ${displayName}` : ''}! 👋</h1>
           <p className="welcome-subtitle">
             Your Vaxora immunization pass is cryptographically verified and up-to-date.
             Your next booster dose is confirmed for October 12, 2026.
@@ -56,7 +81,7 @@ export default function DashboardOverview() {
         <button
           type="button"
           className="btn-banner-action"
-          onClick={() => navigate('/patient/appointments')}
+          onClick={() => (onOpenBookModal ? onOpenBookModal() : navigate('/patient/appointments'))}
         >
           + Book Vaccination
         </button>

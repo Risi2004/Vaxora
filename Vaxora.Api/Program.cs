@@ -26,9 +26,6 @@ if (File.Exists(envFilePath))
     }
 }
 
-// Configure QuestPDF license
-QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
-
 var builder = WebApplication.CreateBuilder(args);
 
 // 1. Configure Database Connection (Neon PostgreSQL / Npgsql)
@@ -60,6 +57,12 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddScoped<IInventoryService, InventoryService>();
 builder.Services.AddScoped<IStaffManagementService, StaffManagementService>();
+builder.Services.AddScoped<IScheduleService, ScheduleService>();
+builder.Services.AddScoped<IAppointmentService, AppointmentService>();
+builder.Services.AddScoped<IPayHereService, PayHereService>();
+builder.Services.AddScoped<IPatientVaccinationService, PatientVaccinationService>();
+builder.Services.AddScoped<IPatientMedicalHistoryService, PatientMedicalHistoryService>();
+builder.Services.AddScoped<IPatientVisitService, PatientVisitService>();
 
 // 3. Configure JWT Authentication & Authorization
 var jwtSecretKey = builder.Configuration["Jwt:SecretKey"];

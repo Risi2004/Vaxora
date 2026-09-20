@@ -5,3 +5,4 @@ export { default as VaccinationHistoryTab } from './VaccinationHistoryTab';
 export { default as FeedbackTab } from './FeedbackTab';
 export { default as PatientProfileTab } from './PatientProfileTab';
 export { default as BookAppointmentModal } from './BookAppointmentModal';
+export { default as BookingAgentChat } from './BookingAgentChat';

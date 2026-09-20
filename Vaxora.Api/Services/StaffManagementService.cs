@@ -8,6 +8,7 @@ namespace Vaxora.Api.Services;
 public interface IStaffManagementService
 {
     Task<StaffAffiliationDto> InviteStaffAsync(Guid hospitalUserId, InviteStaffDto dto);
+    Task<List<StaffCandidateDto>> SearchInviteCandidatesAsync(Guid hospitalUserId, string query, int limit = 10);
     Task<StaffAffiliationDto> RespondToInvitationAsync(Guid staffUserId, Guid affiliationId, AffiliationDecisionDto dto);
     Task<List<StaffAffiliationDto>> GetHospitalStaffAsync(Guid hospitalUserId, string? role = null, string? dutyStatus = null, string? search = null, string? status = null);
     Task<List<StaffAffiliationDto>> GetMyInvitationsAsync(Guid staffUserId);
@@ -89,6 +90,58 @@ public class StaffManagementService : IStaffManagementService
         _logger.LogInformation("Hospital {HospitalId} invited staff {StaffId}", hospitalUserId, staffUser.Id);
 
         return MapAffiliation(affiliation, hospital, staffUser);
+    }
+
+    public async Task<List<StaffCandidateDto>> SearchInviteCandidatesAsync(Guid hospitalUserId, string query, int limit = 10)
+    {
+        await EnsureActiveHospitalAsync(hospitalUserId);
+
+        var term = query?.Trim() ?? string.Empty;
+        if (term.Length < 2)
+            return new List<StaffCandidateDto>();
+
+        limit = Math.Clamp(limit, 1, 20);
+        var like = $"%{term}%";
+
+        var candidates = await _context.Users
+            .AsNoTracking()
+            .Include(u => u.DoctorProfile)
+            .Include(u => u.NurseProfile)
+            .Where(u =>
+                u.Status == UserStatus.Active &&
+                (u.Role == UserRole.DOCTOR || u.Role == UserRole.NURSE) &&
+                (
+                    (u.RegistrationNumber != null && EF.Functions.ILike(u.RegistrationNumber, like)) ||
+                    EF.Functions.ILike(u.Email, like) ||
+                    (u.DoctorProfile != null && EF.Functions.ILike(u.DoctorProfile.FullName, like)) ||
+                    (u.NurseProfile != null && EF.Functions.ILike(u.NurseProfile.FullName, like))
+                ))
+            .OrderBy(u => u.Email)
+            .Take(limit)
+            .ToListAsync();
+
+        var candidateIds = candidates.Select(c => c.Id).ToList();
+        var blockedIds = await _context.StaffAffiliations
+            .AsNoTracking()
+            .Where(a =>
+                a.HospitalUserId == hospitalUserId &&
+                candidateIds.Contains(a.StaffUserId) &&
+                (a.Status == AffiliationStatus.Pending || a.Status == AffiliationStatus.Active))
+            .Select(a => a.StaffUserId)
+            .ToListAsync();
+
+        var blockedSet = blockedIds.ToHashSet();
+
+        return candidates.Select(u => new StaffCandidateDto
+        {
+            UserId = u.Id,
+            RegistrationNumber = u.RegistrationNumber ?? string.Empty,
+            FullName = GetStaffName(u),
+            Email = u.Email,
+            Role = u.Role.ToString(),
+            Specialization = u.DoctorProfile?.Specialization,
+            AlreadyAffiliated = blockedSet.Contains(u.Id)
+        }).ToList();
     }
 
     public async Task<StaffAffiliationDto> RespondToInvitationAsync(Guid staffUserId, Guid affiliationId, AffiliationDecisionDto dto)
