@@ -53,6 +53,18 @@ public class StaffManagementService : IStaffManagementService
         if (staffUser.Status != UserStatus.Active)
             throw new InvalidOperationException("Staff account must be Active (admin-approved) before invitation.");
 
+        // Nurses may only belong to one hospital (pending or active).
+        if (staffUser.Role == UserRole.NURSE)
+        {
+            var nurseAlreadyLinked = await _context.StaffAffiliations.AnyAsync(a =>
+                a.StaffUserId == staffUser.Id &&
+                (a.Status == AffiliationStatus.Pending || a.Status == AffiliationStatus.Active));
+
+            if (nurseAlreadyLinked)
+                throw new InvalidOperationException(
+                    "This nurse already has a pending or active hospital affiliation. Nurses can only work at one hospital.");
+        }
+
         var existing = await _context.StaffAffiliations
             .FirstOrDefaultAsync(a =>
                 a.HospitalUserId == hospitalUserId &&
@@ -165,6 +177,19 @@ public class StaffManagementService : IStaffManagementService
         var decision = dto.Decision.Trim();
         if (decision.Equals("Accept", StringComparison.OrdinalIgnoreCase))
         {
+            // Nurses may only be active at one hospital.
+            if (affiliation.StaffRole == UserRole.NURSE)
+            {
+                var alreadyActiveElsewhere = await _context.StaffAffiliations.AnyAsync(a =>
+                    a.StaffUserId == staffUserId &&
+                    a.Id != affiliationId &&
+                    a.Status == AffiliationStatus.Active);
+
+                if (alreadyActiveElsewhere)
+                    throw new InvalidOperationException(
+                        "Nurses can only be affiliated with one hospital. Leave the current hospital before accepting another invitation.");
+            }
+
             affiliation.Status = AffiliationStatus.Active;
         }
         else if (decision.Equals("Reject", StringComparison.OrdinalIgnoreCase))
