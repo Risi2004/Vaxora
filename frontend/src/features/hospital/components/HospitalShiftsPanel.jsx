@@ -8,6 +8,54 @@ function toDateInputValue(date = new Date()) {
   return `${y}-${m}-${d}`;
 }
 
+function startOfWeek(dateInput) {
+  const date = new Date(`${dateInput}T00:00:00`);
+  const day = date.getDay(); // 0 Sun ... 6 Sat
+  const diff = day === 0 ? -6 : 1 - day; // Monday start
+  date.setDate(date.getDate() + diff);
+  return toDateInputValue(date);
+}
+
+function addDays(dateInput, days) {
+  const date = new Date(`${dateInput}T00:00:00`);
+  date.setDate(date.getDate() + days);
+  return toDateInputValue(date);
+}
+
+function formatDayLabel(dateInput) {
+  const date = new Date(`${dateInput}T00:00:00`);
+  return date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+function validateShiftForm({ shiftDate, startTime, endTime }) {
+  const today = toDateInputValue();
+  if (shiftDate < today) {
+    return 'Shifts cannot be scheduled on past dates.';
+  }
+
+  if (endTime <= startTime) {
+    return 'End time must be after start time.';
+  }
+
+  const [startH, startM] = startTime.split(':').map(Number);
+  const [endH, endM] = endTime.split(':').map(Number);
+  const durationHours = (endH * 60 + endM - (startH * 60 + startM)) / 60;
+  if (durationHours > 12) {
+    return 'A single shift cannot exceed 12 hours.';
+  }
+
+  if (shiftDate === today) {
+    const now = new Date();
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+    const startMinutes = startH * 60 + startM;
+    if (startMinutes < nowMinutes) {
+      return 'Shift start time cannot be in the past.';
+    }
+  }
+
+  return '';
+}
+
 const emptyForm = {
   affiliationId: '',
   shiftDate: toDateInputValue(),
@@ -17,16 +65,30 @@ const emptyForm = {
   notes: '',
 };
 
+const coverageColor = {
+  Good: { bg: '#ecfdf5', border: '#6ee7b7', text: '#047857' },
+  Partial: { bg: '#fffbeb', border: '#fcd34d', text: '#b45309' },
+  Low: { bg: '#fef2f2', border: '#fca5a5', text: '#b91c1c' },
+};
+
 export default function HospitalShiftsPanel() {
   const [activeStaff, setActiveStaff] = useState([]);
   const [shifts, setShifts] = useState([]);
+  const [coverage, setCoverage] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [actionId, setActionId] = useState(null);
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
-  const [fromDate, setFromDate] = useState(toDateInputValue());
+  const [weekStart, setWeekStart] = useState(startOfWeek(toDateInputValue()));
+
+  const today = useMemo(() => toDateInputValue(), []);
+  const weekEnd = useMemo(() => addDays(weekStart, 6), [weekStart]);
+  const weekDays = useMemo(
+    () => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
+    [weekStart]
+  );
 
   const showToast = (message) => {
     setToast(message);
@@ -37,25 +99,33 @@ export default function HospitalShiftsPanel() {
     setLoading(true);
     setError('');
     try {
-      const to = new Date(fromDate);
-      to.setDate(to.getDate() + 14);
-      const toStr = toDateInputValue(to);
-
       const [staff, shiftList] = await Promise.all([
         staffService.getHospitalStaff({ status: 'Active' }),
-        staffService.getHospitalShifts({ from: fromDate, to: toStr }),
+        staffService.getHospitalShifts({ from: weekStart, to: weekEnd }),
       ]);
 
       setActiveStaff(Array.isArray(staff) ? staff : []);
       setShifts(Array.isArray(shiftList) ? shiftList : []);
+
+      try {
+        const coverageReport = await staffService.getCoverage({ from: weekStart, to: weekEnd });
+        setCoverage(coverageReport || null);
+      } catch (coverageErr) {
+        setCoverage(null);
+        setError(
+          coverageErr.message ||
+            'Coverage summary unavailable. Restart the API if you recently pulled updates, then refresh.'
+        );
+      }
     } catch (err) {
       setError(err.message || 'Failed to load shifts.');
       setActiveStaff([]);
       setShifts([]);
+      setCoverage(null);
     } finally {
       setLoading(false);
     }
-  }, [fromDate]);
+  }, [weekStart, weekEnd]);
 
   useEffect(() => {
     loadData();
@@ -70,6 +140,19 @@ export default function HospitalShiftsPanel() {
     [activeStaff]
   );
 
+  const shiftsByDay = useMemo(() => {
+    const map = {};
+    weekDays.forEach((day) => {
+      map[day] = [];
+    });
+    shifts.forEach((shift) => {
+      const key = String(shift.shiftDate).slice(0, 10);
+      if (!map[key]) map[key] = [];
+      map[key].push(shift);
+    });
+    return map;
+  }, [shifts, weekDays]);
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
@@ -79,6 +162,12 @@ export default function HospitalShiftsPanel() {
     e.preventDefault();
     if (!form.affiliationId) {
       setError('Select an active staff member.');
+      return;
+    }
+
+    const formError = validateShiftForm(form);
+    if (formError) {
+      setError(formError);
       return;
     }
 
@@ -135,13 +224,82 @@ export default function HospitalShiftsPanel() {
       )}
 
       <div className="hospital-section-card" style={{ marginBottom: '20px' }}>
-        <div className="section-title-group" style={{ marginBottom: '16px' }}>
-          <h2 style={{ margin: 0 }}>
-            <span>🗓️</span> Staff Shift Roster
-          </h2>
-          <p className="section-title-desc">
-            Assign shifts to active affiliated staff. Overlapping times for the same person are blocked.
-          </p>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            gap: '12px',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            marginBottom: '16px',
+          }}
+        >
+          <div className="section-title-group">
+            <h2 style={{ margin: 0 }}>
+              <span>🗓️</span> Staff Shift Roster
+            </h2>
+            <p className="section-title-desc">
+              Weekly roster with coverage insights. Overlaps and shifts over 12 hours are blocked.
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="btn-hospital-secondary"
+              onClick={() => setWeekStart(addDays(weekStart, -7))}
+            >
+              ← Prev
+            </button>
+            <input
+              type="date"
+              value={weekStart}
+              onChange={(e) => setWeekStart(startOfWeek(e.target.value || toDateInputValue()))}
+              className="modal-input"
+              style={{ width: 'auto' }}
+            />
+            <button
+              type="button"
+              className="btn-hospital-secondary"
+              onClick={() => setWeekStart(addDays(weekStart, 7))}
+            >
+              Next →
+            </button>
+            <button type="button" className="btn-hospital-secondary" onClick={loadData} disabled={loading}>
+              Refresh
+            </button>
+          </div>
+        </div>
+
+        <div className="hospital-metrics-grid" style={{ marginBottom: '16px' }}>
+          <div className="hospital-stat-card">
+            <div className="hospital-stat-info">
+              <span className="hospital-stat-label">Active Doctors</span>
+              <span className="hospital-stat-value">{coverage?.activeDoctors ?? 0}</span>
+            </div>
+          </div>
+          <div className="hospital-stat-card">
+            <div className="hospital-stat-info">
+              <span className="hospital-stat-label">Active Nurses</span>
+              <span className="hospital-stat-value">{coverage?.activeNurses ?? 0}</span>
+            </div>
+          </div>
+          <div className="hospital-stat-card">
+            <div className="hospital-stat-info">
+              <span className="hospital-stat-label">Low Coverage Days</span>
+              <span className="hospital-stat-value" style={{ color: '#b91c1c' }}>
+                {coverage?.daysWithLowCoverage ?? 0}
+              </span>
+            </div>
+          </div>
+          <div className="hospital-stat-card">
+            <div className="hospital-stat-info">
+              <span className="hospital-stat-label">Week</span>
+              <span className="hospital-stat-value" style={{ fontSize: '1rem' }}>
+                {weekStart} → {weekEnd}
+              </span>
+            </div>
+          </div>
         </div>
 
         <form onSubmit={handleCreate} style={{ display: 'grid', gap: '12px' }}>
@@ -172,6 +330,7 @@ export default function HospitalShiftsPanel() {
                 value={form.shiftDate}
                 onChange={handleChange}
                 className="modal-input"
+                min={today}
                 required
               />
             </div>
@@ -225,12 +384,9 @@ export default function HospitalShiftsPanel() {
             />
           </div>
 
-          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          <div>
             <button type="submit" className="btn-hospital-primary" disabled={saving || staffOptions.length === 0}>
               {saving ? 'Saving...' : 'Create Shift'}
-            </button>
-            <button type="button" className="btn-hospital-secondary" onClick={loadData} disabled={loading}>
-              Refresh
             </button>
           </div>
 
@@ -242,80 +398,93 @@ export default function HospitalShiftsPanel() {
         </form>
       </div>
 
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: '12px',
-          flexWrap: 'wrap',
-          gap: '10px',
-        }}
-      >
-        <h3 style={{ margin: 0 }}>Upcoming shifts (from selected date, 14 days)</h3>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <label style={{ fontSize: '0.85rem', color: '#64748b' }}>From</label>
-          <input
-            type="date"
-            value={fromDate}
-            onChange={(e) => setFromDate(e.target.value)}
-            className="modal-input"
-            style={{ width: 'auto' }}
-          />
+      <h3 style={{ margin: '0 0 12px' }}>Week calendar & coverage</h3>
+      {loading ? (
+        <div className="hospital-section-card">
+          <p style={{ color: '#64748b' }}>Loading roster...</p>
         </div>
-      </div>
+      ) : (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+            gap: '12px',
+          }}
+        >
+          {weekDays.map((day) => {
+            const dayCoverage = coverage?.days?.find((d) => String(d.date).slice(0, 10) === day);
+            const level = dayCoverage?.coverageLevel || 'Low';
+            const colors = coverageColor[level] || coverageColor.Low;
+            const dayShifts = shiftsByDay[day] || [];
 
-      <div className="hospital-section-card">
-        {loading ? (
-          <p style={{ color: '#64748b' }}>Loading shifts...</p>
-        ) : shifts.length === 0 ? (
-          <p style={{ color: '#64748b' }}>No shifts in this date range.</p>
-        ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ textAlign: 'left', borderBottom: '1px solid #e2e8f0' }}>
-                  <th style={{ padding: '10px 8px' }}>Staff</th>
-                  <th style={{ padding: '10px 8px' }}>Role</th>
-                  <th style={{ padding: '10px 8px' }}>Date</th>
-                  <th style={{ padding: '10px 8px' }}>Time</th>
-                  <th style={{ padding: '10px 8px' }}>Booth</th>
-                  <th style={{ padding: '10px 8px' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {shifts.map((shift) => (
-                  <tr key={shift.shiftId} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                    <td style={{ padding: '10px 8px' }}>{shift.staffName}</td>
-                    <td style={{ padding: '10px 8px' }}>{shift.staffRole}</td>
-                    <td style={{ padding: '10px 8px' }}>{shift.shiftDate}</td>
-                    <td style={{ padding: '10px 8px' }}>
-                      {String(shift.startTime).slice(0, 5)} – {String(shift.endTime).slice(0, 5)}
-                    </td>
-                    <td style={{ padding: '10px 8px' }}>{shift.boothOrStation || '—'}</td>
-                    <td style={{ padding: '10px 8px' }}>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(shift.shiftId)}
-                        disabled={actionId === shift.shiftId}
+            return (
+              <div
+                key={day}
+                className="hospital-section-card"
+                style={{
+                  margin: 0,
+                  padding: '14px',
+                  borderTop: `4px solid ${colors.border}`,
+                  background: colors.bg,
+                  minHeight: 220,
+                }}
+              >
+                <div style={{ fontWeight: 800, color: '#0f172a', marginBottom: 4 }}>{formatDayLabel(day)}</div>
+                <div style={{ fontSize: '0.75rem', color: colors.text, fontWeight: 700, marginBottom: 8 }}>
+                  {level} · D {dayCoverage?.scheduledDoctors ?? 0}/{dayCoverage?.activeDoctors ?? 0} · N{' '}
+                  {dayCoverage?.scheduledNurses ?? 0}/{dayCoverage?.activeNurses ?? 0}
+                </div>
+                <div style={{ fontSize: '0.72rem', color: '#64748b', marginBottom: 10 }}>
+                  {dayCoverage?.summary || 'No coverage data'}
+                </div>
+
+                {dayShifts.length === 0 ? (
+                  <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>No shifts</div>
+                ) : (
+                  <div style={{ display: 'grid', gap: 8 }}>
+                    {dayShifts.map((shift) => (
+                      <div
+                        key={shift.shiftId}
                         style={{
-                          background: 'none',
-                          border: 'none',
-                          color: '#dc2626',
-                          fontWeight: 600,
-                          cursor: 'pointer',
+                          background: '#ffffff',
+                          border: '1px solid #e2e8f0',
+                          borderRadius: 8,
+                          padding: '8px',
                         }}
                       >
-                        {actionId === shift.shiftId ? 'Deleting...' : 'Delete'}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+                        <div style={{ fontWeight: 700, fontSize: '0.82rem', color: '#0f172a' }}>
+                          {shift.staffName}
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: '#475569' }}>
+                          {String(shift.startTime).slice(0, 5)} – {String(shift.endTime).slice(0, 5)}
+                          {shift.boothOrStation ? ` · ${shift.boothOrStation}` : ''}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(shift.shiftId)}
+                          disabled={actionId === shift.shiftId}
+                          style={{
+                            marginTop: 6,
+                            background: 'none',
+                            border: 'none',
+                            color: '#dc2626',
+                            fontWeight: 600,
+                            fontSize: '0.72rem',
+                            cursor: 'pointer',
+                            padding: 0,
+                          }}
+                        >
+                          {actionId === shift.shiftId ? 'Deleting...' : 'Delete'}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
