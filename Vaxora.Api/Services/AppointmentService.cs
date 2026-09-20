@@ -706,6 +706,10 @@ public class AppointmentService : IAppointmentService
             PaymentStatus = a.PaymentStatus,
             PaymentTransactionId = a.PaymentTransactionId,
             Notes = a.Notes,
+            PrescribedDosage = a.PrescribedDosage,
+            PrescribedByDoctorUserId = a.PrescribedByDoctorUserId,
+            PrescribedByDoctorName = a.PrescribedByDoctorName,
+            DosageUpdatedAt = a.DosageUpdatedAt,
             CreatedAt = a.CreatedAt
         };
     }

@@ -63,6 +63,7 @@ builder.Services.AddScoped<IPayHereService, PayHereService>();
 builder.Services.AddScoped<IPatientVaccinationService, PatientVaccinationService>();
 builder.Services.AddScoped<IPatientMedicalHistoryService, PatientMedicalHistoryService>();
 builder.Services.AddScoped<IPatientVisitService, PatientVisitService>();
+builder.Services.AddScoped<IClinicalPatientService, ClinicalPatientService>();
 
 // 3. Configure JWT Authentication & Authorization
 var jwtSecretKey = builder.Configuration["Jwt:SecretKey"];
