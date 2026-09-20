@@ -104,6 +104,10 @@ export const staffService = {
     return apiRequest(`/staff/shifts/hospital${buildQuery({ from, to })}`);
   },
 
+  getCoverage({ from, to }) {
+    return apiRequest(`/staff/coverage${buildQuery({ from, to })}`);
+  },
+
   createShift(payload) {
     return apiRequest('/staff/shifts', {
       method: 'POST',

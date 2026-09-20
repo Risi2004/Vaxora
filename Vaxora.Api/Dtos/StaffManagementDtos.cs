@@ -105,3 +105,26 @@ public class StaffShiftDto
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
 }
+
+public class StaffDayCoverageDto
+{
+    public DateOnly Date { get; set; }
+    public int ActiveDoctors { get; set; }
+    public int ActiveNurses { get; set; }
+    public int ScheduledDoctors { get; set; }
+    public int ScheduledNurses { get; set; }
+    public int TotalShifts { get; set; }
+    public int OnDutyStaff { get; set; }
+    public string CoverageLevel { get; set; } = "Low"; // Low | Partial | Good
+    public string Summary { get; set; } = string.Empty;
+}
+
+public class StaffCoverageReportDto
+{
+    public DateOnly From { get; set; }
+    public DateOnly To { get; set; }
+    public int ActiveDoctors { get; set; }
+    public int ActiveNurses { get; set; }
+    public int DaysWithLowCoverage { get; set; }
+    public List<StaffDayCoverageDto> Days { get; set; } = new();
+}

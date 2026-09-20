@@ -167,6 +167,48 @@ public class AppointmentsController : ControllerBase
     }
 
     /// <summary>
+    /// Doctor/Nurse: list appointments for an affiliated hospital (optional date filter).
+    /// </summary>
+    [HttpGet("staff")]
+    [Authorize(Roles = "DOCTOR,NURSE")]
+    public async Task<IActionResult> GetStaffHospitalAppointments(
+        [FromQuery] Guid hospitalUserId,
+        [FromQuery] string? date = null)
+    {
+        var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(userIdStr, out var staffUserId))
+        {
+            return Unauthorized(new { message = "Invalid user token." });
+        }
+
+        if (hospitalUserId == Guid.Empty)
+            return BadRequest(new { message = "hospitalUserId is required." });
+
+        DateOnly? parsedDate = null;
+        if (!string.IsNullOrWhiteSpace(date) && DateOnly.TryParse(date, out var d))
+            parsedDate = d;
+
+        try
+        {
+            var list = await _appointmentService.GetStaffHospitalAppointmentsAsync(staffUserId, hospitalUserId, parsedDate);
+            return Ok(list);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving staff appointments for hospital {HospitalId}", hospitalUserId);
+            return StatusCode(500, new { message = "Failed to load appointments." });
+        }
+    }
+
+    /// <summary>
     /// Update status of an appointment (e.g. Accept/Decline by Hospital).
     /// </summary>
     [HttpPatch("{id}/status")]

@@ -282,6 +282,29 @@ public class StaffManagementController : ControllerBase
         }
     }
 
+    [HttpGet("coverage")]
+    [Authorize(Roles = "HOSPITAL")]
+    public async Task<IActionResult> GetCoverage([FromQuery] DateOnly from, [FromQuery] DateOnly to)
+    {
+        if (!TryGetUserId(out var hospitalUserId))
+            return Unauthorized(new { message = "Invalid identity claim." });
+
+        try
+        {
+            var result = await _staffService.GetCoverageReportAsync(hospitalUserId, from, to);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching staff coverage");
+            return StatusCode(500, new { message = "Failed to fetch coverage report." });
+        }
+    }
+
     [HttpGet("shifts/mine")]
     [Authorize(Roles = "DOCTOR,NURSE")]
     public async Task<IActionResult> GetMyShifts([FromQuery] DateOnly? from, [FromQuery] DateOnly? to)

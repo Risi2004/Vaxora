@@ -13,6 +13,7 @@ public interface IAppointmentService
     Task<AppointmentResponseDto> BookAppointmentAsync(Guid patientUserId, BookAppointmentRequestDto dto);
     Task<List<AppointmentResponseDto>> GetPatientAppointmentsAsync(Guid patientUserId);
     Task<List<AppointmentResponseDto>> GetHospitalAppointmentsAsync(Guid hospitalUserId, DateOnly? date = null, string? status = null);
+    Task<List<AppointmentResponseDto>> GetStaffHospitalAppointmentsAsync(Guid staffUserId, Guid hospitalUserId, DateOnly? date = null);
     Task<AppointmentResponseDto> UpdateAppointmentStatusAsync(Guid hospitalUserId, Guid appointmentId, UpdateAppointmentStatusDto dto);
     Task<bool> CancelAppointmentAsync(Guid userId, Guid appointmentId, bool isHospital = false);
     Task<AppointmentResponseDto> ConfirmPayHerePaymentAsync(Guid appointmentId, string transactionId, string? orderId = null);
@@ -437,6 +438,45 @@ public class AppointmentService : IAppointmentService
         return appointments.Select(MapToDto).ToList();
     }
 
+    public async Task<List<AppointmentResponseDto>> GetStaffHospitalAppointmentsAsync(
+        Guid staffUserId,
+        Guid hospitalUserId,
+        DateOnly? date = null)
+    {
+        var staff = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == staffUserId);
+        if (staff == null || staff.Role is not (UserRole.DOCTOR or UserRole.NURSE))
+            throw new UnauthorizedAccessException("Only doctors or nurses can view staff hospital appointments.");
+
+        if (staff.Status != UserStatus.Active)
+            throw new InvalidOperationException("Staff account must be Active.");
+
+        var isAffiliated = await _context.StaffAffiliations.AsNoTracking().AnyAsync(a =>
+            a.StaffUserId == staffUserId &&
+            a.HospitalUserId == hospitalUserId &&
+            a.Status == AffiliationStatus.Active);
+
+        if (!isAffiliated)
+            throw new UnauthorizedAccessException("You are not affiliated with this hospital.");
+
+        var query = _context.Appointments
+            .AsNoTracking()
+            .Where(a =>
+                a.HospitalUserId == hospitalUserId &&
+                a.Status != "Cancelled" &&
+                a.Status != "Rejected");
+
+        if (date.HasValue)
+            query = query.Where(a => a.AppointmentDate == date.Value);
+
+        var appointments = await query
+            .OrderBy(a => a.AppointmentDate)
+            .ThenBy(a => a.StartTime)
+            .ThenBy(a => a.CreatedAt)
+            .ToListAsync();
+
+        return appointments.Select(MapToDto).ToList();
+    }
+
     public async Task<AppointmentResponseDto> UpdateAppointmentStatusAsync(Guid hospitalUserId, Guid appointmentId, UpdateAppointmentStatusDto dto)
     {
         var appointment = await _context.Appointments
@@ -706,6 +746,10 @@ public class AppointmentService : IAppointmentService
             PaymentStatus = a.PaymentStatus,
             PaymentTransactionId = a.PaymentTransactionId,
             Notes = a.Notes,
+            PrescribedDosage = a.PrescribedDosage,
+            PrescribedByDoctorUserId = a.PrescribedByDoctorUserId,
+            PrescribedByDoctorName = a.PrescribedByDoctorName,
+            DosageUpdatedAt = a.DosageUpdatedAt,
             CreatedAt = a.CreatedAt
         };
     }
