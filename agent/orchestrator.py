@@ -44,6 +44,10 @@ class MultiAgentOrchestrator:
         self.agents: Dict[str, Any] = {
             "BookingAgent": booking_agent
         }
+    # === INVENTORY AGENTS (ADDED) ===
+    self.register_agent(restock_agent)
+    self.register_agent(expiry_agent)
+    
 
     def register_agent(self, agent_instance: Any):
         """Allows team members to register their specialized agents into the orchestrator."""
@@ -63,6 +67,15 @@ class MultiAgentOrchestrator:
         booking_keywords = ["book", "slot", "appointment", "vaccine", "schedule", "hospital", "date", "payhere", "cancel", "pfizer", "sinopharm", "moderna", "influenza", "approve"]
         if any(kw in last_user_message.lower() for kw in booking_keywords):
             return "BookingAgent"
+
+        # === INVENTORY ROUTING (ADDED) ===
+        inventory_expiry_keywords = ["expire", "expiry", "expiring", "about to expire", "wastage", "dispose", "expired batch"]
+        if any(kw in last_user_message.lower() for kw in inventory_expiry_keywords):
+            return "ExpiryAgent"
+
+        inventory_restock_keywords = ["restock", "reorder", "replenish", "low stock", "purchase order", "restock order"]
+        if any(kw in last_user_message.lower() for kw in inventory_restock_keywords):
+            return "RestockAgent"
 
         try:
             res = await self.client.chat.completions.create(
