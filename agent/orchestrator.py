@@ -9,6 +9,13 @@ except ImportError:
     from config import settings
     from bookingagent import booking_agent
 
+try:
+    from .inventory.restock_agent import restock_agent
+    from .inventory.expiry_agent import expiry_agent
+except ImportError:
+    from inventory.restock_agent import restock_agent
+    from inventory.expiry_agent import expiry_agent
+
 logger = logging.getLogger("vaxora-orchestrator")
 
 ORCHESTRATOR_SYSTEM_PROMPT = """You are the Vaxora Master Multi-Agent Orchestrator.
