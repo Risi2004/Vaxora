@@ -15,6 +15,11 @@ class Settings(BaseModel):
     runpod_base_url: str = os.getenv("RUNPOD_BASE_URL", "").rstrip("/")
     runpod_api_key: str = os.getenv("RUNPOD_API_KEY", "ollama")
     model_name: str = os.getenv("MODEL_NAME", "qwen2.5:7b")
+
+    # Inventory Agents (Groq)
+    groq_base_url: str = os.getenv("GROQ_BASE_URL", "https://api.groq.com/openai/v1").rstrip("/")
+    groq_api_key: str = os.getenv("GROQ_API_KEY", "")
+    groq_model: str = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
     
     # Google GenAI / ADK Settings
     gemini_api_key: str = os.getenv("GEMINI_API_KEY", "")
