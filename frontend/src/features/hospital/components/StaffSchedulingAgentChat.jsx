@@ -111,7 +111,7 @@ function proposalIdentity(p) {
 /**
  * Staff Scheduling Agent chat — UI aligned with BookingAgentChat.
  */
-export default function StaffSchedulingAgentChat({ weekStart, weekEnd, onShiftsChanged, onClose }) {
+export default function StaffSchedulingAgentChat({ weekStart, weekEnd, initialPrompt, onShiftsChanged, onClose }) {
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
@@ -204,6 +204,15 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, onShiftsC
       setIsLoading(false);
     }
   };
+
+  const autoSentRef = useRef(false);
+  useEffect(() => {
+    if (!initialPrompt || autoSentRef.current) return;
+    autoSentRef.current = true;
+    handleSendMessage(initialPrompt);
+    // Suggest Week opens the chat and sends this prompt once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialPrompt]);
 
   const handleApproveProposal = async (proposal, workflowId, remainingCount) => {
     const id = proposalIdentity(proposal);
