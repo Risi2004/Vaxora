@@ -2,7 +2,7 @@
 Staff scheduling tools for the StaffSchedulingAgent.
 These call Vaxora hospital staff APIs using the caller's Bearer token.
 """
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 try:
     from .tools import api_get, api_post, api_delete, _clean_date_string
@@ -153,96 +153,29 @@ async def tool_suggest_week_coverage(
     token: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    Rules-based week suggester (works without an LLM).
-    For each Low coverage day, propose one doctor and one nurse shift
-    using the first available active staff of each role who is not already
-    scheduled that day.
+    Call ASP.NET suggest-week endpoint (rules-based, no LLM required).
+    Returns proposals for hospital approval; does not create shifts.
     """
     try:
         clean_from = _clean_date_string(from_date)
         clean_to = _clean_date_string(to_date)
-
-        coverage_res = await tool_get_coverage(clean_from, clean_to, token=token)
-        if not coverage_res.get("success"):
-            return coverage_res
-
-        staff_res = await tool_get_active_staff(token=token)
-        if not staff_res.get("success"):
-            return staff_res
-
-        shifts_res = await tool_get_hospital_shifts(clean_from, clean_to, token=token)
-        existing = shifts_res.get("shifts") if shifts_res.get("success") else []
-
-        scheduled_by_day: Dict[str, set] = {}
-        for s in existing or []:
-            day = str(s.get("shiftDate") or s.get("ShiftDate") or "")[:10]
-            aff = str(s.get("affiliationId") or s.get("AffiliationId") or "")
-            scheduled_by_day.setdefault(day, set()).add(aff)
-
-        doctors = [s for s in staff_res.get("staff", []) if str(s.get("staffRole", "")).upper() == "DOCTOR"]
-        nurses = [s for s in staff_res.get("staff", []) if str(s.get("staffRole", "")).upper() == "NURSE"]
-
-        coverage = coverage_res.get("coverage") or {}
-        days = coverage.get("days") or coverage.get("Days") or []
-        proposals: List[Dict[str, Any]] = []
-
-        for day in days:
-            level = str(day.get("coverageLevel") or day.get("CoverageLevel") or "")
-            date_val = str(day.get("date") or day.get("Date") or "")[:10]
-            if level.lower() != "low" or not date_val:
-                continue
-
-            busy = scheduled_by_day.get(date_val, set())
-            summary = day.get("summary") or day.get("Summary") or "Low coverage day"
-
-            free_doc = next((d for d in doctors if d["affiliationId"] not in busy), None)
-            free_nurse = next((n for n in nurses if n["affiliationId"] not in busy), None)
-
-            if free_doc:
-                proposals.append(
-                    {
-                        "affiliationId": free_doc["affiliationId"],
-                        "staffName": free_doc["staffName"],
-                        "staffRole": free_doc["staffRole"],
-                        "shiftDate": date_val,
-                        "startTime": _normalize_time(default_start),
-                        "endTime": _normalize_time(default_end),
-                        "boothOrStation": None,
-                        "notes": "Auto-suggested to improve coverage",
-                        "reason": f"{summary} — assign doctor",
-                    }
-                )
-                busy.add(free_doc["affiliationId"])
-
-            if free_nurse:
-                proposals.append(
-                    {
-                        "affiliationId": free_nurse["affiliationId"],
-                        "staffName": free_nurse["staffName"],
-                        "staffRole": free_nurse["staffRole"],
-                        "shiftDate": date_val,
-                        "startTime": _normalize_time(default_start),
-                        "endTime": _normalize_time(default_end),
-                        "boothOrStation": None,
-                        "notes": "Auto-suggested to improve coverage",
-                        "reason": f"{summary} — assign nurse",
-                    }
-                )
-                busy.add(free_nurse["affiliationId"])
-
-        return {
-            "success": True,
+        payload = {
             "from": clean_from,
             "to": clean_to,
-            "activeDoctors": len(doctors),
-            "activeNurses": len(nurses),
-            "proposalCount": len(proposals),
+            "defaultStart": default_start,
+            "defaultEnd": default_end,
+        }
+        data = await api_post("/staff/shifts/suggest-week", payload, token=token)
+        proposals = data.get("proposals") or data.get("Proposals") or []
+        return {
+            "success": True,
+            "from": data.get("from") or data.get("From") or clean_from,
+            "to": data.get("to") or data.get("To") or clean_to,
+            "activeDoctors": data.get("activeDoctors") or data.get("ActiveDoctors") or 0,
+            "activeNurses": data.get("activeNurses") or data.get("ActiveNurses") or 0,
+            "proposalCount": data.get("proposalCount") or data.get("ProposalCount") or len(proposals),
             "proposals": proposals,
-            "message": (
-                f"Suggested {len(proposals)} shift(s) for low-coverage days."
-                if proposals
-                else "No low-coverage days needing new shifts, or no free staff available."
-            ),
+            "message": data.get("message") or data.get("Message") or "",
         }
     except Exception as e:
         return {"success": False, "error": str(e)}

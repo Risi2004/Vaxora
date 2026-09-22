@@ -18,6 +18,7 @@ public interface IStaffManagementService
     Task<StaffShiftDto> CreateShiftAsync(Guid hospitalUserId, CreateStaffShiftDto dto);
     Task<List<StaffShiftDto>> GetHospitalShiftsAsync(Guid hospitalUserId, DateOnly? from = null, DateOnly? to = null);
     Task<StaffCoverageReportDto> GetCoverageReportAsync(Guid hospitalUserId, DateOnly from, DateOnly to);
+    Task<SuggestWeekCoverageResultDto> SuggestWeekCoverageAsync(Guid hospitalUserId, SuggestWeekCoverageDto dto);
     Task<List<StaffShiftDto>> GetMyShiftsAsync(Guid staffUserId, DateOnly? from = null, DateOnly? to = null);
     Task<StaffShiftDto> UpdateShiftAsync(Guid hospitalUserId, Guid shiftId, UpdateStaffShiftDto dto);
     Task DeleteShiftAsync(Guid hospitalUserId, Guid shiftId);
@@ -504,6 +505,128 @@ public class StaffManagementService : IStaffManagementService
             DaysWithLowCoverage = days.Count(d => d.CoverageLevel == "Low"),
             Days = days
         };
+    }
+
+    /// <summary>
+    /// Rules-based suggester: for each Low coverage day, propose one free doctor
+    /// and one free nurse shift. Does not persist — hospital must approve first.
+    /// </summary>
+    public async Task<SuggestWeekCoverageResultDto> SuggestWeekCoverageAsync(
+        Guid hospitalUserId,
+        SuggestWeekCoverageDto dto)
+    {
+        await EnsureActiveHospitalAsync(hospitalUserId);
+
+        if (dto.To < dto.From)
+            throw new InvalidOperationException("End date must be on or after start date.");
+
+        if ((dto.To.DayNumber - dto.From.DayNumber) > 31)
+            throw new InvalidOperationException("Suggest range cannot exceed 31 days.");
+
+        var startTime = ParseSuggestTime(dto.DefaultStart, new TimeOnly(8, 0));
+        var endTime = ParseSuggestTime(dto.DefaultEnd, new TimeOnly(16, 0));
+        if (endTime <= startTime)
+            throw new InvalidOperationException("Default end time must be after start time.");
+
+        var coverage = await GetCoverageReportAsync(hospitalUserId, dto.From, dto.To);
+
+        var activeStaff = await _context.StaffAffiliations
+            .AsNoTracking()
+            .Include(a => a.StaffUser).ThenInclude(u => u.DoctorProfile)
+            .Include(a => a.StaffUser).ThenInclude(u => u.NurseProfile)
+            .Where(a => a.HospitalUserId == hospitalUserId && a.Status == AffiliationStatus.Active)
+            .ToListAsync();
+
+        var existingShifts = await _context.StaffShifts
+            .AsNoTracking()
+            .Include(s => s.Affiliation)
+            .Where(s =>
+                s.Affiliation.HospitalUserId == hospitalUserId &&
+                s.Affiliation.Status == AffiliationStatus.Active &&
+                s.ShiftDate >= dto.From &&
+                s.ShiftDate <= dto.To)
+            .ToListAsync();
+
+        var scheduledByDay = existingShifts
+            .GroupBy(s => s.ShiftDate)
+            .ToDictionary(
+                g => g.Key,
+                g => g.Select(s => s.AffiliationId).ToHashSet());
+
+        var doctors = activeStaff.Where(a => a.StaffRole == UserRole.DOCTOR).ToList();
+        var nurses = activeStaff.Where(a => a.StaffRole == UserRole.NURSE).ToList();
+        var proposals = new List<ShiftProposalDto>();
+
+        foreach (var day in coverage.Days.Where(d => d.CoverageLevel == "Low"))
+        {
+            if (!scheduledByDay.TryGetValue(day.Date, out var busy))
+            {
+                busy = new HashSet<Guid>();
+                scheduledByDay[day.Date] = busy;
+            }
+
+            var freeDoctor = doctors.FirstOrDefault(d => !busy.Contains(d.Id));
+            var freeNurse = nurses.FirstOrDefault(n => !busy.Contains(n.Id));
+
+            if (freeDoctor != null)
+            {
+                proposals.Add(new ShiftProposalDto
+                {
+                    AffiliationId = freeDoctor.Id,
+                    StaffName = GetStaffName(freeDoctor.StaffUser),
+                    StaffRole = freeDoctor.StaffRole.ToString(),
+                    ShiftDate = day.Date,
+                    StartTime = startTime,
+                    EndTime = endTime,
+                    BoothOrStation = null,
+                    Notes = "Auto-suggested to improve coverage",
+                    Reason = $"{day.Summary} — assign doctor"
+                });
+                busy.Add(freeDoctor.Id);
+            }
+
+            if (freeNurse != null)
+            {
+                proposals.Add(new ShiftProposalDto
+                {
+                    AffiliationId = freeNurse.Id,
+                    StaffName = GetStaffName(freeNurse.StaffUser),
+                    StaffRole = freeNurse.StaffRole.ToString(),
+                    ShiftDate = day.Date,
+                    StartTime = startTime,
+                    EndTime = endTime,
+                    BoothOrStation = null,
+                    Notes = "Auto-suggested to improve coverage",
+                    Reason = $"{day.Summary} — assign nurse"
+                });
+                busy.Add(freeNurse.Id);
+            }
+        }
+
+        return new SuggestWeekCoverageResultDto
+        {
+            From = dto.From,
+            To = dto.To,
+            ActiveDoctors = doctors.Count,
+            ActiveNurses = nurses.Count,
+            ProposalCount = proposals.Count,
+            Proposals = proposals,
+            Message = proposals.Count > 0
+                ? $"Suggested {proposals.Count} shift(s) for low-coverage days."
+                : "No low-coverage days needing new shifts, or no free staff available."
+        };
+    }
+
+    private static TimeOnly ParseSuggestTime(string? value, TimeOnly fallback)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return fallback;
+
+        var trimmed = value.Trim();
+        if (TimeOnly.TryParse(trimmed, out var parsed))
+            return parsed;
+
+        throw new InvalidOperationException($"Invalid time value: {value}");
     }
 
     public async Task<List<StaffShiftDto>> GetMyShiftsAsync(Guid staffUserId, DateOnly? from = null, DateOnly? to = null)
