@@ -77,6 +77,7 @@ builder.Services.AddHttpClient(AgentGatewayService.HttpClientName, client =>
     client.Timeout = TimeSpan.FromSeconds(agentTimeoutSeconds);
 });
 builder.Services.AddScoped<IAgentGatewayService, AgentGatewayService>();
+builder.Services.AddScoped<IAgentWorkflowService, AgentWorkflowService>();
 
 // 3. Configure JWT Authentication & Authorization
 var jwtSecretKey = builder.Configuration["Jwt:SecretKey"];
