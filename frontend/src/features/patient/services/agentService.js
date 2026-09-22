@@ -26,9 +26,10 @@ export const agentService = {
   },
 
   /**
-   * Send messages to the Booking Agent
+   * Send messages to a specialized agent (BookingAgent by default).
+   * Pass targetAgent: "StaffSchedulingAgent" for hospital scheduling chat.
    */
-  async sendMessage(messages) {
+  async sendMessage(messages, { targetAgent, contextInfo } = {}) {
     const token = getToken();
     const user = getUser();
 
@@ -40,14 +41,24 @@ export const agentService = {
       headers.Authorization = `Bearer ${token}`;
     }
 
+    const defaultPatientInfo = user
+      ? {
+          name:
+            user.name ||
+            user.fullName ||
+            user.hospitalName ||
+            `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+          email: user.email,
+          nic: user.nic || user.nationalId,
+          id: user.id || user.userId,
+          hospitalName: user.hospitalName || user.name,
+        }
+      : null;
+
     const payload = {
       messages,
-      patientInfo: user ? {
-        name: user.name || user.fullName || `${user.firstName || ''} ${user.lastName || ''}`.trim(),
-        email: user.email,
-        nic: user.nic || user.nationalId,
-        id: user.id || user.userId
-      } : null
+      targetAgent: targetAgent || undefined,
+      patientInfo: contextInfo || defaultPatientInfo,
     };
 
     const response = await fetch(`${AGENT_API_BASE}/api/agent/chat`, {
@@ -58,11 +69,11 @@ export const agentService = {
 
     if (!response.ok) {
       const err = await response.json().catch(() => ({ detail: 'Agent service failed' }));
-      throw new Error(err.detail || 'Failed to communicate with Booking Agent');
+      throw new Error(err.detail || 'Failed to communicate with Agent');
     }
 
     return await response.json();
-  }
+  },
 };
 
 export default agentService;

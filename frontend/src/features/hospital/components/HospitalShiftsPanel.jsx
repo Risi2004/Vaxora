@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import staffService from '../services/staffService';
+import StaffSchedulingAgentChat from './StaffSchedulingAgentChat';
 
 function toDateInputValue(date = new Date()) {
   const y = date.getFullYear();
@@ -82,6 +83,7 @@ export default function HospitalShiftsPanel() {
   const [approvingKey, setApprovingKey] = useState(null);
   const [approvingAll, setApprovingAll] = useState(false);
   const [proposals, setProposals] = useState([]);
+  const [showAgentChat, setShowAgentChat] = useState(false);
   const [actionId, setActionId] = useState(null);
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
@@ -384,6 +386,13 @@ export default function HospitalShiftsPanel() {
             >
               {suggesting ? 'Suggesting...' : 'Suggest Week'}
             </button>
+            <button
+              type="button"
+              className="btn-hospital-secondary"
+              onClick={() => setShowAgentChat((v) => !v)}
+            >
+              {showAgentChat ? 'Hide AI Chat' : 'AI Scheduling Chat'}
+            </button>
           </div>
         </div>
 
@@ -513,6 +522,17 @@ export default function HospitalShiftsPanel() {
           )}
         </form>
       </div>
+
+      {showAgentChat && (
+        <div style={{ marginBottom: '20px' }}>
+          <StaffSchedulingAgentChat
+            weekStart={weekStart}
+            weekEnd={weekEnd}
+            onShiftsChanged={loadData}
+            onClose={() => setShowAgentChat(false)}
+          />
+        </div>
+      )}
 
       {proposals.length > 0 && (
         <div className="hospital-section-card" style={{ marginBottom: '20px' }}>
