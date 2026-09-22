@@ -176,13 +176,13 @@ public class ApplicationDbContext : DbContext
             .HasOne(a => a.HospitalUser)
             .WithMany()
             .HasForeignKey(a => a.HospitalUserId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<StaffAffiliation>()
             .HasOne(a => a.StaffUser)
             .WithMany()
             .HasForeignKey(a => a.StaffUserId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<StaffShift>()
             .HasOne(s => s.Affiliation)

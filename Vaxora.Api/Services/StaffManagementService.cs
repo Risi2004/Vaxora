@@ -18,6 +18,7 @@ public interface IStaffManagementService
     Task<StaffShiftDto> CreateShiftAsync(Guid hospitalUserId, CreateStaffShiftDto dto);
     Task<List<StaffShiftDto>> GetHospitalShiftsAsync(Guid hospitalUserId, DateOnly? from = null, DateOnly? to = null);
     Task<StaffCoverageReportDto> GetCoverageReportAsync(Guid hospitalUserId, DateOnly from, DateOnly to);
+    Task<SuggestWeekCoverageResultDto> SuggestWeekCoverageAsync(Guid hospitalUserId, SuggestWeekCoverageDto dto);
     Task<List<StaffShiftDto>> GetMyShiftsAsync(Guid staffUserId, DateOnly? from = null, DateOnly? to = null);
     Task<StaffShiftDto> UpdateShiftAsync(Guid hospitalUserId, Guid shiftId, UpdateStaffShiftDto dto);
     Task DeleteShiftAsync(Guid hospitalUserId, Guid shiftId);
@@ -25,6 +26,15 @@ public interface IStaffManagementService
 
 public class StaffManagementService : IStaffManagementService
 {
+    /// <summary>
+    /// Shift dates and times are hospital wall-clock values, so they must be compared
+    /// against hospital local time rather than UTC. Audit timestamps stay UTC.
+    /// </summary>
+    private static readonly TimeSpan HospitalUtcOffset = TimeSpan.FromHours(5.5);
+
+    private static DateTime HospitalNow() => DateTime.UtcNow + HospitalUtcOffset;
+    private static DateOnly HospitalToday() => DateOnly.FromDateTime(HospitalNow());
+
     private readonly ApplicationDbContext _context;
     private readonly ILogger<StaffManagementService> _logger;
 
@@ -53,6 +63,15 @@ public class StaffManagementService : IStaffManagementService
         if (staffUser.Status != UserStatus.Active)
             throw new InvalidOperationException("Staff account must be Active (admin-approved) before invitation.");
 
+        var existing = await _context.StaffAffiliations
+            .FirstOrDefaultAsync(a =>
+                a.HospitalUserId == hospitalUserId &&
+                a.StaffUserId == staffUser.Id &&
+                (a.Status == AffiliationStatus.Pending || a.Status == AffiliationStatus.Active));
+
+        if (existing != null)
+            throw new InvalidOperationException($"An affiliation already exists with status '{existing.Status}'.");
+
         // Nurses may only belong to one hospital (pending or active).
         if (staffUser.Role == UserRole.NURSE)
         {
@@ -64,15 +83,6 @@ public class StaffManagementService : IStaffManagementService
                 throw new InvalidOperationException(
                     "This nurse already has a pending or active hospital affiliation. Nurses can only work at one hospital.");
         }
-
-        var existing = await _context.StaffAffiliations
-            .FirstOrDefaultAsync(a =>
-                a.HospitalUserId == hospitalUserId &&
-                a.StaffUserId == staffUser.Id &&
-                (a.Status == AffiliationStatus.Pending || a.Status == AffiliationStatus.Active));
-
-        if (existing != null)
-            throw new InvalidOperationException($"An affiliation already exists with status '{existing.Status}'.");
 
         var hospital = await _context.Users
             .Include(u => u.HospitalProfile)
@@ -159,6 +169,8 @@ public class StaffManagementService : IStaffManagementService
 
     public async Task<StaffAffiliationDto> RespondToInvitationAsync(Guid staffUserId, Guid affiliationId, AffiliationDecisionDto dto)
     {
+        await EnsureActiveStaffAsync(staffUserId);
+
         var affiliation = await _context.StaffAffiliations
             .Include(a => a.HospitalUser).ThenInclude(h => h.HospitalProfile)
             .Include(a => a.StaffUser).ThenInclude(s => s.DoctorProfile)
@@ -395,6 +407,12 @@ public class StaffManagementService : IStaffManagementService
         };
 
         _context.StaffShifts.Add(shift);
+        await AddShiftAuditAsync(
+            hospitalUserId,
+            "STAFF_SHIFT_CREATED",
+            $"Shift created for {GetStaffName(affiliation.StaffUser)} on {dto.ShiftDate:yyyy-MM-dd} " +
+            $"{dto.StartTime:HH\\:mm}-{dto.EndTime:HH\\:mm}");
+
         await _context.SaveChangesAsync();
 
         return MapShift(shift, affiliation);
@@ -407,7 +425,9 @@ public class StaffManagementService : IStaffManagementService
         var query = _context.StaffShifts
             .Include(s => s.Affiliation).ThenInclude(a => a.StaffUser).ThenInclude(u => u.DoctorProfile)
             .Include(s => s.Affiliation).ThenInclude(a => a.StaffUser).ThenInclude(u => u.NurseProfile)
-            .Where(s => s.Affiliation.HospitalUserId == hospitalUserId)
+            .Where(s =>
+                s.Affiliation.HospitalUserId == hospitalUserId &&
+                s.Affiliation.Status == AffiliationStatus.Active)
             .AsQueryable();
 
         if (from.HasValue) query = query.Where(s => s.ShiftDate >= from.Value);
@@ -489,7 +509,6 @@ public class StaffManagementService : IStaffManagementService
                 ScheduledDoctors = scheduledDoctors,
                 ScheduledNurses = scheduledNurses,
                 TotalShifts = dayShifts.Count,
-                OnDutyStaff = onDutyStaff,
                 CoverageLevel = coverageLevel,
                 Summary = summary
             });
@@ -501,9 +520,148 @@ public class StaffManagementService : IStaffManagementService
             To = to,
             ActiveDoctors = activeDoctors,
             ActiveNurses = activeNurses,
+            CurrentlyOnDutyStaff = onDutyStaff,
             DaysWithLowCoverage = days.Count(d => d.CoverageLevel == "Low"),
             Days = days
         };
+    }
+
+    /// <summary>
+    /// Rules-based suggester: for each Low coverage day, propose one free doctor
+    /// and one free nurse shift. Does not persist — hospital must approve first.
+    /// </summary>
+    public async Task<SuggestWeekCoverageResultDto> SuggestWeekCoverageAsync(
+        Guid hospitalUserId,
+        SuggestWeekCoverageDto dto)
+    {
+        await EnsureActiveHospitalAsync(hospitalUserId);
+
+        if (dto.To < dto.From)
+            throw new InvalidOperationException("End date must be on or after start date.");
+
+        if ((dto.To.DayNumber - dto.From.DayNumber) > 31)
+            throw new InvalidOperationException("Suggest range cannot exceed 31 days.");
+
+        var startTime = ParseSuggestTime(dto.DefaultStart, new TimeOnly(8, 0));
+        var endTime = ParseSuggestTime(dto.DefaultEnd, new TimeOnly(16, 0));
+        if (endTime <= startTime)
+            throw new InvalidOperationException("Default end time must be after start time.");
+
+        var coverage = await GetCoverageReportAsync(hospitalUserId, dto.From, dto.To);
+
+        var activeStaff = await _context.StaffAffiliations
+            .AsNoTracking()
+            .Include(a => a.StaffUser).ThenInclude(u => u.DoctorProfile)
+            .Include(a => a.StaffUser).ThenInclude(u => u.NurseProfile)
+            .Where(a => a.HospitalUserId == hospitalUserId && a.Status == AffiliationStatus.Active)
+            .ToListAsync();
+
+        var existingShifts = await _context.StaffShifts
+            .AsNoTracking()
+            .Include(s => s.Affiliation)
+            .Where(s =>
+                s.Affiliation.HospitalUserId == hospitalUserId &&
+                s.Affiliation.Status == AffiliationStatus.Active &&
+                s.ShiftDate >= dto.From &&
+                s.ShiftDate <= dto.To)
+            .ToListAsync();
+
+        var scheduledByDay = existingShifts
+            .GroupBy(s => s.ShiftDate)
+            .ToDictionary(
+                g => g.Key,
+                g => g.Select(s => s.AffiliationId).ToHashSet());
+
+        var doctors = activeStaff.Where(a => a.StaffRole == UserRole.DOCTOR).ToList();
+        var nurses = activeStaff.Where(a => a.StaffRole == UserRole.NURSE).ToList();
+        var proposals = new List<ShiftProposalDto>();
+
+        // Only propose shifts that would survive CreateShiftAsync validation.
+        var today = HospitalToday();
+        var nowTime = TimeOnly.FromDateTime(HospitalNow());
+        var skippedPastDays = 0;
+
+        foreach (var day in coverage.Days.Where(d => d.CoverageLevel == "Low"))
+        {
+            if (day.Date < today || (day.Date == today && startTime < nowTime))
+            {
+                skippedPastDays++;
+                continue;
+            }
+
+            if (!scheduledByDay.TryGetValue(day.Date, out var busy))
+            {
+                busy = new HashSet<Guid>();
+                scheduledByDay[day.Date] = busy;
+            }
+
+            var freeDoctor = doctors.FirstOrDefault(d => !busy.Contains(d.Id));
+            var freeNurse = nurses.FirstOrDefault(n => !busy.Contains(n.Id));
+
+            if (freeDoctor != null)
+            {
+                proposals.Add(new ShiftProposalDto
+                {
+                    AffiliationId = freeDoctor.Id,
+                    StaffName = GetStaffName(freeDoctor.StaffUser),
+                    StaffRole = freeDoctor.StaffRole.ToString(),
+                    ShiftDate = day.Date,
+                    StartTime = startTime,
+                    EndTime = endTime,
+                    BoothOrStation = null,
+                    Notes = "Auto-suggested to improve coverage",
+                    Reason = $"{day.Summary} — assign doctor"
+                });
+                busy.Add(freeDoctor.Id);
+            }
+
+            if (freeNurse != null)
+            {
+                proposals.Add(new ShiftProposalDto
+                {
+                    AffiliationId = freeNurse.Id,
+                    StaffName = GetStaffName(freeNurse.StaffUser),
+                    StaffRole = freeNurse.StaffRole.ToString(),
+                    ShiftDate = day.Date,
+                    StartTime = startTime,
+                    EndTime = endTime,
+                    BoothOrStation = null,
+                    Notes = "Auto-suggested to improve coverage",
+                    Reason = $"{day.Summary} — assign nurse"
+                });
+                busy.Add(freeNurse.Id);
+            }
+        }
+
+        var skippedNote = skippedPastDays > 0
+            ? $" Skipped {skippedPastDays} low-coverage day(s) that can no longer be scheduled."
+            : string.Empty;
+
+        return new SuggestWeekCoverageResultDto
+        {
+            From = dto.From,
+            To = dto.To,
+            ActiveDoctors = doctors.Count,
+            ActiveNurses = nurses.Count,
+            ProposalCount = proposals.Count,
+            SkippedPastDays = skippedPastDays,
+            Proposals = proposals,
+            Message = proposals.Count > 0
+                ? $"Suggested {proposals.Count} shift(s) for low-coverage days.{skippedNote}"
+                : $"No upcoming low-coverage days needing new shifts, or no free staff available.{skippedNote}"
+        };
+    }
+
+    private static TimeOnly ParseSuggestTime(string? value, TimeOnly fallback)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return fallback;
+
+        var trimmed = value.Trim();
+        if (TimeOnly.TryParse(trimmed, out var parsed))
+            return parsed;
+
+        throw new InvalidOperationException($"Invalid time value: {value}");
     }
 
     public async Task<List<StaffShiftDto>> GetMyShiftsAsync(Guid staffUserId, DateOnly? from = null, DateOnly? to = null)
@@ -538,8 +696,7 @@ public class StaffManagementService : IStaffManagementService
         if (shift.Affiliation.Status != AffiliationStatus.Active)
             throw new InvalidOperationException("Cannot update shifts for inactive staff affiliations.");
 
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        if (shift.ShiftDate < today)
+        if (shift.ShiftDate < HospitalToday())
             throw new InvalidOperationException("Cannot modify shifts that have already occurred.");
 
         ValidateShiftSchedule(dto.ShiftDate, dto.StartTime, dto.EndTime);
@@ -558,6 +715,12 @@ public class StaffManagementService : IStaffManagementService
         shift.Notes = string.IsNullOrWhiteSpace(dto.Notes) ? null : dto.Notes.Trim();
         shift.UpdatedAt = DateTime.UtcNow;
 
+        await AddShiftAuditAsync(
+            hospitalUserId,
+            "STAFF_SHIFT_UPDATED",
+            $"Shift {shift.Id} rescheduled to {dto.ShiftDate:yyyy-MM-dd} " +
+            $"{dto.StartTime:HH\\:mm}-{dto.EndTime:HH\\:mm}");
+
         await _context.SaveChangesAsync();
         return MapShift(shift, shift.Affiliation);
     }
@@ -567,14 +730,41 @@ public class StaffManagementService : IStaffManagementService
         await EnsureActiveHospitalAsync(hospitalUserId);
 
         var shift = await _context.StaffShifts
-            .Include(s => s.Affiliation)
+            .Include(s => s.Affiliation).ThenInclude(a => a.StaffUser).ThenInclude(u => u.DoctorProfile)
+            .Include(s => s.Affiliation).ThenInclude(a => a.StaffUser).ThenInclude(u => u.NurseProfile)
             .FirstOrDefaultAsync(s => s.Id == shiftId && s.Affiliation.HospitalUserId == hospitalUserId);
 
         if (shift == null)
             throw new KeyNotFoundException("Shift not found for this hospital.");
 
+        if (shift.ShiftDate < HospitalToday())
+            throw new InvalidOperationException("Cannot delete shifts that have already occurred.");
+
         _context.StaffShifts.Remove(shift);
+        await AddShiftAuditAsync(
+            hospitalUserId,
+            "STAFF_SHIFT_DELETED",
+            $"Shift for {GetStaffName(shift.Affiliation.StaffUser)} on {shift.ShiftDate:yyyy-MM-dd} " +
+            $"{shift.StartTime:HH\\:mm}-{shift.EndTime:HH\\:mm} deleted");
+
         await _context.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Records who changed the roster. Agent-suggested shifts are only ever written
+    /// through a hospital-approved request, so this is the human-approval trail.
+    /// </summary>
+    private async Task AddShiftAuditAsync(Guid hospitalUserId, string action, string details)
+    {
+        var hospital = await _context.Users.FirstAsync(u => u.Id == hospitalUserId);
+        _context.AuditLogs.Add(new AuditLog
+        {
+            UserId = hospitalUserId,
+            UserEmail = hospital.Email,
+            Role = "HOSPITAL",
+            Action = action,
+            Details = details
+        });
     }
 
     private async Task EnsureActiveHospitalAsync(Guid hospitalUserId)
@@ -597,7 +787,7 @@ public class StaffManagementService : IStaffManagementService
 
     private static void ValidateShiftSchedule(DateOnly shiftDate, TimeOnly start, TimeOnly end)
     {
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = HospitalToday();
         if (shiftDate < today)
             throw new InvalidOperationException("Shifts cannot be scheduled on past dates.");
 
@@ -610,7 +800,7 @@ public class StaffManagementService : IStaffManagementService
 
         if (shiftDate == today)
         {
-            var now = TimeOnly.FromDateTime(DateTime.UtcNow);
+            var now = TimeOnly.FromDateTime(HospitalNow());
             if (start < now)
                 throw new InvalidOperationException("Shift start time cannot be in the past.");
         }
@@ -639,7 +829,7 @@ public class StaffManagementService : IStaffManagementService
         if (hasOverlap)
         {
             throw new InvalidOperationException(
-                "This staff member already has an overlapping shift on that date and time.");
+                "This staff member is already unavailable during that time slot.");
         }
     }
 
