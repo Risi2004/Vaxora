@@ -180,6 +180,7 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, onShiftsC
           role: 'assistant',
           content: res.content || 'I processed your scheduling request.',
           proposals,
+          workflowId: res.workflowId || res.WorkflowId || null,
           createdShifts: res.created_shifts || res.createdShifts || null,
         },
       ]);
@@ -204,7 +205,7 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, onShiftsC
     }
   };
 
-  const handleApproveProposal = async (proposal) => {
+  const handleApproveProposal = async (proposal, workflowId, remainingCount) => {
     const id = proposalIdentity(proposal);
     setApprovingId(id);
     try {
@@ -217,14 +218,36 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, onShiftsC
         notes: proposal.notes || 'Approved via Staff Scheduling Agent',
       });
 
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          content: `✅ Shift created for **${proposal.staffName}** on **${String(proposal.shiftDate).slice(0, 10)}** (${String(proposal.startTime).slice(0, 5)}–${String(proposal.endTime).slice(0, 5)}).`,
-          created: true,
-        },
-      ]);
+      // Finalize the workflow only when the last proposal from this run is approved.
+      if (workflowId && remainingCount <= 1) {
+        try {
+          await agentService.recordDecision(workflowId, {
+            approved: true,
+            note: `Approved shift proposals from agent run`,
+          });
+        } catch (decisionErr) {
+          console.warn('Failed to persist workflow approval:', decisionErr);
+        }
+      }
+
+      setMessages((prev) =>
+        prev
+          .map((msg) => {
+            if (!Array.isArray(msg.proposals) || msg.proposals.length === 0) return msg;
+            if (workflowId && msg.workflowId !== workflowId) return msg;
+            const nextProposals = msg.proposals.filter((p) => proposalIdentity(p) !== id);
+            return {
+              ...msg,
+              proposals: nextProposals,
+              decision: nextProposals.length === 0 ? 'Approved' : msg.decision,
+            };
+          })
+          .concat({
+            role: 'assistant',
+            content: `✅ Shift created for **${proposal.staffName}** on **${String(proposal.shiftDate).slice(0, 10)}** (${String(proposal.startTime).slice(0, 5)}–${String(proposal.endTime).slice(0, 5)}).`,
+            created: true,
+          })
+      );
 
       if (onShiftsChanged) onShiftsChanged();
     } catch (err) {
@@ -241,8 +264,29 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, onShiftsC
     }
   };
 
-  const handleDeclineProposal = () => {
-    handleSendMessage('I want to decline these shift proposals. Suggest different options or another day.');
+  const handleDeclineProposal = async (workflowId) => {
+    if (workflowId) {
+      try {
+        await agentService.recordDecision(workflowId, {
+          approved: false,
+          note: 'Rejected — requested revised suggestions',
+        });
+      } catch (decisionErr) {
+        console.warn('Failed to persist workflow rejection:', decisionErr);
+      }
+
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.workflowId === workflowId
+            ? { ...msg, proposals: [], decision: 'Rejected' }
+            : msg
+        )
+      );
+    }
+
+    handleSendMessage(
+      'I want to decline these shift proposals. Suggest different options or another day.'
+    );
   };
 
   const handleKeyDown = (e) => {
@@ -431,6 +475,11 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, onShiftsC
                         }}
                       >
                         <span>🛡️</span> Shift Proposal (Approval Required)
+                        {msg.workflowId && (
+                          <span style={{ fontWeight: 500, fontSize: '11px', color: '#64748b' }}>
+                            · workflow {String(msg.workflowId).slice(0, 8)}
+                          </span>
+                        )}
                       </div>
 
                       <div
@@ -469,7 +518,7 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, onShiftsC
                       <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
                         <button
                           type="button"
-                          onClick={handleDeclineProposal}
+                          onClick={() => handleDeclineProposal(msg.workflowId)}
                           disabled={isLoading || approvingId !== null}
                           style={{
                             padding: '8px 14px',
@@ -482,11 +531,13 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, onShiftsC
                             cursor: 'pointer',
                           }}
                         >
-                          ✕ Decline / Change
+                          ✕ Decline / Revise
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleApproveProposal(proposal)}
+                          onClick={() =>
+                            handleApproveProposal(proposal, msg.workflowId, msg.proposals.length)
+                          }
                           disabled={isLoading || approvingId !== null}
                           style={{
                             padding: '8px 18px',
@@ -509,6 +560,25 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, onShiftsC
                     </div>
                   );
                 })}
+
+              {msg.decision && (!msg.proposals || msg.proposals.length === 0) && (
+                <div
+                  style={{
+                    maxWidth: '90%',
+                    background: msg.decision === 'Approved' ? '#f0fdf4' : '#f8fafc',
+                    border: `1px solid ${msg.decision === 'Approved' ? '#86efac' : '#cbd5e1'}`,
+                    borderRadius: '12px',
+                    padding: '10px 14px',
+                    marginTop: '4px',
+                    fontSize: '12px',
+                    color: '#475569',
+                    fontWeight: 600,
+                  }}
+                >
+                  Workflow {msg.decision}
+                  {msg.workflowId ? ` · ${String(msg.workflowId).slice(0, 8)}` : ''}
+                </div>
+              )}
 
               {msg.created && (
                 <div
