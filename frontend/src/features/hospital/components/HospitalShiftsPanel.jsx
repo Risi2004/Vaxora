@@ -66,6 +66,17 @@ const emptyForm = {
   notes: '',
 };
 
+const weekNavButtonStyle = {
+  border: 'none',
+  background: '#ffffff',
+  color: '#19469d',
+  fontSize: '1.1rem',
+  fontWeight: 700,
+  lineHeight: 1,
+  padding: '8px 14px',
+  cursor: 'pointer',
+};
+
 const coverageColor = {
   Good: { bg: '#ecfdf5', border: '#6ee7b7', text: '#047857' },
   Partial: { bg: '#fffbeb', border: '#fcd34d', text: '#b45309' },
@@ -338,10 +349,10 @@ export default function HospitalShiftsPanel() {
           style={{
             display: 'flex',
             justifyContent: 'space-between',
-            gap: '12px',
-            flexWrap: 'wrap',
             alignItems: 'center',
-            marginBottom: '16px',
+            marginBottom: '14px',
+            flexWrap: 'wrap',
+            gap: '12px',
           }}
         >
           <div className="section-title-group">
@@ -353,47 +364,133 @@ export default function HospitalShiftsPanel() {
             </p>
           </div>
 
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={() => setShowAgentChat(true)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '9px 18px',
+              background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '10px',
+              fontSize: '14px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              boxShadow: '0 4px 12px rgba(2, 132, 199, 0.35)',
+              transition: 'all 0.2s ease',
+              flexShrink: 0,
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-1px)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+            }}
+          >
+            <span style={{ fontSize: '18px' }}>🤖</span>
+            <span>Open Scheduling Agent</span>
+            <span
+              style={{
+                background: 'rgba(255, 255, 255, 0.25)',
+                padding: '2px 8px',
+                borderRadius: '12px',
+                fontSize: '11px',
+                fontWeight: 600,
+              }}
+            >
+              AI
+            </span>
+          </button>
+        </div>
+
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+            flexWrap: 'wrap',
+            marginBottom: '16px',
+            paddingBottom: '16px',
+            borderBottom: '1px solid #e2e8f0',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                border: '1px solid #cbd5e1',
+                borderRadius: '8px',
+                overflow: 'hidden',
+                background: '#ffffff',
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setWeekStart(addDays(weekStart, -7))}
+                title="Previous week"
+                style={weekNavButtonStyle}
+              >
+                ‹
+              </button>
+              <input
+                type="date"
+                value={weekStart}
+                onChange={(e) => setWeekStart(startOfWeek(e.target.value || toDateInputValue()))}
+                style={{
+                  border: 'none',
+                  borderLeft: '1px solid #e2e8f0',
+                  borderRight: '1px solid #e2e8f0',
+                  padding: '8px 10px',
+                  fontSize: '0.88rem',
+                  color: '#0f172a',
+                  outline: 'none',
+                  fontFamily: 'inherit',
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => setWeekStart(addDays(weekStart, 7))}
+                title="Next week"
+                style={weekNavButtonStyle}
+              >
+                ›
+              </button>
+            </div>
+
             <button
               type="button"
-              className="btn-hospital-secondary"
-              onClick={() => setWeekStart(addDays(weekStart, -7))}
+              className="hospital-filter-btn"
+              onClick={loadData}
+              disabled={loading}
+              style={{ padding: '8px 14px' }}
             >
-              ← Prev
-            </button>
-            <input
-              type="date"
-              value={weekStart}
-              onChange={(e) => setWeekStart(startOfWeek(e.target.value || toDateInputValue()))}
-              className="modal-input"
-              style={{ width: 'auto' }}
-            />
-            <button
-              type="button"
-              className="btn-hospital-secondary"
-              onClick={() => setWeekStart(addDays(weekStart, 7))}
-            >
-              Next →
-            </button>
-            <button type="button" className="btn-hospital-secondary" onClick={loadData} disabled={loading}>
-              Refresh
-            </button>
-            <button
-              type="button"
-              className="btn-hospital-primary"
-              onClick={handleSuggestWeek}
-              disabled={suggesting || loading || staffOptions.length === 0}
-            >
-              {suggesting ? 'Suggesting...' : 'Suggest Week'}
-            </button>
-            <button
-              type="button"
-              className="btn-hospital-secondary"
-              onClick={() => setShowAgentChat((v) => !v)}
-            >
-              {showAgentChat ? 'Hide AI Chat' : 'AI Scheduling Chat'}
+              {loading ? 'Refreshing...' : 'Refresh'}
             </button>
           </div>
+
+          <button
+            type="button"
+            onClick={handleSuggestWeek}
+            disabled={suggesting || loading || staffOptions.length === 0}
+            style={{
+              padding: '9px 18px',
+              borderRadius: '8px',
+              border: '1px solid #19469d',
+              background: suggesting || loading || staffOptions.length === 0 ? '#e2e8f0' : '#19469d',
+              color: suggesting || loading || staffOptions.length === 0 ? '#94a3b8' : '#ffffff',
+              fontSize: '0.88rem',
+              fontWeight: 700,
+              cursor: suggesting || loading || staffOptions.length === 0 ? 'not-allowed' : 'pointer',
+              flexShrink: 0,
+            }}
+          >
+            {suggesting ? 'Suggesting...' : 'Suggest Week'}
+          </button>
         </div>
 
         <div className="hospital-metrics-grid" style={{ marginBottom: '16px' }}>
@@ -524,13 +621,41 @@ export default function HospitalShiftsPanel() {
       </div>
 
       {showAgentChat && (
-        <div style={{ marginBottom: '20px' }}>
-          <StaffSchedulingAgentChat
-            weekStart={weekStart}
-            weekEnd={weekEnd}
-            onShiftsChanged={loadData}
-            onClose={() => setShowAgentChat(false)}
-          />
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(5px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '20px',
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowAgentChat(false);
+          }}
+        >
+          <div
+            style={{
+              width: '100%',
+              maxWidth: '760px',
+              borderRadius: '16px',
+              overflow: 'hidden',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
+            }}
+          >
+            <StaffSchedulingAgentChat
+              weekStart={weekStart}
+              weekEnd={weekEnd}
+              onShiftsChanged={loadData}
+              onClose={() => setShowAgentChat(false)}
+            />
+          </div>
         </div>
       )}
 

@@ -70,7 +70,7 @@ const formatMarkdownText = (text, isUser = false) => {
           key={lineIdx}
           style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', margin: '3px 0', paddingLeft: '4px' }}
         >
-          <span style={{ color: isUser ? '#ffffff' : '#19469d', fontSize: '9px', marginTop: '6px' }}>●</span>
+          <span style={{ color: isUser ? '#ffffff' : '#0284c7', fontSize: '9px', marginTop: '6px' }}>●</span>
           <div style={{ flex: 1 }}>{parts}</div>
         </div>
       );
@@ -82,7 +82,7 @@ const formatMarkdownText = (text, isUser = false) => {
           key={lineIdx}
           style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', margin: '3px 0', paddingLeft: '4px' }}
         >
-          <span style={{ fontWeight: 700, color: isUser ? '#ffffff' : '#19469d', fontSize: '13px' }}>
+          <span style={{ fontWeight: 700, color: isUser ? '#ffffff' : '#0284c7', fontSize: '13px' }}>
             {itemNumber}.
           </span>
           <div style={{ flex: 1 }}>{parts}</div>
@@ -109,15 +109,14 @@ function proposalIdentity(p) {
 }
 
 /**
- * Hospital Staff Scheduling Agent chat.
- * Uses targetAgent=StaffSchedulingAgent; Approve creates shifts via hospital API.
+ * Staff Scheduling Agent chat — UI aligned with BookingAgentChat.
  */
 export default function StaffSchedulingAgentChat({ weekStart, weekEnd, onShiftsChanged, onClose }) {
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
       content:
-        'Hello — I am the **Vaxora Staff Scheduling Agent**.\n\nI can help you:\n- Review active doctors and nurses\n- Check weekly coverage gaps\n- Suggest shifts for low-coverage days\n- Propose changes that **you** must approve before anything is saved\n\nAsk me about this week’s coverage, or use a suggested prompt below.',
+        'Hello! I am your **Vaxora Staff Scheduling Agent**.\n\nI can help you:\n- Review active doctors and nurses\n- Check weekly coverage gaps (Low / Partial / Good)\n- Suggest shifts for low-coverage days\n- Propose changes that require **your approval** before anything is saved\n\nHow can I help with this week’s roster?',
     },
   ]);
   const [inputMessage, setInputMessage] = useState('');
@@ -126,13 +125,14 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, onShiftsC
   const [checkingHealth, setCheckingHealth] = useState(true);
   const [approvingId, setApprovingId] = useState(null);
   const messagesEndRef = useRef(null);
+  const inputRef = useRef(null);
 
   const suggestedPrompts = useMemo(
     () => [
       `Check coverage from ${weekStart} to ${weekEnd}`,
       `Suggest shifts for low coverage from ${weekStart} to ${weekEnd}`,
       'List my active staff',
-      'Who is free to cover low days this week?',
+      'Who can cover low days this week?',
     ],
     [weekStart, weekEnd]
   );
@@ -168,7 +168,11 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, onShiftsC
         targetAgent: 'StaffSchedulingAgent',
       });
 
-      const proposals = Array.isArray(res.proposals) ? res.proposals : res.proposal ? [res.proposal] : [];
+      const proposals = Array.isArray(res.proposals)
+        ? res.proposals
+        : res.proposal
+          ? [res.proposal]
+          : [];
 
       setMessages((prev) => [
         ...prev,
@@ -188,9 +192,9 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, onShiftsC
         ...prev,
         {
           role: 'assistant',
-          content: `**Agent Communication Error**: ${
+          content: `⚠️ **Agent Communication Error**: ${
             err.message ||
-            'Could not connect to the Staff Scheduling Agent. Start the agent service on port 8001 and ensure your LLM endpoint is configured.'
+            'Could not connect to the Staff Scheduling Agent service. Please ensure the agent backend is running.'
           }`,
           isError: true,
         },
@@ -217,7 +221,8 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, onShiftsC
         ...prev,
         {
           role: 'assistant',
-          content: `Approved and created shift for **${proposal.staffName}** on **${String(proposal.shiftDate).slice(0, 10)}** (${String(proposal.startTime).slice(0, 5)}–${String(proposal.endTime).slice(0, 5)}).`,
+          content: `✅ Shift created for **${proposal.staffName}** on **${String(proposal.shiftDate).slice(0, 10)}** (${String(proposal.startTime).slice(0, 5)}–${String(proposal.endTime).slice(0, 5)}).`,
+          created: true,
         },
       ]);
 
@@ -227,13 +232,17 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, onShiftsC
         ...prev,
         {
           role: 'assistant',
-          content: `Failed to create shift: ${err.message || 'Request failed'}`,
+          content: `⚠️ Failed to create shift: ${err.message || 'Request failed'}`,
           isError: true,
         },
       ]);
     } finally {
       setApprovingId(null);
     }
+  };
+
+  const handleDeclineProposal = () => {
+    handleSendMessage('I want to decline these shift proposals. Suggest different options or another day.');
   };
 
   const handleKeyDown = (e) => {
@@ -257,9 +266,10 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, onShiftsC
         fontFamily: 'inherit',
       }}
     >
+      {/* Header — same pattern as BookingAgentChat */}
       <div
         style={{
-          background: 'linear-gradient(135deg, #19469d 0%, #0f2f6b 100%)',
+          background: 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)',
           color: '#ffffff',
           padding: '16px 20px',
           display: 'flex',
@@ -281,12 +291,12 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, onShiftsC
               fontSize: '20px',
             }}
           >
-            🗓️
+            🤖
           </div>
           <div>
-            <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>Staff Scheduling Agent</h3>
+            <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>Vaxora Staff Scheduling Agent</h3>
             <p style={{ margin: '2px 0 0', fontSize: '12px', opacity: 0.9 }}>
-              Coverage · Suggest shifts · Human approval required
+              Coverage · Shift proposals · Human approval required
             </p>
           </div>
         </div>
@@ -314,11 +324,7 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, onShiftsC
                 display: 'inline-block',
               }}
             />
-            {checkingHealth
-              ? 'Checking Agent...'
-              : agentHealth?.online
-                ? 'Agent Online (8001)'
-                : 'Agent Offline'}
+            {checkingHealth ? 'Checking Agent...' : agentHealth?.online ? 'Agent Online' : 'Agent Offline'}
           </div>
 
           {onClose && (
@@ -336,6 +342,16 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, onShiftsC
                 fontSize: '16px',
                 fontWeight: 700,
                 cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'background 0.2s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.35)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';
               }}
             >
               ✕
@@ -344,6 +360,7 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, onShiftsC
         </div>
       </div>
 
+      {/* Messages */}
       <div
         style={{
           flex: 1,
@@ -372,9 +389,12 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, onShiftsC
                   maxWidth: '85%',
                   padding: '14px 18px',
                   borderRadius: isUser ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-                  background: isUser ? '#19469d' : msg.isError ? '#fef2f2' : '#ffffff',
+                  background: isUser ? '#0284c7' : msg.isError ? '#fef2f2' : '#ffffff',
                   color: isUser ? '#ffffff' : msg.isError ? '#991b1b' : '#1e293b',
                   border: isUser ? 'none' : msg.isError ? '1px solid #fecaca' : '1px solid #e2e8f0',
+                  boxShadow: isUser
+                    ? '0 2px 8px rgba(2, 132, 199, 0.2)'
+                    : '0 2px 6px rgba(0, 0, 0, 0.04)',
                   fontSize: '14px',
                   lineHeight: '1.6',
                 }}
@@ -383,118 +403,247 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, onShiftsC
               </div>
 
               {Array.isArray(msg.proposals) &&
+                msg.proposals.length > 0 &&
                 msg.proposals.map((proposal) => {
                   const id = proposalIdentity(proposal);
                   return (
                     <div
                       key={id}
                       style={{
-                        maxWidth: '92%',
+                        maxWidth: '90%',
                         background: '#ffffff',
-                        border: '2px solid #19469d',
+                        border: '2px solid #0284c7',
                         borderRadius: '12px',
-                        padding: '14px',
+                        padding: '16px',
+                        boxShadow: '0 4px 14px rgba(2, 132, 199, 0.1)',
                         marginTop: '4px',
                       }}
                     >
-                      <div style={{ fontWeight: 700, color: '#19469d', marginBottom: '10px', fontSize: '14px' }}>
-                        Shift proposal (approval required)
-                      </div>
                       <div
                         style={{
-                          background: '#eff6ff',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          fontWeight: 700,
+                          color: '#0284c7',
+                          marginBottom: '12px',
+                          fontSize: '14px',
+                        }}
+                      >
+                        <span>🛡️</span> Shift Proposal (Approval Required)
+                      </div>
+
+                      <div
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(2, 1fr)',
+                          gap: '10px',
+                          background: '#f0f9ff',
                           padding: '12px',
                           borderRadius: '8px',
                           fontSize: '13px',
-                          color: '#1e3a8a',
-                          marginBottom: '12px',
-                          display: 'grid',
-                          gap: '6px',
+                          color: '#0369a1',
+                          marginBottom: '14px',
                         }}
                       >
                         <div>
-                          <strong>Staff:</strong> {proposal.staffName} ({proposal.staffRole || '—'})
+                          <strong>👤 Staff:</strong> {proposal.staffName}
                         </div>
                         <div>
-                          <strong>Date:</strong> {String(proposal.shiftDate).slice(0, 10)}
+                          <strong>🏷️ Role:</strong> {proposal.staffRole || '—'}
                         </div>
                         <div>
-                          <strong>Time:</strong> {String(proposal.startTime).slice(0, 5)} –{' '}
+                          <strong>📅 Date:</strong> {String(proposal.shiftDate).slice(0, 10)}
+                        </div>
+                        <div>
+                          <strong>⏰ Time:</strong> {String(proposal.startTime).slice(0, 5)} –{' '}
                           {String(proposal.endTime).slice(0, 5)}
                         </div>
                         {proposal.reason && (
-                          <div>
-                            <strong>Reason:</strong> {proposal.reason}
+                          <div style={{ gridColumn: 'span 2' }}>
+                            <strong>📝 Reason:</strong> {proposal.reason}
                           </div>
                         )}
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+
+                      <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
                         <button
                           type="button"
-                          className="btn-hospital-primary"
-                          disabled={isLoading || approvingId === id}
-                          onClick={() => handleApproveProposal(proposal)}
+                          onClick={handleDeclineProposal}
+                          disabled={isLoading || approvingId !== null}
+                          style={{
+                            padding: '8px 14px',
+                            borderRadius: '6px',
+                            border: '1px solid #cbd5e1',
+                            background: '#ffffff',
+                            color: '#64748b',
+                            fontWeight: 600,
+                            fontSize: '12px',
+                            cursor: 'pointer',
+                          }}
                         >
-                          {approvingId === id ? 'Approving...' : 'Approve & Create Shift'}
+                          ✕ Decline / Change
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleApproveProposal(proposal)}
+                          disabled={isLoading || approvingId !== null}
+                          style={{
+                            padding: '8px 18px',
+                            borderRadius: '6px',
+                            border: 'none',
+                            background: '#16a34a',
+                            color: '#ffffff',
+                            fontWeight: 600,
+                            fontSize: '12px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            boxShadow: '0 2px 6px rgba(22, 163, 74, 0.3)',
+                          }}
+                        >
+                          {approvingId === id ? 'Approving...' : '✓ Approve & Create Shift'}
                         </button>
                       </div>
                     </div>
                   );
                 })}
+
+              {msg.created && (
+                <div
+                  style={{
+                    maxWidth: '90%',
+                    background: '#f0fdf4',
+                    border: '1px solid #86efac',
+                    borderRadius: '12px',
+                    padding: '14px 16px',
+                    marginTop: '4px',
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      color: '#15803d',
+                      fontWeight: 700,
+                      fontSize: '13px',
+                    }}
+                  >
+                    <span>🎉</span> Shift Confirmed on Roster
+                  </div>
+                </div>
+              )}
             </div>
           );
         })}
 
         {isLoading && (
-          <div style={{ color: '#64748b', fontSize: '13px', fontWeight: 600 }}>Agent is thinking…</div>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              color: '#64748b',
+              fontSize: '13px',
+              fontStyle: 'italic',
+              padding: '8px 0',
+            }}
+          >
+            <span>⏳</span> Agent is thinking & checking staff coverage...
+          </div>
         )}
+
         <div ref={messagesEndRef} />
       </div>
 
-      <div style={{ padding: '10px 16px 0', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-        {suggestedPrompts.map((prompt) => (
-          <button
-            key={prompt}
-            type="button"
-            onClick={() => handleSendMessage(prompt)}
-            disabled={isLoading || !agentHealth?.online}
-            style={{
-              border: '1px solid #cbd5e1',
-              background: '#ffffff',
-              borderRadius: '999px',
-              padding: '6px 12px',
-              fontSize: '12px',
-              color: '#334155',
-              cursor: 'pointer',
-            }}
-          >
-            {prompt}
-          </button>
-        ))}
-      </div>
+      {messages.length <= 2 && (
+        <div
+          style={{
+            padding: '10px 16px',
+            background: '#f1f5f9',
+            borderTop: '1px solid #e2e8f0',
+            display: 'flex',
+            gap: '8px',
+            overflowX: 'auto',
+          }}
+        >
+          {suggestedPrompts.map((prompt, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => handleSendMessage(prompt)}
+              disabled={isLoading}
+              style={{
+                whiteSpace: 'nowrap',
+                padding: '6px 12px',
+                borderRadius: '20px',
+                border: '1px solid #cbd5e1',
+                background: '#ffffff',
+                color: '#334155',
+                fontSize: '12px',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              {prompt}
+            </button>
+          ))}
+        </div>
+      )}
 
-      <div style={{ padding: '12px 16px 16px', display: 'flex', gap: '10px' }}>
-        <input
-          type="text"
+      <div
+        style={{
+          padding: '14px 18px',
+          background: '#ffffff',
+          borderTop: '1px solid #e2e8f0',
+          display: 'flex',
+          gap: '10px',
+          alignItems: 'center',
+        }}
+      >
+        <textarea
+          ref={inputRef}
           value={inputMessage}
           onChange={(e) => setInputMessage(e.target.value)}
           onKeyDown={handleKeyDown}
+          placeholder="Ask about coverage, staff, or request shift suggestions..."
           disabled={isLoading}
-          placeholder={
-            agentHealth?.online
-              ? 'Ask about coverage, staff, or suggested shifts…'
-              : 'Start agent on port 8001 to chat…'
-          }
-          className="modal-input"
-          style={{ flex: 1 }}
+          rows={1}
+          style={{
+            flex: 1,
+            resize: 'none',
+            padding: '10px 14px',
+            borderRadius: '10px',
+            border: '1px solid #cbd5e1',
+            outline: 'none',
+            fontSize: '14px',
+            fontFamily: 'inherit',
+            maxHeight: '80px',
+          }}
         />
         <button
           type="button"
-          className="btn-hospital-primary"
           onClick={() => handleSendMessage()}
           disabled={isLoading || !inputMessage.trim()}
+          style={{
+            padding: '10px 20px',
+            borderRadius: '10px',
+            background: isLoading || !inputMessage.trim() ? '#94a3b8' : '#0284c7',
+            color: '#ffffff',
+            border: 'none',
+            fontWeight: 600,
+            fontSize: '14px',
+            cursor: isLoading || !inputMessage.trim() ? 'not-allowed' : 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            transition: 'background 0.2s',
+          }}
         >
-          Send
+          <span>Send</span>
+          <span>🚀</span>
         </button>
       </div>
     </div>
