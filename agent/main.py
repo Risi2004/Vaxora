@@ -27,7 +27,7 @@ app.add_middleware(
 class ChatRequest(BaseModel):
     messages: List[Dict[str, Any]]
     patientInfo: Optional[Dict[str, Any]] = None
-    targetAgent: Optional[str] = None # Optional override, e.g. "BookingAgent"
+    targetAgent: Optional[str] = None  # e.g. "BookingAgent" | "StaffSchedulingAgent"
 
 @app.get("/api/agent/health")
 async def health():
