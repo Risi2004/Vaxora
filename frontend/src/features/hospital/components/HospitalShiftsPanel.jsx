@@ -88,6 +88,7 @@ export default function HospitalShiftsPanel() {
   const [shifts, setShifts] = useState([]);
   const [coverage, setCoverage] = useState(null);
   const [form, setForm] = useState(emptyForm);
+  const [editingShiftId, setEditingShiftId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [suggesting, setSuggesting] = useState(false);
@@ -180,7 +181,25 @@ export default function HospitalShiftsPanel() {
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleCreate = async (e) => {
+  const resetForm = (keepDate = true) => {
+    setEditingShiftId(null);
+    setForm((prev) => ({ ...emptyForm, shiftDate: keepDate ? prev.shiftDate : emptyForm.shiftDate }));
+  };
+
+  const beginEdit = (shift) => {
+    setEditingShiftId(shift.shiftId);
+    setForm({
+      affiliationId: shift.affiliationId,
+      shiftDate: String(shift.shiftDate).slice(0, 10),
+      startTime: String(shift.startTime).slice(0, 5),
+      endTime: String(shift.endTime).slice(0, 5),
+      boothOrStation: shift.boothOrStation || '',
+      notes: shift.notes || '',
+    });
+    setError('');
+  };
+
+  const handleSaveShift = async (e) => {
     e.preventDefault();
     if (!form.affiliationId) {
       setError('Select an active staff member.');
@@ -193,22 +212,31 @@ export default function HospitalShiftsPanel() {
       return;
     }
 
+    const payload = {
+      shiftDate: form.shiftDate,
+      startTime: form.startTime.length === 5 ? `${form.startTime}:00` : form.startTime,
+      endTime: form.endTime.length === 5 ? `${form.endTime}:00` : form.endTime,
+      boothOrStation: form.boothOrStation || null,
+      notes: form.notes || null,
+    };
+
     setSaving(true);
     setError('');
     try {
-      await staffService.createShift({
-        affiliationId: form.affiliationId,
-        shiftDate: form.shiftDate,
-        startTime: form.startTime.length === 5 ? `${form.startTime}:00` : form.startTime,
-        endTime: form.endTime.length === 5 ? `${form.endTime}:00` : form.endTime,
-        boothOrStation: form.boothOrStation || null,
-        notes: form.notes || null,
-      });
-      showToast('Shift created.');
-      setForm((prev) => ({ ...emptyForm, shiftDate: prev.shiftDate }));
+      if (editingShiftId) {
+        await staffService.updateShift(editingShiftId, payload);
+        showToast('Shift updated.');
+      } else {
+        await staffService.createShift({
+          affiliationId: form.affiliationId,
+          ...payload,
+        });
+        showToast('Shift created.');
+      }
+      resetForm();
       await loadData();
     } catch (err) {
-      setError(err.message || 'Failed to create shift.');
+      setError(err.message || (editingShiftId ? 'Failed to update shift.' : 'Failed to create shift.'));
     } finally {
       setSaving(false);
     }
@@ -529,7 +557,7 @@ export default function HospitalShiftsPanel() {
           </div>
         </div>
 
-        <form onSubmit={handleCreate} style={{ display: 'grid', gap: '12px' }}>
+        <form onSubmit={handleSaveShift} style={{ display: 'grid', gap: '12px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
             <div className="modal-form-group" style={{ margin: 0 }}>
               <label className="modal-label">Staff *</label>
@@ -539,6 +567,7 @@ export default function HospitalShiftsPanel() {
                 onChange={handleChange}
                 className="modal-select"
                 required
+                disabled={Boolean(editingShiftId)}
               >
                 <option value="">Select active staff</option>
                 {staffOptions.map((opt) => (
@@ -611,10 +640,15 @@ export default function HospitalShiftsPanel() {
             />
           </div>
 
-          <div>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
             <button type="submit" className="btn-hospital-primary" disabled={saving || staffOptions.length === 0}>
-              {saving ? 'Saving...' : 'Create Shift'}
+              {saving ? 'Saving...' : editingShiftId ? 'Save Changes' : 'Create Shift'}
             </button>
+            {editingShiftId && (
+              <button type="button" className="btn-hospital-secondary" onClick={() => resetForm()} disabled={saving}>
+                Cancel
+              </button>
+            )}
           </div>
 
           {staffOptions.length === 0 && !loading && (
@@ -824,23 +858,42 @@ export default function HospitalShiftsPanel() {
                           {String(shift.startTime).slice(0, 5)} – {String(shift.endTime).slice(0, 5)}
                           {shift.boothOrStation ? ` · ${shift.boothOrStation}` : ''}
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(shift.shiftId)}
-                          disabled={actionId === shift.shiftId}
-                          style={{
-                            marginTop: 6,
-                            background: 'none',
-                            border: 'none',
-                            color: '#dc2626',
-                            fontWeight: 600,
-                            fontSize: '0.72rem',
-                            cursor: 'pointer',
-                            padding: 0,
-                          }}
-                        >
-                          {actionId === shift.shiftId ? 'Deleting...' : 'Delete'}
-                        </button>
+                        <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
+                          {String(shift.shiftDate).slice(0, 10) >= today && (
+                            <button
+                              type="button"
+                              onClick={() => beginEdit(shift)}
+                              disabled={saving || actionId === shift.shiftId}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: '#19469d',
+                                fontWeight: 600,
+                                fontSize: '0.72rem',
+                                cursor: 'pointer',
+                                padding: 0,
+                              }}
+                            >
+                              {editingShiftId === shift.shiftId ? 'Editing' : 'Edit'}
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(shift.shiftId)}
+                            disabled={actionId === shift.shiftId}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: '#dc2626',
+                              fontWeight: 600,
+                              fontSize: '0.72rem',
+                              cursor: 'pointer',
+                              padding: 0,
+                            }}
+                          >
+                            {actionId === shift.shiftId ? 'Deleting...' : 'Delete'}
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
