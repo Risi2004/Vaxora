@@ -23,10 +23,12 @@ Your job is to analyze the user's latest message and route the conversation to t
 
 Available Specialized Agents:
 1. `BookingAgent` - Handles vaccine discovery, checking hospital stock, finding schedule dates, 20-minute slots, reserving appointments, checking booked appointments, and cancelling appointments.
-2. `GeneralAgent` - Handles general greetings, platform inquiries, or non-booking queries.
+2. `RestockAgent` - Handles vaccine restock recommendations, low-stock analysis, and purchase order proposals.
+3. `ExpiryAgent` - Handles scanning batches for upcoming expiry, wastage risk, and disposal/transfer recommendations.
+4. `GeneralAgent` - Handles general greetings, platform inquiries, or non-booking queries.
 
 Respond with ONLY a JSON object indicating the target agent:
-{"target_agent": "BookingAgent" | "GeneralAgent", "reason": "brief reason"}
+{"target_agent": "BookingAgent" | "RestockAgent" | "ExpiryAgent" | "GeneralAgent", "reason": "brief reason"}
 """
 
 class MultiAgentOrchestrator:
@@ -44,10 +46,10 @@ class MultiAgentOrchestrator:
         self.agents: Dict[str, Any] = {
             "BookingAgent": booking_agent
         }
-    # === INVENTORY AGENTS (ADDED) ===
-    self.register_agent(restock_agent)
-    self.register_agent(expiry_agent)
-    
+
+        # === INVENTORY AGENTS (ADDED) ===
+        self.register_agent(restock_agent)
+        self.register_agent(expiry_agent)
 
     def register_agent(self, agent_instance: Any):
         """Allows team members to register their specialized agents into the orchestrator."""
@@ -61,22 +63,38 @@ class MultiAgentOrchestrator:
         if not messages:
             return "BookingAgent"
 
-        last_user_message = next((m["content"] for m in reversed(messages) if m.get("role") == "user"), "")
-        
-        # Fast heuristic checks for common booking keywords
-        booking_keywords = ["book", "slot", "appointment", "vaccine", "schedule", "hospital", "date", "payhere", "cancel", "pfizer", "sinopharm", "moderna", "influenza", "approve"]
-        if any(kw in last_user_message.lower() for kw in booking_keywords):
-            return "BookingAgent"
+        last_user_message = next((m["content"] for m in messages if m.get("role") == "user"), "")
+        last_user_message = last_user_message or ""
+        msg_lower = last_user_message.lower()
 
         # === INVENTORY ROUTING (ADDED) ===
-        inventory_expiry_keywords = ["expire", "expiry", "expiring", "about to expire", "wastage", "dispose", "expired batch"]
-        if any(kw in last_user_message.lower() for kw in inventory_expiry_keywords):
+        # Check expiry FIRST (must come before restock to avoid keyword overlap)
+        inventory_expiry_keywords = [
+            "expire", "expiry", "expiring", "about to expire",
+            "expired batch", "wastage", "dispose", "disposal",
+            "near expiry", "expiration"
+        ]
+        if any(kw in msg_lower for kw in inventory_expiry_keywords):
             return "ExpiryAgent"
 
-        inventory_restock_keywords = ["restock", "reorder", "replenish", "low stock", "purchase order", "restock order"]
-        if any(kw in last_user_message.lower() for kw in inventory_restock_keywords):
+        inventory_restock_keywords = [
+            "restock", "reorder", "replenish", "low stock",
+            "purchase order", "restock order", "what should we order",
+            "need to order", "stock level"
+        ]
+        if any(kw in msg_lower for kw in inventory_restock_keywords):
             return "RestockAgent"
 
+        # Fast heuristic checks for common booking keywords
+        booking_keywords = [
+            "book", "slot", "appointment", "vaccine", "schedule",
+            "hospital", "date", "payhere", "cancel",
+            "pfizer", "sinopharm", "moderna", "influenza", "approve"
+        ]
+        if any(kw in msg_lower for kw in booking_keywords):
+            return "BookingAgent"
+
+        # Fall back to LLM-based routing
         try:
             res = await self.client.chat.completions.create(
                 model=self.model,
@@ -87,8 +105,9 @@ class MultiAgentOrchestrator:
                 temperature=0.0
             )
             content = res.choices[0].message.content or ""
-            if "BookingAgent" in content:
-                return "BookingAgent"
+            for agent_name in ("RestockAgent", "ExpiryAgent", "BookingAgent"):
+                if agent_name in content:
+                    return agent_name
         except Exception as e:
             logger.warning(f"Orchestrator routing fallback to BookingAgent: {e}")
 
@@ -98,7 +117,8 @@ class MultiAgentOrchestrator:
         self,
         messages: List[Dict[str, Any]],
         token: Optional[str] = None,
-        patient_info: Optional[Dict[str, Any]] = None
+        patient_info: Optional[Dict[str, Any]] = None,
+        user_id: Optional[str] = None  # === INVENTORY AGENTS (ADDED) ===
     ) -> Dict[str, Any]:
         """
         Orchestrates request: routes to the target agent and returns the agent's output.
@@ -107,7 +127,23 @@ class MultiAgentOrchestrator:
         target_agent = self.agents.get(target_agent_name, booking_agent)
 
         logger.info(f"Orchestrator routed request to: {target_agent.name}")
-        response = await target_agent.run(messages, token=token, patient_info=patient_info)
+
+        # === INVENTORY AGENTS (ADDED): dispatch with correct kwargs ===
+        if target_agent.name in ("RestockAgent", "ExpiryAgent"):
+            response = await target_agent.run(
+                messages,
+                token=token,
+                user_id=user_id,
+                user_info=patient_info,
+            )
+        else:
+            # Teammate's BookingAgent — unchanged signature
+            response = await target_agent.run(
+                messages,
+                token=token,
+                patient_info=patient_info,
+            )
         return response
+
 
 orchestrator = MultiAgentOrchestrator()
