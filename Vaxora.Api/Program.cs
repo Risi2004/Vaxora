@@ -65,6 +65,19 @@ builder.Services.AddScoped<IPatientMedicalHistoryService, PatientMedicalHistoryS
 builder.Services.AddScoped<IPatientVisitService, PatientVisitService>();
 builder.Services.AddScoped<IClinicalPatientService, ClinicalPatientService>();
 
+// Internal Agentic AI service gateway. Clients call this API, never the agent directly.
+var agentServiceUrl = builder.Configuration["AgentService:BaseUrl"]
+    ?? Environment.GetEnvironmentVariable("AGENT_SERVICE_URL")
+    ?? "http://localhost:8001";
+var agentTimeoutSeconds = builder.Configuration.GetValue<int?>("AgentService:TimeoutSeconds") ?? 120;
+
+builder.Services.AddHttpClient(AgentGatewayService.HttpClientName, client =>
+{
+    client.BaseAddress = new Uri(agentServiceUrl);
+    client.Timeout = TimeSpan.FromSeconds(agentTimeoutSeconds);
+});
+builder.Services.AddScoped<IAgentGatewayService, AgentGatewayService>();
+
 // 3. Configure JWT Authentication & Authorization
 var jwtSecretKey = builder.Configuration["Jwt:SecretKey"];
 if (string.IsNullOrWhiteSpace(jwtSecretKey))
