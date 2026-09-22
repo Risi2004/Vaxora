@@ -81,6 +81,48 @@ export const agentService = {
 
     return await response.json();
   },
+
+  /**
+   * Persist a human approve/reject decision against a stored agent workflow run.
+   */
+  async recordDecision(workflowId, { approved, note } = {}) {
+    const token = getToken();
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) headers.Authorization = `Bearer ${token}`;
+
+    const response = await fetch(`${API_BASE}/agent/workflows/${workflowId}/decision`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ approved: Boolean(approved), note: note || undefined }),
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.message || err.title || 'Failed to record workflow decision.');
+    }
+
+    return await response.json();
+  },
+
+  /**
+   * Recent agent runs for the logged-in user (observability).
+   */
+  async getRecentWorkflows(limit = 20) {
+    const token = getToken();
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) headers.Authorization = `Bearer ${token}`;
+
+    const response = await fetch(`${API_BASE}/agent/workflows?limit=${limit}`, {
+      headers,
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.message || err.title || 'Failed to load agent workflows.');
+    }
+
+    return await response.json();
+  },
 };
 
 export default agentService;

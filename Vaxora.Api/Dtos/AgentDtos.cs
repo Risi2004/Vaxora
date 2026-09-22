@@ -58,3 +58,25 @@ public class AgentHealthDto
     public bool Online { get; set; }
     public List<string> Agents { get; set; } = new();
 }
+
+public class AgentWorkflowDto
+{
+    public Guid WorkflowId { get; set; }
+    public string AgentName { get; set; } = string.Empty;
+    public string Objective { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+    public string? ResultSummary { get; set; }
+    public string ProposalsJson { get; set; } = "[]";
+    public DateTime CreatedAt { get; set; }
+    public DateTime? DecidedAt { get; set; }
+    public string? DecisionNote { get; set; }
+}
+
+public class AgentWorkflowDecisionDto
+{
+    [Required]
+    public bool Approved { get; set; }
+
+    [MaxLength(500)]
+    public string? Note { get; set; }
+}
