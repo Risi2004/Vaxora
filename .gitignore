@@ -91,3 +91,6 @@ appsettings.*.local.json
 .Trashes
 ehthumbs.db
 Thumbs.db
+# Python
+__pycache__/
+*.pyc
