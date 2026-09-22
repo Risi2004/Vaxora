@@ -108,6 +108,13 @@ export const staffService = {
     return apiRequest(`/staff/coverage${buildQuery({ from, to })}`);
   },
 
+  suggestWeekCoverage({ from, to, defaultStart = '08:00', defaultEnd = '16:00' }) {
+    return apiRequest('/staff/shifts/suggest-week', {
+      method: 'POST',
+      body: JSON.stringify({ from, to, defaultStart, defaultEnd }),
+    });
+  },
+
   createShift(payload) {
     return apiRequest('/staff/shifts', {
       method: 'POST',
