@@ -88,13 +88,11 @@ export default function HospitalShiftsPanel() {
   const [shifts, setShifts] = useState([]);
   const [coverage, setCoverage] = useState(null);
   const [form, setForm] = useState(emptyForm);
+  const [editingShiftId, setEditingShiftId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [suggesting, setSuggesting] = useState(false);
-  const [approvingKey, setApprovingKey] = useState(null);
-  const [approvingAll, setApprovingAll] = useState(false);
-  const [proposals, setProposals] = useState([]);
   const [showAgentChat, setShowAgentChat] = useState(false);
+  const [agentPrompt, setAgentPrompt] = useState(null);
   const [actionId, setActionId] = useState(null);
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
@@ -180,7 +178,25 @@ export default function HospitalShiftsPanel() {
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleCreate = async (e) => {
+  const resetForm = (keepDate = true) => {
+    setEditingShiftId(null);
+    setForm((prev) => ({ ...emptyForm, shiftDate: keepDate ? prev.shiftDate : emptyForm.shiftDate }));
+  };
+
+  const beginEdit = (shift) => {
+    setEditingShiftId(shift.shiftId);
+    setForm({
+      affiliationId: shift.affiliationId,
+      shiftDate: String(shift.shiftDate).slice(0, 10),
+      startTime: String(shift.startTime).slice(0, 5),
+      endTime: String(shift.endTime).slice(0, 5),
+      boothOrStation: shift.boothOrStation || '',
+      notes: shift.notes || '',
+    });
+    setError('');
+  };
+
+  const handleSaveShift = async (e) => {
     e.preventDefault();
     if (!form.affiliationId) {
       setError('Select an active staff member.');
@@ -193,22 +209,31 @@ export default function HospitalShiftsPanel() {
       return;
     }
 
+    const payload = {
+      shiftDate: form.shiftDate,
+      startTime: form.startTime.length === 5 ? `${form.startTime}:00` : form.startTime,
+      endTime: form.endTime.length === 5 ? `${form.endTime}:00` : form.endTime,
+      boothOrStation: form.boothOrStation || null,
+      notes: form.notes || null,
+    };
+
     setSaving(true);
     setError('');
     try {
-      await staffService.createShift({
-        affiliationId: form.affiliationId,
-        shiftDate: form.shiftDate,
-        startTime: form.startTime.length === 5 ? `${form.startTime}:00` : form.startTime,
-        endTime: form.endTime.length === 5 ? `${form.endTime}:00` : form.endTime,
-        boothOrStation: form.boothOrStation || null,
-        notes: form.notes || null,
-      });
-      showToast('Shift created.');
-      setForm((prev) => ({ ...emptyForm, shiftDate: prev.shiftDate }));
+      if (editingShiftId) {
+        await staffService.updateShift(editingShiftId, payload);
+        showToast('Shift updated.');
+      } else {
+        await staffService.createShift({
+          affiliationId: form.affiliationId,
+          ...payload,
+        });
+        showToast('Shift created.');
+      }
+      resetForm();
       await loadData();
     } catch (err) {
-      setError(err.message || 'Failed to create shift.');
+      setError(err.message || (editingShiftId ? 'Failed to update shift.' : 'Failed to create shift.'));
     } finally {
       setSaving(false);
     }
@@ -228,108 +253,14 @@ export default function HospitalShiftsPanel() {
     }
   };
 
-  const proposalKey = (p, index) =>
-    `${p.affiliationId}-${String(p.shiftDate).slice(0, 10)}-${p.startTime}-${p.endTime}-${index}`;
-
-  const normalizeTime = (value) => {
-    const s = String(value || '').trim();
-    if (s.length === 5) return `${s}:00`;
-    return s;
+  const handleSuggestWeek = () => {
+    setAgentPrompt(`Suggest shifts for low coverage from ${weekStart} to ${weekEnd}`);
+    setShowAgentChat(true);
   };
 
-  const handleSuggestWeek = async () => {
-    setSuggesting(true);
-    setError('');
-    try {
-      const result = await staffService.suggestWeekCoverage({
-        from: weekStart,
-        to: weekEnd,
-        defaultStart: '08:00',
-        defaultEnd: '16:00',
-      });
-      const list = Array.isArray(result?.proposals) ? result.proposals : [];
-      setProposals(list);
-      showToast(result?.message || (list.length ? `Suggested ${list.length} shift(s).` : 'No suggestions.'));
-    } catch (err) {
-      setError(err.message || 'Failed to suggest week coverage.');
-      setProposals([]);
-    } finally {
-      setSuggesting(false);
-    }
-  };
-
-  const handleApproveProposal = async (proposal, index) => {
-    const key = proposalKey(proposal, index);
-    setApprovingKey(key);
-    setError('');
-    try {
-      await staffService.createShift({
-        affiliationId: proposal.affiliationId,
-        shiftDate: String(proposal.shiftDate).slice(0, 10),
-        startTime: normalizeTime(proposal.startTime),
-        endTime: normalizeTime(proposal.endTime),
-        boothOrStation: proposal.boothOrStation || null,
-        notes: proposal.notes || null,
-      });
-      setProposals((prev) =>
-        prev.filter(
-          (p) =>
-            !(
-              p.affiliationId === proposal.affiliationId &&
-              String(p.shiftDate).slice(0, 10) === String(proposal.shiftDate).slice(0, 10) &&
-              String(p.startTime) === String(proposal.startTime) &&
-              String(p.endTime) === String(proposal.endTime)
-            )
-        )
-      );
-      showToast(`Approved shift for ${proposal.staffName}.`);
-      await loadData();
-    } catch (err) {
-      setError(err.message || 'Failed to approve shift.');
-    } finally {
-      setApprovingKey(null);
-    }
-  };
-
-  const handleDismissProposal = (index) => {
-    setProposals((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const handleApproveAll = async () => {
-    if (proposals.length === 0) return;
-    setApprovingAll(true);
-    setError('');
-    let created = 0;
-    const remaining = [];
-    try {
-      for (let i = 0; i < proposals.length; i += 1) {
-        const proposal = proposals[i];
-        try {
-          await staffService.createShift({
-            affiliationId: proposal.affiliationId,
-            shiftDate: String(proposal.shiftDate).slice(0, 10),
-            startTime: normalizeTime(proposal.startTime),
-            endTime: normalizeTime(proposal.endTime),
-            boothOrStation: proposal.boothOrStation || null,
-            notes: proposal.notes || null,
-          });
-          created += 1;
-        } catch {
-          remaining.push(proposal);
-        }
-      }
-      setProposals(remaining);
-      showToast(
-        remaining.length
-          ? `Created ${created} shift(s). ${remaining.length} need review.`
-          : `Approved all ${created} suggested shift(s).`
-      );
-      await loadData();
-    } catch (err) {
-      setError(err.message || 'Failed while approving suggestions.');
-    } finally {
-      setApprovingAll(false);
-    }
+  const handleCloseAgentChat = () => {
+    setShowAgentChat(false);
+    setAgentPrompt(null);
   };
 
   return (
@@ -371,7 +302,10 @@ export default function HospitalShiftsPanel() {
 
           <button
             type="button"
-            onClick={() => setShowAgentChat(true)}
+            onClick={() => {
+              setAgentPrompt(null);
+              setShowAgentChat(true);
+            }}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -481,20 +415,20 @@ export default function HospitalShiftsPanel() {
           <button
             type="button"
             onClick={handleSuggestWeek}
-            disabled={suggesting || loading || staffOptions.length === 0}
+            disabled={loading || staffOptions.length === 0}
             style={{
               padding: '9px 18px',
               borderRadius: '8px',
               border: '1px solid #19469d',
-              background: suggesting || loading || staffOptions.length === 0 ? '#e2e8f0' : '#19469d',
-              color: suggesting || loading || staffOptions.length === 0 ? '#94a3b8' : '#ffffff',
+              background: loading || staffOptions.length === 0 ? '#e2e8f0' : '#19469d',
+              color: loading || staffOptions.length === 0 ? '#94a3b8' : '#ffffff',
               fontSize: '0.88rem',
               fontWeight: 700,
-              cursor: suggesting || loading || staffOptions.length === 0 ? 'not-allowed' : 'pointer',
+              cursor: loading || staffOptions.length === 0 ? 'not-allowed' : 'pointer',
               flexShrink: 0,
             }}
           >
-            {suggesting ? 'Suggesting...' : 'Suggest Week'}
+            Suggest Week
           </button>
         </div>
 
@@ -529,7 +463,7 @@ export default function HospitalShiftsPanel() {
           </div>
         </div>
 
-        <form onSubmit={handleCreate} style={{ display: 'grid', gap: '12px' }}>
+        <form onSubmit={handleSaveShift} style={{ display: 'grid', gap: '12px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
             <div className="modal-form-group" style={{ margin: 0 }}>
               <label className="modal-label">Staff *</label>
@@ -539,6 +473,7 @@ export default function HospitalShiftsPanel() {
                 onChange={handleChange}
                 className="modal-select"
                 required
+                disabled={Boolean(editingShiftId)}
               >
                 <option value="">Select active staff</option>
                 {staffOptions.map((opt) => (
@@ -611,10 +546,15 @@ export default function HospitalShiftsPanel() {
             />
           </div>
 
-          <div>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
             <button type="submit" className="btn-hospital-primary" disabled={saving || staffOptions.length === 0}>
-              {saving ? 'Saving...' : 'Create Shift'}
+              {saving ? 'Saving...' : editingShiftId ? 'Save Changes' : 'Create Shift'}
             </button>
+            {editingShiftId && (
+              <button type="button" className="btn-hospital-secondary" onClick={() => resetForm()} disabled={saving}>
+                Cancel
+              </button>
+            )}
           </div>
 
           {staffOptions.length === 0 && !loading && (
@@ -642,7 +582,7 @@ export default function HospitalShiftsPanel() {
             padding: '20px',
           }}
           onClick={(e) => {
-            if (e.target === e.currentTarget) setShowAgentChat(false);
+            if (e.target === e.currentTarget) handleCloseAgentChat();
           }}
         >
           <div
@@ -657,108 +597,10 @@ export default function HospitalShiftsPanel() {
             <StaffSchedulingAgentChat
               weekStart={weekStart}
               weekEnd={weekEnd}
+              initialPrompt={agentPrompt}
               onShiftsChanged={loadData}
-              onClose={() => setShowAgentChat(false)}
+              onClose={handleCloseAgentChat}
             />
-          </div>
-        </div>
-      )}
-
-      {proposals.length > 0 && (
-        <div className="hospital-section-card" style={{ marginBottom: '20px' }}>
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              gap: '12px',
-              flexWrap: 'wrap',
-              alignItems: 'center',
-              marginBottom: '12px',
-            }}
-          >
-            <div className="section-title-group">
-              <h3 style={{ margin: 0 }}>Suggested shifts (pending approval)</h3>
-              <p className="section-title-desc" style={{ margin: '4px 0 0' }}>
-                Review each proposal. Nothing is saved until you approve.
-              </p>
-            </div>
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                className="btn-hospital-secondary"
-                onClick={() => setProposals([])}
-                disabled={approvingAll}
-              >
-                Clear
-              </button>
-              <button
-                type="button"
-                className="btn-hospital-primary"
-                onClick={handleApproveAll}
-                disabled={approvingAll || approvingKey !== null}
-              >
-                {approvingAll ? 'Approving...' : `Approve all (${proposals.length})`}
-              </button>
-            </div>
-          </div>
-
-          <div style={{ display: 'grid', gap: '10px' }}>
-            {proposals.map((proposal, index) => {
-              const key = proposalKey(proposal, index);
-              const dateLabel = String(proposal.shiftDate).slice(0, 10);
-              return (
-                <div
-                  key={key}
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    gap: '12px',
-                    flexWrap: 'wrap',
-                    alignItems: 'center',
-                    padding: '12px',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: 10,
-                    background: '#f8fafc',
-                  }}
-                >
-                  <div>
-                    <div style={{ fontWeight: 700, color: '#0f172a' }}>
-                      {proposal.staffName}{' '}
-                      <span style={{ fontWeight: 600, color: '#64748b', fontSize: '0.85rem' }}>
-                        ({proposal.staffRole})
-                      </span>
-                    </div>
-                    <div style={{ fontSize: '0.85rem', color: '#475569', marginTop: 2 }}>
-                      {dateLabel} · {String(proposal.startTime).slice(0, 5)} –{' '}
-                      {String(proposal.endTime).slice(0, 5)}
-                    </div>
-                    {proposal.reason && (
-                      <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: 4 }}>
-                        {proposal.reason}
-                      </div>
-                    )}
-                  </div>
-                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                    <button
-                      type="button"
-                      className="btn-hospital-secondary"
-                      onClick={() => handleDismissProposal(index)}
-                      disabled={approvingAll || approvingKey === key}
-                    >
-                      Dismiss
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-hospital-primary"
-                      onClick={() => handleApproveProposal(proposal, index)}
-                      disabled={approvingAll || approvingKey !== null}
-                    >
-                      {approvingKey === key ? 'Approving...' : 'Approve'}
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
           </div>
         </div>
       )}
@@ -824,23 +666,42 @@ export default function HospitalShiftsPanel() {
                           {String(shift.startTime).slice(0, 5)} – {String(shift.endTime).slice(0, 5)}
                           {shift.boothOrStation ? ` · ${shift.boothOrStation}` : ''}
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(shift.shiftId)}
-                          disabled={actionId === shift.shiftId}
-                          style={{
-                            marginTop: 6,
-                            background: 'none',
-                            border: 'none',
-                            color: '#dc2626',
-                            fontWeight: 600,
-                            fontSize: '0.72rem',
-                            cursor: 'pointer',
-                            padding: 0,
-                          }}
-                        >
-                          {actionId === shift.shiftId ? 'Deleting...' : 'Delete'}
-                        </button>
+                        <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
+                          {String(shift.shiftDate).slice(0, 10) >= today && (
+                            <button
+                              type="button"
+                              onClick={() => beginEdit(shift)}
+                              disabled={saving || actionId === shift.shiftId}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: '#19469d',
+                                fontWeight: 600,
+                                fontSize: '0.72rem',
+                                cursor: 'pointer',
+                                padding: 0,
+                              }}
+                            >
+                              {editingShiftId === shift.shiftId ? 'Editing' : 'Edit'}
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(shift.shiftId)}
+                            disabled={actionId === shift.shiftId}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: '#dc2626',
+                              fontWeight: 600,
+                              fontSize: '0.72rem',
+                              cursor: 'pointer',
+                              padding: 0,
+                            }}
+                          >
+                            {actionId === shift.shiftId ? 'Deleting...' : 'Delete'}
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
