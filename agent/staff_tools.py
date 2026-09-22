@@ -1,13 +1,16 @@
 """
 Staff scheduling tools for the StaffSchedulingAgent.
 These call Vaxora hospital staff APIs using the caller's Bearer token.
+
+Read and propose only: creating or deleting a shift is done by the hospital user
+through the Vaxora UI, so the agent has no tool that can write to the roster.
 """
 from typing import Any, Dict, Optional
 
 try:
-    from .tools import api_get, api_post, api_delete, _clean_date_string
+    from .tools import api_get, api_post, _clean_date_string
 except ImportError:
-    from tools import api_get, api_post, api_delete, _clean_date_string
+    from tools import api_get, api_post, _clean_date_string
 
 
 def _normalize_time(value: Any) -> str:
@@ -109,40 +112,6 @@ async def tool_propose_shift_for_approval(
             "reason": reason or "Suggested by Staff Scheduling Agent",
         },
     }
-
-
-async def tool_create_shift(
-    affiliation_id: str,
-    shift_date: str,
-    start_time: str,
-    end_time: str,
-    booth_or_station: Optional[str] = None,
-    notes: Optional[str] = None,
-    token: Optional[str] = None,
-) -> Dict[str, Any]:
-    """Create a shift. Call ONLY after the hospital has approved the proposal."""
-    try:
-        payload = {
-            "affiliationId": affiliation_id,
-            "shiftDate": _clean_date_string(shift_date),
-            "startTime": _normalize_time(start_time),
-            "endTime": _normalize_time(end_time),
-            "boothOrStation": booth_or_station,
-            "notes": notes,
-        }
-        data = await api_post("/staff/shifts", payload, token=token)
-        return {"success": True, "shift": data}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
-
-
-async def tool_delete_shift(shift_id: str, token: Optional[str] = None) -> Dict[str, Any]:
-    """Delete a hospital shift by id."""
-    try:
-        data = await api_delete(f"/staff/shifts/{shift_id}", token=token)
-        return {"success": True, "result": data}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
 
 
 async def tool_suggest_week_coverage(
@@ -264,39 +233,6 @@ STAFF_TOOLS_SCHEMA = [
                     "reason": {"type": "string"},
                 },
                 "required": ["affiliation_id", "staff_name", "shift_date", "start_time", "end_time"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "create_shift",
-            "description": "Create a shift AFTER hospital approval. Do not call without approval.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "affiliation_id": {"type": "string"},
-                    "shift_date": {"type": "string"},
-                    "start_time": {"type": "string"},
-                    "end_time": {"type": "string"},
-                    "booth_or_station": {"type": "string"},
-                    "notes": {"type": "string"},
-                },
-                "required": ["affiliation_id", "shift_date", "start_time", "end_time"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "delete_shift",
-            "description": "Delete an existing shift by shift id.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "shift_id": {"type": "string"},
-                },
-                "required": ["shift_id"],
             },
         },
     },

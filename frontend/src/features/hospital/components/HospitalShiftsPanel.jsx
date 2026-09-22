@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import staffService from '../services/staffService';
 import StaffSchedulingAgentChat from './StaffSchedulingAgentChat';
 
@@ -107,10 +107,15 @@ export default function HospitalShiftsPanel() {
     [weekStart]
   );
 
+  const toastTimerRef = useRef(null);
+
   const showToast = (message) => {
     setToast(message);
-    setTimeout(() => setToast(''), 3500);
+    clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => setToast(''), 3500);
   };
+
+  useEffect(() => () => clearTimeout(toastTimerRef.current), []);
 
   const loadData = useCallback(async () => {
     setLoading(true);

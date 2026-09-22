@@ -62,13 +62,11 @@ class MultiAgentOrchestrator:
         )
         lower = last_user_message.lower()
 
+        # Unambiguous hospital-roster vocabulary — a patient would not use these.
         staff_keywords = [
-            "staff",
             "shift",
             "roster",
             "coverage",
-            "nurse",
-            "doctor",
             "on duty",
             "on-duty",
             "affiliation",
@@ -100,6 +98,11 @@ class MultiAgentOrchestrator:
         ]
         if any(kw in lower for kw in booking_keywords):
             return "BookingAgent"
+
+        # "doctor"/"nurse"/"staff" appear in patient booking requests too, so they only
+        # route to scheduling once the booking vocabulary above has been ruled out.
+        if any(kw in lower for kw in ["staff", "doctor", "nurse"]):
+            return "StaffSchedulingAgent"
 
         try:
             res = await self.client.chat.completions.create(

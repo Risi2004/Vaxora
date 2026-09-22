@@ -12,8 +12,6 @@ try:
         tool_get_hospital_shifts,
         tool_suggest_week_coverage,
         tool_propose_shift_for_approval,
-        tool_create_shift,
-        tool_delete_shift,
     )
 except ImportError:
     from config import settings
@@ -24,14 +22,15 @@ except ImportError:
         tool_get_hospital_shifts,
         tool_suggest_week_coverage,
         tool_propose_shift_for_approval,
-        tool_create_shift,
-        tool_delete_shift,
     )
 
 logger = logging.getLogger("vaxora-staff-scheduling-agent")
 
 STAFF_SCHEDULING_SYSTEM_PROMPT = """You are the official Vaxora Staff Scheduling Agent for hospital users.
-You help hospitals review staff coverage and propose shifts. You never create shifts without approval.
+You help hospitals review staff coverage and propose shifts.
+
+You have read-only and proposal tools only. You cannot write to the roster:
+every proposal is saved by the hospital user clicking Approve in the Vaxora UI.
 
 Instructions & Workflow:
 1. Be concise and structured. Use clean bullet points.
@@ -39,16 +38,13 @@ Instructions & Workflow:
    a. If asked who is on staff / available: call `get_active_staff`.
    b. If asked about coverage or gaps for a week: call `get_coverage` (and optionally `get_hospital_shifts`).
    c. If asked to fill gaps / suggest a roster for a week: call `suggest_week_coverage`.
-      Summarize the proposals clearly. Do NOT create shifts yet.
-   d. MANDATORY APPROVAL STEP:
-      For any new shift the hospital should review, use `propose_shift_for_approval`
-      (or present the proposals from `suggest_week_coverage`) and wait for hospital approval.
-   e. Only when the hospital confirms (e.g. "approve", "confirm", "create these shifts")
-      may you call `create_shift` for each approved proposal.
-3. Never invent affiliation IDs or dates — only use values returned by tools.
-4. If a tool returns an error, explain it briefly and suggest the next step
-   (e.g. invite staff in Directory, check date range).
-5. You may call `delete_shift` only when the hospital explicitly asks to remove a shift.
+   d. For a single specific shift, call `propose_shift_for_approval`.
+3. After proposing, summarize each proposal (staff, date, time, reason) and tell the
+   hospital to review and approve it. Never claim a shift has been created.
+4. Never invent affiliation IDs or dates — only use values returned by tools.
+5. If a tool returns an error, explain it briefly and suggest the next step
+   (e.g. invite staff in Directory, pick a future date).
+6. Shifts in the past cannot be scheduled; suggest the next available day instead.
 """
 
 
@@ -136,21 +132,17 @@ class StaffSchedulingAgent:
                 notes=arguments.get("notes"),
                 reason=arguments.get("reason"),
             )
-        if tool_name == "create_shift":
-            return await tool_create_shift(
-                affiliation_id=arguments.get("affiliation_id"),
-                shift_date=arguments.get("shift_date"),
-                start_time=arguments.get("start_time"),
-                end_time=arguments.get("end_time"),
-                booth_or_station=arguments.get("booth_or_station"),
-                notes=arguments.get("notes"),
-                token=token,
-            )
-        if tool_name == "delete_shift":
-            return await tool_delete_shift(
-                shift_id=arguments.get("shift_id"),
-                token=token,
-            )
+        # Roster writes are deliberately not reachable from the model. If it hallucinates
+        # a write tool, refuse and steer it back to the approval flow.
+        if tool_name in ("create_shift", "delete_shift"):
+            logger.warning(f"[{self.name}] Blocked write tool attempt: {tool_name}")
+            return {
+                "success": False,
+                "error": (
+                    "Not permitted. Shifts are only created or removed by the hospital user "
+                    "in the Vaxora UI. Use propose_shift_for_approval instead."
+                ),
+            }
         return {"error": f"Unknown tool: {tool_name}"}
 
     async def run(
@@ -180,7 +172,6 @@ class StaffSchedulingAgent:
         max_iterations = 6
         iteration = 0
         proposals: List[Dict[str, Any]] = []
-        created_shifts: List[Any] = []
         msg: Dict[str, Any] = {}
 
         while iteration < max_iterations:
@@ -197,7 +188,6 @@ class StaffSchedulingAgent:
                         f"({self.model}): {str(e)}. Please verify your LLM endpoint is running."
                     ),
                     "proposals": proposals or None,
-                    "created_shifts": created_shifts or None,
                 }
 
             tool_calls = msg.get("tool_calls") or []
@@ -212,7 +202,6 @@ class StaffSchedulingAgent:
                     "role": "assistant",
                     "content": final_content,
                     "proposals": proposals or None,
-                    "created_shifts": created_shifts or None,
                 }
 
             conversation.append(
@@ -244,8 +233,6 @@ class StaffSchedulingAgent:
                 elif fn_name == "suggest_week_coverage" and tool_output.get("success"):
                     for p in tool_output.get("proposals") or []:
                         proposals.append(p)
-                elif fn_name == "create_shift" and tool_output.get("success"):
-                    created_shifts.append(tool_output.get("shift"))
 
                 conversation.append(
                     {
@@ -265,7 +252,6 @@ class StaffSchedulingAgent:
             "role": "assistant",
             "content": final_content,
             "proposals": proposals or None,
-            "created_shifts": created_shifts or None,
         }
 
 

@@ -114,7 +114,6 @@ public class StaffDayCoverageDto
     public int ScheduledDoctors { get; set; }
     public int ScheduledNurses { get; set; }
     public int TotalShifts { get; set; }
-    public int OnDutyStaff { get; set; }
     public string CoverageLevel { get; set; } = "Low"; // Low | Partial | Good
     public string Summary { get; set; } = string.Empty;
 }
@@ -125,6 +124,10 @@ public class StaffCoverageReportDto
     public DateOnly To { get; set; }
     public int ActiveDoctors { get; set; }
     public int ActiveNurses { get; set; }
+
+    /// <summary>Live snapshot of staff currently marked OnDuty — not tied to any single day.</summary>
+    public int CurrentlyOnDutyStaff { get; set; }
+
     public int DaysWithLowCoverage { get; set; }
     public List<StaffDayCoverageDto> Days { get; set; } = new();
 }
@@ -167,6 +170,10 @@ public class SuggestWeekCoverageResultDto
     public int ActiveDoctors { get; set; }
     public int ActiveNurses { get; set; }
     public int ProposalCount { get; set; }
+
+    /// <summary>Low-coverage days that were skipped because they can no longer be scheduled.</summary>
+    public int SkippedPastDays { get; set; }
+
     public string Message { get; set; } = string.Empty;
     public List<ShiftProposalDto> Proposals { get; set; } = new();
 }
