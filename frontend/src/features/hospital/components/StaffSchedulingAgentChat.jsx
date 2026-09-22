@@ -486,11 +486,6 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, onShiftsC
                         }}
                       >
                         <span>🛡️</span> Shift Proposal (Approval Required)
-                        {msg.workflowId && (
-                          <span style={{ fontWeight: 500, fontSize: '11px', color: '#64748b' }}>
-                            · workflow {String(msg.workflowId).slice(0, 8)}
-                          </span>
-                        )}
                       </div>
 
                       <div
@@ -593,8 +588,7 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, onShiftsC
                     fontWeight: 600,
                   }}
                 >
-                  Workflow {msg.decision}
-                  {msg.workflowId ? ` · ${String(msg.workflowId).slice(0, 8)}` : ''}
+                  {msg.decision}
                 </div>
               )}
 
