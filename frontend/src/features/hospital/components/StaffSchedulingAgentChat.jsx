@@ -218,12 +218,11 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, onShiftsC
         notes: proposal.notes || 'Approved via Staff Scheduling Agent',
       });
 
-      // Finalize the workflow only when the last proposal from this run is approved.
       if (workflowId && remainingCount <= 1) {
         try {
           await agentService.recordDecision(workflowId, {
             approved: true,
-            note: `Approved shift proposals from agent run`,
+            note: 'Approved shift proposal(s) from agent run',
           });
         } catch (decisionErr) {
           console.warn('Failed to persist workflow approval:', decisionErr);
@@ -239,6 +238,7 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, onShiftsC
             return {
               ...msg,
               proposals: nextProposals,
+              approvedCount: (msg.approvedCount || 0) + 1,
               decision: nextProposals.length === 0 ? 'Approved' : msg.decision,
             };
           })
@@ -264,28 +264,39 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, onShiftsC
     }
   };
 
-  const handleDeclineProposal = async (workflowId) => {
-    if (workflowId) {
+  const handleDeclineProposal = async (proposal, workflowId, remainingCount, approvedCount = 0) => {
+    const id = proposalIdentity(proposal);
+
+    if (workflowId && remainingCount <= 1) {
       try {
         await agentService.recordDecision(workflowId, {
-          approved: false,
-          note: 'Rejected — requested revised suggestions',
+          approved: approvedCount > 0,
+          note:
+            approvedCount > 0
+              ? 'Accepted some proposals and declined the rest'
+              : 'Declined shift proposal(s)',
         });
       } catch (decisionErr) {
         console.warn('Failed to persist workflow rejection:', decisionErr);
       }
-
-      setMessages((prev) =>
-        prev.map((msg) =>
-          msg.workflowId === workflowId
-            ? { ...msg, proposals: [], decision: 'Rejected' }
-            : msg
-        )
-      );
     }
 
-    handleSendMessage(
-      'I want to decline these shift proposals. Suggest different options or another day.'
+    setMessages((prev) =>
+      prev.map((msg) => {
+        if (!Array.isArray(msg.proposals) || msg.proposals.length === 0) return msg;
+        if (workflowId && msg.workflowId !== workflowId) return msg;
+        const nextProposals = msg.proposals.filter((p) => proposalIdentity(p) !== id);
+        return {
+          ...msg,
+          proposals: nextProposals,
+          decision:
+            nextProposals.length === 0
+              ? approvedCount > 0
+                ? 'Approved'
+                : 'Rejected'
+              : msg.decision,
+        };
+      })
     );
   };
 
@@ -518,7 +529,14 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, onShiftsC
                       <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
                         <button
                           type="button"
-                          onClick={() => handleDeclineProposal(msg.workflowId)}
+                          onClick={() =>
+                            handleDeclineProposal(
+                              proposal,
+                              msg.workflowId,
+                              msg.proposals.length,
+                              msg.approvedCount || 0
+                            )
+                          }
                           disabled={isLoading || approvingId !== null}
                           style={{
                             padding: '8px 14px',
@@ -531,7 +549,7 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, onShiftsC
                             cursor: 'pointer',
                           }}
                         >
-                          ✕ Decline / Revise
+                          ✕ Decline
                         </button>
                         <button
                           type="button"
