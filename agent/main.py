@@ -15,14 +15,25 @@ except ImportError:
 
 app = FastAPI(title="Vaxora Google ADK Multi-Agent API", version="1.0.0")
 
-# Enable CORS for frontend
+# Internal service: browsers must reach the agents through the ASP.NET API, which
+# authenticates the caller first. No browser origin is allowed to call this directly.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=[],
+    allow_credentials=False,
+    allow_methods=["POST", "GET"],
+    allow_headers=["Authorization", "Content-Type", "X-Agent-Key"],
 )
+
+
+def verify_internal_caller(agent_key: Optional[str]) -> None:
+    """
+    Optional shared secret between the ASP.NET API and this service. When
+    AGENT_SERVICE_KEY is configured, only callers presenting it may reach the agents.
+    """
+    expected = settings.agent_service_key
+    if expected and agent_key != expected:
+        raise HTTPException(status_code=401, detail="Unauthorized caller.")
 
 class ChatRequest(BaseModel):
     messages: List[Dict[str, Any]]
@@ -43,8 +54,11 @@ async def health():
 @app.post("/api/agent/chat")
 async def chat_endpoint(
     req: ChatRequest,
-    authorization: Optional[str] = Header(None)
+    authorization: Optional[str] = Header(None),
+    x_agent_key: Optional[str] = Header(None)
 ):
+    verify_internal_caller(x_agent_key)
+
     token = None
     if authorization and authorization.startswith("Bearer "):
         token = authorization.split(" ")[1]
