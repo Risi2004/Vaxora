@@ -17,6 +17,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<StaffAffiliation> StaffAffiliations => Set<StaffAffiliation>();
     public DbSet<StaffShift> StaffShifts => Set<StaffShift>();
+    public DbSet<AgentWorkflow> AgentWorkflows => Set<AgentWorkflow>();
 
     // === INVENTORY MODULE (Added) ===
     public DbSet<Vaccine> Vaccines => Set<Vaccine>();
@@ -176,13 +177,13 @@ public class ApplicationDbContext : DbContext
             .HasOne(a => a.HospitalUser)
             .WithMany()
             .HasForeignKey(a => a.HospitalUserId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<StaffAffiliation>()
             .HasOne(a => a.StaffUser)
             .WithMany()
             .HasForeignKey(a => a.StaffUserId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<StaffShift>()
             .HasOne(s => s.Affiliation)
@@ -192,6 +193,23 @@ public class ApplicationDbContext : DbContext
 
         modelBuilder.Entity<StaffShift>()
             .HasIndex(s => new { s.AffiliationId, s.ShiftDate });
+
+        // === AGENTIC AI WORKFLOW STATE ===
+        modelBuilder.Entity<AgentWorkflow>()
+            .Property(w => w.Status)
+            .HasConversion<string>();
+
+        modelBuilder.Entity<AgentWorkflow>()
+            .HasOne(w => w.User)
+            .WithMany()
+            .HasForeignKey(w => w.UserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<AgentWorkflow>()
+            .HasIndex(w => new { w.UserId, w.CreatedAt });
+
+        modelBuilder.Entity<AgentWorkflow>()
+            .HasIndex(w => w.Status);
 
         // === PRICING & PAYMENT CONFIGURATION ===
         modelBuilder.Entity<VaccineSchedule>()

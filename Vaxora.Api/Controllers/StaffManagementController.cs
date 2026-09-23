@@ -305,6 +305,33 @@ public class StaffManagementController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Rules-based shift suggestions for low-coverage days. Does not create shifts —
+    /// hospital must approve each proposal (human-in-the-loop).
+    /// </summary>
+    [HttpPost("shifts/suggest-week")]
+    [Authorize(Roles = "HOSPITAL")]
+    public async Task<IActionResult> SuggestWeekCoverage([FromBody] SuggestWeekCoverageDto dto)
+    {
+        if (!TryGetUserId(out var hospitalUserId))
+            return Unauthorized(new { message = "Invalid identity claim." });
+
+        try
+        {
+            var result = await _staffService.SuggestWeekCoverageAsync(hospitalUserId, dto);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error suggesting week coverage");
+            return StatusCode(500, new { message = "Failed to suggest week coverage." });
+        }
+    }
+
     [HttpGet("shifts/mine")]
     [Authorize(Roles = "DOCTOR,NURSE")]
     public async Task<IActionResult> GetMyShifts([FromQuery] DateOnly? from, [FromQuery] DateOnly? to)
