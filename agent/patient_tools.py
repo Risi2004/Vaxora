@@ -28,12 +28,21 @@ async def _api_get(endpoint: str, token: Optional[str] = None, params: Optional[
 # ============================================================
 
 async def tool_get_patient_profile(patient_profile_id: str, token: Optional[str] = None) -> Dict[str, Any]:
-    """Get the patient's core profile: name, NIC, DOB, phone, registration number."""
+    """Get the patient's core profile via /auth/me (uses the caller's own JWT)."""
     try:
-        # The /me endpoint returns the logged-in patient's own profile
-        # For a doctor viewing another patient, use the clinical endpoint
-        data = await _api_get("/clinical/patients/" + patient_profile_id, token=token)
-        return {"success": True, "profile": data}
+        data = await _api_get("/auth/me", token=token)
+        profile = data.get("profileDetails") or {}
+        return {
+            "success": True,
+            "profile": {
+                "name": data.get("name"),
+                "registration_number": data.get("registrationNumber"),
+                "email": data.get("email"),
+                "phone": data.get("phoneNumber") or profile.get("phoneNumber"),
+                "nic": profile.get("nicNumber"),
+                "date_of_birth": profile.get("dateOfBirth"),
+            }
+        }
     except Exception as e:
         return {"success": False, "error": str(e)}
 

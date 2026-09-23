@@ -5,6 +5,7 @@ Input: patient_summary (from PatientDataAgent)
 Output: a structured CarePlan dict with actions, vaccines, follow-ups, warnings.
 """
 import json
+import asyncio
 import logging
 import httpx
 from typing import List, Dict, Any, Optional
@@ -72,10 +73,24 @@ class CarePlanningAgent:
         payload = {"model": self.model, "messages": messages, "temperature": 0.2}
         if tools:
             payload["tools"] = tools
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            resp = await client.post(f"{self.base_url}/chat/completions", headers=headers, json=payload)
-            resp.raise_for_status()
-            return resp.json()["choices"][0]["message"]
+
+        max_retries = 4
+        for attempt in range(max_retries):
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                resp = await client.post(f"{self.base_url}/chat/completions", headers=headers, json=payload)
+                if resp.status_code == 429:
+                    retry_after = int(resp.headers.get("retry-after", "5"))
+                    wait = max(retry_after, 3) + (2 ** attempt)
+                    logger.warning(
+                        f"[{self.name}] Rate limited (429). Waiting {wait}s "
+                        f"before retry {attempt + 1}/{max_retries}..."
+                    )
+                    await asyncio.sleep(wait)
+                    continue
+                resp.raise_for_status()
+                return resp.json()["choices"][0]["message"]
+
+        raise RuntimeError(f"Max retries ({max_retries}) exceeded due to Groq rate limiting.")
 
     async def _execute_tool(self, name: str, args: Dict[str, Any]) -> Any:
         logger.info(f"[{self.name}] tool={name}")
