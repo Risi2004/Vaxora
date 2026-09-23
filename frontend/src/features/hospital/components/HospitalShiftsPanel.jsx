@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import staffService from '../services/staffService';
 import StaffSchedulingAgentChat from './StaffSchedulingAgentChat';
+import { hospitalMinutesNow, hospitalToday } from '../utils/hospitalDate';
 
 function toDateInputValue(date = new Date()) {
   const y = date.getFullYear();
@@ -29,7 +30,7 @@ function formatDayLabel(dateInput) {
 }
 
 function validateShiftForm({ shiftDate, startTime, endTime }) {
-  const today = toDateInputValue();
+  const today = hospitalToday();
   if (shiftDate < today) {
     return 'Shifts cannot be scheduled on past dates.';
   }
@@ -46,10 +47,8 @@ function validateShiftForm({ shiftDate, startTime, endTime }) {
   }
 
   if (shiftDate === today) {
-    const now = new Date();
-    const nowMinutes = now.getHours() * 60 + now.getMinutes();
     const startMinutes = startH * 60 + startM;
-    if (startMinutes < nowMinutes) {
+    if (startMinutes < hospitalMinutesNow()) {
       return 'Shift start time cannot be in the past.';
     }
   }
@@ -59,7 +58,7 @@ function validateShiftForm({ shiftDate, startTime, endTime }) {
 
 const emptyForm = {
   affiliationId: '',
-  shiftDate: toDateInputValue(),
+  shiftDate: hospitalToday(),
   startTime: '08:00',
   endTime: '16:00',
   boothOrStation: '',
@@ -96,9 +95,9 @@ export default function HospitalShiftsPanel() {
   const [actionId, setActionId] = useState(null);
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
-  const [weekStart, setWeekStart] = useState(startOfWeek(toDateInputValue()));
+  const [weekStart, setWeekStart] = useState(startOfWeek(hospitalToday()));
 
-  const today = useMemo(() => toDateInputValue(), []);
+  const today = useMemo(() => hospitalToday(), []);
   const weekEnd = useMemo(() => addDays(weekStart, 6), [weekStart]);
   const weekDays = useMemo(
     () => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
@@ -379,7 +378,7 @@ export default function HospitalShiftsPanel() {
               <input
                 type="date"
                 value={weekStart}
-                onChange={(e) => setWeekStart(startOfWeek(e.target.value || toDateInputValue()))}
+                onChange={(e) => setWeekStart(startOfWeek(e.target.value || hospitalToday()))}
                 style={{
                   border: 'none',
                   borderLeft: '1px solid #e2e8f0',

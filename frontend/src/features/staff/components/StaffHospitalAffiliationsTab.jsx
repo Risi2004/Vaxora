@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import staffService from '../../hospital/services/staffService';
+import { addHospitalDays, hospitalToday } from '../../hospital/utils/hospitalDate';
 
 const dutyLabel = {
   Off: 'Off',
@@ -28,11 +29,8 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff' }) {
     setLoading(true);
     setError('');
     try {
-      const today = new Date();
-      const from = today.toISOString().slice(0, 10);
-      const toDate = new Date(today);
-      toDate.setDate(toDate.getDate() + 14);
-      const to = toDate.toISOString().slice(0, 10);
+      const from = hospitalToday();
+      const to = addHospitalDays(from, 14);
 
       const [pending, active, myShifts] = await Promise.all([
         staffService.getMyInvitations(),
