@@ -95,6 +95,8 @@ export default function HospitalShiftsPanel() {
   const [actionId, setActionId] = useState(null);
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
+  const [staffQuery, setStaffQuery] = useState('');
+  const [staffMenuOpen, setStaffMenuOpen] = useState(false);
   const [weekStart, setWeekStart] = useState(startOfWeek(hospitalToday()));
 
   const today = useMemo(() => hospitalToday(), []);
@@ -173,10 +175,17 @@ export default function HospitalShiftsPanel() {
     () =>
       activeStaff.map((s) => ({
         value: s.affiliationId,
-        label: `${s.staffName} (${s.staffRegistrationNumber})`,
+        label: `${s.staffName} · ${s.staffRole === 'DOCTOR' ? 'Doctor' : 'Nurse'} · ${s.staffRegistrationNumber}`,
+        search: `${s.staffName} ${s.staffRole} ${s.staffRegistrationNumber}`.toLowerCase(),
       })),
     [activeStaff]
   );
+
+  const filteredStaff = useMemo(() => {
+    const query = staffQuery.trim().toLowerCase();
+    if (!query) return staffOptions;
+    return staffOptions.filter((opt) => opt.search.includes(query));
+  }, [staffOptions, staffQuery]);
 
   const shiftsByDay = useMemo(() => {
     const map = {};
@@ -198,11 +207,15 @@ export default function HospitalShiftsPanel() {
 
   const resetForm = (keepDate = true) => {
     setEditingShiftId(null);
+    setStaffQuery('');
+    setStaffMenuOpen(false);
     setForm((prev) => ({ ...emptyForm, shiftDate: keepDate ? prev.shiftDate : emptyForm.shiftDate }));
   };
 
   const beginEdit = (shift) => {
     setEditingShiftId(shift.shiftId);
+    setStaffQuery(`${shift.staffName || 'Staff'} · ${shift.staffRole === 'DOCTOR' ? 'Doctor' : 'Nurse'}`);
+    setStaffMenuOpen(false);
     setForm({
       affiliationId: shift.affiliationId,
       shiftDate: String(shift.shiftDate).slice(0, 10),
@@ -487,23 +500,82 @@ export default function HospitalShiftsPanel() {
 
         <form onSubmit={handleSaveShift} style={{ display: 'grid', gap: '12px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
-            <div className="modal-form-group" style={{ margin: 0 }}>
-              <label className="modal-label">Staff *</label>
-              <select
-                name="affiliationId"
-                value={form.affiliationId}
-                onChange={handleChange}
-                className="modal-select"
-                required
+            <div className="modal-form-group" style={{ margin: 0, position: 'relative' }}>
+              <label className="modal-label" htmlFor="shift-staff-search">Staff *</label>
+              <input
+                id="shift-staff-search"
+                type="text"
+                className="modal-input"
+                value={staffQuery}
+                placeholder="Search name or ID"
+                autoComplete="off"
                 disabled={Boolean(editingShiftId)}
-              >
-                <option value="">Select active staff</option>
-                {staffOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
+                onFocus={() => {
+                  if (!editingShiftId) setStaffMenuOpen(true);
+                }}
+                onBlur={() => {
+                  setTimeout(() => setStaffMenuOpen(false), 150);
+                }}
+                onChange={(e) => {
+                  setStaffQuery(e.target.value);
+                  setStaffMenuOpen(true);
+                  setForm((prev) => ({ ...prev, affiliationId: '' }));
+                }}
+              />
+              {staffMenuOpen && !editingShiftId && (
+                <div
+                  role="listbox"
+                  aria-label="Active staff"
+                  style={{
+                    position: 'absolute',
+                    zIndex: 20,
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    marginTop: 4,
+                    maxHeight: 220,
+                    overflowY: 'auto',
+                    background: '#ffffff',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: 8,
+                    boxShadow: '0 8px 20px rgba(15, 23, 42, 0.08)',
+                  }}
+                >
+                  {filteredStaff.length === 0 ? (
+                    <div style={{ padding: '10px 12px', color: '#64748b', fontSize: '0.85rem' }}>
+                      No matching staff
+                    </div>
+                  ) : (
+                    filteredStaff.map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        role="option"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => {
+                          setForm((prev) => ({ ...prev, affiliationId: opt.value }));
+                          setStaffQuery(opt.label);
+                          setStaffMenuOpen(false);
+                        }}
+                        style={{
+                          display: 'block',
+                          width: '100%',
+                          textAlign: 'left',
+                          padding: '8px 12px',
+                          border: 'none',
+                          borderBottom: '1px solid #f1f5f9',
+                          background: form.affiliationId === opt.value ? '#eff6ff' : '#ffffff',
+                          color: '#0f172a',
+                          fontSize: '0.85rem',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {opt.label}
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="modal-form-group" style={{ margin: 0 }}>
