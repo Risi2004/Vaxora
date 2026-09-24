@@ -202,51 +202,66 @@ export default function HospitalStaffTab() {
             </p>
           </div>
 
-          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              className={`hospital-nav-btn ${pageView === 'directory' ? 'active' : ''}`}
-              onClick={() => setPageView('directory')}
-              style={{
-                background: pageView === 'directory' ? '#19469d' : '#ffffff',
-                border: '1px solid #cbd5e1',
-              }}
-            >
-              Directory
-            </button>
-            <button
-              type="button"
-              className={`hospital-nav-btn ${pageView === 'shifts' ? 'active' : ''}`}
-              onClick={() => setPageView('shifts')}
-              style={{
-                background: pageView === 'shifts' ? '#19469d' : '#ffffff',
-                border: '1px solid #cbd5e1',
-              }}
-            >
-              Shifts
-            </button>
-            {pageView === 'directory' && (
-              <>
-                <button
-                  type="button"
-                  className="btn-hospital-secondary"
-                  onClick={loadStaff}
-                  disabled={loading}
-                  style={{ padding: '10px 16px', fontSize: '0.92rem' }}
-                >
-                  Refresh
-                </button>
-                <button
-                  type="button"
-                  className="btn-hospital-primary"
-                  onClick={() => setIsModalOpen(true)}
-                  style={{ padding: '10px 20px', fontSize: '0.92rem' }}
-                >
-                  <span>+</span> Add New Staff
-                </button>
-              </>
-            )}
-          </div>
+          {pageView === 'directory' && (
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="btn-hospital-secondary"
+                onClick={loadStaff}
+                disabled={loading}
+                style={{ padding: '10px 16px', fontSize: '0.92rem' }}
+              >
+                Refresh
+              </button>
+              <button
+                type="button"
+                className="btn-hospital-primary"
+                onClick={() => setIsModalOpen(true)}
+                style={{ padding: '10px 20px', fontSize: '0.92rem' }}
+              >
+                <span>+</span> Add New Staff
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div
+          role="tablist"
+          aria-label="Staff views"
+          style={{
+            display: 'flex',
+            gap: '8px',
+            marginTop: '18px',
+            paddingTop: '16px',
+            borderTop: '1px solid #e2e8f0',
+          }}
+        >
+          <button
+            type="button"
+            role="tab"
+            aria-selected={pageView === 'directory'}
+            className={`hospital-nav-btn ${pageView === 'directory' ? 'active' : ''}`}
+            onClick={() => setPageView('directory')}
+            style={{
+              background: pageView === 'directory' ? '#19469d' : '#ffffff',
+              border: '1px solid #cbd5e1',
+            }}
+          >
+            Directory
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={pageView === 'shifts'}
+            className={`hospital-nav-btn ${pageView === 'shifts' ? 'active' : ''}`}
+            onClick={() => setPageView('shifts')}
+            style={{
+              background: pageView === 'shifts' ? '#19469d' : '#ffffff',
+              border: '1px solid #cbd5e1',
+            }}
+          >
+            Shifts
+          </button>
         </div>
       </div>
 
