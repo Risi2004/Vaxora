@@ -23,7 +23,8 @@ public class ExecuteDraftDto
     public Dictionary<string, object> Payload { get; set; } = new();
 }
 
-public class AgentWorkflowDto
+// Renamed to avoid collision with teammate's AgentWorkflowDto in AgentDtos.cs
+public class InventoryAgentWorkflowDto
 {
     public string WorkflowId { get; set; } = string.Empty;
     public string AgentName { get; set; } = string.Empty;

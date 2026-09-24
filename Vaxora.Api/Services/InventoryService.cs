@@ -21,9 +21,8 @@ public interface IInventoryService
     Task<List<ColdVaultDto>> GetColdVaultsAsync(Guid userId);
     Task<InventorySummaryDto> GetSummaryAsync(Guid userId);
     Task<List<InventoryItemDto>> GetExpiringBatchesAsync(Guid userId, int daysThreshold);
-    // === AGENT DRAFT EXECUTION (ADDED) ===
     Task<object> ExecuteAgentDraftAsync(Guid userId, ExecuteDraftDto dto);
-    Task<List<AgentWorkflowDto>> GetRecentAgentWorkflowsAsync(Guid userId, int limit);
+    Task<List<InventoryAgentWorkflowDto>> GetRecentAgentWorkflowsAsync(Guid userId, int limit);
 }
 
 public class InventoryService : IInventoryService
@@ -683,7 +682,7 @@ public class InventoryService : IInventoryService
         return batches.Select(b => MapToItemDto(b, b.Vaccine)).ToList();
     }
 
-    // ==================== AGENT DRAFT EXECUTION (ADDED) ====================
+    // ==================== AGENT DRAFT EXECUTION ====================
 
     public async Task<object> ExecuteAgentDraftAsync(Guid userId, ExecuteDraftDto dto)
     {
@@ -833,7 +832,7 @@ public class InventoryService : IInventoryService
         };
     }
 
-    public async Task<List<AgentWorkflowDto>> GetRecentAgentWorkflowsAsync(Guid userId, int limit)
+    public async Task<List<InventoryAgentWorkflowDto>> GetRecentAgentWorkflowsAsync(Guid userId, int limit)
     {
         var logs = await _context.AuditLogs
             .Where(a => a.Action.StartsWith("AI_"))
@@ -841,7 +840,7 @@ public class InventoryService : IInventoryService
             .Take(limit)
             .ToListAsync();
 
-        return logs.Select(l => new AgentWorkflowDto
+        return logs.Select(l => new InventoryAgentWorkflowDto
         {
             WorkflowId = ExtractWorkflowId(l.Details ?? ""),
             AgentName = l.Action.Contains("PO") || l.Action.Contains("RESTOCK") ? "RestockAgent" : "ExpiryAgent",
