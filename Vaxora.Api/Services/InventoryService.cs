@@ -20,6 +20,9 @@ public interface IInventoryService
     Task<BatchAuditDto> GetBatchAuditAsync(Guid userId, Guid batchId);
     Task<List<ColdVaultDto>> GetColdVaultsAsync(Guid userId);
     Task<InventorySummaryDto> GetSummaryAsync(Guid userId);
+    Task<List<InventoryItemDto>> GetExpiringBatchesAsync(Guid userId, int daysThreshold);
+    Task<object> ExecuteAgentDraftAsync(Guid userId, ExecuteDraftDto dto);
+    Task<List<InventoryAgentWorkflowDto>> GetRecentAgentWorkflowsAsync(Guid userId, int limit);
 }
 
 public class InventoryService : IInventoryService
@@ -371,7 +374,6 @@ public class InventoryService : IInventoryService
             });
         }
 
-        // FIX: force UTC Kind so Npgsql accepts it
         var expiryDate = dto.ExpiryDate.HasValue
             ? EnsureUtc(dto.ExpiryDate.Value)
             : DateTime.UtcNow.AddYears(2);
@@ -437,7 +439,6 @@ public class InventoryService : IInventoryService
 
         var reason = MapWastageReason(dto.Reason);
 
-        // FIX: force UTC Kind
         var incidentDate = dto.IncidentDate.HasValue
             ? EnsureUtc(dto.IncidentDate.Value)
             : DateTime.UtcNow;
@@ -658,5 +659,210 @@ public class InventoryService : IInventoryService
             ColdStorageHealth = "100%",
             VaultsOnline = await _context.ColdVaults.CountAsync(v => v.HospitalProfileId == hospital.Id)
         };
+    }
+
+    // ==================== EXPIRING BATCHES ====================
+
+    public async Task<List<InventoryItemDto>> GetExpiringBatchesAsync(Guid userId, int daysThreshold)
+    {
+        var hospital = await GetHospitalAsync(userId);
+        if (hospital == null) return new List<InventoryItemDto>();
+
+        var thresholdDate = DateTime.UtcNow.AddDays(daysThreshold);
+
+        var batches = await _context.Batches
+            .Where(b => b.HospitalProfileId == hospital.Id
+                     && b.QuantityAvailable > 0
+                     && b.ExpiryDate <= thresholdDate
+                     && b.ExpiryDate >= DateTime.UtcNow)
+            .Include(b => b.Vaccine)
+            .OrderBy(b => b.ExpiryDate)
+            .ToListAsync();
+
+        return batches.Select(b => MapToItemDto(b, b.Vaccine)).ToList();
+    }
+
+    // ==================== AGENT DRAFT EXECUTION ====================
+
+    public async Task<object> ExecuteAgentDraftAsync(Guid userId, ExecuteDraftDto dto)
+    {
+        var hospital = await GetHospitalAsync(userId)
+            ?? throw new InvalidOperationException("Only hospital accounts can execute agent drafts.");
+
+        var (userName, userEmail) = await GetUserInfoAsync(userId);
+
+        if (dto.DraftType == "purchase_order")
+        {
+            return await ExecutePurchaseOrderAsync(userId, userName, userEmail, hospital, dto);
+        }
+        else if (dto.DraftType == "expiry_memo")
+        {
+            return await ExecuteExpiryMemoAsync(userId, userName, userEmail, hospital, dto);
+        }
+
+        throw new InvalidOperationException($"Unknown draft type: {dto.DraftType}");
+    }
+
+    private async Task<object> ExecutePurchaseOrderAsync(
+        Guid userId, string userName, string userEmail,
+        HospitalProfile hospital, ExecuteDraftDto dto)
+    {
+        var createdBatches = new List<object>();
+
+        if (!dto.Payload.TryGetValue("line_items", out var liRaw) || liRaw is not System.Text.Json.JsonElement lineItems)
+            throw new InvalidOperationException("Invalid payload: missing line_items.");
+
+        foreach (var item in lineItems.EnumerateArray())
+        {
+            var vaccineIdStr = item.TryGetProperty("vaccine_id", out var vIdProp) ? vIdProp.GetString() : null;
+            if (!Guid.TryParse(vaccineIdStr, out var vaccineId)) continue;
+            var quantity = item.TryGetProperty("quantity", out var qProp) ? qProp.GetInt32() : 0;
+            if (quantity <= 0) continue;
+
+            var vaccine = await _context.Vaccines.FindAsync(vaccineId);
+            if (vaccine == null) continue;
+
+            var inFormulary = await _context.HospitalFormularies
+                .AnyAsync(f => f.HospitalProfileId == hospital.Id && f.VaccineId == vaccineId);
+            if (!inFormulary)
+            {
+                _context.HospitalFormularies.Add(new HospitalFormulary
+                {
+                    HospitalProfileId = hospital.Id,
+                    VaccineId = vaccineId
+                });
+            }
+
+            var lotNumber = $"PO-{DateTime.UtcNow:yyyyMMdd}-{new Random().Next(1000, 9999)}";
+            var batch = new Batch
+            {
+                HospitalProfileId = hospital.Id,
+                VaccineId = vaccineId,
+                BatchNumber = lotNumber,
+                ExpiryDate = DateTime.UtcNow.AddYears(2),
+                QuantityReceived = quantity,
+                QuantityAvailable = quantity,
+                StorageUnit = "Chiller Unit B (2-8°C)",
+                Supplier = "AI-Approved PO",
+                Status = BatchStatus.Active,
+                LastRestockedAt = DateTime.UtcNow
+            };
+            _context.Batches.Add(batch);
+            await _context.SaveChangesAsync();
+
+            _context.InventoryTransactions.Add(new InventoryTransaction
+            {
+                BatchId = batch.Id,
+                Type = TransactionType.Restock,
+                Quantity = quantity,
+                Reason = $"AI PO executed — {dto.WorkflowId}",
+                PerformedByUserId = userId,
+                PerformedByName = $"{userName} (AI Agent)"
+            });
+
+            createdBatches.Add(new { batchId = batch.Id, lotNumber, vaccineName = vaccine.Name, quantity });
+        }
+
+        var poNumber = dto.Payload.TryGetValue("po_number", out var po) ? po?.ToString() ?? "AI-PO" : "AI-PO";
+
+        _context.AuditLogs.Add(new AuditLog
+        {
+            UserId = userId,
+            UserEmail = userEmail,
+            Role = "HOSPITAL",
+            Action = "AI_PO_EXECUTED",
+            Details = $"Executed AI purchase order {poNumber} — {createdBatches.Count} batch(es) created (workflow {dto.WorkflowId})",
+            Timestamp = DateTime.UtcNow
+        });
+
+        await _context.SaveChangesAsync();
+
+        return new
+        {
+            success = true,
+            message = $"Purchase Order {poNumber} executed. {createdBatches.Count} batch(es) added to inventory.",
+            batches = createdBatches
+        };
+    }
+
+    private async Task<object> ExecuteExpiryMemoAsync(
+        Guid userId, string userName, string userEmail,
+        HospitalProfile hospital, ExecuteDraftDto dto)
+    {
+        var batchIdStr = dto.Payload.TryGetValue("batch_id", out var b) ? b?.ToString() : null;
+        if (!Guid.TryParse(batchIdStr, out var batchId))
+            throw new InvalidOperationException("Invalid payload: missing batch_id.");
+
+        var action = dto.Payload.TryGetValue("action", out var a) ? a?.ToString() ?? "dispense_first" : "dispense_first";
+        var memoNumber = dto.Payload.TryGetValue("memo_number", out var m) ? m?.ToString() ?? "AI-EXP" : "AI-EXP";
+
+        var batch = await _context.Batches
+            .Include(x => x.Vaccine)
+            .FirstOrDefaultAsync(x => x.Id == batchId && x.HospitalProfileId == hospital.Id)
+            ?? throw new InvalidOperationException("Batch not found.");
+
+        _context.InventoryTransactions.Add(new InventoryTransaction
+        {
+            BatchId = batch.Id,
+            Type = TransactionType.Adjustment,
+            Quantity = 0,
+            Reason = $"AI Expiry Memo executed — {action}",
+            Notes = $"Memo {memoNumber}. Full batch quantity {batch.QuantityAvailable} reserved for priority dispensing.",
+            PerformedByUserId = userId,
+            PerformedByName = $"{userName} (AI Agent)"
+        });
+
+        _context.AuditLogs.Add(new AuditLog
+        {
+            UserId = userId,
+            UserEmail = userEmail,
+            Role = "HOSPITAL",
+            Action = "AI_EXPIRY_MEMO_EXECUTED",
+            Details = $"Executed AI expiry memo {memoNumber} — action '{action}' on {batch.Vaccine.Name} (Lot {batch.BatchNumber}, workflow {dto.WorkflowId})",
+            Timestamp = DateTime.UtcNow
+        });
+
+        await _context.SaveChangesAsync();
+
+        return new
+        {
+            success = true,
+            message = $"Expiry memo {memoNumber} executed. Batch {batch.BatchNumber} reserved for {action}.",
+            batchId = batch.Id
+        };
+    }
+
+    public async Task<List<InventoryAgentWorkflowDto>> GetRecentAgentWorkflowsAsync(Guid userId, int limit)
+    {
+        var logs = await _context.AuditLogs
+            .Where(a => a.Action.StartsWith("AI_"))
+            .OrderByDescending(a => a.Timestamp)
+            .Take(limit)
+            .ToListAsync();
+
+        return logs.Select(l => new InventoryAgentWorkflowDto
+        {
+            WorkflowId = ExtractWorkflowId(l.Details ?? ""),
+            AgentName = l.Action.Contains("PO") || l.Action.Contains("RESTOCK") ? "RestockAgent" : "ExpiryAgent",
+            DraftType = l.Action.Contains("PO") ? "purchase_order" : "expiry_memo",
+            DocumentNumber = ExtractDocNumber(l.Details ?? ""),
+            Summary = l.Details ?? "",
+            Status = "executed",
+            CreatedAt = l.Timestamp
+        }).ToList();
+    }
+
+    private static string ExtractWorkflowId(string details)
+    {
+        if (string.IsNullOrEmpty(details)) return "";
+        var match = System.Text.RegularExpressions.Regex.Match(details, @"workflow ([a-f0-9-]{36})");
+        return match.Success ? match.Groups[1].Value : "";
+    }
+
+    private static string ExtractDocNumber(string details)
+    {
+        if (string.IsNullOrEmpty(details)) return "";
+        var match = System.Text.RegularExpressions.Regex.Match(details, @"(AI-[A-Z]+-[0-9-]+)");
+        return match.Success ? match.Groups[1].Value : "";
     }
 }
