@@ -56,7 +56,7 @@ class ExpiryWatchdogAgent:
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.api_key}",
         }
-        payload = {"model": self.model, "messages": messages, "temperature": 0.1}
+        payload = {"model": self.model, "messages": messages}
         if tools:
             payload["tools"] = tools
             payload["tool_choice"] = "auto"
@@ -65,6 +65,9 @@ class ExpiryWatchdogAgent:
             resp = await client.post(
                 f"{self.base_url}/chat/completions", headers=headers, json=payload
             )
+            if resp.status_code >= 400:
+                logger.error(f"[{self.name}] Groq error {resp.status_code}: {resp.text[:1000]}")
+                logger.error(f"[{self.name}] Payload sent: {json.dumps(payload)[:1000]}")
             resp.raise_for_status()
             return resp.json()["choices"][0]["message"]
 
@@ -130,21 +133,12 @@ class ExpiryWatchdogAgent:
             })
         conversation.extend(messages)
 
-        # Planning step
-        plan: List[Dict[str, Any]] = []
-        try:
-            plan_msg = await self._call_llm(conversation)
-            plan = extract_plan_from_response(plan_msg.get("content") or "")
-        except Exception as e:
-            logger.warning(f"[{self.name}] Planning failed: {e}")
-
-        if not plan:
-            plan = [dict(s) for s in EXPIRY_DEFAULT_PLAN]
+        # Planning step — deterministic (LLM planning triggers Groq tool_choice quirk on reasoning models)
+        plan: List[Dict[str, Any]] = [dict(s) for s in EXPIRY_DEFAULT_PLAN]
 
         state_store.set_plan(workflow_id, plan)
         state_store.append_step(workflow_id, {"step": "planning", "status": "completed", "plan": plan})
 
-        # Tool-calling loop
         max_iter = 8
         iteration = 0
         proposal = None

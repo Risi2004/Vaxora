@@ -71,7 +71,6 @@ class RestockAdvisorAgent:
         payload = {
             "model": self.model,
             "messages": messages,
-            "temperature": 0.1,
         }
         if tools:
             payload["tools"] = tools
@@ -81,6 +80,9 @@ class RestockAdvisorAgent:
             resp = await client.post(
                 f"{self.base_url}/chat/completions", headers=headers, json=payload
             )
+            if resp.status_code >= 400:
+                logger.error(f"[{self.name}] Groq error {resp.status_code}: {resp.text[:1000]}")
+                logger.error(f"[{self.name}] Payload sent: {json.dumps(payload)[:1000]}")
             resp.raise_for_status()
             data = resp.json()
             return data["choices"][0]["message"]
@@ -99,7 +101,6 @@ class RestockAdvisorAgent:
         elif name == "get_vaccines":
             result = await tool_get_vaccines(token=token)
         elif name == "propose_restock_order":
-            # Run deterministic validation FIRST
             is_valid, errors = validate_restock_proposal(args)
             if not is_valid:
                 logger.warning(f"[{self.name}] Proposal rejected by validator: {errors}")
@@ -134,16 +135,13 @@ class RestockAdvisorAgent:
         user_id: Optional[str] = None,
         user_info: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        # 1. Determine user objective
         objective = next(
             (m["content"] for m in reversed(messages) if m.get("role") == "user"),
             "Restock recommendation",
         )
 
-        # 2. Create workflow in state store
         workflow_id = state_store.create(self.name, user_id, objective)
 
-        # 3. Build conversation
         conversation = [{"role": "system", "content": RESTOCK_AGENT_SYSTEM_PROMPT}]
         if user_info:
             conversation.append({
@@ -152,21 +150,12 @@ class RestockAdvisorAgent:
             })
         conversation.extend(messages)
 
-        # 4. Planning step — force a plan first
-        plan: List[Dict[str, Any]] = []
-        try:
-            plan_msg = await self._call_llm(conversation)
-            plan = extract_plan_from_response(plan_msg.get("content") or "")
-        except Exception as e:
-            logger.warning(f"[{self.name}] Planning LLM call failed: {e}")
-
-        if not plan:
-            plan = [dict(s) for s in RESTOCK_DEFAULT_PLAN]
+        # Planning step — deterministic (LLM planning triggers Groq tool_choice quirk on reasoning models)
+        plan: List[Dict[str, Any]] = [dict(s) for s in RESTOCK_DEFAULT_PLAN]
 
         state_store.set_plan(workflow_id, plan)
         state_store.append_step(workflow_id, {"step": "planning", "status": "completed", "plan": plan})
 
-        # 5. Tool-calling loop
         max_iter = 8
         iteration = 0
         proposal = None

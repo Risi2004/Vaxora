@@ -20,6 +20,7 @@ public interface IInventoryService
     Task<BatchAuditDto> GetBatchAuditAsync(Guid userId, Guid batchId);
     Task<List<ColdVaultDto>> GetColdVaultsAsync(Guid userId);
     Task<InventorySummaryDto> GetSummaryAsync(Guid userId);
+    Task<List<InventoryItemDto>> GetExpiringBatchesAsync(Guid userId, int daysThreshold);   // ← ADDED
 }
 
 public class InventoryService : IInventoryService
@@ -371,7 +372,6 @@ public class InventoryService : IInventoryService
             });
         }
 
-        // FIX: force UTC Kind so Npgsql accepts it
         var expiryDate = dto.ExpiryDate.HasValue
             ? EnsureUtc(dto.ExpiryDate.Value)
             : DateTime.UtcNow.AddYears(2);
@@ -437,7 +437,6 @@ public class InventoryService : IInventoryService
 
         var reason = MapWastageReason(dto.Reason);
 
-        // FIX: force UTC Kind
         var incidentDate = dto.IncidentDate.HasValue
             ? EnsureUtc(dto.IncidentDate.Value)
             : DateTime.UtcNow;
@@ -658,5 +657,26 @@ public class InventoryService : IInventoryService
             ColdStorageHealth = "100%",
             VaultsOnline = await _context.ColdVaults.CountAsync(v => v.HospitalProfileId == hospital.Id)
         };
+    }
+
+    // ==================== EXPIRING BATCHES (ADDED) ====================
+
+    public async Task<List<InventoryItemDto>> GetExpiringBatchesAsync(Guid userId, int daysThreshold)
+    {
+        var hospital = await GetHospitalAsync(userId);
+        if (hospital == null) return new List<InventoryItemDto>();
+
+        var thresholdDate = DateTime.UtcNow.AddDays(daysThreshold);
+
+        var batches = await _context.Batches
+            .Where(b => b.HospitalProfileId == hospital.Id
+                     && b.QuantityAvailable > 0
+                     && b.ExpiryDate <= thresholdDate
+                     && b.ExpiryDate >= DateTime.UtcNow)
+            .Include(b => b.Vaccine)
+            .OrderBy(b => b.ExpiryDate)
+            .ToListAsync();
+
+        return batches.Select(b => MapToItemDto(b, b.Vaccine)).ToList();
     }
 }

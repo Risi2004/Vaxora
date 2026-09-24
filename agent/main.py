@@ -1,8 +1,12 @@
 import uvicorn
 import json
 import base64
-from fastapi import FastAPI, Header, HTTPException
+import logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
+
+from fastapi import FastAPI, Header, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 
@@ -17,7 +21,6 @@ except ImportError:
 
 app = FastAPI(title="Vaxora Google ADK Multi-Agent API", version="1.0.0")
 
-# Enable CORS for frontend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -26,17 +29,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# === HTTPBearer security scheme — gives Swagger the 🔒 Authorize button (ADDED) ===
+bearer_scheme = HTTPBearer(auto_error=False)
+
+
 class ChatRequest(BaseModel):
     messages: List[Dict[str, Any]]
     patientInfo: Optional[Dict[str, Any]] = None
-    targetAgent: Optional[str] = None # Optional override, e.g. "BookingAgent"
+    targetAgent: Optional[str] = None
 
 
-# =====================================================
-# INVENTORY AGENTS — JWT helper (ADDED)
-# =====================================================
 def _extract_user_id_from_token(token: Optional[str]) -> Optional[str]:
-    """Best-effort JWT payload decode to get user id (sub / nameid). No verification — backend already verified."""
     if not token:
         return None
     try:
@@ -45,20 +48,32 @@ def _extract_user_id_from_token(token: Optional[str]) -> Optional[str]:
             return None
         padded = parts[1] + "=" * (-len(parts[1]) % 4)
         payload = json.loads(base64.urlsafe_b64decode(padded))
-        return payload.get("sub") or payload.get("nameid") or payload.get("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier")
+        return payload.get("sub") or payload.get("nameid")
     except Exception:
         return None
+
+
+def _extract_bearer_token(authorization: Optional[str]) -> Optional[str]:
+    """
+    Fallback parser for raw header values:
+    - "Bearer xxx" -> xxx
+    - "bearer xxx" -> xxx
+    - "xxx"        -> xxx  (raw token)
+    """
+    if not authorization:
+        return None
+    auth = authorization.strip()
+    if auth.startswith('"') and auth.endswith('"'):
+        auth = auth[1:-1].strip()
+    if auth.lower().startswith("bearer "):
+        return auth.split(" ", 1)[1].strip()
+    return auth
 
 
 INVENTORY_AGENT_NAMES = {"RestockAgent", "ExpiryAgent"}
 
 
 async def _run_agent(agent, messages, token, patient_info, user_id):
-    """
-    Dispatch to the correct agent with the correct kwargs.
-    - Inventory agents accept user_id + user_info
-    - Booking agent accepts patient_info
-    """
     if agent.name in INVENTORY_AGENT_NAMES:
         return await agent.run(
             messages=messages,
@@ -66,7 +81,6 @@ async def _run_agent(agent, messages, token, patient_info, user_id):
             user_id=user_id,
             user_info=patient_info,
         )
-    # Fallback: teammate's BookingAgent (patient_info)
     return await agent.run(
         messages=messages,
         token=token,
@@ -82,22 +96,30 @@ async def health():
         "registered_agents": list(orchestrator.agents.keys()),
         "model": settings.model_name,
         "runpod_endpoint": settings.runpod_base_url,
-        # === INVENTORY AGENTS (ADDED) ===
         "groq_endpoint": settings.groq_base_url,
         "groq_model": settings.groq_model,
-        "vaxora_api": settings.vaxora_api_base_url
+        "vaxora_api": settings.vaxora_api_base_url,
     }
+
 
 @app.post("/api/agent/chat")
 async def chat_endpoint(
     req: ChatRequest,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
     authorization: Optional[str] = Header(None)
 ):
-    token = None
-    if authorization and authorization.startswith("Bearer "):
-        token = authorization.split(" ")[1]
+    logger = logging.getLogger("vaxora-main")
 
-    # === INVENTORY AGENTS: extract user id from JWT (ADDED) ===
+    # Prefer HTTPBearer (from Swagger's Authorize button), fall back to raw header
+    token = None
+    if credentials and credentials.credentials:
+        token = credentials.credentials
+    else:
+        token = _extract_bearer_token(authorization)
+
+    logger.info(f"Received auth header: {'present' if (credentials or authorization) else 'MISSING'}")
+    logger.info(f"Extracted token: {'yes (' + str(len(token)) + ' chars)' if token else 'NONE'}")
+
     user_id = _extract_user_id_from_token(token)
 
     try:
@@ -111,7 +133,6 @@ async def chat_endpoint(
                 user_id=user_id,
             )
         else:
-            # Orchestrator internally routes; pass both so it can forward correctly
             result = await orchestrator.process_message(
                 messages=req.messages,
                 token=token,
@@ -122,5 +143,19 @@ async def chat_endpoint(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 if __name__ == "__main__":
-    uvicorn.run("main:app", host=settings.host, port=settings.port, reload=True)
+    uvicorn.run(
+        "main:app",
+        host=settings.host,
+        port=settings.port,
+        reload=True,
+        reload_excludes=[
+            "*.db",
+            "*.db-journal",
+            "*.pyc",
+            "__pycache__/*",
+            ".env",
+            "workflow_state.db",
+        ],
+    )

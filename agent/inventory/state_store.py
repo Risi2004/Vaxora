@@ -7,13 +7,14 @@ import sqlite3
 import json
 import uuid
 import logging
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
 logger = logging.getLogger("vaxora-inventory-state")
 
-DB_PATH = Path(__file__).parent / "workflow_state.db"
+DB_PATH = Path(tempfile.gettempdir()) / "vaxora_agent_state.db"
 
 
 def _init_db():

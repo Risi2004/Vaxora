@@ -138,6 +138,22 @@ public class InventoryController : ControllerBase
         }
     }
 
+    // === ADDED: EXPIRING BATCHES (must come BEFORE batches/{id}/audit) ===
+    [HttpGet("batches/expiring")]
+    public async Task<IActionResult> GetExpiringBatches([FromQuery] int daysThreshold = 60)
+    {
+        try
+        {
+            var result = await _inventoryService.GetExpiringBatchesAsync(GetUserId(), daysThreshold);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching expiring batches");
+            return StatusCode(500, new { message = "Failed to fetch expiring batches." });
+        }
+    }
+
     [HttpPost("batches")]
     [Authorize(Roles = "HOSPITAL,ADMIN")]
     public async Task<IActionResult> Restock([FromBody] RestockBatchDto dto)
