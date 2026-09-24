@@ -114,8 +114,10 @@ export default function HospitalShiftsPanel() {
 
   useEffect(() => () => clearTimeout(toastTimerRef.current), []);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) {
+      setLoading(true);
+    }
     setError('');
     try {
       const [staff, shiftList] = await Promise.all([
@@ -138,11 +140,15 @@ export default function HospitalShiftsPanel() {
       }
     } catch (err) {
       setError(err.message || 'Failed to load shifts.');
-      setActiveStaff([]);
-      setShifts([]);
-      setCoverage(null);
+      if (!silent) {
+        setActiveStaff([]);
+        setShifts([]);
+        setCoverage(null);
+      }
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   }, [weekStart, weekEnd]);
 
@@ -150,6 +156,19 @@ export default function HospitalShiftsPanel() {
     loadData();
   }, [loadData]);
 
+  /** Refresh shifts + coverage without blanking the calendar. */
+  const refreshRosterQuietly = useCallback(async () => {
+    try {
+      const [shiftList, coverageReport] = await Promise.all([
+        staffService.getHospitalShifts({ from: weekStart, to: weekEnd }),
+        staffService.getCoverage({ from: weekStart, to: weekEnd }).catch(() => null),
+      ]);
+      setShifts(Array.isArray(shiftList) ? shiftList : []);
+      if (coverageReport) setCoverage(coverageReport);
+    } catch (err) {
+      setError(err.message || 'Failed to refresh roster.');
+    }
+  }, [weekStart, weekEnd]);
   const staffOptions = useMemo(
     () =>
       activeStaff.map((s) => ({
@@ -230,7 +249,7 @@ export default function HospitalShiftsPanel() {
         showToast('Shift created.');
       }
       resetForm();
-      await loadData();
+      await refreshRosterQuietly();
     } catch (err) {
       setError(err.message || (editingShiftId ? 'Failed to update shift.' : 'Failed to create shift.'));
     } finally {
@@ -241,11 +260,15 @@ export default function HospitalShiftsPanel() {
   const handleDelete = async (shiftId) => {
     setActionId(shiftId);
     setError('');
+    // Optimistic remove so the calendar does not flash / remount.
+    const previousShifts = shifts;
+    setShifts((prev) => prev.filter((s) => s.shiftId !== shiftId));
     try {
       await staffService.deleteShift(shiftId);
       showToast('Shift deleted.');
-      await loadData();
+      await refreshRosterQuietly();
     } catch (err) {
+      setShifts(previousShifts);
       setError(err.message || 'Failed to delete shift.');
     } finally {
       setActionId(null);
@@ -597,7 +620,7 @@ export default function HospitalShiftsPanel() {
               weekStart={weekStart}
               weekEnd={weekEnd}
               initialPrompt={agentPrompt}
-              onShiftsChanged={loadData}
+              onShiftsChanged={refreshRosterQuietly}
               onClose={handleCloseAgentChat}
             />
           </div>

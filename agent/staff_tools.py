@@ -34,13 +34,20 @@ async def tool_get_active_staff(token: Optional[str] = None, role: Optional[str]
         return {
             "success": True,
             "count": len(staff),
+            # Off/OnDuty/OnBreak = live clock-in only. New staff default to Off.
+            # Do NOT treat Off as "not working today" — use get_hospital_shifts for roster.
+            "note": (
+                "liveClockStatus is who is clocked in right now (Off/OnDuty/OnBreak). "
+                "Off is the default and does NOT mean they are unavailable for shifts. "
+                "Use get_hospital_shifts to see who is scheduled today."
+            ),
             "staff": [
                 {
                     "affiliationId": s.get("affiliationId") or s.get("AffiliationId"),
                     "staffName": s.get("staffName") or s.get("StaffName"),
                     "staffRole": s.get("staffRole") or s.get("StaffRole"),
                     "registrationNumber": s.get("staffRegistrationNumber") or s.get("StaffRegistrationNumber"),
-                    "dutyStatus": s.get("dutyStatus") or s.get("DutyStatus"),
+                    "liveClockStatus": s.get("dutyStatus") or s.get("DutyStatus") or "Off",
                 }
                 for s in staff
             ],
@@ -155,7 +162,11 @@ STAFF_TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "get_active_staff",
-            "description": "List active affiliated doctors and nurses for this hospital.",
+            "description": (
+                "List active affiliated doctors and nurses. "
+                "liveClockStatus (Off/OnDuty/OnBreak) is live clock-in only — "
+                "Off is normal default, NOT 'day off'. Use get_hospital_shifts for who works a date."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -202,14 +213,18 @@ STAFF_TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "suggest_week_coverage",
-            "description": "Propose shifts for low-coverage days in a week. Returns proposals for hospital approval; does not create shifts.",
+            "description": (
+                "PREFERRED for week/fill/low-coverage requests. One call returns AM/PM "
+                "rotated shift proposals for Low/Partial days. Prefer this over many "
+                "propose_shift_for_approval calls."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
                     "from_date": {"type": "string", "description": "Week start YYYY-MM-DD"},
                     "to_date": {"type": "string", "description": "Week end YYYY-MM-DD"},
-                    "default_start": {"type": "string", "description": "Default start time HH:mm", "default": "08:00"},
-                    "default_end": {"type": "string", "description": "Default end time HH:mm", "default": "16:00"},
+                    "default_start": {"type": "string"},
+                    "default_end": {"type": "string"},
                 },
                 "required": ["from_date", "to_date"],
             },
@@ -219,15 +234,18 @@ STAFF_TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "propose_shift_for_approval",
-            "description": "Propose a single shift for hospital approval before creating it.",
+            "description": (
+                "Propose ONE custom shift. Use only when the user asks for a single "
+                "specific shift — not for whole-week suggestions."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "affiliation_id": {"type": "string"},
+                    "affiliation_id": {"type": "string", "description": "From get_active_staff"},
                     "staff_name": {"type": "string"},
                     "shift_date": {"type": "string", "description": "YYYY-MM-DD"},
-                    "start_time": {"type": "string", "description": "HH:mm or HH:mm:ss"},
-                    "end_time": {"type": "string", "description": "HH:mm or HH:mm:ss"},
+                    "start_time": {"type": "string", "description": "HH:mm e.g. 08:00 or 13:00"},
+                    "end_time": {"type": "string", "description": "HH:mm e.g. 12:00 or 17:00"},
                     "booth_or_station": {"type": "string"},
                     "notes": {"type": "string"},
                     "reason": {"type": "string"},

@@ -481,23 +481,35 @@ public class StaffManagementService : IStaffManagementService
                 .Distinct()
                 .Count();
 
-            var doctorOk = activeDoctors == 0 || scheduledDoctors > 0;
-            var nurseOk = activeNurses == 0 || scheduledNurses > 0;
-            var coverageLevel = doctorOk && nurseOk
-                ? (scheduledDoctors + scheduledNurses >= Math.Min(2, activeDoctors + activeNurses) ? "Good" : "Partial")
-                : "Low";
+            // Real-world depth: Good needs morning+afternoon style staffing when the
+            // hospital has enough people (target up to 2 unique doctors and 2 nurses).
+            var targetDoctors = TargetDailyRoleCount(activeDoctors);
+            var targetNurses = TargetDailyRoleCount(activeNurses);
 
+            string coverageLevel;
             if (activeDoctors + activeNurses == 0)
             {
                 coverageLevel = "Low";
+            }
+            else if (scheduledDoctors == 0 || scheduledNurses == 0)
+            {
+                coverageLevel = "Low";
+            }
+            else if (scheduledDoctors >= targetDoctors && scheduledNurses >= targetNurses)
+            {
+                coverageLevel = "Good";
+            }
+            else
+            {
+                coverageLevel = "Partial";
             }
 
             var summary = activeDoctors + activeNurses == 0
                 ? "No active affiliated staff yet."
                 : coverageLevel switch
                 {
-                    "Good" => "Doctor and nurse coverage looks healthy.",
-                    "Partial" => "Some coverage exists, but roster depth is limited.",
+                    "Good" => $"Solid depth: {scheduledDoctors}/{targetDoctors} doctors and {scheduledNurses}/{targetNurses} nurses.",
+                    "Partial" => $"Thin roster — aim for {targetDoctors} doctors and {targetNurses} nurses (AM + PM).",
                     _ => "Missing doctor and/or nurse shift coverage."
                 };
 
@@ -527,8 +539,9 @@ public class StaffManagementService : IStaffManagementService
     }
 
     /// <summary>
-    /// Rules-based suggester: for each Low coverage day, propose one free doctor
-    /// and one free nurse shift. Does not persist — hospital must approve first.
+    /// Suggest a realistic clinic roster for Low/Partial days: AM + PM slots,
+    /// rotating doctors and nurses, targeting ~2 of each role when available.
+    /// Does not persist — hospital must approve proposals in the UI.
     /// </summary>
     public async Task<SuggestWeekCoverageResultDto> SuggestWeekCoverageAsync(
         Guid hospitalUserId,
@@ -542,10 +555,9 @@ public class StaffManagementService : IStaffManagementService
         if ((dto.To.DayNumber - dto.From.DayNumber) > 31)
             throw new InvalidOperationException("Suggest range cannot exceed 31 days.");
 
-        var startTime = ParseSuggestTime(dto.DefaultStart, new TimeOnly(8, 0));
-        var endTime = ParseSuggestTime(dto.DefaultEnd, new TimeOnly(16, 0));
-        if (endTime <= startTime)
-            throw new InvalidOperationException("Default end time must be after start time.");
+        // Defaults kept for API compatibility; real suggestions use AM/PM clinic slots.
+        _ = ParseSuggestTime(dto.DefaultStart, new TimeOnly(8, 0));
+        _ = ParseSuggestTime(dto.DefaultEnd, new TimeOnly(16, 0));
 
         var coverage = await GetCoverageReportAsync(hospitalUserId, dto.From, dto.To);
 
@@ -554,6 +566,7 @@ public class StaffManagementService : IStaffManagementService
             .Include(a => a.StaffUser).ThenInclude(u => u.DoctorProfile)
             .Include(a => a.StaffUser).ThenInclude(u => u.NurseProfile)
             .Where(a => a.HospitalUserId == hospitalUserId && a.Status == AffiliationStatus.Active)
+            .OrderBy(a => a.InvitedAt)
             .ToListAsync();
 
         var existingShifts = await _context.StaffShifts
@@ -566,75 +579,111 @@ public class StaffManagementService : IStaffManagementService
                 s.ShiftDate <= dto.To)
             .ToListAsync();
 
-        var scheduledByDay = existingShifts
-            .GroupBy(s => s.ShiftDate)
-            .ToDictionary(
-                g => g.Key,
-                g => g.Select(s => s.AffiliationId).ToHashSet());
-
         var doctors = activeStaff.Where(a => a.StaffRole == UserRole.DOCTOR).ToList();
         var nurses = activeStaff.Where(a => a.StaffRole == UserRole.NURSE).ToList();
-        var proposals = new List<ShiftProposalDto>();
+        var targetDoctors = TargetDailyRoleCount(doctors.Count);
+        var targetNurses = TargetDailyRoleCount(nurses.Count);
 
-        // Only propose shifts that would survive CreateShiftAsync validation.
+        var clinicSlots = new (TimeOnly Start, TimeOnly End, string Station)[]
+        {
+            (new TimeOnly(8, 0), new TimeOnly(12, 0), "Booth A — Morning"),
+            (new TimeOnly(13, 0), new TimeOnly(17, 0), "Booth B — Afternoon")
+        };
+
+        var proposals = new List<ShiftProposalDto>();
+        var planned = existingShifts
+            .Select(s => (s.AffiliationId, s.ShiftDate, s.StartTime, s.EndTime, s.Affiliation.StaffRole))
+            .ToList();
+
         var today = HospitalToday();
         var nowTime = TimeOnly.FromDateTime(HospitalNow());
         var skippedPastDays = 0;
+        var doctorCursor = 0;
+        var nurseCursor = 0;
 
-        foreach (var day in coverage.Days.Where(d => d.CoverageLevel == "Low"))
+        foreach (var day in coverage.Days.Where(d => d.CoverageLevel is "Low" or "Partial"))
         {
-            if (day.Date < today || (day.Date == today && startTime < nowTime))
+            if (day.Date < today)
             {
                 skippedPastDays++;
                 continue;
             }
 
-            if (!scheduledByDay.TryGetValue(day.Date, out var busy))
+            foreach (var (slotStart, slotEnd, station) in clinicSlots)
             {
-                busy = new HashSet<Guid>();
-                scheduledByDay[day.Date] = busy;
-            }
+                if (day.Date == today && slotStart < nowTime)
+                    continue;
 
-            var freeDoctor = doctors.FirstOrDefault(d => !busy.Contains(d.Id));
-            var freeNurse = nurses.FirstOrDefault(n => !busy.Contains(n.Id));
+                var dayDocs = planned
+                    .Where(p => p.ShiftDate == day.Date && p.StaffRole == UserRole.DOCTOR)
+                    .Select(p => p.AffiliationId)
+                    .Distinct()
+                    .Count();
 
-            if (freeDoctor != null)
-            {
-                proposals.Add(new ShiftProposalDto
+                if (dayDocs < targetDoctors)
                 {
-                    AffiliationId = freeDoctor.Id,
-                    StaffName = GetStaffName(freeDoctor.StaffUser),
-                    StaffRole = freeDoctor.StaffRole.ToString(),
-                    ShiftDate = day.Date,
-                    StartTime = startTime,
-                    EndTime = endTime,
-                    BoothOrStation = null,
-                    Notes = "Auto-suggested to improve coverage",
-                    Reason = $"{day.Summary} — assign doctor"
-                });
-                busy.Add(freeDoctor.Id);
-            }
+                    var doctor = PickNextFreeStaff(
+                        doctors,
+                        ref doctorCursor,
+                        day.Date,
+                        slotStart,
+                        slotEnd,
+                        planned);
+                    if (doctor != null)
+                    {
+                        proposals.Add(new ShiftProposalDto
+                        {
+                            AffiliationId = doctor.Id,
+                            StaffName = GetStaffName(doctor.StaffUser),
+                            StaffRole = doctor.StaffRole.ToString(),
+                            ShiftDate = day.Date,
+                            StartTime = slotStart,
+                            EndTime = slotEnd,
+                            BoothOrStation = station,
+                            Notes = "Suggested clinic coverage (AM/PM rotation)",
+                            Reason = $"{day.Summary} — doctor for {station}"
+                        });
+                        planned.Add((doctor.Id, day.Date, slotStart, slotEnd, UserRole.DOCTOR));
+                    }
+                }
 
-            if (freeNurse != null)
-            {
-                proposals.Add(new ShiftProposalDto
+                var dayNurses = planned
+                    .Where(p => p.ShiftDate == day.Date && p.StaffRole == UserRole.NURSE)
+                    .Select(p => p.AffiliationId)
+                    .Distinct()
+                    .Count();
+
+                if (dayNurses < targetNurses)
                 {
-                    AffiliationId = freeNurse.Id,
-                    StaffName = GetStaffName(freeNurse.StaffUser),
-                    StaffRole = freeNurse.StaffRole.ToString(),
-                    ShiftDate = day.Date,
-                    StartTime = startTime,
-                    EndTime = endTime,
-                    BoothOrStation = null,
-                    Notes = "Auto-suggested to improve coverage",
-                    Reason = $"{day.Summary} — assign nurse"
-                });
-                busy.Add(freeNurse.Id);
+                    var nurse = PickNextFreeStaff(
+                        nurses,
+                        ref nurseCursor,
+                        day.Date,
+                        slotStart,
+                        slotEnd,
+                        planned);
+                    if (nurse != null)
+                    {
+                        proposals.Add(new ShiftProposalDto
+                        {
+                            AffiliationId = nurse.Id,
+                            StaffName = GetStaffName(nurse.StaffUser),
+                            StaffRole = nurse.StaffRole.ToString(),
+                            ShiftDate = day.Date,
+                            StartTime = slotStart,
+                            EndTime = slotEnd,
+                            BoothOrStation = station,
+                            Notes = "Suggested clinic coverage (AM/PM rotation)",
+                            Reason = $"{day.Summary} — nurse for {station}"
+                        });
+                        planned.Add((nurse.Id, day.Date, slotStart, slotEnd, UserRole.NURSE));
+                    }
+                }
             }
         }
 
         var skippedNote = skippedPastDays > 0
-            ? $" Skipped {skippedPastDays} low-coverage day(s) that can no longer be scheduled."
+            ? $" Skipped {skippedPastDays} past day(s) that can no longer be scheduled."
             : string.Empty;
 
         return new SuggestWeekCoverageResultDto
@@ -647,9 +696,46 @@ public class StaffManagementService : IStaffManagementService
             SkippedPastDays = skippedPastDays,
             Proposals = proposals,
             Message = proposals.Count > 0
-                ? $"Suggested {proposals.Count} shift(s) for low-coverage days.{skippedNote}"
-                : $"No upcoming low-coverage days needing new shifts, or no free staff available.{skippedNote}"
+                ? $"Suggested {proposals.Count} AM/PM shift(s) with staff rotation (target {targetDoctors}D + {targetNurses}N per day).{skippedNote}"
+                : $"No upcoming Low/Partial days needing new shifts, or no free staff available.{skippedNote}"
         };
+    }
+
+    /// <summary>Target unique doctors/nurses per day for a healthy clinic roster.</summary>
+    private static int TargetDailyRoleCount(int activeCount)
+    {
+        if (activeCount <= 0) return 0;
+        if (activeCount == 1) return 1;
+        // Prefer morning + afternoon coverage when 2+ people are available.
+        return Math.Min(2, activeCount);
+    }
+
+    private static StaffAffiliation? PickNextFreeStaff(
+        List<StaffAffiliation> pool,
+        ref int cursor,
+        DateOnly date,
+        TimeOnly start,
+        TimeOnly end,
+        List<(Guid AffiliationId, DateOnly ShiftDate, TimeOnly StartTime, TimeOnly EndTime, UserRole StaffRole)> planned)
+    {
+        if (pool.Count == 0) return null;
+
+        for (var attempt = 0; attempt < pool.Count; attempt++)
+        {
+            var candidate = pool[cursor % pool.Count];
+            cursor++;
+
+            var conflict = planned.Any(p =>
+                p.AffiliationId == candidate.Id &&
+                p.ShiftDate == date &&
+                p.StartTime < end &&
+                start < p.EndTime);
+
+            if (!conflict)
+                return candidate;
+        }
+
+        return null;
     }
 
     private static TimeOnly ParseSuggestTime(string? value, TimeOnly fallback)
@@ -836,10 +922,28 @@ public class StaffManagementService : IStaffManagementService
     private static string GetStaffName(User staffUser)
     {
         if (staffUser.Role == UserRole.DOCTOR && staffUser.DoctorProfile != null)
-            return $"Dr. {staffUser.DoctorProfile.FullName}";
+            return WithRolePrefix(staffUser.DoctorProfile.FullName, "Dr.");
         if (staffUser.Role == UserRole.NURSE && staffUser.NurseProfile != null)
-            return $"Nurse {staffUser.NurseProfile.FullName}";
+            return WithRolePrefix(staffUser.NurseProfile.FullName, "Nurse");
         return staffUser.Email;
+    }
+
+    /// <summary>Adds a role title only if FullName does not already start with it.</summary>
+    private static string WithRolePrefix(string? fullName, string prefix)
+    {
+        var name = (fullName ?? string.Empty).Trim();
+        if (string.IsNullOrEmpty(name))
+            return prefix.TrimEnd('.');
+
+        // Strip repeated "Dr." / "Nurse" so seeded or edited names stay clean.
+        while (name.StartsWith("Dr.", StringComparison.OrdinalIgnoreCase))
+            name = name[3..].TrimStart();
+        while (name.StartsWith("Doctor ", StringComparison.OrdinalIgnoreCase))
+            name = name[7..].TrimStart();
+        while (name.StartsWith("Nurse ", StringComparison.OrdinalIgnoreCase))
+            name = name[6..].TrimStart();
+
+        return $"{prefix} {name}".Trim();
     }
 
     private static StaffAffiliationDto MapAffiliation(StaffAffiliation affiliation, User hospitalUser, User staffUser)
