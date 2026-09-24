@@ -17,6 +17,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<StaffAffiliation> StaffAffiliations => Set<StaffAffiliation>();
     public DbSet<StaffShift> StaffShifts => Set<StaffShift>();
+    public DbSet<HospitalBooth> HospitalBooths => Set<HospitalBooth>();
     public DbSet<AgentWorkflow> AgentWorkflows => Set<AgentWorkflow>();
 
     // === INVENTORY MODULE (Added) ===
@@ -193,6 +194,25 @@ public class ApplicationDbContext : DbContext
 
         modelBuilder.Entity<StaffShift>()
             .HasIndex(s => new { s.AffiliationId, s.ShiftDate });
+
+        modelBuilder.Entity<HospitalBooth>()
+            .HasOne(b => b.HospitalUser)
+            .WithMany()
+            .HasForeignKey(b => b.HospitalUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<HospitalBooth>()
+            .HasIndex(b => new { b.HospitalUserId, b.Code })
+            .IsUnique();
+
+        modelBuilder.Entity<HospitalBooth>()
+            .HasIndex(b => new { b.HospitalUserId, b.IsActive, b.SortOrder });
+
+        modelBuilder.Entity<StaffShift>()
+            .HasOne(s => s.Booth)
+            .WithMany(b => b.Shifts)
+            .HasForeignKey(s => s.BoothId)
+            .OnDelete(DeleteBehavior.SetNull);
 
         // === AGENTIC AI WORKFLOW STATE ===
         modelBuilder.Entity<AgentWorkflow>()

@@ -32,6 +32,46 @@ public class UpdateDutyStatusDto
     public string DutyStatus { get; set; } = string.Empty; // "Off", "OnDuty", "OnBreak"
 }
 
+public class CreateHospitalBoothDto
+{
+    [Required]
+    [MaxLength(20)]
+    public string Code { get; set; } = string.Empty;
+
+    [Required]
+    [MaxLength(100)]
+    public string Name { get; set; } = string.Empty;
+
+    public int? SortOrder { get; set; }
+}
+
+public class UpdateHospitalBoothDto
+{
+    [Required]
+    [MaxLength(20)]
+    public string Code { get; set; } = string.Empty;
+
+    [Required]
+    [MaxLength(100)]
+    public string Name { get; set; } = string.Empty;
+
+    public bool IsActive { get; set; } = true;
+
+    public int? SortOrder { get; set; }
+}
+
+public class HospitalBoothDto
+{
+    public Guid BoothId { get; set; }
+    public string Code { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string DisplayLabel { get; set; } = string.Empty;
+    public bool IsActive { get; set; }
+    public int SortOrder { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
+}
+
 public class CreateStaffShiftDto
 {
     [Required]
@@ -46,6 +86,10 @@ public class CreateStaffShiftDto
     [Required]
     public TimeOnly EndTime { get; set; }
 
+    /// <summary>Preferred: assign a configured hospital booth.</summary>
+    public Guid? BoothId { get; set; }
+
+    /// <summary>Legacy free-text label when BoothId is omitted.</summary>
     [MaxLength(100)]
     public string? BoothOrStation { get; set; }
 
@@ -63,6 +107,8 @@ public class UpdateStaffShiftDto
 
     [Required]
     public TimeOnly EndTime { get; set; }
+
+    public Guid? BoothId { get; set; }
 
     [MaxLength(100)]
     public string? BoothOrStation { get; set; }
@@ -100,6 +146,7 @@ public class StaffShiftDto
     public DateOnly ShiftDate { get; set; }
     public TimeOnly StartTime { get; set; }
     public TimeOnly EndTime { get; set; }
+    public Guid? BoothId { get; set; }
     public string? BoothOrStation { get; set; }
     public string? Notes { get; set; }
     public DateTime CreatedAt { get; set; }
@@ -158,6 +205,7 @@ public class ShiftProposalDto
     public DateOnly ShiftDate { get; set; }
     public TimeOnly StartTime { get; set; }
     public TimeOnly EndTime { get; set; }
+    public Guid? BoothId { get; set; }
     public string? BoothOrStation { get; set; }
     public string? Notes { get; set; }
     public string Reason { get; set; } = string.Empty;

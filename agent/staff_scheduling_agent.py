@@ -353,6 +353,7 @@ class StaffSchedulingAgent:
                 start_time=arguments.get("start_time"),
                 end_time=arguments.get("end_time"),
                 booth_or_station=arguments.get("booth_or_station"),
+                booth_id=arguments.get("booth_id"),
                 notes=arguments.get("notes"),
                 reason=arguments.get("reason"),
             )
