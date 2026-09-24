@@ -282,6 +282,56 @@ public class StaffManagementController : ControllerBase
         }
     }
 
+    [HttpGet("coverage")]
+    [Authorize(Roles = "HOSPITAL")]
+    public async Task<IActionResult> GetCoverage([FromQuery] DateOnly from, [FromQuery] DateOnly to)
+    {
+        if (!TryGetUserId(out var hospitalUserId))
+            return Unauthorized(new { message = "Invalid identity claim." });
+
+        try
+        {
+            var result = await _staffService.GetCoverageReportAsync(hospitalUserId, from, to);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching staff coverage");
+            return StatusCode(500, new { message = "Failed to fetch coverage report." });
+        }
+    }
+
+    /// <summary>
+    /// Rules-based shift suggestions for low-coverage days. Does not create shifts —
+    /// hospital must approve each proposal (human-in-the-loop).
+    /// </summary>
+    [HttpPost("shifts/suggest-week")]
+    [Authorize(Roles = "HOSPITAL")]
+    public async Task<IActionResult> SuggestWeekCoverage([FromBody] SuggestWeekCoverageDto dto)
+    {
+        if (!TryGetUserId(out var hospitalUserId))
+            return Unauthorized(new { message = "Invalid identity claim." });
+
+        try
+        {
+            var result = await _staffService.SuggestWeekCoverageAsync(hospitalUserId, dto);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error suggesting week coverage");
+            return StatusCode(500, new { message = "Failed to suggest week coverage." });
+        }
+    }
+
     [HttpGet("shifts/mine")]
     [Authorize(Roles = "DOCTOR,NURSE")]
     public async Task<IActionResult> GetMyShifts([FromQuery] DateOnly? from, [FromQuery] DateOnly? to)
@@ -348,6 +398,98 @@ public class StaffManagementController : ControllerBase
         {
             _logger.LogError(ex, "Error deleting shift {ShiftId}", shiftId);
             return StatusCode(500, new { message = "Failed to delete shift." });
+        }
+    }
+
+    [HttpGet("booths")]
+    [Authorize(Roles = "HOSPITAL")]
+    public async Task<IActionResult> GetHospitalBooths([FromQuery] bool activeOnly = false)
+    {
+        if (!TryGetUserId(out var hospitalUserId))
+            return Unauthorized(new { message = "Invalid identity claim." });
+
+        try
+        {
+            var result = await _staffService.GetHospitalBoothsAsync(hospitalUserId, activeOnly);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching hospital booths");
+            return StatusCode(500, new { message = "Failed to fetch booths." });
+        }
+    }
+
+    [HttpPost("booths")]
+    [Authorize(Roles = "HOSPITAL")]
+    public async Task<IActionResult> CreateHospitalBooth([FromBody] CreateHospitalBoothDto dto)
+    {
+        if (!TryGetUserId(out var hospitalUserId))
+            return Unauthorized(new { message = "Invalid identity claim." });
+
+        try
+        {
+            var result = await _staffService.CreateHospitalBoothAsync(hospitalUserId, dto);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating hospital booth");
+            return StatusCode(500, new { message = "Failed to create booth." });
+        }
+    }
+
+    [HttpPut("booths/{boothId:guid}")]
+    [Authorize(Roles = "HOSPITAL")]
+    public async Task<IActionResult> UpdateHospitalBooth(Guid boothId, [FromBody] UpdateHospitalBoothDto dto)
+    {
+        if (!TryGetUserId(out var hospitalUserId))
+            return Unauthorized(new { message = "Invalid identity claim." });
+
+        try
+        {
+            var result = await _staffService.UpdateHospitalBoothAsync(hospitalUserId, boothId, dto);
+            return Ok(result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating hospital booth {BoothId}", boothId);
+            return StatusCode(500, new { message = "Failed to update booth." });
+        }
+    }
+
+    [HttpDelete("booths/{boothId:guid}")]
+    [Authorize(Roles = "HOSPITAL")]
+    public async Task<IActionResult> DeactivateHospitalBooth(Guid boothId)
+    {
+        if (!TryGetUserId(out var hospitalUserId))
+            return Unauthorized(new { message = "Invalid identity claim." });
+
+        try
+        {
+            await _staffService.DeactivateHospitalBoothAsync(hospitalUserId, boothId);
+            return Ok(new { message = "Booth deactivated." });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deactivating hospital booth {BoothId}", boothId);
+            return StatusCode(500, new { message = "Failed to deactivate booth." });
         }
     }
 

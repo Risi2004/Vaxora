@@ -73,6 +73,10 @@ public class AppointmentResponseDto
     public string PaymentStatus { get; set; } = "Paid";
     public string? PaymentTransactionId { get; set; }
     public string? Notes { get; set; }
+    public string? PrescribedDosage { get; set; }
+    public Guid? PrescribedByDoctorUserId { get; set; }
+    public string? PrescribedByDoctorName { get; set; }
+    public DateTime? DosageUpdatedAt { get; set; }
     public DateTime CreatedAt { get; set; }
 }
 

@@ -43,6 +43,7 @@ export default function HospitalNavbar() {
     { path: '/hospital/appointments', label: 'Appointments' },
     { path: '/hospital/inventory', label: 'Inventory' },
     { path: '/hospital/staff', label: 'Staff' },
+    { path: '/hospital/booths', label: 'Booths' },
     { path: '/hospital/feedback', label: 'Feedback' },
   ];
 

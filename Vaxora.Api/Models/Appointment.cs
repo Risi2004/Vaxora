@@ -85,6 +85,17 @@ public class Appointment
     [MaxLength(1000)]
     public string? Notes { get; set; }
 
+    /// <summary>Physician-prescribed dosage/volume (e.g. "0.5ml").</summary>
+    [MaxLength(100)]
+    public string? PrescribedDosage { get; set; }
+
+    public Guid? PrescribedByDoctorUserId { get; set; }
+
+    [MaxLength(200)]
+    public string? PrescribedByDoctorName { get; set; }
+
+    public DateTime? DosageUpdatedAt { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public DateTime? UpdatedAt { get; set; }

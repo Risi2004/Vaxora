@@ -24,6 +24,16 @@ public class StaffShift
     [Required]
     public TimeOnly EndTime { get; set; }
 
+    /// <summary>Optional link to a configured hospital booth.</summary>
+    public Guid? BoothId { get; set; }
+
+    [ForeignKey(nameof(BoothId))]
+    public virtual HospitalBooth? Booth { get; set; }
+
+    /// <summary>
+    /// Display label kept for older rows and agent proposals.
+    /// When BoothId is set, this mirrors the booth display label.
+    /// </summary>
     [MaxLength(100)]
     public string? BoothOrStation { get; set; }
 

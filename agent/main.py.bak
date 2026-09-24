@@ -1,0 +1,190 @@
+import uvicorn
+import json
+import base64
+import logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
+
+from fastapi import FastAPI, Header, HTTPException, Depends
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from pydantic import BaseModel
+from typing import List, Dict, Any, Optional
+
+try:
+    from .config import settings
+    from .orchestrator import orchestrator
+    from .bookingagent import booking_agent
+except ImportError:
+    from config import settings
+    from orchestrator import orchestrator
+    from bookingagent import booking_agent
+
+app = FastAPI(title="Vaxora Google ADK Multi-Agent API", version="1.0.0")
+
+<<<<<<< HEAD
+=======
+# Internal service: browsers must reach the agents through the ASP.NET API, which
+# authenticates the caller first. No browser origin is allowed to call this directly.
+>>>>>>> origin/main
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[],
+    allow_credentials=False,
+    allow_methods=["POST", "GET"],
+    allow_headers=["Authorization", "Content-Type", "X-Agent-Key"],
+)
+
+<<<<<<< HEAD
+# === HTTPBearer security scheme — gives Swagger the 🔒 Authorize button (ADDED) ===
+bearer_scheme = HTTPBearer(auto_error=False)
+
+=======
+
+def verify_internal_caller(agent_key: Optional[str]) -> None:
+    """
+    Optional shared secret between the ASP.NET API and this service. When
+    AGENT_SERVICE_KEY is configured, only callers presenting it may reach the agents.
+    """
+    expected = settings.agent_service_key
+    if expected and agent_key != expected:
+        raise HTTPException(status_code=401, detail="Unauthorized caller.")
+>>>>>>> origin/main
+
+class ChatRequest(BaseModel):
+    messages: List[Dict[str, Any]]
+    patientInfo: Optional[Dict[str, Any]] = None
+<<<<<<< HEAD
+    targetAgent: Optional[str] = None
+
+
+def _extract_user_id_from_token(token: Optional[str]) -> Optional[str]:
+    if not token:
+        return None
+    try:
+        parts = token.split(".")
+        if len(parts) < 2:
+            return None
+        padded = parts[1] + "=" * (-len(parts[1]) % 4)
+        payload = json.loads(base64.urlsafe_b64decode(padded))
+        return payload.get("sub") or payload.get("nameid")
+    except Exception:
+        return None
+
+
+def _extract_bearer_token(authorization: Optional[str]) -> Optional[str]:
+    """
+    Fallback parser for raw header values:
+    - "Bearer xxx" -> xxx
+    - "bearer xxx" -> xxx
+    - "xxx"        -> xxx  (raw token)
+    """
+    if not authorization:
+        return None
+    auth = authorization.strip()
+    if auth.startswith('"') and auth.endswith('"'):
+        auth = auth[1:-1].strip()
+    if auth.lower().startswith("bearer "):
+        return auth.split(" ", 1)[1].strip()
+    return auth
+
+
+INVENTORY_AGENT_NAMES = {"RestockAgent", "ExpiryAgent"}
+
+
+async def _run_agent(agent, messages, token, patient_info, user_id):
+    if agent.name in INVENTORY_AGENT_NAMES:
+        return await agent.run(
+            messages=messages,
+            token=token,
+            user_id=user_id,
+            user_info=patient_info,
+        )
+    return await agent.run(
+        messages=messages,
+        token=token,
+        patient_info=patient_info,
+    )
+
+=======
+    targetAgent: Optional[str] = None  # e.g. "BookingAgent" | "StaffSchedulingAgent"
+>>>>>>> origin/main
+
+@app.get("/api/agent/health")
+async def health():
+    return {
+        "status": "healthy",
+        "service": "Vaxora Multi-Agent Orchestrator",
+        "registered_agents": list(orchestrator.agents.keys()),
+        "model": settings.model_name,
+        "runpod_endpoint": settings.runpod_base_url,
+        "groq_endpoint": settings.groq_base_url,
+        "groq_model": settings.groq_model,
+        "vaxora_api": settings.vaxora_api_base_url,
+    }
+
+
+@app.post("/api/agent/chat")
+async def chat_endpoint(
+    req: ChatRequest,
+<<<<<<< HEAD
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
+    authorization: Optional[str] = Header(None)
+):
+    logger = logging.getLogger("vaxora-main")
+
+    # Prefer HTTPBearer (from Swagger's Authorize button), fall back to raw header
+=======
+    authorization: Optional[str] = Header(None),
+    x_agent_key: Optional[str] = Header(None)
+):
+    verify_internal_caller(x_agent_key)
+
+>>>>>>> origin/main
+    token = None
+    if credentials and credentials.credentials:
+        token = credentials.credentials
+    else:
+        token = _extract_bearer_token(authorization)
+
+    logger.info(f"Received auth header: {'present' if (credentials or authorization) else 'MISSING'}")
+    logger.info(f"Extracted token: {'yes (' + str(len(token)) + ' chars)' if token else 'NONE'}")
+
+    user_id = _extract_user_id_from_token(token)
+
+    try:
+        if req.targetAgent and req.targetAgent in orchestrator.agents:
+            agent = orchestrator.agents[req.targetAgent]
+            result = await _run_agent(
+                agent,
+                messages=req.messages,
+                token=token,
+                patient_info=req.patientInfo,
+                user_id=user_id,
+            )
+        else:
+            result = await orchestrator.process_message(
+                messages=req.messages,
+                token=token,
+                patient_info=req.patientInfo,
+                user_id=user_id,
+            )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+if __name__ == "__main__":
+    uvicorn.run(
+        "main:app",
+        host=settings.host,
+        port=settings.port,
+        reload=True,
+        reload_excludes=[
+            "*.db",
+            "*.db-journal",
+            "*.pyc",
+            "__pycache__/*",
+            ".env",
+            "workflow_state.db",
+        ],
+    )

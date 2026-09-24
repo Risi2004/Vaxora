@@ -32,4 +32,8 @@ class Settings(BaseModel):
     port: int = int(os.getenv("PORT", "8001"))
     host: str = os.getenv("HOST", "0.0.0.0")
 
+    # Shared secret the ASP.NET API presents when calling this internal service.
+    # Leave empty to disable the check (local development).
+    agent_service_key: str = os.getenv("AGENT_SERVICE_KEY", "")
+
 settings = Settings()

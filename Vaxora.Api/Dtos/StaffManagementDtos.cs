@@ -32,6 +32,46 @@ public class UpdateDutyStatusDto
     public string DutyStatus { get; set; } = string.Empty; // "Off", "OnDuty", "OnBreak"
 }
 
+public class CreateHospitalBoothDto
+{
+    [Required]
+    [MaxLength(20)]
+    public string Code { get; set; } = string.Empty;
+
+    [Required]
+    [MaxLength(100)]
+    public string Name { get; set; } = string.Empty;
+
+    public int? SortOrder { get; set; }
+}
+
+public class UpdateHospitalBoothDto
+{
+    [Required]
+    [MaxLength(20)]
+    public string Code { get; set; } = string.Empty;
+
+    [Required]
+    [MaxLength(100)]
+    public string Name { get; set; } = string.Empty;
+
+    public bool IsActive { get; set; } = true;
+
+    public int? SortOrder { get; set; }
+}
+
+public class HospitalBoothDto
+{
+    public Guid BoothId { get; set; }
+    public string Code { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string DisplayLabel { get; set; } = string.Empty;
+    public bool IsActive { get; set; }
+    public int SortOrder { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
+}
+
 public class CreateStaffShiftDto
 {
     [Required]
@@ -46,6 +86,10 @@ public class CreateStaffShiftDto
     [Required]
     public TimeOnly EndTime { get; set; }
 
+    /// <summary>Preferred: assign a configured hospital booth.</summary>
+    public Guid? BoothId { get; set; }
+
+    /// <summary>Legacy free-text label when BoothId is omitted.</summary>
     [MaxLength(100)]
     public string? BoothOrStation { get; set; }
 
@@ -63,6 +107,8 @@ public class UpdateStaffShiftDto
 
     [Required]
     public TimeOnly EndTime { get; set; }
+
+    public Guid? BoothId { get; set; }
 
     [MaxLength(100)]
     public string? BoothOrStation { get; set; }
@@ -100,8 +146,82 @@ public class StaffShiftDto
     public DateOnly ShiftDate { get; set; }
     public TimeOnly StartTime { get; set; }
     public TimeOnly EndTime { get; set; }
+    public Guid? BoothId { get; set; }
     public string? BoothOrStation { get; set; }
     public string? Notes { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
+}
+
+public class StaffDayCoverageDto
+{
+    public DateOnly Date { get; set; }
+    public int ActiveDoctors { get; set; }
+    public int ActiveNurses { get; set; }
+    public int ScheduledDoctors { get; set; }
+    public int ScheduledNurses { get; set; }
+    public int TotalShifts { get; set; }
+    public string CoverageLevel { get; set; } = "Low"; // Low | Partial | Good
+    public string Summary { get; set; } = string.Empty;
+}
+
+public class StaffCoverageReportDto
+{
+    public DateOnly From { get; set; }
+    public DateOnly To { get; set; }
+    public int ActiveDoctors { get; set; }
+    public int ActiveNurses { get; set; }
+
+    /// <summary>Live snapshot of staff currently marked OnDuty — not tied to any single day.</summary>
+    public int CurrentlyOnDutyStaff { get; set; }
+
+    public int DaysWithLowCoverage { get; set; }
+    public List<StaffDayCoverageDto> Days { get; set; } = new();
+}
+
+/// <summary>
+/// Request for rules-based week shift suggestions (does not create shifts).
+/// </summary>
+public class SuggestWeekCoverageDto
+{
+    [Required]
+    public DateOnly From { get; set; }
+
+    [Required]
+    public DateOnly To { get; set; }
+
+    /// <summary>Default shift start (HH:mm). Defaults to 08:00.</summary>
+    public string? DefaultStart { get; set; }
+
+    /// <summary>Default shift end (HH:mm). Defaults to 16:00.</summary>
+    public string? DefaultEnd { get; set; }
+}
+
+public class ShiftProposalDto
+{
+    public Guid AffiliationId { get; set; }
+    public string StaffName { get; set; } = string.Empty;
+    public string StaffRole { get; set; } = string.Empty;
+    public DateOnly ShiftDate { get; set; }
+    public TimeOnly StartTime { get; set; }
+    public TimeOnly EndTime { get; set; }
+    public Guid? BoothId { get; set; }
+    public string? BoothOrStation { get; set; }
+    public string? Notes { get; set; }
+    public string Reason { get; set; } = string.Empty;
+}
+
+public class SuggestWeekCoverageResultDto
+{
+    public DateOnly From { get; set; }
+    public DateOnly To { get; set; }
+    public int ActiveDoctors { get; set; }
+    public int ActiveNurses { get; set; }
+    public int ProposalCount { get; set; }
+
+    /// <summary>Low-coverage days that were skipped because they can no longer be scheduled.</summary>
+    public int SkippedPastDays { get; set; }
+
+    public string Message { get; set; } = string.Empty;
+    public List<ShiftProposalDto> Proposals { get; set; } = new();
 }

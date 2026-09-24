@@ -21,22 +21,34 @@ except ImportError:
 
 app = FastAPI(title="Vaxora Google ADK Multi-Agent API", version="1.0.0")
 
+# Internal service: browsers must reach the agents through the ASP.NET API, which
+# authenticates the caller first. No browser origin is allowed to call this directly.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=[],
+    allow_credentials=False,
+    allow_methods=["POST", "GET"],
+    allow_headers=["Authorization", "Content-Type", "X-Agent-Key"],
 )
 
-# === HTTPBearer security scheme — gives Swagger the 🔒 Authorize button (ADDED) ===
+# HTTPBearer security scheme — gives Swagger the Authorize button
 bearer_scheme = HTTPBearer(auto_error=False)
+
+
+def verify_internal_caller(agent_key: Optional[str]) -> None:
+    """
+    Optional shared secret between the ASP.NET API and this service. When
+    AGENT_SERVICE_KEY is configured, only callers presenting it may reach the agents.
+    """
+    expected = getattr(settings, "agent_service_key", None)
+    if expected and agent_key != expected:
+        raise HTTPException(status_code=401, detail="Unauthorized caller.")
 
 
 class ChatRequest(BaseModel):
     messages: List[Dict[str, Any]]
     patientInfo: Optional[Dict[str, Any]] = None
-    targetAgent: Optional[str] = None
+    targetAgent: Optional[str] = None  # e.g. "BookingAgent" | "RestockAgent" | "ExpiryAgent" | "StaffSchedulingAgent"
 
 
 def _extract_user_id_from_token(token: Optional[str]) -> Optional[str]:
@@ -55,10 +67,10 @@ def _extract_user_id_from_token(token: Optional[str]) -> Optional[str]:
 
 def _extract_bearer_token(authorization: Optional[str]) -> Optional[str]:
     """
-    Fallback parser for raw header values:
+    Forgiving token extraction:
     - "Bearer xxx" -> xxx
     - "bearer xxx" -> xxx
-    - "xxx"        -> xxx  (raw token)
+    - "xxx"        -> xxx  (raw token fallback)
     """
     if not authorization:
         return None
@@ -74,6 +86,7 @@ INVENTORY_AGENT_NAMES = {"RestockAgent", "ExpiryAgent"}
 
 
 async def _run_agent(agent, messages, token, patient_info, user_id):
+    """Dispatch to the correct agent with the correct kwargs."""
     if agent.name in INVENTORY_AGENT_NAMES:
         return await agent.run(
             messages=messages,
@@ -81,11 +94,15 @@ async def _run_agent(agent, messages, token, patient_info, user_id):
             user_id=user_id,
             user_info=patient_info,
         )
-    return await agent.run(
-        messages=messages,
-        token=token,
-        patient_info=patient_info,
-    )
+    # Fallback for BookingAgent / StaffSchedulingAgent
+    try:
+        return await agent.run(
+            messages=messages,
+            token=token,
+            patient_info=patient_info,
+        )
+    except TypeError:
+        return await agent.run(messages=messages, token=token)
 
 
 @app.get("/api/agent/health")
@@ -106,8 +123,12 @@ async def health():
 async def chat_endpoint(
     req: ChatRequest,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
-    authorization: Optional[str] = Header(None)
+    authorization: Optional[str] = Header(None),
+    x_agent_key: Optional[str] = Header(None),
 ):
+    # Enforce internal shared-secret if configured
+    verify_internal_caller(x_agent_key)
+
     logger = logging.getLogger("vaxora-main")
 
     # Prefer HTTPBearer (from Swagger's Authorize button), fall back to raw header
@@ -150,12 +171,5 @@ if __name__ == "__main__":
         host=settings.host,
         port=settings.port,
         reload=True,
-        reload_excludes=[
-            "*.db",
-            "*.db-journal",
-            "*.pyc",
-            "__pycache__/*",
-            ".env",
-            "workflow_state.db",
-        ],
+        reload_excludes=["*.db", "*.db-journal", "*.db-wal", "*.pyc", "__pycache__/*", "workflow_state.db", ".env"],
     )
