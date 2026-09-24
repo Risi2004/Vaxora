@@ -244,6 +244,7 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, initialPr
         shiftDate: String(proposal.shiftDate).slice(0, 10),
         startTime: normalizeTime(proposal.startTime),
         endTime: normalizeTime(proposal.endTime),
+        boothId: proposal.boothId || null,
         boothOrStation: proposal.boothOrStation || null,
         notes: proposal.notes || 'Approved via Staff Scheduling Agent',
       });

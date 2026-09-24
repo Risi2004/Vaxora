@@ -12,6 +12,7 @@ try:
         tool_get_active_staff,
         tool_get_coverage,
         tool_get_hospital_shifts,
+        tool_review_roster,
         tool_suggest_week_coverage,
         tool_propose_shift_for_approval,
     )
@@ -22,6 +23,7 @@ except ImportError:
         tool_get_active_staff,
         tool_get_coverage,
         tool_get_hospital_shifts,
+        tool_review_roster,
         tool_suggest_week_coverage,
         tool_propose_shift_for_approval,
     )
@@ -32,16 +34,19 @@ STAFF_SCHEDULING_SYSTEM_PROMPT = """You are the official Vaxora Staff Scheduling
 You help with coverage and shift proposals. You only propose; the hospital must Approve in the UI.
 
 Tools (prefer few calls — be fast):
+- review_roster — PREFERRED for "what is wrong", thin days, workload, or filling gaps.
+  One call reads coverage, shifts, booths, and shift counts, explains the gaps, and
+  proposes only the missing morning/afternoon roles. Do not save anything.
 - get_active_staff — list doctors/nurses (affiliation roster)
 - get_coverage — Low / Partial / Good per day
 - get_hospital_shifts — existing shifts (who is scheduled on a date)
-- suggest_week_coverage — PREFERRED for "suggest / fill / low coverage this week".
-  One call returns AM/PM rotated proposals. Do NOT propose each shift one-by-one.
+- suggest_week_coverage — older full-week fill. Use review_roster instead when you can.
 - propose_shift_for_approval — ONLY for a single custom shift the user named
 
 Workflow:
-1. Week suggest / fill gaps: call suggest_week_coverage(from_date, to_date) once, then briefly summarize.
-2. Coverage question: call get_coverage once, summarize.
+1. What is wrong / fill gaps / suggest week: call review_roster(from_date, to_date) once.
+   Lead with the findings, then the proposals. Tell the hospital to Approve. Do not claim shifts were saved.
+2. Coverage question with no fix requested: call get_coverage once, summarize.
 3. Staff list: call get_active_staff once. Summarize as name + role only.
    Do NOT list liveClockStatus / Off / OnDuty unless the user asks who is clocked in right now.
 4. Who works today / a date: call get_hospital_shifts, NOT get_active_staff.
@@ -82,12 +87,12 @@ def _build_follow_ups(
         follow_ups.append(f"Who still has low coverage{range_label}?")
         follow_ups.append("List my active staff")
     elif "coverage" in user_text or "gap" in user_text or "low" in user_text:
-        follow_ups.append(f"Suggest shifts for low coverage{range_label}")
+        follow_ups.append(f"Review what is wrong{range_label}")
         follow_ups.append("List my active staff")
         follow_ups.append(f"Show existing shifts{range_label}")
     elif "staff" in user_text or "doctor" in user_text or "nurse" in user_text:
         follow_ups.append(f"Check coverage{range_label}")
-        follow_ups.append(f"Suggest shifts for low coverage{range_label}")
+        follow_ups.append(f"Review what is wrong{range_label}")
         follow_ups.append("Who is on duty right now?")
     elif "shift" in user_text or "suggest" in user_text or "propose" in user_text:
         follow_ups.append(f"Check coverage{range_label}")
@@ -97,7 +102,7 @@ def _build_follow_ups(
         follow_ups.extend(
             [
                 f"Check coverage{range_label}",
-                f"Suggest shifts for low coverage{range_label}",
+                f"Review what is wrong{range_label}",
                 "List my active staff",
                 "Who can cover low days this week?",
             ]
@@ -205,7 +210,7 @@ class StaffSchedulingAgent:
         tool_results: List[Dict[str, Any]] = []
 
         wants_suggest = any(
-            k in user_text for k in ("suggest", "propose", "fill gap", "low coverage")
+            k in user_text for k in ("suggest", "propose", "fill gap", "low coverage", "review", "wrong", "workload")
         )
         wants_coverage = "coverage" in user_text or "gap" in user_text
         wants_staff = any(
@@ -226,14 +231,14 @@ class StaffSchedulingAgent:
             tool_results.append({"tool": "get_hospital_shifts", "result": shifts})
 
         if from_date and to_date and wants_suggest:
-            suggested = await tool_suggest_week_coverage(
+            reviewed = await tool_review_roster(
                 from_date=from_date,
                 to_date=to_date,
                 token=token,
             )
-            tool_results.append({"tool": "suggest_week_coverage", "result": suggested})
-            if suggested.get("success"):
-                for p in suggested.get("proposals") or []:
+            tool_results.append({"tool": "review_roster", "result": reviewed})
+            if reviewed.get("success"):
+                for p in reviewed.get("proposals") or []:
                     proposals.append(p)
 
         summary_prompt = [
@@ -337,6 +342,12 @@ class StaffSchedulingAgent:
                 to_date=arguments.get("to_date"),
                 token=token,
             )
+        if tool_name == "review_roster":
+            return await tool_review_roster(
+                from_date=arguments.get("from_date"),
+                to_date=arguments.get("to_date"),
+                token=token,
+            )
         if tool_name == "suggest_week_coverage":
             return await tool_suggest_week_coverage(
                 from_date=arguments.get("from_date"),
@@ -397,20 +408,33 @@ class StaffSchedulingAgent:
         # Fast path: Suggest Week / fill gaps → one API roster + one short LLM summary.
         user_text = self._last_user_text(messages).lower()
         dates = self._extract_dates(self._last_user_text(messages))
-        wants_suggest = any(
+        wants_review = any(
             k in user_text
-            for k in ("suggest", "propose", "fill gap", "low coverage", "suggest week")
+            for k in (
+                "suggest",
+                "propose",
+                "fill gap",
+                "low coverage",
+                "suggest week",
+                "what is wrong",
+                "what's wrong",
+                "review",
+                "workload",
+                "overloaded",
+                "thin",
+                "empty",
+            )
         )
-        if wants_suggest and len(dates) >= 2 and token:
+        if wants_review and len(dates) >= 2 and token:
             from_date, to_date = dates[0], dates[1]
-            suggested = await tool_suggest_week_coverage(
+            reviewed = await tool_review_roster(
                 from_date=from_date,
                 to_date=to_date,
                 token=token,
             )
             proposals: List[Dict[str, Any]] = []
-            if suggested.get("success"):
-                for p in suggested.get("proposals") or []:
+            if reviewed.get("success"):
+                for p in reviewed.get("proposals") or []:
                     proposals.append(p)
 
             summary_messages = [
@@ -418,16 +442,17 @@ class StaffSchedulingAgent:
                     "role": "system",
                     "content": (
                         "You are the Vaxora Staff Scheduling Agent. "
-                        "Summarize the roster proposals below in short bullets. "
-                        "Tell the hospital to Approve each in the UI. Do not invent staff. "
-                        "Keep the entire reply under 120 words."
+                        "Start with what is wrong in the roster, then mention proposals. "
+                        "Tell the hospital to Approve each proposal in the UI. "
+                        "Do not invent staff. Do not say shifts were saved. "
+                        "Keep the entire reply under 140 words."
                     ),
                 },
                 {
                     "role": "user",
                     "content": (
                         f"User asked: {self._last_user_text(messages)}\n\n"
-                        f"Tool result:\n{json.dumps(suggested, default=str)[:8000]}"
+                        f"Tool result:\n{json.dumps(reviewed, default=str)[:8000]}"
                     ),
                 },
             ]
@@ -436,15 +461,15 @@ class StaffSchedulingAgent:
                 content = (
                     msg.get("content")
                     or msg.get("reasoning")
-                    or suggested.get("message")
-                    or "Review the proposals below and Approve in the UI."
+                    or reviewed.get("message")
+                    or "Review the findings below and Approve any proposals in the UI."
                 )
                 if isinstance(content, str) and "</think>" in content:
                     content = content.split("</think>", 1)[-1].strip()
             except Exception as e:
                 logger.error("Fast-path summarize failed: %s", e)
-                content = suggested.get("message") or (
-                    f"Prepared {len(proposals)} proposal(s). Approve them in the UI."
+                content = reviewed.get("message") or (
+                    f"Found {len(proposals)} gap proposal(s). Approve them in the UI."
                 )
 
             return {
@@ -530,7 +555,7 @@ class StaffSchedulingAgent:
                     prop = tool_output.get("proposal")
                     if prop:
                         proposals.append(prop)
-                elif fn_name == "suggest_week_coverage" and tool_output.get("success"):
+                elif fn_name in ("suggest_week_coverage", "review_roster") and tool_output.get("success"):
                     for p in tool_output.get("proposals") or []:
                         proposals.append(p)
 
