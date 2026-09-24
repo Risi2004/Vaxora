@@ -8,5 +8,6 @@ export { default as HospitalInventoryTab } from './HospitalInventoryTab';
 export { default as HospitalProfileTab } from './HospitalProfileTab';
 export { default as HospitalAppointmentsTab } from './HospitalAppointmentsTab';
 export { default as HospitalStaffTab } from './HospitalStaffTab';
+export { default as HospitalBoothsTab } from './HospitalBoothsTab';
 export { default as AddStaffRequestModal } from './AddStaffRequestModal';
 export { default as FeedbackTab } from '../../../components/FeedbackTab';

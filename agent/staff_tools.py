@@ -98,6 +98,7 @@ async def tool_propose_shift_for_approval(
     start_time: str,
     end_time: str,
     booth_or_station: Optional[str] = None,
+    booth_id: Optional[str] = None,
     notes: Optional[str] = None,
     reason: Optional[str] = None,
 ) -> Dict[str, Any]:
@@ -105,19 +106,22 @@ async def tool_propose_shift_for_approval(
     Build a shift proposal for the hospital to approve in the UI.
     Does NOT create the shift yet.
     """
+    proposal: Dict[str, Any] = {
+        "affiliationId": affiliation_id,
+        "staffName": staff_name,
+        "shiftDate": _clean_date_string(shift_date),
+        "startTime": _normalize_time(start_time),
+        "endTime": _normalize_time(end_time),
+        "boothOrStation": booth_or_station,
+        "notes": notes,
+        "reason": reason or "Suggested by Staff Scheduling Agent",
+    }
+    if booth_id:
+        proposal["boothId"] = booth_id
     return {
         "success": True,
         "status": "proposal_pending_hospital_approval",
-        "proposal": {
-            "affiliationId": affiliation_id,
-            "staffName": staff_name,
-            "shiftDate": _clean_date_string(shift_date),
-            "startTime": _normalize_time(start_time),
-            "endTime": _normalize_time(end_time),
-            "boothOrStation": booth_or_station,
-            "notes": notes,
-            "reason": reason or "Suggested by Staff Scheduling Agent",
-        },
+        "proposal": proposal,
     }
 
 
@@ -215,8 +219,8 @@ STAFF_TOOLS_SCHEMA = [
             "name": "suggest_week_coverage",
             "description": (
                 "PREFERRED for week/fill/low-coverage requests. One call returns AM/PM "
-                "rotated shift proposals for Low/Partial days. Prefer this over many "
-                "propose_shift_for_approval calls."
+                "rotated shift proposals for Low/Partial days, using configured hospital "
+                "booths when available. Prefer this over many propose_shift_for_approval calls."
             ),
             "parameters": {
                 "type": "object",
@@ -246,7 +250,14 @@ STAFF_TOOLS_SCHEMA = [
                     "shift_date": {"type": "string", "description": "YYYY-MM-DD"},
                     "start_time": {"type": "string", "description": "HH:mm e.g. 08:00 or 13:00"},
                     "end_time": {"type": "string", "description": "HH:mm e.g. 12:00 or 17:00"},
-                    "booth_or_station": {"type": "string"},
+                    "booth_or_station": {
+                        "type": "string",
+                        "description": "Optional free-text label if no booth_id",
+                    },
+                    "booth_id": {
+                        "type": "string",
+                        "description": "Optional hospital booth GUID from configured booths",
+                    },
                     "notes": {"type": "string"},
                     "reason": {"type": "string"},
                 },

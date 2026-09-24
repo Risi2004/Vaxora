@@ -10,6 +10,7 @@ export {
   HospitalProfileTab,
   HospitalAppointmentsTab,
   HospitalStaffTab,
+  HospitalBoothsTab,
   AddStaffRequestModal,
   FeedbackTab,
 } from './components';

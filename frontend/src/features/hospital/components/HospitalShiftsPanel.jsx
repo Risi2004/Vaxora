@@ -61,7 +61,7 @@ const emptyForm = {
   shiftDate: hospitalToday(),
   startTime: '08:00',
   endTime: '16:00',
-  boothOrStation: '',
+  boothId: '',
   notes: '',
 };
 
@@ -84,6 +84,7 @@ const coverageColor = {
 
 export default function HospitalShiftsPanel() {
   const [activeStaff, setActiveStaff] = useState([]);
+  const [booths, setBooths] = useState([]);
   const [shifts, setShifts] = useState([]);
   const [coverage, setCoverage] = useState(null);
   const [form, setForm] = useState(emptyForm);
@@ -120,13 +121,15 @@ export default function HospitalShiftsPanel() {
     }
     setError('');
     try {
-      const [staff, shiftList] = await Promise.all([
+      const [staff, shiftList, boothList] = await Promise.all([
         staffService.getHospitalStaff({ status: 'Active' }),
         staffService.getHospitalShifts({ from: weekStart, to: weekEnd }),
+        staffService.getHospitalBooths({ activeOnly: true }).catch(() => []),
       ]);
 
       setActiveStaff(Array.isArray(staff) ? staff : []);
       setShifts(Array.isArray(shiftList) ? shiftList : []);
+      setBooths(Array.isArray(boothList) ? boothList : []);
 
       try {
         const coverageReport = await staffService.getCoverage({ from: weekStart, to: weekEnd });
@@ -143,6 +146,7 @@ export default function HospitalShiftsPanel() {
       if (!silent) {
         setActiveStaff([]);
         setShifts([]);
+        setBooths([]);
         setCoverage(null);
       }
     } finally {
@@ -159,12 +163,14 @@ export default function HospitalShiftsPanel() {
   /** Refresh shifts + coverage without blanking the calendar. */
   const refreshRosterQuietly = useCallback(async () => {
     try {
-      const [shiftList, coverageReport] = await Promise.all([
+      const [shiftList, coverageReport, boothList] = await Promise.all([
         staffService.getHospitalShifts({ from: weekStart, to: weekEnd }),
         staffService.getCoverage({ from: weekStart, to: weekEnd }).catch(() => null),
+        staffService.getHospitalBooths({ activeOnly: true }).catch(() => []),
       ]);
       setShifts(Array.isArray(shiftList) ? shiftList : []);
       if (coverageReport) setCoverage(coverageReport);
+      setBooths(Array.isArray(boothList) ? boothList : []);
     } catch (err) {
       setError(err.message || 'Failed to refresh roster.');
     }
@@ -208,7 +214,7 @@ export default function HospitalShiftsPanel() {
       shiftDate: String(shift.shiftDate).slice(0, 10),
       startTime: String(shift.startTime).slice(0, 5),
       endTime: String(shift.endTime).slice(0, 5),
-      boothOrStation: shift.boothOrStation || '',
+      boothId: shift.boothId || '',
       notes: shift.notes || '',
     });
     setError('');
@@ -231,7 +237,8 @@ export default function HospitalShiftsPanel() {
       shiftDate: form.shiftDate,
       startTime: form.startTime.length === 5 ? `${form.startTime}:00` : form.startTime,
       endTime: form.endTime.length === 5 ? `${form.endTime}:00` : form.endTime,
-      boothOrStation: form.boothOrStation || null,
+      boothId: form.boothId || null,
+      boothOrStation: null,
       notes: form.notes || null,
     };
 
@@ -544,15 +551,25 @@ export default function HospitalShiftsPanel() {
             </div>
 
             <div className="modal-form-group" style={{ margin: 0 }}>
-              <label className="modal-label">Booth / Station</label>
-              <input
-                type="text"
-                name="boothOrStation"
-                value={form.boothOrStation}
+              <label className="modal-label">Booth</label>
+              <select
+                name="boothId"
+                value={form.boothId}
                 onChange={handleChange}
-                className="modal-input"
-                placeholder="Optional"
-              />
+                className="modal-select"
+              >
+                <option value="">No booth assigned</option>
+                {booths.map((booth) => (
+                  <option key={booth.boothId} value={booth.boothId}>
+                    {booth.displayLabel || `${booth.code} · ${booth.name}`}
+                  </option>
+                ))}
+              </select>
+              {booths.length === 0 && (
+                <p style={{ margin: '6px 0 0', fontSize: '0.78rem', color: '#64748b' }}>
+                  Add booths under Booths to assign stations here.
+                </p>
+              )}
             </div>
           </div>
 
