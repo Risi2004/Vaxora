@@ -138,7 +138,6 @@ public class InventoryController : ControllerBase
         }
     }
 
-    // === ADDED: EXPIRING BATCHES (must come BEFORE batches/{id}/audit) ===
     [HttpGet("batches/expiring")]
     public async Task<IActionResult> GetExpiringBatches([FromQuery] int daysThreshold = 60)
     {
@@ -287,6 +286,45 @@ public class InventoryController : ControllerBase
         {
             _logger.LogError(ex, "Error fetching summary");
             return StatusCode(500, new { message = "Failed to fetch summary." });
+        }
+    }
+
+    // ==================== AGENT DRAFT EXECUTION (ADDED) ====================
+
+    [HttpPost("agent/execute-draft")]
+    [Authorize(Roles = "HOSPITAL,ADMIN")]
+    public async Task<IActionResult> ExecuteAgentDraft([FromBody] ExecuteDraftDto dto)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+        try
+        {
+            var result = await _inventoryService.ExecuteAgentDraftAsync(GetUserId(), dto);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error executing agent draft");
+            return StatusCode(500, new { message = "Failed to execute agent draft." });
+        }
+    }
+
+    [HttpGet("agent/workflows")]
+    [Authorize(Roles = "HOSPITAL,ADMIN")]
+    public async Task<IActionResult> GetAgentWorkflows([FromQuery] int limit = 20)
+    {
+        try
+        {
+            var result = await _inventoryService.GetRecentAgentWorkflowsAsync(GetUserId(), limit);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching agent workflows");
+            return StatusCode(500, new { message = "Failed to fetch workflows." });
         }
     }
 }

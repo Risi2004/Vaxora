@@ -1,7 +1,7 @@
 """
 Expiry Watchdog Agent — Agent 2 of 2.
 Multi-step workflow:
-  Plan → Scan expiring batches → Investigate → Prioritize → Validate → Propose (pause for approval)
+  Plan → Scan expiring batches → Investigate → Prioritize → Validate → Draft Memo (pause for approval)
 Uses Groq LLM.
 """
 import json
@@ -15,6 +15,7 @@ try:
     from .planner import extract_plan_from_response, EXPIRY_DEFAULT_PLAN
     from .validator import validate_expiry_action, compute_expiry_priority
     from .state_store import state_store
+    from .draft_generator import generate_expiry_memo_draft
     from .inventory_tools import (
         EXPIRY_TOOLS_SCHEMA,
         tool_get_expiring_batches,
@@ -27,6 +28,7 @@ except ImportError:
     from inventory.planner import extract_plan_from_response, EXPIRY_DEFAULT_PLAN
     from inventory.validator import validate_expiry_action, compute_expiry_priority
     from inventory.state_store import state_store
+    from inventory.draft_generator import generate_expiry_memo_draft
     from inventory.inventory_tools import (
         EXPIRY_TOOLS_SCHEMA,
         tool_get_expiring_batches,
@@ -41,7 +43,7 @@ class ExpiryWatchdogAgent:
     name = "ExpiryAgent"
     description = (
         "Scans vaccine batches for upcoming expiry, prioritizes by urgency and quantity, "
-        "and proposes actions (dispense first / transfer / dispose). Pauses for admin approval."
+        "and produces a formal Expiry Action Memo for admin approval."
     )
 
     def __init__(self):
@@ -67,7 +69,6 @@ class ExpiryWatchdogAgent:
             )
             if resp.status_code >= 400:
                 logger.error(f"[{self.name}] Groq error {resp.status_code}: {resp.text[:1000]}")
-                logger.error(f"[{self.name}] Payload sent: {json.dumps(payload)[:1000]}")
             resp.raise_for_status()
             return resp.json()["choices"][0]["message"]
 
@@ -126,22 +127,24 @@ class ExpiryWatchdogAgent:
         workflow_id = state_store.create(self.name, user_id, objective)
 
         conversation = [{"role": "system", "content": EXPIRY_AGENT_SYSTEM_PROMPT}]
+        hospital_name = "Unknown Hospital"
         if user_info:
+            hospital_name = user_info.get("name", hospital_name)
             conversation.append({
                 "role": "system",
-                "content": f"Hospital context: {user_info.get('name', 'Unknown')}",
+                "content": f"Hospital context: {hospital_name}",
             })
         conversation.extend(messages)
 
-        # Planning step — deterministic (LLM planning triggers Groq tool_choice quirk on reasoning models)
+        # Planning — deterministic
         plan: List[Dict[str, Any]] = [dict(s) for s in EXPIRY_DEFAULT_PLAN]
-
         state_store.set_plan(workflow_id, plan)
         state_store.append_step(workflow_id, {"step": "planning", "status": "completed", "plan": plan})
 
         max_iter = 8
         iteration = 0
-        proposal = None
+        expiry_actions: List[Dict[str, Any]] = []
+        summary = ""
         final_content = ""
 
         while iteration < max_iter:
@@ -158,6 +161,7 @@ class ExpiryWatchdogAgent:
                     "workflow_id": workflow_id,
                     "plan": plan,
                     "proposal": None,
+                    "draft": None,
                 }
 
             tool_calls = msg.get("tool_calls") or []
@@ -180,7 +184,9 @@ class ExpiryWatchdogAgent:
                     tool_result = await self._execute_tool(fn_name, fn_args, token, workflow_id)
 
                     if fn_name == "propose_expiry_action" and tool_result.get("success"):
-                        proposal = tool_result
+                        proposal = tool_result.get("proposal", {})
+                        expiry_actions = proposal.get("actions", [])
+                        summary = proposal.get("summary", "")
 
                     conversation.append({
                         "role": "tool",
@@ -192,11 +198,20 @@ class ExpiryWatchdogAgent:
                 break
 
         if not final_content:
-            final_content = "Expiry scan complete. Please review the proposed action plan."
+            final_content = "Expiry scan complete. Please review the draft memo."
+
+        # Build the draft memo
+        draft = None
+        if expiry_actions:
+            draft = generate_expiry_memo_draft(
+                expiry_actions=expiry_actions,
+                summary=summary,
+                hospital_name=hospital_name,
+            )
 
         state_store.set_outcome(
             workflow_id,
-            "proposal_pending_approval" if proposal else "scan_completed",
+            "proposal_pending_approval" if draft else "no_action_needed",
         )
 
         return {
@@ -205,7 +220,8 @@ class ExpiryWatchdogAgent:
             "content": final_content,
             "workflow_id": workflow_id,
             "plan": plan,
-            "proposal": proposal,
+            "proposal": {"actions": expiry_actions, "summary": summary} if expiry_actions else None,
+            "draft": draft,
         }
 
 
