@@ -1,13 +1,16 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import staffService from '../services/staffService';
+import inventoryService from '../services/inventoryService';
 
 const emptyForm = {
   code: '',
   name: '',
+  vaccineIds: [],
 };
 
 export default function HospitalBoothsPanel() {
   const [booths, setBooths] = useState([]);
+  const [vaccines, setVaccines] = useState([]);
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -15,29 +18,68 @@ export default function HospitalBoothsPanel() {
   const [actionId, setActionId] = useState(null);
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
+  const toastTimerRef = useRef(null);
 
   const showToast = (message) => {
     setToast(message);
-    setTimeout(() => setToast(''), 3500);
+    clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => setToast(''), 3500);
   };
+
+  useEffect(() => () => clearTimeout(toastTimerRef.current), []);
+
+  const readBooths = useCallback(async () => {
+    const [data, formulary] = await Promise.all([
+      staffService.getHospitalBooths(),
+      inventoryService.getFormulary().catch(() => []),
+    ]);
+    const boothList = Array.isArray(data) ? data : [];
+    const options = Array.isArray(formulary)
+      ? formulary
+          .map((entry) => ({
+            id: entry.vaccineId || entry.VaccineId,
+            name: entry.vaccineName || entry.VaccineName,
+          }))
+          .filter((entry) => entry.id && entry.name)
+      : [];
+    return { boothList, options };
+  }, []);
 
   const loadBooths = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const data = await staffService.getHospitalBooths();
-      setBooths(Array.isArray(data) ? data : []);
+      const { boothList, options } = await readBooths();
+      setBooths(boothList);
+      setVaccines(options);
     } catch (err) {
       setError(err.message || 'Failed to load booths.');
       setBooths([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [readBooths]);
 
   useEffect(() => {
-    loadBooths();
-  }, [loadBooths]);
+    let cancelled = false;
+    readBooths()
+      .then(({ boothList, options }) => {
+        if (cancelled) return;
+        setBooths(boothList);
+        setVaccines(options);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setError(err.message || 'Failed to load booths.');
+        setBooths([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [readBooths]);
 
   const resetForm = () => {
     setForm(emptyForm);
@@ -49,6 +91,7 @@ export default function HospitalBoothsPanel() {
     setForm({
       code: booth.code || '',
       name: booth.name || '',
+      vaccineIds: Array.isArray(booth.vaccineIds) ? booth.vaccineIds : [],
     });
     setError('');
   };
@@ -70,12 +113,14 @@ export default function HospitalBoothsPanel() {
           name: form.name.trim(),
           isActive: current?.isActive !== false,
           sortOrder: current?.sortOrder,
+          vaccineIds: form.vaccineIds,
         });
         showToast('Booth updated.');
       } else {
         await staffService.createHospitalBooth({
           code: form.code.trim(),
           name: form.name.trim(),
+          vaccineIds: form.vaccineIds,
         });
         showToast('Booth created.');
       }
@@ -101,6 +146,7 @@ export default function HospitalBoothsPanel() {
           name: booth.name,
           isActive: true,
           sortOrder: booth.sortOrder,
+          vaccineIds: booth.vaccineIds || [],
         });
         showToast('Booth reactivated.');
       }
@@ -135,7 +181,7 @@ export default function HospitalBoothsPanel() {
             <span>🚪</span> Vaccination Booths
           </h2>
           <p className="section-title-desc">
-            Create, edit, or deactivate vaccination booths. Shifts and Suggest Week use these stations.
+            Each booth lists the vaccines it gives. Bookings for those vaccines open that booth.
           </p>
         </div>
 
@@ -165,6 +211,52 @@ export default function HospitalBoothsPanel() {
                 required
               />
             </div>
+          </div>
+
+          <div className="modal-form-group" style={{ margin: 0 }}>
+            <label className="modal-label">Vaccines this booth gives</label>
+            {vaccines.length === 0 ? (
+              <p style={{ margin: '6px 0 0', color: '#64748b', fontSize: '0.85rem' }}>
+                Register vaccines under Inventory before assigning them here.
+              </p>
+            ) : (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '6px' }}>
+                {vaccines.map((vaccine) => {
+                  const checked = form.vaccineIds.includes(vaccine.id);
+                  return (
+                    <label
+                      key={vaccine.id}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '6px 10px',
+                        borderRadius: '999px',
+                        border: `1px solid ${checked ? '#7dd3fc' : '#e2e8f0'}`,
+                        background: checked ? '#f0f9ff' : '#ffffff',
+                        fontSize: '0.82rem',
+                        color: '#0f172a',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() =>
+                          setForm((prev) => ({
+                            ...prev,
+                            vaccineIds: checked
+                              ? prev.vaccineIds.filter((id) => id !== vaccine.id)
+                              : [...prev.vaccineIds, vaccine.id],
+                          }))
+                        }
+                      />
+                      {vaccine.name}
+                    </label>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
@@ -282,6 +374,28 @@ export default function HospitalBoothsPanel() {
                 </button>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+              {Array.isArray(booth.vaccineNames) && booth.vaccineNames.length > 0 ? (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                  {booth.vaccineNames.map((name) => (
+                    <span
+                      key={name}
+                      style={{
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                        color: '#0369a1',
+                        background: '#f0f9ff',
+                        border: '1px solid #bae6fd',
+                        borderRadius: '999px',
+                        padding: '2px 8px',
+                      }}
+                    >
+                      {name}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <span style={{ fontSize: '0.78rem', color: '#b45309' }}>No vaccines assigned</span>
+              )}
                 <span className="booth-status-indicator" style={{ color: booth.isActive ? '#15803d' : '#64748b' }}>
                   <span
                     className="telemetry-pulse"

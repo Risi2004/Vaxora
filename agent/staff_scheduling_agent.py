@@ -1,7 +1,8 @@
 import json
 import logging
 import re
-from typing import List, Dict, Any, Optional
+from datetime import date, timedelta
+from typing import List, Dict, Any, Optional, Tuple
 
 import httpx
 
@@ -15,6 +16,9 @@ try:
         tool_review_roster,
         tool_suggest_week_coverage,
         tool_propose_shift_for_approval,
+        _hospital_today,
+        bind_hospital,
+        note_decline_message,
     )
 except ImportError:
     from config import settings
@@ -26,17 +30,21 @@ except ImportError:
         tool_review_roster,
         tool_suggest_week_coverage,
         tool_propose_shift_for_approval,
+        _hospital_today,
+        bind_hospital,
+        note_decline_message,
     )
 
 logger = logging.getLogger("vaxora-staff-scheduling-agent")
 
 STAFF_SCHEDULING_SYSTEM_PROMPT = """You are the official Vaxora Staff Scheduling Agent for hospital users.
-You help with coverage and shift proposals. You only propose; the hospital must Approve in the UI.
+You help with coverage and shift proposals. You only suggest shifts. The hospital presses Approve or Decline on each one. Never say "UI".
 
 Tools (prefer few calls — be fast):
-- review_roster — PREFERRED for "what is wrong", thin days, workload, or filling gaps.
-  One call reads coverage, shifts, booths, and shift counts, explains the gaps, and
-  proposes only the missing morning/afternoon roles. Do not save anything.
+- review_roster — PREFERRED for suggest week, what to staff, or filling gaps.
+  One call reads booked appointments, existing shifts, and booths. It opens only
+  booths that list the booked vaccine, then proposes the missing nurses and doctors.
+  Days with no bookings get no shifts. Do not save anything.
 - get_active_staff — list doctors/nurses (affiliation roster)
 - get_coverage — Low / Partial / Good per day
 - get_hospital_shifts — existing shifts (who is scheduled on a date)
@@ -45,7 +53,8 @@ Tools (prefer few calls — be fast):
 
 Workflow:
 1. What is wrong / fill gaps / suggest week: call review_roster(from_date, to_date) once.
-   Lead with the findings, then the proposals. Tell the hospital to Approve. Do not claim shifts were saved.
+   Summarize findings briefly. Do NOT re-list every proposal. Tell them to press Approve or Decline.
+   Do not claim shifts were saved.
 2. Coverage question with no fix requested: call get_coverage once, summarize.
 3. Staff list: call get_active_staff once. Summarize as name + role only.
    Do NOT list liveClockStatus / Off / OnDuty unless the user asks who is clocked in right now.
@@ -60,62 +69,282 @@ Critical — liveClockStatus vs roster:
 
 Rules: Be concise. Never invent IDs/dates. Never claim shifts were created.
 Past dates cannot be scheduled.
+
+How you speak:
+- You are talking to hospital staff, not developers.
+- Never mention tool names, function names, JSON, or field names.
+- Never say Off, OnDuty, OnBreak, or liveClockStatus.
+- Clock-in is not the roster. Mention it only if they ask who is in the building right now, and then say "clocked in" or "not clocked in yet".
 """
 
 _DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
+_ORDINAL_DAY_RE = re.compile(r"\b(\d{1,2})(?:st|nd|rd|th)\b", re.IGNORECASE)
+
+_SHIFT_REQUESTS = (
+    "suggest",
+    "propose",
+    "fill gap",
+    "low coverage",
+    "what is wrong",
+    "what's wrong",
+    "review",
+    "workload",
+    "create shift",
+    "create shifts",
+    "make shift",
+    "make shifts",
+    "add shift",
+    "add shifts",
+    "schedule shift",
+    "schedule shifts",
+    "staff for",
+    "staff the",
+    "staff tomorrow",
+    "staff clinic",
+    "staff ",
+    "put people",
+    "put a nurse",
+    "put nurses",
+    "put a doctor",
+    "put doctors",
+    "need staff",
+    "need nurses",
+    "need doctors",
+    "open booth",
+)
+
+
+def _wants_shift_suggestions(text: str) -> bool:
+    lowered = (text or "").lower()
+    return any(phrase in lowered for phrase in _SHIFT_REQUESTS)
+
+
+def _resolve_roster_range(text: str) -> Optional[Tuple[str, str]]:
+    """Turn 'tomorrow' or calendar dates into the range review_roster expects."""
+    dates = _DATE_RE.findall(text or "")
+    if len(dates) >= 2:
+        return dates[0], dates[1]
+    if len(dates) == 1:
+        return dates[0], dates[0]
+    today = date.fromisoformat(_hospital_today())
+    lowered = (text or "").lower()
+    if "tomorrow" in lowered:
+        day = (today + timedelta(days=1)).isoformat()
+        return day, day
+    if "today" in lowered:
+        return today.isoformat(), today.isoformat()
+    if "this week" in lowered or "week" in lowered or _wants_shift_suggestions(lowered):
+        return _rest_of_week(today)
+    return None
 
 
 def _build_follow_ups(
     messages: List[Dict[str, Any]],
     proposals: Optional[List[Dict[str, Any]]] = None,
 ) -> List[str]:
-    """Contextual next-step chips for the hospital UI (not model-generated text)."""
-    user_text = ""
-    for m in reversed(messages or []):
-        if m.get("role") == "user":
-            user_text = str(m.get("content") or "").lower()
-            break
-
-    dates = _DATE_RE.findall(user_text)
-    from_date = dates[0] if len(dates) >= 1 else None
-    to_date = dates[1] if len(dates) >= 2 else dates[0] if dates else None
-    range_label = f" from {from_date} to {to_date}" if from_date and to_date else " this week"
-
-    follow_ups: List[str] = []
+    """Plain next steps a hospital user can tap. The agent reads these as normal sentences."""
     if proposals:
-        follow_ups.append("Summarize the proposals I still need to approve")
-        follow_ups.append(f"Who still has low coverage{range_label}?")
-        follow_ups.append("List my active staff")
-    elif "coverage" in user_text or "gap" in user_text or "low" in user_text:
-        follow_ups.append(f"Review what is wrong{range_label}")
-        follow_ups.append("List my active staff")
-        follow_ups.append(f"Show existing shifts{range_label}")
-    elif "staff" in user_text or "doctor" in user_text or "nurse" in user_text:
-        follow_ups.append(f"Check coverage{range_label}")
-        follow_ups.append(f"Review what is wrong{range_label}")
-        follow_ups.append("Who is on duty right now?")
-    elif "shift" in user_text or "suggest" in user_text or "propose" in user_text:
-        follow_ups.append(f"Check coverage{range_label}")
-        follow_ups.append("List my active staff")
-        follow_ups.append("Who can cover the thinnest day?")
-    else:
-        follow_ups.extend(
-            [
-                f"Check coverage{range_label}",
-                f"Review what is wrong{range_label}",
-                "List my active staff",
-                "Who can cover low days this week?",
-            ]
-        )
+        return [
+            "Staff the next day as well",
+            "Who is working tomorrow?",
+            "Who is on my staff?",
+        ]
+    return [
+        "Staff the rest of the week",
+        "Who is working tomorrow?",
+        "Who is on my staff?",
+        "How busy are we this week?",
+    ]
 
-    # De-dupe while preserving order
-    seen = set()
-    unique: List[str] = []
-    for item in follow_ups:
-        if item not in seen:
-            seen.add(item)
-            unique.append(item)
-    return unique[:4]
+
+def _parse_intent(text: str) -> Optional[Dict[str, Any]]:
+    raw = text or ""
+    if "</think>" in raw:
+        raw = raw.split("</think>", 1)[-1]
+    start = raw.find("{")
+    end = raw.rfind("}")
+    if start < 0 or end <= start:
+        return None
+    try:
+        data = json.loads(raw[start : end + 1])
+    except Exception:
+        return None
+    action = str(data.get("action") or "")
+    if action not in {"suggest_shifts", "show_schedule", "show_coverage", "list_staff", "answer"}:
+        return None
+    return data
+
+
+def _named_day(text: str) -> Optional[str]:
+    """Turn '26th' into the next calendar date with that day number."""
+    match = _ORDINAL_DAY_RE.search(text or "")
+    if not match:
+        return None
+    day_number = int(match.group(1))
+    if day_number < 1 or day_number > 31:
+        return None
+    cursor = date.fromisoformat(_hospital_today())
+    for _ in range(14):
+        year = cursor.year + (cursor.month - 1) // 12
+        month = (cursor.month - 1) % 12 + 1
+        try:
+            found = date(year, month, day_number)
+        except ValueError:
+            cursor = date(year + (month // 12), (month % 12) + 1, 1)
+            continue
+        if found >= date.fromisoformat(_hospital_today()):
+            return found.isoformat()
+        cursor = date(year + (month // 12), (month % 12) + 1, 1)
+    return None
+
+
+def _rest_of_week(today: date) -> Tuple[str, str]:
+    """Tomorrow through Sunday. Next week if Sunday is already past."""
+    tomorrow = today + timedelta(days=1)
+    sunday = today + timedelta(days=6 - today.weekday())
+    if tomorrow > sunday:
+        sunday = tomorrow + timedelta(days=6)
+    return tomorrow.isoformat(), sunday.isoformat()
+
+
+def _local_intent(text: str) -> Optional[Dict[str, Any]]:
+    """Handle the usual hospital sentences without waiting on the model."""
+    lowered = (text or "").lower()
+    today = date.fromisoformat(_hospital_today())
+    tomorrow = (today + timedelta(days=1)).isoformat()
+    week_end = (today + timedelta(days=6)).isoformat()
+    weekdays = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+    if any(day in lowered for day in weekdays):
+        return None
+
+    if any(phrase in lowered for phrase in ("who is on my staff", "my staff", "list my staff", "who works here")):
+        return {"action": "list_staff", "from": None, "to": None}
+    if any(phrase in lowered for phrase in ("who is working", "who is scheduled", "already scheduled", "who's working")):
+        named = _named_day(text)
+        if named:
+            day = named
+        elif "tomorrow" in lowered:
+            day = tomorrow
+        elif "today" in lowered:
+            day = today.isoformat()
+        else:
+            day = None
+        if day:
+            return {"action": "show_schedule", "from": day, "to": day}
+        return {"action": "show_schedule", "from": today.isoformat(), "to": week_end}
+    if "how busy" in lowered or "coverage" in lowered:
+        return {"action": "show_coverage", "from": today.isoformat(), "to": week_end}
+    if _wants_shift_suggestions(lowered):
+        dates = _DATE_RE.findall(text or "")
+        if len(dates) >= 2:
+            return {"action": "suggest_shifts", "from": dates[0], "to": dates[1]}
+        if len(dates) == 1:
+            return {"action": "suggest_shifts", "from": dates[0], "to": dates[0]}
+        named = _named_day(text)
+        if named:
+            return {"action": "suggest_shifts", "from": named, "to": named}
+        if "tomorrow" in lowered or "next day" in lowered:
+            return {"action": "suggest_shifts", "from": tomorrow, "to": tomorrow}
+        if "today" in lowered:
+            return {"action": "suggest_shifts", "from": today.isoformat(), "to": today.isoformat()}
+        start, end = _rest_of_week(today)
+        return {"action": "suggest_shifts", "from": start, "to": end}
+    return None
+
+
+def _speak_dates(text: str) -> str:
+    def spoken(match: re.Match[str]) -> str:
+        found = date.fromisoformat(match.group(0))
+        return f"{found.day} {found.strftime('%B')}"
+
+    return _DATE_RE.sub(spoken, text)
+
+
+def _briefing(payload: Dict[str, Any], proposals: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    openings = payload.get("openings") or []
+    if not openings:
+        return None
+    days: List[Dict[str, Any]] = []
+    for item in openings:
+        day = next((row for row in days if row["date"] == item.get("date")), None)
+        if day is None:
+            day = {"date": item.get("date"), "slots": []}
+            days.append(day)
+        day["slots"].append(
+            {
+                "name": item.get("slot"),
+                "count": item.get("count") or 0,
+                "vaccine": item.get("vaccine") or "",
+                "booths": list(item.get("booths") or []),
+            }
+        )
+    return {
+        "days": days,
+        "shiftCount": len(proposals),
+    }
+
+
+def _plain_reply(action: str, payload: Dict[str, Any], proposals: List[Dict[str, Any]]) -> str:
+    if action == "suggest_shifts":
+        if _briefing(payload, proposals):
+            count = len(proposals)
+            if count:
+                return f"{count} suggested shifts are ready. Press Approve all, or Approve or Decline on each one."
+        findings = [str(item).strip() for item in (payload.get("findings") or []) if str(item).strip()]
+        return "\n".join(findings) or "There are no appointments for that day, so no booths need to be opened."
+
+    if action == "list_staff":
+        people = payload.get("staff") or []
+        if not people:
+            return "No doctors or nurses are on your staff."
+        lines = []
+        for person in people:
+            role = str(person.get("staffRole") or "").upper()
+            title = "doctor" if role == "DOCTOR" else "nurse" if role == "NURSE" else "staff member"
+            lines.append(f"- {person.get('staffName') or 'A staff member'} is a {title}.")
+        return "\n".join(lines)
+
+    if action == "show_schedule":
+        shifts = payload.get("shifts") or []
+        if not shifts:
+            return "Nobody is scheduled for that day."
+        lines = []
+        for shift in shifts[:12]:
+            name = shift.get("staffName") or shift.get("StaffName") or "Someone"
+            day = str(shift.get("shiftDate") or shift.get("ShiftDate") or "")[:10]
+            start = str(shift.get("startTime") or shift.get("StartTime") or "")[:5]
+            lines.append(f"- {name} is scheduled on {day} at {start}.")
+        return "\n".join(lines)
+
+    days = (payload.get("coverage") or {}).get("days") or (payload.get("coverage") or {}).get("Days") or []
+    if not isinstance(days, list) or not days:
+        return "I could not read how busy the week is."
+    words = {"Low": "needs more people", "Partial": "is partly covered", "Good": "is covered"}
+    lines = []
+    for day in days:
+        level = str(day.get("coverageLevel") or day.get("CoverageLevel") or "")
+        date_text = str(day.get("date") or day.get("Date") or "")[:10]
+        lines.append(f"- {date_text} {words.get(level, 'needs a look')}.")
+    return "\n".join(lines)
+
+
+def _intent_dates(intent: Dict[str, Any]) -> Tuple[str, str]:
+    today = date.fromisoformat(_hospital_today())
+    tomorrow = (today + timedelta(days=1)).isoformat()
+    week_end = (today + timedelta(days=6)).isoformat()
+    action = intent.get("action")
+    default_from = tomorrow if action == "suggest_shifts" else today.isoformat()
+    default_to = tomorrow if action == "suggest_shifts" else week_end
+
+    def pick(value: Any, fallback: str) -> str:
+        found = _DATE_RE.findall(str(value or ""))
+        return found[0] if found else fallback
+
+    start = pick(intent.get("from"), default_from)
+    end = pick(intent.get("to"), default_to)
+    if start > end:
+        start, end = end, start
+    return start, end
 
 
 class StaffSchedulingAgent:
@@ -146,7 +375,7 @@ class StaffSchedulingAgent:
             "messages": messages,
             "temperature": 0.2,
             # Keep replies short; Qwen3 thinking is disabled below for speed.
-            "max_tokens": 1024,
+            "max_tokens": 180,
             "chat_template_kwargs": {"enable_thinking": False},
         }
         if tools:
@@ -191,6 +420,120 @@ class StaffSchedulingAgent:
                 return str(m.get("content") or "")
         return ""
 
+    async def _respond_from_intent(
+        self,
+        messages: List[Dict[str, Any]],
+        token: Optional[str],
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Read a normal hospital sentence and do the matching roster action.
+        Returns None when the model does not give a usable decision, so older routing can run.
+        """
+        user_text = self._last_user_text(messages).strip()
+        if not user_text or not token:
+            return None
+
+        intent = _local_intent(user_text)
+        if intent is None:
+            intent = await self._read_model_intent(user_text)
+        if intent is None:
+            return None
+
+        action = intent["action"]
+        if _wants_shift_suggestions(user_text) and action != "list_staff":
+            action = "suggest_shifts"
+            intent["action"] = action
+        named_day = _named_day(user_text)
+        if named_day and action == "suggest_shifts":
+            intent["from"] = named_day
+            intent["to"] = named_day
+
+        proposals: List[Dict[str, Any]] = []
+        briefing = None
+        if action == "answer":
+            try:
+                reply = await self._call_llm(
+                    [
+                        {"role": "system", "content": STAFF_SCHEDULING_SYSTEM_PROMPT},
+                        *messages,
+                    ],
+                    tools=None,
+                )
+                content = reply.get("content") or reply.get("reasoning") or "How else can I help with the roster?"
+            except Exception as e:
+                logger.error("Plain reply failed: %s", e)
+                return None
+        else:
+            start, end = _intent_dates(intent)
+            if action == "suggest_shifts":
+                payload = await tool_review_roster(from_date=start, to_date=end, token=token)
+                if payload.get("success"):
+                    proposals = list(payload.get("proposals") or [])
+            elif action == "show_schedule":
+                payload = await tool_get_hospital_shifts(start, end, token=token)
+            elif action == "show_coverage":
+                payload = await tool_get_coverage(start, end, token=token)
+            else:
+                payload = await tool_get_active_staff(token=token)
+            if not isinstance(payload, dict) or not payload.get("success"):
+                content = "I could not finish that. Please try again."
+            else:
+                briefing = _briefing(payload, proposals) if action == "suggest_shifts" else None
+                content = _speak_dates(_plain_reply(action, payload, proposals))
+
+        if isinstance(content, str) and "</think>" in content:
+            content = content.split("</think>", 1)[-1].strip()
+
+        return {
+            "agent": self.name,
+            "role": "assistant",
+            "content": content,
+            "briefing": briefing,
+            "proposals": proposals or None,
+            "suggestedFollowUps": _build_follow_ups(messages, proposals),
+        }
+
+    async def _read_model_intent(self, user_text: str) -> Optional[Dict[str, Any]]:
+        today = date.fromisoformat(_hospital_today())
+        tomorrow = today + timedelta(days=1)
+        week_end = today + timedelta(days=6)
+        try:
+            decision = await self._call_llm(
+                [
+                    {
+                        "role": "system",
+                        "content": (
+                            f"Today is {today.isoformat()} ({today.strftime('%A')}). "
+                            f"Tomorrow is {tomorrow.isoformat()}. "
+                            f"This week runs through {week_end.isoformat()}.\n"
+                            "Decide what the hospital user wants. Reply with JSON only:\n"
+                            '{"action":"suggest_shifts"|"show_schedule"|"show_coverage"|"list_staff"|"answer",'
+                            '"from":"YYYY-MM-DD or null","to":"YYYY-MM-DD or null"}\n'
+                            "suggest_shifts: they want shifts made, people put on, booths staffed, gaps filled, or the roster fixed. "
+                            "'staff 26th' means suggest shifts for that day, not a question about who is already working.\n"
+                            "show_schedule: they want who is already working.\n"
+                            "show_coverage: they want which days are busy or thin, and they are not asking to add shifts.\n"
+                            "list_staff: they want the doctors and nurses at this hospital.\n"
+                            "answer: anything else.\n"
+                            "If they want shifts and name no day, from and to are tomorrow.\n"
+                            "A named weekday means the next date with that weekday, including today.\n"
+                            "A day like 26th means that day of this month if it is still ahead, otherwise next month."
+                        ),
+                    },
+                    {"role": "user", "content": user_text},
+                ],
+                tools=None,
+            )
+        except Exception as e:
+            logger.warning("Intent read failed: %s", e)
+            return None
+
+        intent_text = decision.get("content") or decision.get("reasoning") or ""
+        intent = _parse_intent(intent_text if isinstance(intent_text, str) else "")
+        if intent is None:
+            logger.warning("Intent was not usable: %s", str(intent_text)[:300])
+        return intent
+
     async def _run_without_native_tools(
         self,
         messages: List[Dict[str, Any]],
@@ -201,17 +544,15 @@ class StaffSchedulingAgent:
         Fallback when vLLM was started without --enable-auto-tool-choice.
         Routes common intents in Python, then asks the LLM to summarize only.
         """
-        user_text = self._last_user_text(messages).lower()
-        dates = self._extract_dates(self._last_user_text(messages))
-        from_date = dates[0] if len(dates) >= 1 else None
-        to_date = dates[1] if len(dates) >= 2 else dates[0] if dates else None
+        raw_user = self._last_user_text(messages)
+        user_text = raw_user.lower()
+        roster_range = _resolve_roster_range(raw_user)
+        from_date, to_date = roster_range if roster_range else (None, None)
 
         proposals: List[Dict[str, Any]] = []
         tool_results: List[Dict[str, Any]] = []
 
-        wants_suggest = any(
-            k in user_text for k in ("suggest", "propose", "fill gap", "low coverage", "review", "wrong", "workload")
-        )
+        wants_suggest = _wants_shift_suggestions(user_text)
         wants_coverage = "coverage" in user_text or "gap" in user_text
         wants_staff = any(
             k in user_text for k in ("staff", "doctor", "nurse", "who is", "roster member")
@@ -248,8 +589,10 @@ class StaffSchedulingAgent:
                     STAFF_SCHEDULING_SYSTEM_PROMPT
                     + "\n\nNative tool calling is unavailable on this LLM server. "
                     "Tool results are provided below. Summarize them for the hospital user. "
-                    "Do not invent staff or dates. If proposals exist, list each one and "
-                    "tell them to Approve in the UI."
+                    "Do not invent staff or dates. Do not list every staff name. "
+                    "Say which vaccines were booked and which booth each vaccine opened. "
+                    "Only when suggested shifts exist, say how many and to press Approve or Decline. "
+                    "When there are none, do not mention Approve or Decline. Never say UI."
                 ),
             }
         ]
@@ -295,7 +638,7 @@ class StaffSchedulingAgent:
                     for p in proposals
                 ]
                 content = (
-                    "Suggested shifts for low-coverage days (approve in the UI):\n"
+                    "Suggested shifts. Press Approve or Decline on each one:\n"
                     + "\n".join(lines)
                 )
             elif tool_results:
@@ -373,8 +716,7 @@ class StaffSchedulingAgent:
             return {
                 "success": False,
                 "error": (
-                    "Not permitted. Shifts are only created or removed by the hospital user "
-                    "in the Vaxora UI. Use propose_shift_for_approval instead."
+                    "Not permitted. Only suggest the shift. The hospital presses Approve or Decline."
                 ),
             }
         return {"error": f"Unknown tool: {tool_name}"}
@@ -389,6 +731,20 @@ class StaffSchedulingAgent:
         Conversational tool-calling loop for hospital staff scheduling.
         Falls back when the RunPod/vLLM pod was started without tool-calling flags.
         """
+        bind_hospital(patient_info, token)
+        if note_decline_message(self._last_user_text(messages)):
+            return {
+                "agent": self.name,
+                "role": "assistant",
+                "content": "Noted.",
+                "proposals": None,
+                "suggestedFollowUps": [],
+            }
+
+        handled = await self._respond_from_intent(messages, token)
+        if handled is not None:
+            return handled
+
         if self._native_tools_supported is False:
             return await self._run_without_native_tools(messages, token, patient_info)
 
@@ -406,28 +762,12 @@ class StaffSchedulingAgent:
             )
         conversation.extend(messages)
 
-        # Fast path: Suggest Week / fill gaps → one API roster + one short LLM summary.
-        user_text = self._last_user_text(messages).lower()
-        dates = self._extract_dates(self._last_user_text(messages))
-        wants_review = any(
-            k in user_text
-            for k in (
-                "suggest",
-                "propose",
-                "fill gap",
-                "low coverage",
-                "suggest week",
-                "what is wrong",
-                "what's wrong",
-                "review",
-                "workload",
-                "overloaded",
-                "thin",
-                "empty",
-            )
-        )
-        if wants_review and len(dates) >= 2 and token:
-            from_date, to_date = dates[0], dates[1]
+        # Fast path: plain requests like "create shifts for tomorrow".
+        raw_user = self._last_user_text(messages)
+        user_text = raw_user.lower()
+        roster_range = _resolve_roster_range(raw_user)
+        if _wants_shift_suggestions(user_text) and roster_range and token:
+            from_date, to_date = roster_range
             reviewed = await tool_review_roster(
                 from_date=from_date,
                 to_date=to_date,
@@ -443,10 +783,13 @@ class StaffSchedulingAgent:
                     "role": "system",
                     "content": (
                         "You are the Vaxora Staff Scheduling Agent. "
-                        "Start with what is wrong in the roster, then mention proposals. "
-                        "Tell the hospital to Approve each proposal in the UI. "
-                        "Do not invent staff. Do not say shifts were saved. "
-                        "Keep the entire reply under 140 words."
+                        "Say which vaccines were booked and which booth each vaccine opened. "
+                        "Do NOT list every staff name. "
+                        "Do NOT print unicode escapes. "
+                        "Only when suggested shifts exist, tell them to press Approve or Decline. "
+                        "When there are none, do not mention Approve or Decline. Never say UI. "
+                        "Never mention tool names, function names, or status codes. "
+                        "Do not invent staff. Do not say shifts were saved."
                     ),
                 },
                 {
@@ -463,14 +806,14 @@ class StaffSchedulingAgent:
                     msg.get("content")
                     or msg.get("reasoning")
                     or reviewed.get("message")
-                    or "Review the findings below and Approve any proposals in the UI."
+                    or "There are no appointments for that day, so no booths need to be opened."
                 )
                 if isinstance(content, str) and "</think>" in content:
                     content = content.split("</think>", 1)[-1].strip()
             except Exception as e:
                 logger.error("Fast-path summarize failed: %s", e)
                 content = reviewed.get("message") or (
-                    f"Found {len(proposals)} gap proposal(s). Approve them in the UI."
+                    f"Found {len(proposals)} suggested shift(s). Press Approve or Decline on each one."
                 )
 
             return {

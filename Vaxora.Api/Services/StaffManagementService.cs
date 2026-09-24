@@ -392,6 +392,8 @@ public class StaffManagementService : IStaffManagementService
             query = query.Where(b => b.IsActive);
 
         var list = await query
+            .Include(b => b.Vaccines)
+            .ThenInclude(v => v.Vaccine)
             .OrderBy(b => b.SortOrder)
             .ThenBy(b => b.Code)
             .ToListAsync();
@@ -417,6 +419,7 @@ public class StaffManagementService : IStaffManagementService
             .Select(b => (int?)b.SortOrder)
             .MaxAsync() ?? 0;
 
+        var vaccineIds = await NormalizeBoothVaccineIdsAsync(dto.VaccineIds);
         var booth = new HospitalBooth
         {
             HospitalUserId = hospitalUserId,
@@ -426,6 +429,14 @@ public class StaffManagementService : IStaffManagementService
             SortOrder = dto.SortOrder ?? (maxSort + 1),
             CreatedAt = DateTime.UtcNow
         };
+        foreach (var vaccineId in vaccineIds)
+        {
+            booth.Vaccines.Add(new HospitalBoothVaccine
+            {
+                BoothId = booth.Id,
+                VaccineId = vaccineId
+            });
+        }
 
         _context.HospitalBooths.Add(booth);
         await AddShiftAuditAsync(
@@ -433,7 +444,7 @@ public class StaffManagementService : IStaffManagementService
             "HOSPITAL_BOOTH_CREATED",
             $"Booth {booth.DisplayLabel} created");
         await _context.SaveChangesAsync();
-        return MapBooth(booth);
+        return await LoadBoothDtoAsync(booth.Id);
     }
 
     public async Task<HospitalBoothDto> UpdateHospitalBoothAsync(
@@ -444,6 +455,7 @@ public class StaffManagementService : IStaffManagementService
         await EnsureActiveHospitalAsync(hospitalUserId);
 
         var booth = await _context.HospitalBooths
+            .Include(b => b.Vaccines)
             .FirstOrDefaultAsync(b => b.Id == boothId && b.HospitalUserId == hospitalUserId);
         if (booth == null)
             throw new KeyNotFoundException("Booth not found for this hospital.");
@@ -472,12 +484,14 @@ public class StaffManagementService : IStaffManagementService
         foreach (var shift in linkedShifts)
             shift.BoothOrStation = booth.DisplayLabel;
 
+        await ReplaceBoothVaccinesAsync(booth, dto.VaccineIds);
+
         await AddShiftAuditAsync(
             hospitalUserId,
             "HOSPITAL_BOOTH_UPDATED",
             $"Booth {booth.DisplayLabel} updated (active={booth.IsActive})");
         await _context.SaveChangesAsync();
-        return MapBooth(booth);
+        return await LoadBoothDtoAsync(booth.Id);
     }
 
     public async Task DeactivateHospitalBoothAsync(Guid hospitalUserId, Guid boothId)
@@ -1117,8 +1131,56 @@ public class StaffManagementService : IStaffManagementService
         return value;
     }
 
+    private async Task<List<Guid>> NormalizeBoothVaccineIdsAsync(IEnumerable<Guid>? vaccineIds)
+    {
+        var ids = (vaccineIds ?? Enumerable.Empty<Guid>())
+            .Where(id => id != Guid.Empty)
+            .Distinct()
+            .ToList();
+        if (ids.Count == 0)
+            return ids;
+
+        var known = await _context.Vaccines
+            .Where(v => ids.Contains(v.Id))
+            .Select(v => v.Id)
+            .ToListAsync();
+        if (known.Count != ids.Count)
+            throw new InvalidOperationException("One or more vaccines were not found.");
+        return ids;
+    }
+
+    private async Task ReplaceBoothVaccinesAsync(HospitalBooth booth, IEnumerable<Guid>? vaccineIds)
+    {
+        var ids = await NormalizeBoothVaccineIdsAsync(vaccineIds);
+        var wanted = ids.ToHashSet();
+        var existing = booth.Vaccines?.ToList() ?? new List<HospitalBoothVaccine>();
+        var remove = existing.Where(link => !wanted.Contains(link.VaccineId)).ToList();
+        if (remove.Count > 0)
+            _context.HospitalBoothVaccines.RemoveRange(remove);
+
+        var already = existing.Select(link => link.VaccineId).ToHashSet();
+        booth.Vaccines ??= new List<HospitalBoothVaccine>();
+        foreach (var vaccineId in ids)
+        {
+            if (already.Contains(vaccineId))
+                continue;
+            booth.Vaccines.Add(new HospitalBoothVaccine { BoothId = booth.Id, VaccineId = vaccineId });
+        }
+    }
+
+    private async Task<HospitalBoothDto> LoadBoothDtoAsync(Guid boothId)
+    {
+        var booth = await _context.HospitalBooths
+            .AsNoTracking()
+            .Include(b => b.Vaccines)
+            .ThenInclude(v => v.Vaccine)
+            .FirstAsync(b => b.Id == boothId);
+        return MapBooth(booth);
+    }
+
     private static HospitalBoothDto MapBooth(HospitalBooth booth)
     {
+        var links = booth.Vaccines?.ToList() ?? new List<HospitalBoothVaccine>();
         return new HospitalBoothDto
         {
             BoothId = booth.Id,
@@ -1128,7 +1190,13 @@ public class StaffManagementService : IStaffManagementService
             IsActive = booth.IsActive,
             SortOrder = booth.SortOrder,
             CreatedAt = booth.CreatedAt,
-            UpdatedAt = booth.UpdatedAt
+            UpdatedAt = booth.UpdatedAt,
+            VaccineIds = links.Select(v => v.VaccineId).ToList(),
+            VaccineNames = links
+                .Select(v => v.Vaccine?.Name)
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Select(name => name!)
+                .ToList()
         };
     }
 

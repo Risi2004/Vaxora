@@ -43,6 +43,9 @@ public class CreateHospitalBoothDto
     public string Name { get; set; } = string.Empty;
 
     public int? SortOrder { get; set; }
+
+    /// <summary>Vaccines this booth can give. Bookings for these vaccines open this booth.</summary>
+    public List<Guid> VaccineIds { get; set; } = new();
 }
 
 public class UpdateHospitalBoothDto
@@ -58,6 +61,8 @@ public class UpdateHospitalBoothDto
     public bool IsActive { get; set; } = true;
 
     public int? SortOrder { get; set; }
+
+    public List<Guid> VaccineIds { get; set; } = new();
 }
 
 public class HospitalBoothDto
@@ -70,6 +75,8 @@ public class HospitalBoothDto
     public int SortOrder { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
+    public List<Guid> VaccineIds { get; set; } = new();
+    public List<string> VaccineNames { get; set; } = new();
 }
 
 public class CreateStaffShiftDto

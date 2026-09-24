@@ -34,6 +34,8 @@ public class HospitalBooth
 
     public virtual ICollection<StaffShift> Shifts { get; set; } = new List<StaffShift>();
 
+    public virtual ICollection<HospitalBoothVaccine> Vaccines { get; set; } = new List<HospitalBoothVaccine>();
+
     [NotMapped]
     public string DisplayLabel => string.IsNullOrWhiteSpace(Code)
         ? Name

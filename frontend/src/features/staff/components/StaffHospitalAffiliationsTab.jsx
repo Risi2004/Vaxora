@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import staffService from '../../hospital/services/staffService';
 import { addHospitalDays, hospitalToday } from '../../hospital/utils/hospitalDate';
 
@@ -19,11 +19,15 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff' }) {
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
   const [actionId, setActionId] = useState(null);
+  const toastTimerRef = useRef(null);
 
   const showToast = (message) => {
     setToast(message);
-    setTimeout(() => setToast(''), 3500);
+    clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => setToast(''), 3500);
   };
+
+  useEffect(() => () => clearTimeout(toastTimerRef.current), []);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -153,7 +157,7 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff' }) {
                   <button
                     type="button"
                     className="doctor-table-btn"
-                    disabled={actionId === `${item.affiliationId}-Reject`}
+                    disabled={actionId != null && String(actionId).startsWith(item.affiliationId)}
                     onClick={() => handleRespond(item.affiliationId, 'Reject')}
                     style={{ color: '#b91c1c' }}
                   >
@@ -162,7 +166,7 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff' }) {
                   <button
                     type="button"
                     className="doctor-filter-btn active"
-                    disabled={actionId === `${item.affiliationId}-Accept`}
+                    disabled={actionId != null && String(actionId).startsWith(item.affiliationId)}
                     onClick={() => handleRespond(item.affiliationId, 'Accept')}
                   >
                     {actionId === `${item.affiliationId}-Accept` ? 'Accepting...' : 'Accept'}
