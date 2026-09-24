@@ -296,7 +296,7 @@ export default function HospitalShiftsPanel() {
   };
 
   const handleSuggestWeek = () => {
-    setAgentPrompt(`Suggest shifts for low coverage from ${weekStart} to ${weekEnd}`);
+    setAgentPrompt(`Suggest shifts for booked appointments from ${weekStart} to ${weekEnd}`);
     setShowAgentChat(true);
   };
 
