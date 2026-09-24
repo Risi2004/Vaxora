@@ -19,6 +19,7 @@ import {
   HospitalAppointmentsTab,
   HospitalInventoryTab,
   HospitalStaffTab,
+  HospitalBoothsTab,
   HospitalProfileTab,
   FeedbackTab as HospitalFeedbackTab,
 } from '../features/hospital';
@@ -97,6 +98,7 @@ export default function AppRoutes() {
         <Route path="appointments" element={<HospitalAppointmentsTab />} />
         <Route path="inventory" element={<HospitalInventoryTab />} />
         <Route path="staff" element={<HospitalStaffTab />} />
+        <Route path="booths" element={<HospitalBoothsTab />} />
         <Route path="feedback" element={<HospitalFeedbackTab />} />
         <Route path="profile" element={<HospitalProfileTab />} />
       </Route>

@@ -104,6 +104,30 @@ export const staffService = {
     return apiRequest(`/staff/shifts/hospital${buildQuery({ from, to })}`);
   },
 
+  getHospitalBooths({ activeOnly } = {}) {
+    return apiRequest(`/staff/booths${buildQuery({ activeOnly })}`);
+  },
+
+  createHospitalBooth(payload) {
+    return apiRequest('/staff/booths', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  updateHospitalBooth(boothId, payload) {
+    return apiRequest(`/staff/booths/${boothId}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  deactivateHospitalBooth(boothId) {
+    return apiRequest(`/staff/booths/${boothId}`, {
+      method: 'DELETE',
+    });
+  },
+
   getCoverage({ from, to }) {
     return apiRequest(`/staff/coverage${buildQuery({ from, to })}`);
   },

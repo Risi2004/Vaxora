@@ -1,6 +1,27 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import WalkInRegistrationModal from './WalkInRegistrationModal';
 import RestockVaccineModal from './RestockVaccineModal';
+import staffService from '../services/staffService';
+import { hospitalMinutesNow, hospitalToday } from '../utils/hospitalDate';
+
+function timeToMinutes(value) {
+  const raw = String(value || '').slice(0, 5);
+  const [h, m] = raw.split(':').map(Number);
+  if (Number.isNaN(h) || Number.isNaN(m)) return null;
+  return h * 60 + m;
+}
+
+function formatShiftWindow(shift) {
+  const start = String(shift.startTime || '').slice(0, 5);
+  const end = String(shift.endTime || '').slice(0, 5);
+  return `${start}–${end}`;
+}
+
+function roleLabel(role) {
+  if (role === 'DOCTOR') return 'Doctor';
+  if (role === 'NURSE') return 'Nurse';
+  return role || 'Staff';
+}
 
 export default function HospitalDashboardOverview() {
   const [isWalkInOpen, setIsWalkInOpen] = useState(false);
@@ -8,6 +29,10 @@ export default function HospitalDashboardOverview() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [mohReportNotice, setMohReportNotice] = useState(false);
+  const [boothCards, setBoothCards] = useState([]);
+  const [boothsLoading, setBoothsLoading] = useState(true);
+  const [boothsError, setBoothsError] = useState('');
+  const [onDutyCount, setOnDutyCount] = useState(0);
 
   // Live Queue Patients State
   const [queuePatients, setQueuePatients] = useState([
@@ -162,49 +187,76 @@ export default function HospitalDashboardOverview() {
     },
   ]);
 
-  // Booth Allocations
-  const booths = [
-    {
-      id: 1,
-      boothName: 'Booth 01 - Adult Immunization',
-      staffName: 'Dr. Samantha Perera',
-      role: 'Medical Officer (General Medicine)',
-      avatar: '👨‍⚕️',
-      currentPatient: 'Chaminda W. (T-101)',
-      administeredToday: 38,
-      status: 'Active',
-    },
-    {
-      id: 2,
-      boothName: 'Booth 02 - Specialty & Senior',
-      staffName: 'Dr. Nimal Jayawardena',
-      role: 'Consultant Immunologist',
-      avatar: '👨‍⚕️',
-      currentPatient: 'Preparing Next',
-      administeredToday: 41,
-      status: 'Active',
-    },
-    {
-      id: 3,
-      boothName: 'Booth 03 - Fast-Track Routine',
-      staffName: 'Nurse Anoma Silva',
-      role: 'Certified Vaccination Officer',
-      avatar: '👩‍⚕️',
-      currentPatient: 'Observation (T-102)',
-      administeredToday: 34,
-      status: 'Active',
-    },
-    {
-      id: 4,
-      boothName: 'Booth 04 - Pediatric & Maternal',
-      staffName: 'Nurse Dilani Fernando',
-      role: 'Community Health Nurse',
-      avatar: '👩‍⚕️',
-      currentPatient: 'Calling T-104',
-      administeredToday: 29,
-      status: 'Active',
-    },
-  ];
+  const loadBoothStaffing = useCallback(async () => {
+    setBoothsLoading(true);
+    setBoothsError('');
+    const today = hospitalToday();
+    const nowMinutes = hospitalMinutesNow();
+
+    try {
+      const [boothList, shiftList, staffList] = await Promise.all([
+        staffService.getHospitalBooths({ activeOnly: true }),
+        staffService.getHospitalShifts({ from: today, to: today }),
+        staffService.getHospitalStaff({ status: 'Active' }),
+      ]);
+
+      const booths = Array.isArray(boothList) ? boothList : [];
+      const shifts = Array.isArray(shiftList) ? shiftList : [];
+      const staff = Array.isArray(staffList) ? staffList : [];
+
+      setOnDutyCount(staff.filter((s) => s.dutyStatus === 'OnDuty').length);
+
+      const dutyByAffiliation = new Map(
+        staff.map((s) => [s.affiliationId, s.dutyStatus || 'Off'])
+      );
+
+      const cards = booths.map((booth, index) => {
+        const boothShifts = shifts
+          .filter((s) => s.boothId && s.boothId === booth.boothId)
+          .sort((a, b) => String(a.startTime).localeCompare(String(b.startTime)));
+
+        const liveShift = boothShifts.find((s) => {
+          const start = timeToMinutes(s.startTime);
+          const end = timeToMinutes(s.endTime);
+          return start != null && end != null && start <= nowMinutes && nowMinutes < end;
+        });
+
+        const primary = liveShift || boothShifts[0] || null;
+        const duty = primary ? dutyByAffiliation.get(primary.affiliationId) : null;
+        const isLive = Boolean(liveShift);
+
+        return {
+          id: booth.boothId,
+          code: booth.code || String(index + 1).padStart(2, '0'),
+          boothName: booth.displayLabel || `${booth.code} · ${booth.name}`,
+          staffName: primary?.staffName || 'Unassigned',
+          role: primary
+            ? `${roleLabel(primary.staffRole)} · ${formatShiftWindow(primary)}`
+            : 'No shift scheduled today',
+          avatar: primary?.staffRole === 'NURSE' ? '👩‍⚕️' : '👨‍⚕️',
+          rosterLine: boothShifts.length
+            ? boothShifts
+                .map((s) => `${s.staffName} (${formatShiftWindow(s)})`)
+                .join(' · ')
+            : '',
+          status: !primary ? 'Unstaffed' : isLive ? (duty === 'OnDuty' ? 'On duty' : 'In session') : 'Scheduled',
+          shiftCount: boothShifts.length,
+        };
+      });
+
+      setBoothCards(cards);
+    } catch (err) {
+      setBoothCards([]);
+      setOnDutyCount(0);
+      setBoothsError(err.message || 'Failed to load booth staffing.');
+    } finally {
+      setBoothsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadBoothStaffing();
+  }, [loadBoothStaffing]);
 
   // Actions
   const handleAddWalkIn = (newPatient) => {
@@ -252,6 +304,10 @@ export default function HospitalDashboardOverview() {
   });
 
   const totalStock = inventory.reduce((acc, curr) => acc + curr.available, 0);
+  const staffedBoothCount = useMemo(
+    () => boothCards.filter((b) => b.shiftCount > 0).length,
+    [boothCards]
+  );
 
   return (
     <div className="hospital-dashboard-tab">
@@ -569,45 +625,91 @@ export default function HospitalDashboardOverview() {
               <span>🚪</span> Vaccination Booths &amp; On-Duty Medical Staff
             </h2>
             <p className="section-title-desc">
-              Station staffing, throughput rates, and active healthcare practitioners
+              Live from Booths and today’s shift roster
             </p>
           </div>
-          <span className="hospital-tag-item" style={{ background: '#f1f5f9', color: '#334155' }}>
-            4 Stations Operational
-          </span>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <span className="hospital-tag-item" style={{ background: '#f1f5f9', color: '#334155' }}>
+              {boothCards.length} booth{boothCards.length === 1 ? '' : 's'} · {staffedBoothCount} staffed
+            </span>
+            <span className="hospital-tag-item" style={{ background: '#ecfdf5', color: '#047857' }}>
+              {onDutyCount} on duty now
+            </span>
+            <button
+              type="button"
+              className="btn-hospital-secondary"
+              onClick={loadBoothStaffing}
+              disabled={boothsLoading}
+              style={{ padding: '6px 12px', fontSize: '0.82rem' }}
+            >
+              {boothsLoading ? 'Refreshing...' : 'Refresh'}
+            </button>
+          </div>
         </div>
 
-        <div className="booths-grid">
-          {booths.map((booth) => (
-            <div key={booth.id} className="booth-card">
-              <div className="booth-card-header">
-                <div className="booth-title-box">
-                  <span className="booth-number-tag">{booth.id}</span>
-                  <span className="booth-title">{booth.boothName}</span>
-                </div>
-                <div className="booth-status-indicator">
-                  <span className="telemetry-pulse" style={{ width: '6px', height: '6px' }} />
-                  <span>{booth.status}</span>
-                </div>
-              </div>
+        {boothsError && (
+          <div
+            className="appointment-alert-pill"
+            role="alert"
+            style={{ marginBottom: '12px', background: '#fef2f2', color: '#b91c1c', borderColor: '#fecaca' }}
+          >
+            {boothsError}
+          </div>
+        )}
 
-              <div className="booth-staff-info">
-                <div className="staff-avatar-mini">{booth.avatar}</div>
-                <div className="staff-text-group">
-                  <span className="staff-name">{booth.staffName}</span>
-                  <span className="staff-role-desc">{booth.role}</span>
+        {boothsLoading ? (
+          <p style={{ color: '#64748b', margin: 0 }}>Loading booth staffing...</p>
+        ) : boothCards.length === 0 ? (
+          <p style={{ color: '#64748b', margin: 0 }}>
+            No active booths yet. Add stations under Staff → Booths, then assign shifts to them.
+          </p>
+        ) : (
+          <div className="booths-grid">
+            {boothCards.map((booth) => (
+              <div key={booth.id} className="booth-card">
+                <div className="booth-card-header">
+                  <div className="booth-title-box">
+                    <span className="booth-number-tag">{booth.code}</span>
+                    <span className="booth-title">{booth.boothName}</span>
+                  </div>
+                  <div className="booth-status-indicator">
+                    <span className="telemetry-pulse" style={{ width: '6px', height: '6px' }} />
+                    <span>{booth.status}</span>
+                  </div>
                 </div>
-              </div>
 
-              <div className="booth-stats-row">
-                <span>Current: <strong style={{ color: '#19469d' }}>{booth.currentPatient}</strong></span>
-                <span>
-                  Administered: <span className="booth-stat-bold">{booth.administeredToday}</span>
-                </span>
+                <div className="booth-staff-info">
+                  <div className="staff-avatar-mini">{booth.avatar}</div>
+                  <div className="staff-text-group">
+                    <span className="staff-name">{booth.staffName}</span>
+                    <span className="staff-role-desc">{booth.role}</span>
+                  </div>
+                </div>
+
+                <div className="booth-stats-row">
+                  <span>
+                    Today:{' '}
+                    <strong style={{ color: '#19469d' }}>
+                      {booth.shiftCount} shift{booth.shiftCount === 1 ? '' : 's'}
+                    </strong>
+                  </span>
+                </div>
+                {booth.rosterLine ? (
+                  <p
+                    style={{
+                      margin: '8px 0 0',
+                      fontSize: '0.78rem',
+                      color: '#64748b',
+                      lineHeight: 1.35,
+                    }}
+                  >
+                    {booth.rosterLine}
+                  </p>
+                ) : null}
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Modals */}
