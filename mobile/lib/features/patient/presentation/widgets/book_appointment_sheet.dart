@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../data/models/schedule_model.dart';
+import '../../data/repositories/appointment_repository.dart';
+import '../../data/repositories/patient_repository.dart';
 
 class BookAppointmentSheet extends StatefulWidget {
   final Function(Map<String, dynamic> appointmentData) onAppointmentBooked;
@@ -16,64 +19,110 @@ class BookAppointmentSheet extends StatefulWidget {
 class _BookAppointmentSheetState extends State<BookAppointmentSheet> {
   final _notesController = TextEditingController();
 
-  final List<String> _vaccines = [
+  List<String> _vaccines = [
     'COVID-19 mRNA Booster (Moderna / Pfizer)',
+    'AstraZeneca',
     'Influenza (Quadrivalent Seasonal)',
     'Hepatitis B Recombinant Booster',
     'HPV (Human Papillomavirus)',
     'Tetanus & Diphtheria (Td Adult)',
   ];
 
-  final List<Map<String, String>> _hospitals = [
-    {
-      'name': 'National Hospital of Sri Lanka',
-      'location': 'Colombo 10',
-      'type': 'Government Center',
-      'fee': '0',
-    },
-    {
-      'name': 'Colombo South Teaching Hospital',
-      'location': 'Kalubowila',
-      'type': 'Government Center',
-      'fee': '0',
-    },
-    {
-      'name': 'Asiri Central Hospital',
-      'location': 'Norris Canal Rd, Colombo 10',
-      'type': 'Private Healthcare',
-      'fee': '2500',
-    },
-    {
-      'name': 'Kandy National Hospital',
-      'location': 'William Gopallawa Mawatha, Kandy',
-      'type': 'Government Center',
-      'fee': '0',
-    },
-  ];
+  List<HospitalScheduleModel> _schedules = [];
 
-  final List<String> _slots = [
+  List<String> _slots = [
     '09:00 AM - 09:20 AM',
     '09:20 AM - 09:40 AM',
+    '09:40 AM - 10:00 AM',
     '10:00 AM - 10:20 AM',
-    '10:30 AM - 10:50 AM',
-    '11:00 AM - 11:20 AM',
+    '10:20 AM - 10:40 AM',
+    '10:40 AM - 11:00 AM',
     '02:00 PM - 02:20 PM',
-    '02:30 PM - 02:50 PM',
+    '02:20 PM - 02:40 PM',
   ];
 
   String? _selectedVaccine;
-  Map<String, String>? _selectedHospital;
+  HospitalScheduleModel? _selectedSchedule;
   DateTime? _selectedDate;
   String? _selectedSlot;
+  bool _isLoadingData = true;
+  bool _isLoadingSlots = false;
   bool _isSubmitting = false;
+  String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
-    _selectedVaccine = _vaccines.first;
-    _selectedHospital = _hospitals.first;
-    _selectedSlot = _slots.first;
     _selectedDate = DateTime.now().add(const Duration(days: 2));
+    _fetchBackendData();
+  }
+
+  Future<void> _fetchBackendData() async {
+    setState(() => _isLoadingData = true);
+    try {
+      final futures = await Future.wait([
+        PatientRepository.getAvailableSchedules(),
+        PatientRepository.getVaccines(),
+      ]);
+
+      final schedules = futures[0] as List<HospitalScheduleModel>;
+      final vaccines = futures[1] as List<VaccineItemModel>;
+
+      if (mounted) {
+        setState(() {
+          if (vaccines.isNotEmpty) {
+            final distinctNames = vaccines.map((v) => v.name).toSet().toList();
+            _vaccines = distinctNames;
+          }
+          _schedules = schedules;
+
+          if (_vaccines.isNotEmpty) {
+            _selectedVaccine = _vaccines.first;
+          }
+          if (_schedules.isNotEmpty) {
+            _selectedSchedule = _schedules.first;
+          }
+          _selectedSlot = _slots.first;
+          _isLoadingData = false;
+        });
+
+        _fetchSlotsForCurrentSelection();
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _isLoadingData = false);
+      }
+    }
+  }
+
+  Future<void> _fetchSlotsForCurrentSelection() async {
+    if (_selectedSchedule == null || _selectedVaccine == null || _selectedDate == null) {
+      return;
+    }
+
+    setState(() => _isLoadingSlots = true);
+    try {
+      final dateStr =
+          "${_selectedDate!.year}-${_selectedDate!.month.toString().padLeft(2, '0')}-${_selectedDate!.day.toString().padLeft(2, '0')}";
+
+      final slots = await PatientRepository.getAvailableSlots(
+        hospitalUserId: _selectedSchedule!.hospitalUserId,
+        vaccineName: _selectedVaccine!,
+        date: dateStr,
+      );
+
+      if (mounted && slots.isNotEmpty) {
+        setState(() {
+          _slots = slots.map((s) => s.slot).toList();
+          _selectedSlot = _slots.first;
+          _isLoadingSlots = false;
+        });
+      } else if (mounted) {
+        setState(() => _isLoadingSlots = false);
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoadingSlots = false);
+    }
   }
 
   @override
@@ -105,45 +154,69 @@ class _BookAppointmentSheetState extends State<BookAppointmentSheet> {
 
     if (picked != null) {
       setState(() => _selectedDate = picked);
+      _fetchSlotsForCurrentSelection();
     }
   }
 
-  void _handleConfirm() {
-    if (_selectedVaccine == null ||
-        _selectedHospital == null ||
-        _selectedDate == null ||
-        _selectedSlot == null) {
+  Future<void> _handleConfirm() async {
+    if (_selectedVaccine == null || _selectedDate == null || _selectedSlot == null) {
+      setState(() => _errorMessage = 'Please complete all required fields.');
       return;
     }
 
-    setState(() => _isSubmitting = true);
+    final hospitalUserId = _selectedSchedule?.hospitalUserId;
+    if (hospitalUserId == null || hospitalUserId.isEmpty) {
+      setState(() => _errorMessage = 'Please select a valid hospital.');
+      return;
+    }
 
-    Future.delayed(const Duration(milliseconds: 900), () {
+    setState(() {
+      _isSubmitting = true;
+      _errorMessage = null;
+    });
+
+    final dateStr =
+        "${_selectedDate!.year}-${_selectedDate!.month.toString().padLeft(2, '0')}-${_selectedDate!.day.toString().padLeft(2, '0')}";
+
+    try {
+      final appt = await AppointmentRepository.bookAppointment(
+        hospitalUserId: hospitalUserId,
+        vaccineName: _selectedVaccine!,
+        appointmentDate: dateStr,
+        timeSlot: _selectedSlot!,
+        notes: _notesController.text.trim(),
+      );
+
       if (mounted) {
         setState(() => _isSubmitting = false);
-        final dateStr =
-            "${_selectedDate!.year}-${_selectedDate!.month.toString().padLeft(2, '0')}-${_selectedDate!.day.toString().padLeft(2, '0')}";
-
         widget.onAppointmentBooked({
-          'id': 'VX-APT-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}',
-          'vaccineName': _selectedVaccine!,
-          'hospitalName': _selectedHospital!['name']!,
-          'location': _selectedHospital!['location']!,
-          'date': dateStr,
-          'time': _selectedSlot!.split(' - ').first,
-          'doctorName': 'Assigned Medical Officer',
-          'status': 'Confirmed',
-          'fee': double.tryParse(_selectedHospital!['fee'] ?? '0') ?? 0.0,
-          'isPaid': (_selectedHospital!['fee'] ?? '0') == '0',
+          'id': appt.referenceNumber ?? (appt.id.length > 8 ? appt.id.substring(0, 8) : appt.id),
+          'vaccineName': appt.vaccineName,
+          'hospitalName': appt.hospitalName,
+          'location': 'Assigned Center',
+          'date': appt.appointmentDate,
+          'time': appt.timeSlot,
+          'doctorName': 'Medical Officer',
+          'status': appt.status,
+          'fee': appt.fee ?? 0.0,
+          'isPaid': appt.isPaid,
         });
         Navigator.pop(context);
       }
-    });
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+          _errorMessage = e.toString().replaceFirst('ApiException: ', '').replaceFirst('Exception: ', '');
+        });
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final fee = _selectedHospital?['fee'] ?? '0';
+    final fee = _selectedSchedule != null ? _selectedSchedule!.price : 0.0;
+    final feeText = fee == 0.0 ? 'FREE (Gov. Immunization)' : 'LKR ${fee.toStringAsFixed(2)}';
 
     return Container(
       decoration: const BoxDecoration(
@@ -188,7 +261,28 @@ class _BookAppointmentSheetState extends State<BookAppointmentSheet> {
                   ),
                 ],
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 10),
+
+              if (_isLoadingData) ...[
+                const LinearProgressIndicator(color: AppColors.brandBlue),
+                const SizedBox(height: 12),
+              ],
+
+              if (_errorMessage != null) ...[
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.errorBg,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+                  ),
+                  child: Text(
+                    _errorMessage!,
+                    style: const TextStyle(color: AppColors.error, fontSize: 12, fontWeight: FontWeight.w600),
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
 
               // Select Vaccine
               const Text(
@@ -207,7 +301,10 @@ class _BookAppointmentSheetState extends State<BookAppointmentSheet> {
                     child: Text(v, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
                   );
                 }).toList(),
-                onChanged: (v) => setState(() => _selectedVaccine = v),
+                onChanged: (v) {
+                  setState(() => _selectedVaccine = v);
+                  _fetchSlotsForCurrentSelection();
+                },
               ),
               const SizedBox(height: 14),
 
@@ -217,20 +314,46 @@ class _BookAppointmentSheetState extends State<BookAppointmentSheet> {
                 style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF475569)),
               ),
               const SizedBox(height: 6),
-              DropdownButtonFormField<Map<String, String>>(
-                initialValue: _selectedHospital,
-                decoration: const InputDecoration(hintText: 'Choose Center'),
-                dropdownColor: Colors.white,
-                isExpanded: true,
-                items: _hospitals.map((h) {
-                  return DropdownMenuItem(
-                    value: h,
-                    child: Text('${h['name']} (${h['location']})',
-                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
-                  );
-                }).toList(),
-                onChanged: (h) => setState(() => _selectedHospital = h),
-              ),
+              if (_schedules.isNotEmpty)
+                DropdownButtonFormField<HospitalScheduleModel>(
+                  initialValue: _selectedSchedule,
+                  decoration: const InputDecoration(hintText: 'Choose Center'),
+                  dropdownColor: Colors.white,
+                  isExpanded: true,
+                  items: _schedules.map((s) {
+                    return DropdownMenuItem(
+                      value: s,
+                      child: Text(
+                        '${s.hospitalName} • ${s.vaccineName} (${s.formattedPrice})',
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (s) {
+                    setState(() {
+                      _selectedSchedule = s;
+                      if (s?.vaccineName.isNotEmpty == true && _vaccines.contains(s!.vaccineName)) {
+                        _selectedVaccine = s.vaccineName;
+                      }
+                    });
+                    _fetchSlotsForCurrentSelection();
+                  },
+                )
+              else
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceSubtle,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppColors.borderLight),
+                  ),
+                  child: const Text(
+                    'National Hospital Network Center (Direct Assignment)',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.textTitle),
+                  ),
+                ),
               const SizedBox(height: 14),
 
               // Select Date
@@ -265,9 +388,20 @@ class _BookAppointmentSheetState extends State<BookAppointmentSheet> {
               const SizedBox(height: 14),
 
               // Select Slot
-              const Text(
-                'Available 20-Minute Time Slot *',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF475569)),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Available 20-Minute Time Slot *',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF475569)),
+                  ),
+                  if (_isLoadingSlots)
+                    const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.brandBlue),
+                    ),
+                ],
               ),
               const SizedBox(height: 8),
               Wrap(
@@ -276,7 +410,14 @@ class _BookAppointmentSheetState extends State<BookAppointmentSheet> {
                 children: _slots.map((slot) {
                   final isSelected = _selectedSlot == slot;
                   return ChoiceChip(
-                    label: Text(slot, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: isSelected ? Colors.white : AppColors.primaryDark)),
+                    label: Text(
+                      slot,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: isSelected ? Colors.white : AppColors.primaryDark,
+                      ),
+                    ),
                     selected: isSelected,
                     selectedColor: AppColors.brandBlue,
                     backgroundColor: const Color(0xFFF1F5F9),
@@ -317,11 +458,11 @@ class _BookAppointmentSheetState extends State<BookAppointmentSheet> {
                   children: [
                     const Text('Service Charge / Fee:', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textBody)),
                     Text(
-                      fee == '0' ? 'FREE (Gov. Immunization)' : 'LKR $fee',
+                      feeText,
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
-                        color: fee == '0' ? AppColors.success : AppColors.brandBlue,
+                        color: fee == 0.0 ? AppColors.success : AppColors.brandBlue,
                       ),
                     ),
                   ],

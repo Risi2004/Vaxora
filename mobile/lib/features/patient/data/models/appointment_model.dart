@@ -6,6 +6,7 @@ class AppointmentModel {
   final String timeSlot;
   final String status;
   final String? referenceNumber;
+  final String? doseNumber;
   final double? fee;
   final bool isPaid;
   final String? notes;
@@ -18,6 +19,7 @@ class AppointmentModel {
     required this.timeSlot,
     required this.status,
     this.referenceNumber,
+    this.doseNumber,
     this.fee,
     this.isPaid = false,
     this.notes,
@@ -32,6 +34,7 @@ class AppointmentModel {
       timeSlot: json['timeSlot']?.toString() ?? json['TimeSlot']?.toString() ?? '09:00 AM',
       status: json['status']?.toString() ?? json['Status']?.toString() ?? 'SCHEDULED',
       referenceNumber: json['referenceNumber']?.toString() ?? json['ReferenceNumber']?.toString(),
+      doseNumber: json['doseNumber']?.toString() ?? json['DoseNumber']?.toString() ?? 'Dose 1',
       fee: (json['fee'] != null) ? (json['fee'] as num).toDouble() : (json['Fee'] != null ? (json['Fee'] as num).toDouble() : null),
       isPaid: json['isPaid'] == true || json['IsPaid'] == true,
       notes: json['notes']?.toString() ?? json['Notes']?.toString(),

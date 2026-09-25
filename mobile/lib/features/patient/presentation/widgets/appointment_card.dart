@@ -3,6 +3,7 @@ import '../../../../core/theme/app_colors.dart';
 
 class PatientAppointment {
   final String id;
+  final String rawId;
   final String vaccineName;
   final String hospitalName;
   final String location;
@@ -15,6 +16,7 @@ class PatientAppointment {
 
   const PatientAppointment({
     required this.id,
+    this.rawId = '',
     required this.vaccineName,
     required this.hospitalName,
     required this.location,

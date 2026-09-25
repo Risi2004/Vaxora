@@ -83,6 +83,29 @@ class AuthRepository {
     return null;
   }
 
+  static Future<UserModel> updateProfile({
+    String? fullName,
+    String? phoneNumber,
+    DateTime? dateOfBirth,
+  }) async {
+    final body = <String, dynamic>{};
+    if (fullName != null) body['fullName'] = fullName.trim();
+    if (phoneNumber != null) body['phoneNumber'] = phoneNumber.trim();
+    if (dateOfBirth != null) body['dateOfBirth'] = dateOfBirth.toIso8601String();
+
+    final response = await ApiClient.put(
+      ApiConstants.updateProfile,
+      body: body,
+    );
+
+    if (response is Map<String, dynamic>) {
+      final user = UserModel.fromJson(response);
+      await StorageService.saveUser(user.toJson());
+      return user;
+    }
+    throw ApiException('Failed to update profile.');
+  }
+
   static Future<void> logout() async {
     await StorageService.clearAuth();
   }

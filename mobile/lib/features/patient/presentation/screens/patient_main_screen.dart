@@ -6,6 +6,7 @@ import 'patient_history_screen.dart';
 import 'patient_feedback_screen.dart';
 import 'patient_profile_screen.dart';
 import '../widgets/appointment_card.dart';
+import '../../data/repositories/appointment_repository.dart';
 
 class PatientMainScreen extends StatefulWidget {
   final int initialIndex;
@@ -22,70 +23,42 @@ class PatientMainScreen extends StatefulWidget {
 class _PatientMainScreenState extends State<PatientMainScreen> {
   late int _currentIndex;
 
-  // Shared appointment store across patient tabs (Client-side mock state)
-  final List<PatientAppointment> _appointments = [
-    const PatientAppointment(
-      id: 'VX-APT-883492',
-      vaccineName: 'COVID-19 mRNA Booster (Moderna)',
-      hospitalName: 'National Hospital of Sri Lanka',
-      location: 'Unit 4, Vaccination Clinic Wing B, Colombo 10',
-      date: '2026-10-12',
-      time: '10:30 AM',
-      doctorName: 'Dr. N. Wickramasinghe',
-      status: 'Confirmed',
-      fee: 0,
-      isPaid: true,
-    ),
-    const PatientAppointment(
-      id: 'VX-APT-772910',
-      vaccineName: 'Influenza (Quadrivalent Seasonal)',
-      hospitalName: 'Asiri Central Hospital',
-      location: 'Norris Canal Rd, Colombo 10',
-      date: '2026-11-05',
-      time: '02:00 PM',
-      doctorName: 'Dr. S. Jayawardena',
-      status: 'Confirmed',
-      fee: 2500,
-      isPaid: false,
-    ),
-    const PatientAppointment(
-      id: 'VX-APT-441203',
-      vaccineName: 'Hepatitis B Booster Dose 3',
-      hospitalName: 'Colombo South Teaching Hospital',
-      location: 'Kalubowila',
-      date: '2026-01-15',
-      time: '09:00 AM',
-      doctorName: 'Dr. R. Fernando',
-      status: 'Completed',
-      fee: 0,
-      isPaid: true,
-    ),
-  ];
+  List<PatientAppointment> _appointments = [];
 
   @override
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex;
+    _loadAppointments();
+  }
+
+  Future<void> _loadAppointments() async {
+    try {
+      final backendList = await AppointmentRepository.getMyAppointments();
+      if (mounted) {
+        setState(() {
+          _appointments = backendList
+              .map((b) => PatientAppointment(
+                    id: b.referenceNumber ?? (b.id.length > 8 ? b.id.substring(0, 8) : b.id),
+                    rawId: b.id,
+                    vaccineName: b.vaccineName,
+                    hospitalName: b.hospitalName,
+                    location: 'Assigned Vaccination Center',
+                    date: b.appointmentDate,
+                    time: b.timeSlot,
+                    doctorName: 'Medical Officer',
+                    status: b.status,
+                    fee: b.fee ?? 0.0,
+                    isPaid: b.isPaid,
+                  ))
+              .toList();
+        });
+      }
+    } catch (_) {}
   }
 
   void _onAppointmentBooked(Map<String, dynamic> data) {
-    setState(() {
-      _appointments.insert(
-        0,
-        PatientAppointment(
-          id: data['id'] as String,
-          vaccineName: data['vaccineName'] as String,
-          hospitalName: data['hospitalName'] as String,
-          location: data['location'] as String,
-          date: data['date'] as String,
-          time: data['time'] as String,
-          doctorName: data['doctorName'] as String,
-          status: data['status'] as String,
-          fee: (data['fee'] as num).toDouble(),
-          isPaid: data['isPaid'] as bool,
-        ),
-      );
-    });
+    _loadAppointments();
   }
 
   @override
