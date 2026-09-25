@@ -4,6 +4,8 @@ import '../../../../core/theme/app_text_styles.dart';
 import '../widgets/appointment_card.dart';
 import '../widgets/book_appointment_sheet.dart';
 import '../widgets/digital_certificate_sheet.dart';
+import '../widgets/agent_booking_sheet.dart';
+import '../../data/repositories/appointment_repository.dart';
 
 class PatientAppointmentsScreen extends StatefulWidget {
   final List<PatientAppointment>? initialAppointments;
@@ -66,6 +68,45 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen> {
             isPaid: true,
           ),
         ];
+    _loadBackendAppointments();
+  }
+
+  Future<void> _loadBackendAppointments() async {
+    try {
+      final backendList = await AppointmentRepository.getMyAppointments();
+      if (backendList.isNotEmpty && mounted) {
+        setState(() {
+          _appointments = backendList.map((b) => PatientAppointment(
+            id: b.referenceNumber ?? (b.id.length > 8 ? b.id.substring(0, 8) : b.id),
+            vaccineName: b.vaccineName,
+            hospitalName: b.hospitalName,
+            location: 'Assigned Vaccination Center',
+            date: b.appointmentDate,
+            time: b.timeSlot,
+            doctorName: 'Medical Officer',
+            status: b.status,
+            fee: b.fee ?? 0.0,
+            isPaid: b.isPaid,
+          )).toList();
+        });
+      }
+    } catch (_) {}
+  }
+
+  void _openAgentBookingSheet() {
+    AgentBookingSheet.show(
+      context,
+      onAppointmentBooked: () {
+        _loadBackendAppointments();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            backgroundColor: AppColors.success,
+            content: Text('Appointment confirmed via AI Concierge!'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      },
+    );
   }
 
   void _openBookSheet() {
@@ -265,10 +306,15 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen> {
         backgroundColor: Colors.white,
         elevation: 0,
         actions: [
+          TextButton.icon(
+            onPressed: _openAgentBookingSheet,
+            icon: const Text('🤖', style: TextStyle(fontSize: 16)),
+            label: const Text('AI Booking', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.brandBlue)),
+          ),
           IconButton(
             onPressed: _openBookSheet,
             icon: const Icon(Icons.add_circle, color: AppColors.brandBlue, size: 26),
-            tooltip: 'Book Slot',
+            tooltip: 'Manual Booking',
           ),
         ],
       ),

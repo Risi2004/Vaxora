@@ -5,6 +5,7 @@ import '../widgets/auth_banner_header.dart';
 import 'signup_screen.dart';
 import 'forgot_password_screen.dart';
 import '../../../patient/presentation/screens/patient_main_screen.dart';
+import '../../data/repositories/auth_repository.dart';
 
 class LoginScreen extends StatefulWidget {
   final String? noticeMessage;
@@ -17,8 +18,8 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController(text: 'kavinda.perera@example.com');
-  final _passwordController = TextEditingController(text: 'password123');
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
 
   bool _showPassword = false;
   bool _isLoading = false;
@@ -31,7 +32,7 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void _handleLogin() {
+  Future<void> _handleLogin() async {
     setState(() => _errorMessage = null);
 
     if (!(_formKey.currentState?.validate() ?? false)) {
@@ -40,16 +41,34 @@ class _LoginScreenState extends State<LoginScreen> {
 
     setState(() => _isLoading = true);
 
-    // Mock client verification flow (Do not do any backend works)
-    Future.delayed(const Duration(milliseconds: 800), () {
+    try {
+      final user = await AuthRepository.login(
+        email: _emailController.text,
+        password: _passwordController.text,
+      );
+
       if (mounted) {
         setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Welcome back, ${user.name}!'),
+            backgroundColor: AppColors.success,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (context) => const PatientMainScreen()),
           (route) => false,
         );
       }
-    });
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = e.toString();
+        });
+      }
+    }
   }
 
   @override

@@ -4,6 +4,7 @@ import '../widgets/patient_stat_card.dart';
 import '../widgets/immunization_timeline_item.dart';
 import '../widgets/digital_certificate_sheet.dart';
 import '../widgets/book_appointment_sheet.dart';
+import '../widgets/agent_booking_sheet.dart';
 
 class PatientDashboardScreen extends StatelessWidget {
   final Function(int targetTab) onNavigateTab;
@@ -32,6 +33,21 @@ class PatientDashboardScreen extends StatelessWidget {
           );
         },
       ),
+    );
+  }
+
+  void _openAgentBookingSheet(BuildContext context) {
+    AgentBookingSheet.show(
+      context,
+      onAppointmentBooked: () {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            backgroundColor: AppColors.success,
+            content: Text('Appointment confirmed via AI Concierge!'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      },
     );
   }
 
@@ -141,18 +157,35 @@ class PatientDashboardScreen extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    ElevatedButton.icon(
-                      onPressed: () => _openBookSheet(context),
-                      icon: const Icon(Icons.add, size: 18),
-                      label: const Text('Book Vaccination'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: AppColors.brandBlue,
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-                      ),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        ElevatedButton.icon(
+                          onPressed: () => _openAgentBookingSheet(context),
+                          icon: const Text('🤖', style: TextStyle(fontSize: 14)),
+                          label: const Text('Book with AI Concierge'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: AppColors.brandBlue,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+                          ),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: () => _openBookSheet(context),
+                          icon: const Icon(Icons.add, size: 16, color: Colors.white),
+                          label: const Text('Manual Form', style: TextStyle(color: Colors.white)),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Colors.white70),
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -166,7 +199,7 @@ class PatientDashboardScreen extends StatelessWidget {
                 crossAxisCount: 2,
                 crossAxisSpacing: 12,
                 mainAxisSpacing: 12,
-                childAspectRatio: 1.35,
+                childAspectRatio: 1.18,
                 children: const [
                   PatientStatCard(
                     icon: '📅',

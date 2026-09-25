@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../auth/presentation/screens/login_screen.dart';
+import '../../../auth/data/repositories/auth_repository.dart';
 
 class PatientProfileScreen extends StatefulWidget {
   const PatientProfileScreen({super.key});
@@ -20,6 +21,28 @@ class _PatientProfileScreenState extends State<PatientProfileScreen> {
   final _nicController = TextEditingController(text: '199824501234');
   final _emergencyNameController = TextEditingController(text: 'Sunil Perera (Father)');
   final _emergencyPhoneController = TextEditingController(text: '+94 71 987 6543');
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserProfile();
+  }
+
+  Future<void> _loadUserProfile() async {
+    final user = await AuthRepository.getCurrentUser();
+    if (user != null && mounted) {
+      setState(() {
+        if (user.name.isNotEmpty) _nameController.text = user.name;
+        if (user.email.isNotEmpty) _emailController.text = user.email;
+        if (user.phoneNumber != null && user.phoneNumber!.isNotEmpty) {
+          _phoneController.text = user.phoneNumber!;
+        }
+        if (user.nicNumber != null && user.nicNumber!.isNotEmpty) {
+          _nicController.text = user.nicNumber!;
+        }
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -57,8 +80,10 @@ class _PatientProfileScreenState extends State<PatientProfileScreen> {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(ctx);
+              await AuthRepository.logout();
+              if (!mounted) return;
               Navigator.of(context).pushAndRemoveUntil(
                 MaterialPageRoute(builder: (context) => const LoginScreen()),
                 (route) => false,

@@ -38,6 +38,28 @@ if (string.IsNullOrWhiteSpace(connectionString))
         ?? "Host=localhost;Database=vaxoradb;Username=postgres;Password=postgres";
 }
 
+// Support postgresql:// URI format automatically
+if (!string.IsNullOrWhiteSpace(connectionString) && 
+    (connectionString.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase) || 
+     connectionString.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase)))
+{
+    try
+    {
+        var uri = new Uri(connectionString);
+        var userInfo = uri.UserInfo.Split(':');
+        var username = userInfo.Length > 0 ? Uri.UnescapeDataString(userInfo[0]) : "";
+        var password = userInfo.Length > 1 ? Uri.UnescapeDataString(userInfo[1]) : "";
+        var host = uri.Host;
+        var port = uri.Port > 0 ? uri.Port : 5432;
+        var database = uri.AbsolutePath.TrimStart('/');
+        connectionString = $"Host={host};Port={port};Database={database};Username={username};Password={password};SSL Mode=Require;Trust Server Certificate=true";
+    }
+    catch (Exception exUri)
+    {
+        Console.WriteLine($"Failed to parse PostgreSQL URI: {exUri.Message}");
+    }
+}
+
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
 {
     options.UseNpgsql(connectionString, npgsqlOptions =>
