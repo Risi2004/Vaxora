@@ -1,0 +1,35 @@
+<svg width="90" height="90" viewBox="0 0 90 90" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Hospital Building -->
+  <rect x="25" y="10" width="40" height="42" rx="4" fill="#E2E8F0" stroke="#0F172A" stroke-width="2.5"/>
+  <!-- Cross Badge on top -->
+  <circle cx="45" cy="18" r="6" fill="#EF4444"/>
+  <rect x="43.5" y="14" width="3" height="8" rx="0.5" fill="white"/>
+  <rect x="41" y="16.5" width="8" height="3" rx="0.5" fill="white"/>
+  <!-- Windows -->
+  <rect x="31" y="28" width="6" height="6" rx="1" fill="#38BDF8"/>
+  <rect x="42" y="28" width="6" height="6" rx="1" fill="#38BDF8"/>
+  <rect x="53" y="28" width="6" height="6" rx="1" fill="#38BDF8"/>
+  <rect x="31" y="38" width="6" height="6" rx="1" fill="#38BDF8"/>
+  <rect x="42" y="38" width="6" height="6" rx="1" fill="#38BDF8"/>
+  <rect x="53" y="38" width="6" height="6" rx="1" fill="#38BDF8"/>
+
+  <!-- Left Medical Staff -->
+  <circle cx="28" cy="50" r="7" fill="#FED7AA" stroke="#0F172A" stroke-width="2"/>
+  <path d="M22 47C22 44 25 43 28 43C31 43 34 44 34 47" fill="#38BDF8"/>
+  <path d="M19 68C19 60 22 57 28 57C34 57 37 60 37 68" fill="#38BDF8" stroke="#0F172A" stroke-width="2"/>
+
+  <!-- Right Medical Staff -->
+  <circle cx="62" cy="50" r="7" fill="#FED7AA" stroke="#0F172A" stroke-width="2"/>
+  <path d="M56 47C56 44 59 43 62 43C65 43 68 44 68 47" fill="#38BDF8"/>
+  <path d="M53 68C53 60 56 57 62 57C68 57 71 60 71 68" fill="#38BDF8" stroke="#0F172A" stroke-width="2"/>
+
+  <!-- Center Doctor (Prominent) -->
+  <circle cx="45" cy="46" r="8" fill="#FED7AA" stroke="#0F172A" stroke-width="2.5"/>
+  <!-- Hair -->
+  <path d="M37 44C37 38 41 37 45 37C49 37 53 38 53 44" fill="#0F172A"/>
+  <!-- Body/Coat -->
+  <path d="M34 70C34 58 39 55 45 55C51 55 56 58 56 70" fill="white" stroke="#0F172A" stroke-width="2.5"/>
+  <!-- Stethoscope -->
+  <path d="M42 56V62C42 64 45 66 45 66C45 66 48 64 48 62V56" stroke="#0284C7" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="45" cy="67" r="2" fill="#0284C7"/>
+</svg>
