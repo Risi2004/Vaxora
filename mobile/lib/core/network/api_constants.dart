@@ -37,4 +37,8 @@ class ApiConstants {
   static const String patientMedicalHistory = '/patient-medical-history';
   static const String availableSchedules = '/schedule/available';
   static const String vaccines = '/inventory/vaccines';
+
+  // PayHere Payment endpoints
+  static const String payHereInit = '/payment/payhere-init';
+  static const String confirmPayment = '/payment/confirm';
 }

@@ -191,6 +191,7 @@ class _BookAppointmentSheetState extends State<BookAppointmentSheet> {
         setState(() => _isSubmitting = false);
         widget.onAppointmentBooked({
           'id': appt.referenceNumber ?? (appt.id.length > 8 ? appt.id.substring(0, 8) : appt.id),
+          'rawId': appt.id,
           'vaccineName': appt.vaccineName,
           'hospitalName': appt.hospitalName,
           'location': 'Assigned Center',

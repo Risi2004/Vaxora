@@ -12,6 +12,8 @@ import '../widgets/book_appointment_sheet.dart';
 import '../widgets/digital_certificate_sheet.dart';
 import '../widgets/immunization_timeline_item.dart';
 import '../widgets/patient_stat_card.dart';
+import '../widgets/appointment_card.dart';
+import '../widgets/payhere_checkout_sheet.dart';
 
 class PatientDashboardScreen extends StatefulWidget {
   final Function(int targetTab) onNavigateTab;
@@ -157,7 +159,10 @@ class _PatientDashboardScreenState extends State<PatientDashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final userName = _user?.name.isNotEmpty == true ? _user!.name : 'Citizen';
-    final nextAppointment = _appointments.isNotEmpty ? _appointments.first : null;
+    final upcomingAppointments = _appointments
+        .where((a) => a.status.toLowerCase() != 'cancelled' && a.status.toLowerCase() != 'completed')
+        .toList();
+    final nextAppointment = upcomingAppointments.isNotEmpty ? upcomingAppointments.first : null;
     final totalDoses = _timeline?.totalDoses ??
         _appointments.where((a) => a.status.toLowerCase() == 'completed').length;
     final scheduledCount = _appointments
@@ -444,6 +449,45 @@ class _PatientDashboardScreenState extends State<PatientDashboardScreen> {
                             const SizedBox(height: 14),
                             Row(
                               children: [
+                                if (!nextAppointment.isPaid &&
+                                    (nextAppointment.fee ?? 0) > 0 &&
+                                    nextAppointment.status.toLowerCase() != 'confirmed' &&
+                                    nextAppointment.status.toLowerCase() != 'completed' &&
+                                    nextAppointment.status.toLowerCase() != 'cancelled') ...[
+                                  Expanded(
+                                    child: ElevatedButton.icon(
+                                      onPressed: () {
+                                        final apt = PatientAppointment(
+                                          id: nextAppointment.referenceNumber ?? (nextAppointment.id.length > 8 ? nextAppointment.id.substring(0, 8) : nextAppointment.id),
+                                          rawId: nextAppointment.id,
+                                          vaccineName: nextAppointment.vaccineName,
+                                          hospitalName: nextAppointment.hospitalName,
+                                          location: 'Assigned Center',
+                                          date: nextAppointment.appointmentDate,
+                                          time: nextAppointment.timeSlot,
+                                          doctorName: 'Medical Officer',
+                                          status: nextAppointment.status,
+                                          fee: nextAppointment.fee ?? 0.0,
+                                          isPaid: nextAppointment.isPaid,
+                                        );
+                                        PayHereCheckoutSheet.show(
+                                          context,
+                                          appointment: apt,
+                                          onPaymentSuccess: _loadDashboardData,
+                                        );
+                                      },
+                                      icon: const Icon(Icons.payment, size: 16),
+                                      label: Text('Pay LKR ${(nextAppointment.fee ?? 0).toStringAsFixed(0)}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(0xFF16A34A),
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(vertical: 10),
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                ],
                                 Expanded(
                                   child: OutlinedButton(
                                     onPressed: () => widget.onNavigateTab(1),
@@ -462,7 +506,7 @@ class _PatientDashboardScreenState extends State<PatientDashboardScreen> {
                                     ),
                                   ),
                                 ),
-                                const SizedBox(width: 10),
+                                const SizedBox(width: 8),
                                 Expanded(
                                   child: ElevatedButton(
                                     onPressed: () => _openDigitalPassSheet(context, appt: nextAppointment),

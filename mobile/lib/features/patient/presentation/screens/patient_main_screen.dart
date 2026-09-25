@@ -49,7 +49,7 @@ class _PatientMainScreenState extends State<PatientMainScreen> {
                     doctorName: 'Medical Officer',
                     status: b.status,
                     fee: b.fee ?? 0.0,
-                    isPaid: b.isPaid,
+                    isPaid: b.isPaid || b.status.toLowerCase() == 'confirmed' || b.status.toLowerCase() == 'completed',
                   ))
               .toList();
         });

@@ -238,14 +238,15 @@ public class AppointmentsController : ControllerBase
     }
 
     /// <summary>
-    /// Cancel an appointment (either by patient or by hospital).
+    /// Cancel an appointment (either by patient or by hospital). Supports Guid Id or ReferenceNumber.
     /// </summary>
     [HttpDelete("{id}/cancel")]
     [Authorize]
-    public async Task<IActionResult> CancelAppointment(Guid id)
+    public async Task<IActionResult> CancelAppointment(string id)
     {
-        var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (!Guid.TryParse(userIdStr, out var userId))
+        var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)?.Value;
+        if (string.IsNullOrEmpty(userIdStr) || !Guid.TryParse(userIdStr, out var userId))
         {
             return Unauthorized(new { message = "Invalid user token." });
         }
