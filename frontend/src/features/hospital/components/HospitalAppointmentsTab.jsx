@@ -761,10 +761,10 @@ export default function HospitalAppointmentsTab() {
               <thead>
                 <tr>
                   <th style={{ width: '22%' }}>P-Name</th>
-                  <th style={{ width: '20%' }}>Date</th>
+                  <th style={{ width: '18%' }}>Date</th>
                   <th style={{ width: '18%' }}>Time</th>
-                  <th style={{ width: '24%' }}>Vaccine</th>
-                  <th style={{ width: '16%', borderRight: 'none' }}>Action</th>
+                  <th style={{ width: '22%' }}>Vaccine</th>
+                  <th style={{ width: '20%', borderRight: 'none', textAlign: 'center' }}>Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -795,10 +795,10 @@ export default function HospitalAppointmentsTab() {
                   filteredAppointments.map((item) => (
                     <tr key={item.id || item.Id}>
                       <td>
-                        <div style={{ fontWeight: 600 }}>{item.patientName || item.pName || 'Patient'}</div>
-                        {(item.patientNic || item.patientPhone) && (
-                          <div style={{ fontSize: '0.78rem', color: '#64748b' }}>
-                            {item.patientNic ? `NIC: ${item.patientNic}` : ''} {item.patientPhone ? `• Tel: ${item.patientPhone}` : ''}
+                        <div style={{ fontWeight: 600, color: '#1d1854' }}>{item.patientName || item.pName || 'Patient'}</div>
+                        {item.patientPhone && (
+                          <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '2px' }}>
+                            Tel: {item.patientPhone}
                           </div>
                         )}
                       </td>
@@ -816,35 +816,34 @@ export default function HospitalAppointmentsTab() {
                           </div>
                         )}
                       </td>
-                      <td style={{ borderRight: 'none' }}>
+                      <td style={{ borderRight: 'none', textAlign: 'center' }}>
                         {(item.status || '').toLowerCase() === 'pending' ? (
-                          <div className="mockup-actions-cell">
+                          <div className="hospital-action-buttons-wrapper">
                             <button
                               type="button"
-                              className="btn-mockup-check"
-                              title="Accept Appointment"
+                              className="btn-hospital-confirm-action"
+                              title="Accept and Confirm Appointment"
                               onClick={() => handleAcceptAppointment(item.id || item.Id)}
                             >
-                              ✓
+                              ✓ Confirm
                             </button>
                             <button
                               type="button"
-                              className="btn-mockup-reject"
+                              className="btn-hospital-cancel-action"
                               title="Decline Appointment"
                               onClick={() => handleRejectAppointment(item.id || item.Id)}
                             >
-                              ✕
+                              ✕ Decline
                             </button>
                           </div>
                         ) : (item.status || '').toLowerCase() === 'confirmed' || (item.status || '').toLowerCase() === 'accepted' ? (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <div className="hospital-action-buttons-wrapper">
                             <span className="mockup-status-badge accepted">
                               Confirmed ✓
                             </span>
                             <button
                               type="button"
-                              className="btn-cancel-schedule"
-                              style={{ padding: '2px 8px', fontSize: '0.75rem' }}
+                              className="btn-hospital-cancel-action"
                               onClick={() => handleRejectAppointment(item.id || item.Id)}
                               title="Cancel appointment"
                             >
@@ -852,9 +851,11 @@ export default function HospitalAppointmentsTab() {
                             </button>
                           </div>
                         ) : (
-                          <span className="mockup-status-badge rejected">
-                            Cancelled ✕
-                          </span>
+                          <div className="hospital-action-buttons-wrapper">
+                            <span className="mockup-status-badge rejected">
+                              Cancelled ✕
+                            </span>
+                          </div>
                         )}
                       </td>
                     </tr>

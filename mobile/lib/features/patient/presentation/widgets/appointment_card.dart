@@ -3,6 +3,7 @@ import '../../../../core/theme/app_colors.dart';
 
 class PatientAppointment {
   final String id;
+  final String rawId;
   final String vaccineName;
   final String hospitalName;
   final String location;
@@ -15,6 +16,7 @@ class PatientAppointment {
 
   const PatientAppointment({
     required this.id,
+    this.rawId = '',
     required this.vaccineName,
     required this.hospitalName,
     required this.location,
@@ -71,6 +73,10 @@ class AppointmentCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final statusColor = _getStatusColor();
     final statusBg = _getStatusBg();
+    final isCancelled = appointment.status.toLowerCase() == 'cancelled';
+    final isPaymentComplete = appointment.isPaid ||
+        appointment.status.toLowerCase() == 'confirmed' ||
+        appointment.status.toLowerCase() == 'completed';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
@@ -214,55 +220,84 @@ class AppointmentCard extends StatelessWidget {
           ),
           const SizedBox(height: 14),
 
-          // Action buttons row
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: onViewSlip,
-                  icon: const Icon(Icons.qr_code, size: 16),
-                  label: const Text('QR Slip', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.brandBlue,
-                    side: const BorderSide(color: AppColors.brandBlue),
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                ),
+          // Action buttons row (Hidden if appointment is cancelled)
+          if (isCancelled) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF2F2),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFFEE2E2)),
               ),
-              if (!appointment.isPaid && onPayNow != null) ...[
-                const SizedBox(width: 8),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.cancel_outlined, size: 16, color: AppColors.error),
+                  SizedBox(width: 8),
+                  Text(
+                    'Appointment Cancelled',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.error,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ] else ...[
+            Row(
+              children: [
                 Expanded(
-                  child: ElevatedButton(
-                    onPressed: onPayNow,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF16A34A),
-                      foregroundColor: Colors.white,
+                  child: OutlinedButton.icon(
+                    onPressed: onViewSlip,
+                    icon: const Icon(Icons.qr_code, size: 16),
+                    label: const Text('QR Slip', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.brandBlue,
+                      side: const BorderSide(color: AppColors.brandBlue),
                       padding: const EdgeInsets.symmetric(vertical: 8),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     ),
-                    child: Text(
-                      'Pay LKR ${appointment.fee.toStringAsFixed(0)}',
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                  ),
+                ),
+                if (!isPaymentComplete &&
+                    appointment.fee > 0 &&
+                    onPayNow != null) ...[
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: onPayNow,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF16A34A),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      child: Text(
+                        'Pay LKR ${appointment.fee.toStringAsFixed(0)}',
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                      ),
                     ),
                   ),
-                ),
-              ],
-              if (appointment.status.toLowerCase() == 'confirmed' && onCancel != null) ...[
-                const SizedBox(width: 8),
-                IconButton(
-                  onPressed: onCancel,
-                  icon: const Icon(Icons.close, size: 18, color: AppColors.error),
-                  style: IconButton.styleFrom(
-                    backgroundColor: AppColors.errorBg,
-                    padding: const EdgeInsets.all(8),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ],
+                if (appointment.status.toLowerCase() != 'completed' && onCancel != null) ...[
+                  const SizedBox(width: 8),
+                  IconButton(
+                    onPressed: onCancel,
+                    icon: const Icon(Icons.close, size: 18, color: AppColors.error),
+                    style: IconButton.styleFrom(
+                      backgroundColor: AppColors.errorBg,
+                      padding: const EdgeInsets.all(8),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    tooltip: 'Cancel Appointment',
                   ),
-                  tooltip: 'Cancel Appointment',
-                ),
+                ],
               ],
-            ],
-          ),
+            ),
+          ],
         ],
       ),
     );

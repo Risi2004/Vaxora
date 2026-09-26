@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../data/repositories/auth_repository.dart';
 import 'file_upload_picker_box.dart';
 
 class PatientSignupForm extends StatefulWidget {
@@ -94,11 +95,24 @@ class _PatientSignupFormState extends State<PatientSignupForm> {
 
     setState(() => _isLoading = true);
 
-    // Mock client registration flow (Do not do any backend works)
-    Future.delayed(const Duration(milliseconds: 1200), () {
+    AuthRepository.registerPatient(
+      email: _emailController.text,
+      password: _passwordController.text,
+      fullName: _fullNameController.text,
+      nicNumber: _nicController.text,
+      dateOfBirth: _dobController.text,
+      phoneNumber: _phoneController.text.trim().isNotEmpty ? _phoneController.text : null,
+    ).then((_) {
       if (mounted) {
         setState(() => _isLoading = false);
         widget.onSuccess();
+      }
+    }).catchError((e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = e.toString();
+        });
       }
     });
   }
