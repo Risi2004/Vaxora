@@ -1,15 +1,56 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
-export default function WalkInRegistrationModal({ isOpen, onClose, onAddPatient }) {
+const FALLBACK_VACCINES = [
+  'Pfizer-BioNTech Bivalent',
+  'Moderna Spikevax',
+  'Influenza Quadrivalent',
+  'Hepatitis B Recombinant',
+  'MMR (Measles, Mumps, Rubella)',
+  'Tdap (Tetanus, Diphtheria, Pertussis)',
+];
+
+const DOSE_OPTIONS = [
+  'Dose 1 (Primary)',
+  'Dose 2 (Primary)',
+  'Booster Dose (3)',
+  'Annual Booster',
+];
+
+export default function WalkInRegistrationModal({
+  isOpen,
+  onClose,
+  onAddPatient,
+  vaccines = [],
+  booths = [],
+}) {
+  const vaccineOptions = vaccines.length > 0 ? vaccines : FALLBACK_VACCINES;
+  const boothOptions = booths.length > 0
+    ? booths
+    : [{ id: 'default', label: 'Unassigned booth' }];
+
   const [formData, setFormData] = useState({
     patientName: '',
     nic: '',
     gender: 'Male',
     age: '',
-    vaccine: 'Pfizer-BioNTech Bivalent',
-    dose: 'Booster Dose (3)',
-    assignedBooth: 'Booth 01 - General OPD',
+    vaccine: vaccineOptions[0] || '',
+    dose: DOSE_OPTIONS[0],
+    assignedBooth: boothOptions[0]?.label || '',
   });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setError('');
+    setFormData((prev) => ({
+      ...prev,
+      vaccine: vaccineOptions.includes(prev.vaccine) ? prev.vaccine : (vaccineOptions[0] || ''),
+      assignedBooth: boothOptions.some((b) => b.label === prev.assignedBooth)
+        ? prev.assignedBooth
+        : (boothOptions[0]?.label || ''),
+    }));
+  }, [isOpen, vaccineOptions.join('|'), boothOptions.map((b) => b.label).join('|')]);
 
   if (!isOpen) return null;
 
@@ -18,24 +59,28 @@ export default function WalkInRegistrationModal({ isOpen, onClose, onAddPatient 
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.patientName || !formData.nic) return;
+    if (!formData.patientName || !formData.nic || submitting) return;
 
-    onAddPatient({
-      id: Date.now(),
-      token: `T-${Math.floor(100 + Math.random() * 900)}`,
-      name: formData.patientName,
-      nic: formData.nic,
-      vaccine: formData.vaccine,
-      dose: formData.dose,
-      booth: formData.assignedBooth.split(' - ')[0],
-      doctor: 'Dr. Samantha Perera',
-      time: 'Just now',
-      status: 'waiting',
-    });
-
-    onClose();
+    setSubmitting(true);
+    setError('');
+    try {
+      await onAddPatient({
+        patientName: formData.patientName.trim(),
+        patientNic: formData.nic.trim(),
+        vaccineName: formData.vaccine,
+        dose: formData.dose,
+        boothLabel: formData.assignedBooth,
+        age: formData.age ? Number(formData.age) : null,
+        gender: formData.gender,
+      });
+      onClose();
+    } catch (err) {
+      setError(err.message || 'Failed to register walk-in patient.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -50,6 +95,24 @@ export default function WalkInRegistrationModal({ isOpen, onClose, onAddPatient 
 
         <form onSubmit={handleSubmit}>
           <div className="modal-body">
+            {error && (
+              <div
+                role="alert"
+                style={{
+                  marginBottom: '12px',
+                  padding: '10px 12px',
+                  borderRadius: '8px',
+                  background: 'rgba(239, 68, 68, 0.12)',
+                  border: '1px solid #ef4444',
+                  color: '#b91c1c',
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                }}
+              >
+                {error}
+              </div>
+            )}
+
             <div className="modal-form-group">
               <label className="modal-label">Full Name *</label>
               <input
@@ -71,7 +134,7 @@ export default function WalkInRegistrationModal({ isOpen, onClose, onAddPatient 
                   name="nic"
                   value={formData.nic}
                   onChange={handleChange}
-                  placeholder="e.g. 199245102830"
+                  placeholder="Registered Vaxora patient NIC"
                   required
                   className="modal-input"
                 />
@@ -110,12 +173,9 @@ export default function WalkInRegistrationModal({ isOpen, onClose, onAddPatient 
                 onChange={handleChange}
                 className="modal-select"
               >
-                <option value="Pfizer-BioNTech Bivalent">Pfizer-BioNTech Bivalent (mRNA)</option>
-                <option value="Moderna Spikevax">Moderna Spikevax</option>
-                <option value="Influenza Quadrivalent">Influenza Quadrivalent (Fluarix)</option>
-                <option value="Hepatitis B Recombinant">Hepatitis B Recombinant</option>
-                <option value="MMR (Measles, Mumps, Rubella)">MMR Vaccine</option>
-                <option value="Tdap (Tetanus, Diphtheria, Pertussis)">Tdap Vaccine</option>
+                {vaccineOptions.map((name) => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
               </select>
             </div>
 
@@ -128,10 +188,9 @@ export default function WalkInRegistrationModal({ isOpen, onClose, onAddPatient 
                   onChange={handleChange}
                   className="modal-select"
                 >
-                  <option value="Dose 1 (Primary)">Dose 1 (Primary)</option>
-                  <option value="Dose 2 (Primary)">Dose 2 (Primary)</option>
-                  <option value="Booster Dose (3)">Booster Dose (3)</option>
-                  <option value="Annual Booster">Annual Routine Booster</option>
+                  {DOSE_OPTIONS.map((dose) => (
+                    <option key={dose} value={dose}>{dose}</option>
+                  ))}
                 </select>
               </div>
 
@@ -143,21 +202,20 @@ export default function WalkInRegistrationModal({ isOpen, onClose, onAddPatient 
                   onChange={handleChange}
                   className="modal-select"
                 >
-                  <option value="Booth 01 - General OPD">Booth 01 (Dr. Samantha)</option>
-                  <option value="Booth 02 - Pediatric Center">Booth 02 (Dr. Nimal)</option>
-                  <option value="Booth 03 - Fast Track">Booth 03 (Nurse Anoma)</option>
-                  <option value="Booth 04 - Immunization Room">Booth 04 (Nurse Dilani)</option>
+                  {boothOptions.map((booth) => (
+                    <option key={booth.id} value={booth.label}>{booth.label}</option>
+                  ))}
                 </select>
               </div>
             </div>
           </div>
 
           <div className="modal-footer">
-            <button type="button" className="btn-modal-cancel" onClick={onClose}>
+            <button type="button" className="btn-modal-cancel" onClick={onClose} disabled={submitting}>
               Cancel
             </button>
-            <button type="submit" className="btn-modal-submit">
-              + Generate Token &amp; Enqueue
+            <button type="submit" className="btn-modal-submit" disabled={submitting}>
+              {submitting ? 'Saving...' : '+ Enqueue Walk-In'}
             </button>
           </div>
         </form>

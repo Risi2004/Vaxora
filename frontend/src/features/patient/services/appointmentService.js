@@ -99,6 +99,14 @@ export const appointmentService = {
     });
   },
 
+  // 5b. Hospital walk-in registration (patient must already exist by NIC)
+  createWalkIn(payload) {
+    return apiRequest('/appointments/hospital/walk-in', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
   // 6. Update appointment status (Hospital action)
   updateAppointmentStatus(id, statusPayload) {
     return apiRequest(`/appointments/${id}/status`, {

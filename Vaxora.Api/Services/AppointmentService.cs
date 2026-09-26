@@ -11,6 +11,7 @@ public interface IAppointmentService
     Task<List<AvailableDateDto>> GetAvailableDatesAsync(Guid hospitalUserId, string vaccineName);
     Task<List<TimeSlotDto>> GetAvailableTimeSlotsAsync(Guid hospitalUserId, string vaccineName, DateOnly date);
     Task<AppointmentResponseDto> BookAppointmentAsync(Guid patientUserId, BookAppointmentRequestDto dto);
+    Task<AppointmentResponseDto> CreateWalkInAppointmentAsync(Guid hospitalUserId, CreateWalkInAppointmentDto dto);
     Task<List<AppointmentResponseDto>> GetPatientAppointmentsAsync(Guid patientUserId);
     Task<List<AppointmentResponseDto>> GetHospitalAppointmentsAsync(Guid hospitalUserId, DateOnly? date = null, string? status = null);
     Task<List<AppointmentResponseDto>> GetStaffHospitalAppointmentsAsync(Guid staffUserId, Guid hospitalUserId, DateOnly? date = null);
@@ -403,6 +404,110 @@ public class AppointmentService : IAppointmentService
         return MapToDto(appointment);
     }
 
+    public async Task<AppointmentResponseDto> CreateWalkInAppointmentAsync(Guid hospitalUserId, CreateWalkInAppointmentDto dto)
+    {
+        var hospital = await _context.Users
+            .Include(u => u.HospitalProfile)
+            .FirstOrDefaultAsync(u => u.Id == hospitalUserId && u.Role == UserRole.HOSPITAL)
+            ?? throw new UnauthorizedAccessException("Hospital account not found.");
+
+        var nic = dto.PatientNic.Trim();
+        if (string.IsNullOrWhiteSpace(nic))
+            throw new InvalidOperationException("Patient NIC is required.");
+
+        var vaccineName = dto.VaccineName.Trim();
+        if (string.IsNullOrWhiteSpace(vaccineName))
+            throw new InvalidOperationException("Vaccine name is required.");
+
+        var patient = await _context.Users
+            .Include(u => u.PatientProfile)
+            .FirstOrDefaultAsync(u =>
+                u.Role == UserRole.PATIENT &&
+                u.PatientProfile != null &&
+                u.PatientProfile.NicNumber == nic);
+
+        if (patient?.PatientProfile == null)
+            throw new KeyNotFoundException($"No registered patient found with NIC '{nic}'. Ask the patient to create a Vaxora account first.");
+
+        var hospitalNow = DateTime.UtcNow.AddHours(5.5);
+        var today = DateOnly.FromDateTime(hospitalNow);
+        var start = new TimeOnly(hospitalNow.Hour, hospitalNow.Minute);
+        var end = start.AddMinutes(20);
+        var timeSlot = $"{FormatTime12h(start)} - {FormatTime12h(end)}";
+
+        // Avoid exact slot collisions for concurrent walk-ins.
+        while (await _context.Appointments.AnyAsync(a =>
+                   a.HospitalUserId == hospital.Id &&
+                   a.AppointmentDate == today &&
+                   a.TimeSlot == timeSlot &&
+                   a.Status != "Cancelled"))
+        {
+            start = start.AddMinutes(1);
+            end = start.AddMinutes(20);
+            timeSlot = $"{FormatTime12h(start)} - {FormatTime12h(end)}";
+        }
+
+        var vName = vaccineName.ToLowerInvariant();
+        var schedule = await _context.VaccineSchedules
+            .FirstOrDefaultAsync(s =>
+                s.Status == "Active" &&
+                (s.HospitalUserId == hospital.Id ||
+                 (hospital.HospitalProfile != null && s.HospitalProfileId == hospital.HospitalProfile.Id)) &&
+                (s.VaccineName.ToLower() == vName || s.VaccineName.ToLower().Contains(vName)));
+
+        var noteParts = new List<string> { "Walk-in registration" };
+        if (!string.IsNullOrWhiteSpace(dto.Dose)) noteParts.Add($"Dose: {dto.Dose.Trim()}");
+        if (!string.IsNullOrWhiteSpace(dto.BoothLabel)) noteParts.Add($"Booth: {dto.BoothLabel.Trim()}");
+        if (dto.Age.HasValue) noteParts.Add($"Age: {dto.Age.Value}");
+        if (!string.IsNullOrWhiteSpace(dto.Gender)) noteParts.Add($"Gender: {dto.Gender.Trim()}");
+        if (!string.IsNullOrWhiteSpace(dto.PatientName) &&
+            !string.Equals(dto.PatientName.Trim(), patient.PatientProfile.FullName, StringComparison.OrdinalIgnoreCase))
+        {
+            noteParts.Add($"Presented as: {dto.PatientName.Trim()}");
+        }
+
+        var appointment = new Appointment
+        {
+            Id = Guid.NewGuid(),
+            PatientUserId = patient.Id,
+            PatientProfileId = patient.PatientProfile.Id,
+            PatientName = patient.PatientProfile.FullName,
+            PatientNic = patient.PatientProfile.NicNumber,
+            PatientPhone = patient.PatientProfile.PhoneNumber ?? patient.PhoneNumber,
+            PatientEmail = patient.Email,
+            HospitalUserId = hospital.Id,
+            HospitalProfileId = hospital.HospitalProfile?.Id,
+            HospitalName = hospital.HospitalProfile?.HospitalName ?? "Hospital Center",
+            VaccineScheduleId = schedule?.Id,
+            VaccineId = schedule?.VaccineId,
+            VaccineName = vaccineName,
+            DoctorUserId = schedule?.DoctorUserId,
+            DoctorName = schedule?.DoctorName,
+            NurseUserId = schedule?.NurseUserId,
+            NurseName = schedule?.NurseName,
+            AppointmentDate = today,
+            TimeSlot = timeSlot,
+            StartTime = start.ToString("HH:mm"),
+            EndTime = end.ToString("HH:mm"),
+            Status = "Confirmed",
+            Fee = 0.00m,
+            PaymentMethod = "WalkIn",
+            PaymentStatus = "Paid",
+            Notes = string.Join(" · ", noteParts),
+            PrescribedDosage = string.IsNullOrWhiteSpace(dto.Dose) ? null : dto.Dose.Trim(),
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _context.Appointments.Add(appointment);
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation(
+            "Walk-in appointment {AppId} created for Patient {Patient} (NIC {Nic}) at hospital {Hospital}",
+            appointment.Id, appointment.PatientName, nic, appointment.HospitalName);
+
+        return MapToDto(appointment);
+    }
+
     public async Task<List<AppointmentResponseDto>> GetPatientAppointmentsAsync(Guid patientUserId)
     {
         var appointments = await _context.Appointments
@@ -751,6 +856,17 @@ public class AppointmentService : IAppointmentService
         return timeStr;
     }
 
+    private static string? ExtractBoothFromNotes(string? notes)
+    {
+        if (string.IsNullOrWhiteSpace(notes)) return null;
+        const string marker = "Booth:";
+        var idx = notes.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+        if (idx < 0) return null;
+        var rest = notes[(idx + marker.Length)..].Trim();
+        var end = rest.IndexOf(" · ", StringComparison.Ordinal);
+        return (end >= 0 ? rest[..end] : rest).Trim();
+    }
+
     private static AppointmentResponseDto MapToDto(Appointment a)
     {
         return new AppointmentResponseDto
@@ -778,6 +894,7 @@ public class AppointmentService : IAppointmentService
             PaymentStatus = a.PaymentStatus,
             PaymentTransactionId = a.PaymentTransactionId,
             Notes = a.Notes,
+            BoothLabel = ExtractBoothFromNotes(a.Notes),
             PrescribedDosage = a.PrescribedDosage,
             PrescribedByDoctorUserId = a.PrescribedByDoctorUserId,
             PrescribedByDoctorName = a.PrescribedByDoctorName,

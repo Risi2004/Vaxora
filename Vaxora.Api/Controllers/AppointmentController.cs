@@ -167,6 +167,43 @@ public class AppointmentsController : ControllerBase
     }
 
     /// <summary>
+    /// Hospital walk-in: enqueue a registered patient (matched by NIC) for today.
+    /// </summary>
+    [HttpPost("hospital/walk-in")]
+    [Authorize(Roles = "HOSPITAL")]
+    public async Task<IActionResult> CreateWalkInAppointment([FromBody] CreateWalkInAppointmentDto dto)
+    {
+        var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(userIdStr, out var hospitalUserId))
+        {
+            return Unauthorized(new { message = "Invalid user token." });
+        }
+
+        try
+        {
+            var appointment = await _appointmentService.CreateWalkInAppointmentAsync(hospitalUserId, dto);
+            return Ok(appointment);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating walk-in appointment for hospital {HospitalId}", hospitalUserId);
+            return StatusCode(500, new { message = "Failed to register walk-in appointment." });
+        }
+    }
+
+    /// <summary>
     /// Doctor/Nurse: list appointments for an affiliated hospital (optional date filter).
     /// </summary>
     [HttpGet("staff")]
