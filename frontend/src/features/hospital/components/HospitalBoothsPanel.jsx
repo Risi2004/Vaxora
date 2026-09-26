@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import staffService from '../services/staffService';
 import inventoryService from '../services/inventoryService';
+import { IconDoor } from './HospitalIcons';
 
 const emptyForm = {
   code: '',
@@ -178,7 +179,7 @@ export default function HospitalBoothsPanel() {
       <div className="hospital-section-card" style={{ marginBottom: '20px' }}>
         <div className="section-title-group" style={{ marginBottom: '14px' }}>
           <h2 style={{ margin: 0 }}>
-            <span>🚪</span> Vaccination Booths
+            <span className="section-title-icon"><IconDoor size={22} /></span> Vaccination Booths
           </h2>
           <p className="section-title-desc">
             Each booth lists the vaccines it gives. Bookings for those vaccines open that booth.
@@ -332,10 +333,10 @@ export default function HospitalBoothsPanel() {
             <div
               key={booth.boothId}
               className="booth-card"
-              style={{ opacity: booth.isActive ? 1 : 0.7, gap: '10px' }}
+              style={{ opacity: booth.isActive ? 1 : 0.72 }}
             >
               <div className="booth-card-header">
-                <div className="booth-title-box" style={{ minWidth: 0 }}>
+                <div className="booth-title-box">
                   <span className="booth-number-tag">{booth.code}</span>
                   <span className="booth-title" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {booth.name}
@@ -355,7 +356,7 @@ export default function HospitalBoothsPanel() {
                     display: 'inline-flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    color: '#64748b',
+                    color: '#94a3b8',
                     background: 'transparent',
                     border: 'none',
                     borderRadius: '6px',
@@ -373,36 +374,31 @@ export default function HospitalBoothsPanel() {
                   </svg>
                 </button>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-              {Array.isArray(booth.vaccineNames) && booth.vaccineNames.length > 0 ? (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                  {booth.vaccineNames.map((name) => (
-                    <span
-                      key={name}
-                      style={{
-                        fontSize: '0.75rem',
-                        fontWeight: 600,
-                        color: '#0369a1',
-                        background: '#f0f9ff',
-                        border: '1px solid #bae6fd',
-                        borderRadius: '999px',
-                        padding: '2px 8px',
-                      }}
-                    >
-                      {name}
-                    </span>
-                  ))}
-                </div>
-              ) : (
-                <span style={{ fontSize: '0.78rem', color: '#b45309' }}>No vaccines assigned</span>
-              )}
-                <span className="booth-status-indicator" style={{ color: booth.isActive ? '#15803d' : '#64748b' }}>
+
+              <hr className="booth-card-divider" />
+
+              <div className="booth-card-vaccines">
+                {Array.isArray(booth.vaccineNames) && booth.vaccineNames.length > 0 ? (
+                  booth.vaccineNames.map((name) => (
+                    <span key={name} className="booth-vaccine-chip">{name}</span>
+                  ))
+                ) : (
+                  <span style={{ fontSize: '0.78rem', color: '#94a3b8' }}>No vaccines assigned</span>
+                )}
+              </div>
+
+              <div className="booth-card-footer">
+                <span
+                  className="booth-status-indicator"
+                  style={{ color: booth.isActive ? '#15803d' : '#64748b' }}
+                >
                   <span
-                    className="telemetry-pulse"
                     style={{
                       width: '6px',
                       height: '6px',
+                      borderRadius: '50%',
                       background: booth.isActive ? '#22c55e' : '#94a3b8',
+                      display: 'inline-block',
                     }}
                   />
                   {booth.isActive ? 'Active' : 'Inactive'}
@@ -412,7 +408,7 @@ export default function HospitalBoothsPanel() {
                   onClick={() => handleToggleActive(booth)}
                   disabled={actionId === booth.boothId}
                   style={{
-                    padding: 0,
+                    padding: '4px 2px',
                     border: 'none',
                     background: 'transparent',
                     fontSize: '0.78rem',

@@ -73,6 +73,7 @@ public class AppointmentResponseDto
     public string PaymentStatus { get; set; } = "Paid";
     public string? PaymentTransactionId { get; set; }
     public string? Notes { get; set; }
+    public string? BoothLabel { get; set; }
     public string? PrescribedDosage { get; set; }
     public Guid? PrescribedByDoctorUserId { get; set; }
     public string? PrescribedByDoctorName { get; set; }
@@ -86,6 +87,31 @@ public class UpdateAppointmentStatusDto
     public string Status { get; set; } = "Confirmed"; // "Confirmed", "Rejected", "Completed", "Cancelled"
 
     public string? Remarks { get; set; }
+}
+
+public class CreateWalkInAppointmentDto
+{
+    [Required]
+    [MaxLength(50)]
+    public string PatientNic { get; set; } = string.Empty;
+
+    [MaxLength(200)]
+    public string? PatientName { get; set; }
+
+    [Required]
+    [MaxLength(200)]
+    public string VaccineName { get; set; } = string.Empty;
+
+    [MaxLength(100)]
+    public string? Dose { get; set; }
+
+    [MaxLength(100)]
+    public string? BoothLabel { get; set; }
+
+    public int? Age { get; set; }
+
+    [MaxLength(20)]
+    public string? Gender { get; set; }
 }
 
 public class PayHereInitRequestDto

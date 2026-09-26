@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { authService } from '../services/authService';
+import { IconUser } from '../../../shared/icons/AppIcons';
 
 export default function PatientSignupForm({ onSuccess }) {
   const [formData, setFormData] = useState({
@@ -108,7 +109,7 @@ export default function PatientSignupForm({ onSuccess }) {
             {profilePicPreview ? (
               <img src={profilePicPreview} alt="Preview" className="file-upload-thumb" />
             ) : (
-              <span>👤</span>
+              <span style={{ display: 'inline-flex' }}><IconUser size={22} /></span>
             )}
             <span>{profilePicName || 'Upload Profile Photo (JPG/PNG)'}</span>
           </div>

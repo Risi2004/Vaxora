@@ -1,12 +1,31 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import staffService from '../../hospital/services/staffService';
 import { addHospitalDays, hospitalToday } from '../../hospital/utils/hospitalDate';
+import { IconHospital } from '../../../shared/icons/AppIcons';
+import affilHeroImage from '../../../assets/images/staff-affiliations-hero.png';
 
 const dutyLabel = {
   Off: 'Off',
   OnDuty: 'On Duty',
   OnBreak: 'On Break',
 };
+
+function HospitalAvatar({ name, logoUrl }) {
+  if (logoUrl) {
+    return (
+      <img
+        src={logoUrl}
+        alt=""
+        className="staff-affil-hospital-avatar"
+      />
+    );
+  }
+  return (
+    <div className="staff-affil-hospital-avatar staff-affil-hospital-avatar--fallback" aria-hidden>
+      <IconHospital size={18} />
+    </div>
+  );
+}
 
 /**
  * Shared doctor/nurse view for hospital invitations and active affiliations.
@@ -71,16 +90,24 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff' }) {
     }
   };
 
-  const handleCycleDuty = async (item) => {
-    const order = ['Off', 'OnDuty', 'OnBreak'];
-    const currentIndex = order.indexOf(item.dutyStatus);
-    const next = order[(currentIndex + 1) % order.length];
+  const handleSetDuty = async (item, next) => {
+    if (item.dutyStatus === next) return;
+    const previous = item.dutyStatus;
     setActionId(`${item.affiliationId}-duty`);
+    setAffiliations((list) =>
+      list.map((a) =>
+        a.affiliationId === item.affiliationId ? { ...a, dutyStatus: next } : a
+      )
+    );
     try {
       await staffService.updateDutyStatus(item.affiliationId, next);
       showToast(`Duty status set to ${dutyLabel[next] || next}.`);
-      await loadData();
     } catch (err) {
+      setAffiliations((list) =>
+        list.map((a) =>
+          a.affiliationId === item.affiliationId ? { ...a, dutyStatus: previous } : a
+        )
+      );
       setError(err.message || 'Failed to update duty status.');
     } finally {
       setActionId(null);
@@ -108,78 +135,32 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff' }) {
         </div>
       )}
 
-      <section className="doctor-hero-banner" style={{ marginBottom: '24px' }}>
-        <div className="doctor-hero-info">
-          <h1 className="doctor-hero-title">Hospital Affiliations</h1>
-          <p className="doctor-hero-subtitle">
-            Review hospital invitations and manage your active {roleLabel.toLowerCase()} affiliations.
+      <section className="hospital-hero-banner staff-affil-hero">
+        <div className="hospital-hero-content staff-affil-hero-content">
+          <p className="hospital-hero-eyebrow">Roster &amp; invitations</p>
+          <h1>Hospital Affiliations</h1>
+          <p className="hospital-hero-sub">
+            Invitations, roster membership, and upcoming shifts for your {roleLabel.toLowerCase()} account.
           </p>
+          <div className="staff-affil-hero-pills" aria-label="Affiliation summary">
+            <span className="staff-affil-hero-pill">
+              <strong>{loading ? '—' : invitations.length}</strong> Pending
+            </span>
+            <span className="staff-affil-hero-pill">
+              <strong>{loading ? '—' : affiliations.length}</strong> Active
+            </span>
+            <span className="staff-affil-hero-pill">
+              <strong>{loading ? '—' : shifts.length}</strong> Shifts (14d)
+            </span>
+          </div>
         </div>
-        <button type="button" className="doctor-filter-btn" onClick={loadData} disabled={loading}>
-          Refresh
-        </button>
+        <div className="hospital-hero-media" aria-hidden="true">
+          <img src={affilHeroImage} alt="" className="hospital-hero-image staff-affil-hero-image" />
+        </div>
       </section>
 
       <div className="doctor-card" style={{ padding: '24px', marginBottom: '24px' }}>
-        <h2 className="doctor-card-title" style={{ marginTop: 0 }}>
-          Pending Invitations ({invitations.length})
-        </h2>
-
-        {loading ? (
-          <p style={{ color: '#64748b' }}>Loading invitations...</p>
-        ) : invitations.length === 0 ? (
-          <p style={{ color: '#64748b' }}>No pending hospital invitations.</p>
-        ) : (
-          <div style={{ display: 'grid', gap: '14px' }}>
-            {invitations.map((item) => (
-              <div
-                key={item.affiliationId}
-                style={{
-                  border: '1px solid #e2e8f0',
-                  borderRadius: '12px',
-                  padding: '16px',
-                  background: '#fffbeb',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  gap: '16px',
-                  flexWrap: 'wrap',
-                }}
-              >
-                <div>
-                  <div style={{ fontWeight: 700, color: '#0f172a' }}>
-                    {item.hospitalName || 'Hospital invitation'}
-                  </div>
-                  <div style={{ fontSize: '0.85rem', color: '#64748b', marginTop: 4 }}>
-                    Invited: {item.invitedAt ? new Date(item.invitedAt).toLocaleString() : '—'}
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <button
-                    type="button"
-                    className="doctor-table-btn"
-                    disabled={actionId != null && String(actionId).startsWith(item.affiliationId)}
-                    onClick={() => handleRespond(item.affiliationId, 'Reject')}
-                    style={{ color: '#b91c1c' }}
-                  >
-                    {actionId === `${item.affiliationId}-Reject` ? 'Rejecting...' : 'Reject'}
-                  </button>
-                  <button
-                    type="button"
-                    className="doctor-filter-btn active"
-                    disabled={actionId != null && String(actionId).startsWith(item.affiliationId)}
-                    onClick={() => handleRespond(item.affiliationId, 'Accept')}
-                  >
-                    {actionId === `${item.affiliationId}-Accept` ? 'Accepting...' : 'Accept'}
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="doctor-card" style={{ padding: '24px' }}>
-        <h2 className="doctor-card-title" style={{ marginTop: 0 }}>
+        <h2 className="doctor-card-title" style={{ marginTop: 0, marginBottom: 18 }}>
           Active Affiliations ({affiliations.length})
         </h2>
 
@@ -190,42 +171,57 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff' }) {
             You are not affiliated with any hospital yet. Accept an invitation to join a roster.
           </p>
         ) : (
-          <div className="doctor-table-wrapper">
-            <table className="doctor-table">
-              <thead>
-                <tr>
-                  <th>Hospital</th>
-                  <th>Duty Status</th>
-                  <th>Joined</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {affiliations.map((item) => (
-                  <tr key={item.affiliationId}>
-                    <td>{item.hospitalName || 'Hospital'}</td>
-                    <td>{dutyLabel[item.dutyStatus] || item.dutyStatus}</td>
-                    <td>{item.respondedAt ? new Date(item.respondedAt).toLocaleDateString() : '—'}</td>
-                    <td>
+          <div style={{ display: 'grid', gap: '14px' }}>
+            {affiliations.map((item) => (
+              <div
+                key={item.affiliationId}
+                className="staff-affil-item-card"
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0, flex: 1 }}>
+                  <HospitalAvatar name={item.hospitalName} logoUrl={item.hospitalLogoUrl} />
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, color: '#0f172a', lineHeight: 1.4 }}>
+                      {item.hospitalName || 'Hospital'}
+                    </div>
+                    <div style={{ fontSize: '0.85rem', color: '#64748b', marginTop: 8 }}>
+                      Joined: {item.respondedAt ? new Date(item.respondedAt).toLocaleDateString() : '—'}
+                    </div>
+                  </div>
+                </div>
+                <div
+                  className="staff-affil-duty-group"
+                  role="group"
+                  aria-label="Duty status"
+                >
+                  {[
+                    { value: 'Off', label: 'Off' },
+                    { value: 'OnDuty', label: 'On Duty' },
+                    { value: 'OnBreak', label: 'On Break' },
+                  ].map((opt) => {
+                    const active = item.dutyStatus === opt.value;
+                    const busy = actionId === `${item.affiliationId}-duty`;
+                    return (
                       <button
+                        key={opt.value}
                         type="button"
-                        className="doctor-table-btn"
-                        disabled={actionId === `${item.affiliationId}-duty`}
-                        onClick={() => handleCycleDuty(item)}
+                        className={`staff-affil-duty-btn${active ? ' is-active' : ''}${opt.value === 'OnDuty' ? ' is-on' : ''}${opt.value === 'OnBreak' ? ' is-break' : ''}`}
+                        disabled={busy}
+                        aria-pressed={active}
+                        onClick={() => handleSetDuty(item, opt.value)}
                       >
-                        {actionId === `${item.affiliationId}-duty` ? 'Updating...' : 'Cycle Duty'}
+                        {busy && active ? '…' : opt.label}
                       </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
 
-      <div className="doctor-card" style={{ padding: '24px', marginTop: '24px' }}>
-        <h2 className="doctor-card-title" style={{ marginTop: 0 }}>
+      <div className="doctor-card" style={{ padding: '24px', marginBottom: '24px' }}>
+        <h2 className="doctor-card-title" style={{ marginTop: 0, marginBottom: 18 }}>
           My Shifts (next 14 days)
         </h2>
         {loading ? (
@@ -233,29 +229,70 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff' }) {
         ) : shifts.length === 0 ? (
           <p style={{ color: '#64748b' }}>No upcoming shifts assigned yet.</p>
         ) : (
-          <div className="doctor-table-wrapper">
-            <table className="doctor-table">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Time</th>
-                  <th>Booth</th>
-                  <th>Notes</th>
-                </tr>
-              </thead>
-              <tbody>
-                {shifts.map((shift) => (
-                  <tr key={shift.shiftId}>
-                    <td>{shift.shiftDate}</td>
-                    <td>
-                      {String(shift.startTime).slice(0, 5)} – {String(shift.endTime).slice(0, 5)}
-                    </td>
-                    <td>{shift.boothOrStation || '—'}</td>
-                    <td>{shift.notes || '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div style={{ display: 'grid', gap: '14px' }}>
+            {shifts.map((shift) => (
+              <div key={shift.shiftId} className="staff-affil-item-card">
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontWeight: 700, color: '#0f172a', lineHeight: 1.4 }}>
+                    {shift.shiftDate}
+                    {' · '}
+                    {String(shift.startTime).slice(0, 5)} – {String(shift.endTime).slice(0, 5)}
+                  </div>
+                  <div style={{ fontSize: '0.85rem', color: '#64748b', marginTop: 8 }}>
+                    Booth: {shift.boothOrStation || '—'}
+                    {shift.notes ? ` · ${shift.notes}` : ''}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="doctor-card" style={{ padding: '24px' }}>
+        <h2 className="doctor-card-title" style={{ marginTop: 0, marginBottom: 18 }}>
+          Pending Invitations ({invitations.length})
+        </h2>
+
+        {loading ? (
+          <p style={{ color: '#64748b' }}>Loading invitations...</p>
+        ) : invitations.length === 0 ? (
+          <p style={{ color: '#64748b' }}>No pending hospital invitations.</p>
+        ) : (
+          <div style={{ display: 'grid', gap: '14px' }}>
+            {invitations.map((item) => (
+              <div key={item.affiliationId} className="staff-affil-item-card">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
+                  <HospitalAvatar name={item.hospitalName} logoUrl={item.hospitalLogoUrl} />
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, color: '#0f172a', lineHeight: 1.4 }}>
+                      {item.hospitalName || 'Hospital invitation'}
+                    </div>
+                    <div style={{ fontSize: '0.85rem', color: '#64748b', marginTop: 8 }}>
+                      Invited: {item.invitedAt ? new Date(item.invitedAt).toLocaleString() : '—'}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    className="staff-affil-reject-btn"
+                    disabled={actionId != null && String(actionId).startsWith(item.affiliationId)}
+                    onClick={() => handleRespond(item.affiliationId, 'Reject')}
+                  >
+                    {actionId === `${item.affiliationId}-Reject` ? 'Rejecting...' : 'Reject'}
+                  </button>
+                  <button
+                    type="button"
+                    className="staff-affil-accept-btn"
+                    disabled={actionId != null && String(actionId).startsWith(item.affiliationId)}
+                    onClick={() => handleRespond(item.affiliationId, 'Accept')}
+                  >
+                    {actionId === `${item.affiliationId}-Accept` ? 'Accepting...' : 'Accept'}
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>

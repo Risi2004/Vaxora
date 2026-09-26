@@ -2,8 +2,9 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import logo from '../../../assets/images/logo.png';
 
-import { authService, getUser } from '../../auth';
+import { authService, getUser, subscribeAuthUser } from '../../auth';
 import DeleteAccountModal from '../../auth/components/DeleteAccountModal';
+import { IconClose, IconHospital, IconLogout, IconMenu, IconTrash } from './HospitalIcons';
 
 export default function HospitalNavbar() {
   const navigate = useNavigate();
@@ -11,9 +12,18 @@ export default function HospitalNavbar() {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [user, setUser] = useState(() =>
+    typeof authService?.getUser === 'function' ? authService.getUser() : (getUser ? getUser() : null)
+  );
   const profileMenuRef = useRef(null);
 
-  const user = typeof authService?.getUser === 'function' ? authService.getUser() : (getUser ? getUser() : null);
+  useEffect(
+    () =>
+      subscribeAuthUser(() => {
+        setUser(typeof authService?.getUser === 'function' ? authService.getUser() : (getUser ? getUser() : null));
+      }),
+    []
+  );
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -98,8 +108,17 @@ export default function HospitalNavbar() {
               aria-label="Hospital Account Profile"
               style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
             >
+              <span className="navbar-user-meta">
+                <span className="navbar-user-name">{user?.name || 'Hospital'}</span>
+                <span className="navbar-user-sub">
+                  {user?.registrationNumber
+                    || user?.profileDetails?.hospitalType
+                    || 'Hospital'}
+                </span>
+              </span>
               {user?.profilePhotoUrl ? (
                 <img
+                  key={user.profilePhotoUrl}
                   src={user.profilePhotoUrl}
                   alt={user.name || 'Hospital'}
                   className="navbar-avatar-img"
@@ -107,7 +126,7 @@ export default function HospitalNavbar() {
                 />
               ) : (
                 <div className="hospital-avatar-circle">
-                  <span>🏥</span>
+                  <IconHospital size={18} />
                 </div>
               )}
             </button>
@@ -153,7 +172,9 @@ export default function HospitalNavbar() {
                     setIsDeleteModalOpen(true);
                   }}
                 >
-                  🗑️ Delete Account
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    <IconTrash size={16} /> Delete Account
+                  </span>
                 </button>
               </div>
             )}
@@ -169,7 +190,7 @@ export default function HospitalNavbar() {
             }}
             aria-label={mobileMenuOpen ? 'Close Navigation Menu' : 'Open Navigation Menu'}
           >
-            {mobileMenuOpen ? '✕' : '☰'}
+            {mobileMenuOpen ? <IconClose size={18} /> : <IconMenu size={18} />}
           </button>
         </div>
       </div>
@@ -197,14 +218,18 @@ export default function HospitalNavbar() {
               className="portal-mobile-nav-btn"
               onClick={() => handleNavigate('/hospital/profile')}
             >
-              🏥 Hospital Profile
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                <IconHospital size={16} /> Hospital Profile
+              </span>
             </button>
             <button
               type="button"
               className="portal-mobile-nav-btn text-danger"
               onClick={handleLogout}
             >
-              🚪 Log Out
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                <IconLogout size={16} /> Log Out
+              </span>
             </button>
             <button
               type="button"
@@ -214,7 +239,9 @@ export default function HospitalNavbar() {
                 setIsDeleteModalOpen(true);
               }}
             >
-              🗑️ Delete Account
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                <IconTrash size={16} /> Delete Account
+              </span>
             </button>
           </nav>
         </div>

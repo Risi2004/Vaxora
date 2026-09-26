@@ -2,6 +2,14 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import AddStaffRequestModal from './AddStaffRequestModal';
 import HospitalShiftsPanel from './HospitalShiftsPanel';
 import staffService from '../services/staffService';
+import staffHeroImage from '../../../assets/images/hospital-staff-hero.jpg';
+import {
+  IconClock,
+  IconDoctor,
+  IconNurse,
+  IconUsers,
+  RoleAvatarIcon,
+} from './HospitalIcons';
 
 const dutyLabel = {
   Off: 'Off',
@@ -30,7 +38,7 @@ function mapAffiliationToCard(item) {
     affiliationStatus: item.status,
     dutyStatus: item.dutyStatus,
     status: isPending ? 'Pending Request' : dutyLabel[item.dutyStatus] || item.dutyStatus,
-    avatar: roleLabel === 'Doctor' ? '👨‍⚕️' : '👩‍⚕️',
+    photoUrl: item.staffProfilePhotoUrl || null,
     invitedAt: item.invitedAt,
   };
 }
@@ -179,89 +187,38 @@ export default function HospitalStaffTab() {
         </div>
       )}
 
-      <div className="hospital-section-card" style={{ marginBottom: '24px' }}>
-        <div
-          className="section-card-header"
-          style={{
-            borderBottom: 'none',
-            marginBottom: 0,
-            paddingBottom: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: '16px',
-          }}
-        >
-          <div className="section-title-group">
-            <h2>
-              <span>👨‍⚕️</span> Hospital Medical Staff &amp; Doctors
-            </h2>
-            <p className="section-title-desc">
+      <div className="hospital-hero-banner hospital-staff-hero">
+        <div className="hospital-staff-hero-inner">
+          <div className="hospital-hero-content">
+            <p className="hospital-hero-eyebrow">Staff management</p>
+            <h1>Hospital Medical Staff &amp; Doctors</h1>
+            <p className="hospital-hero-sub">
               Manage affiliated doctors and nurses. Invite verified practitioners with their Vaxora ID.
             </p>
-          </div>
-
-          {pageView === 'directory' && (
-            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            <div className="hospital-staff-hero-tabs" role="tablist" aria-label="Staff views">
               <button
                 type="button"
-                className="btn-hospital-secondary"
-                onClick={loadStaff}
-                disabled={loading}
-                style={{ padding: '10px 16px', fontSize: '0.92rem' }}
+                role="tab"
+                aria-selected={pageView === 'directory'}
+                className={`hospital-staff-hero-tab ${pageView === 'directory' ? 'active' : ''}`}
+                onClick={() => setPageView('directory')}
               >
-                Refresh
+                Directory
               </button>
               <button
                 type="button"
-                className="btn-hospital-primary"
-                onClick={() => setIsModalOpen(true)}
-                style={{ padding: '10px 20px', fontSize: '0.92rem' }}
+                role="tab"
+                aria-selected={pageView === 'shifts'}
+                className={`hospital-staff-hero-tab ${pageView === 'shifts' ? 'active' : ''}`}
+                onClick={() => setPageView('shifts')}
               >
-                <span>+</span> Add New Staff
+                Shifts
               </button>
             </div>
-          )}
+          </div>
         </div>
-
-        <div
-          role="tablist"
-          aria-label="Staff views"
-          style={{
-            display: 'flex',
-            gap: '8px',
-            marginTop: '18px',
-            paddingTop: '16px',
-            borderTop: '1px solid #e2e8f0',
-          }}
-        >
-          <button
-            type="button"
-            role="tab"
-            aria-selected={pageView === 'directory'}
-            className={`hospital-nav-btn ${pageView === 'directory' ? 'active' : ''}`}
-            onClick={() => setPageView('directory')}
-            style={{
-              background: pageView === 'directory' ? '#19469d' : '#ffffff',
-              border: '1px solid #cbd5e1',
-            }}
-          >
-            Directory
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={pageView === 'shifts'}
-            className={`hospital-nav-btn ${pageView === 'shifts' ? 'active' : ''}`}
-            onClick={() => setPageView('shifts')}
-            style={{
-              background: pageView === 'shifts' ? '#19469d' : '#ffffff',
-              border: '1px solid #cbd5e1',
-            }}
-          >
-            Shifts
-          </button>
+        <div className="hospital-hero-media" aria-hidden="true">
+          <img src={staffHeroImage} alt="" className="hospital-hero-image" />
         </div>
       </div>
 
@@ -269,9 +226,29 @@ export default function HospitalStaffTab() {
         <HospitalShiftsPanel />
       ) : (
       <>
+      <div className="hospital-staff-toolbar">
+        <button
+          type="button"
+          className="hospital-staff-hero-btn secondary"
+          onClick={loadStaff}
+          disabled={loading}
+        >
+          Refresh
+        </button>
+        <button
+          type="button"
+          className="hospital-staff-hero-btn primary"
+          onClick={() => setIsModalOpen(true)}
+        >
+          <span>+</span> Add New Staff
+        </button>
+      </div>
+
       <div className="hospital-metrics-grid" style={{ marginBottom: '24px' }}>
         <div className="hospital-stat-card">
-          <div className="hospital-stat-icon stat-icon-blue">👥</div>
+          <div className="hospital-stat-icon stat-icon-blue">
+            <IconUsers size={22} />
+          </div>
           <div className="hospital-stat-info">
             <span className="hospital-stat-label">Active Affiliated Staff</span>
             <span className="hospital-stat-value">{activeStaff.length}</span>
@@ -280,7 +257,9 @@ export default function HospitalStaffTab() {
         </div>
 
         <div className="hospital-stat-card">
-          <div className="hospital-stat-icon stat-icon-purple">👨‍⚕️</div>
+          <div className="hospital-stat-icon stat-icon-purple">
+            <IconDoctor size={22} />
+          </div>
           <div className="hospital-stat-info">
             <span className="hospital-stat-label">Doctors</span>
             <span className="hospital-stat-value">{doctorsCount}</span>
@@ -289,7 +268,9 @@ export default function HospitalStaffTab() {
         </div>
 
         <div className="hospital-stat-card">
-          <div className="hospital-stat-icon stat-icon-teal">👩‍⚕️</div>
+          <div className="hospital-stat-icon stat-icon-teal">
+            <IconNurse size={22} />
+          </div>
           <div className="hospital-stat-info">
             <span className="hospital-stat-label">Nurses</span>
             <span className="hospital-stat-value">{nursesCount}</span>
@@ -298,7 +279,9 @@ export default function HospitalStaffTab() {
         </div>
 
         <div className="hospital-stat-card">
-          <div className="hospital-stat-icon stat-icon-amber">⏳</div>
+          <div className="hospital-stat-icon stat-icon-amber">
+            <IconClock size={22} />
+          </div>
           <div className="hospital-stat-info">
             <span className="hospital-stat-label">Pending Requests</span>
             <span className="hospital-stat-value">{pendingCount}</span>
@@ -399,14 +382,21 @@ export default function HospitalStaffTab() {
               className="booth-card"
               style={{
                 padding: '22px',
-                borderLeft: staff.affiliationStatus === 'Pending' ? '4px solid #f59e0b' : '4px solid #19469d',
+                border:
+                  staff.affiliationStatus === 'Pending'
+                    ? '1px solid rgba(245, 158, 11, 0.45)'
+                    : '1px solid rgba(21, 42, 85, 0.18)',
               }}
             >
               <div className="booth-card-header">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span
                     className="booth-number-tag"
-                    style={{ background: staff.role === 'Doctor' ? '#19469d' : '#0d9488' }}
+                    style={{
+                      background: staff.role === 'Doctor' ? '#19469d' : '#0f766e',
+                      color: '#ffffff',
+                      borderColor: staff.role === 'Doctor' ? '#153a82' : '#0b5f59',
+                    }}
                   >
                     {staff.role}
                   </span>
@@ -460,9 +450,17 @@ export default function HospitalStaffTab() {
               <div className="booth-staff-info" style={{ padding: '14px', background: '#f8fafc' }}>
                 <div
                   className="staff-avatar-mini"
-                  style={{ width: '50px', height: '50px', fontSize: '1.6rem', background: '#e2e8f0' }}
+                  style={{ width: '50px', height: '50px', background: '#e2e8f0', color: '#475569', overflow: 'hidden' }}
                 >
-                  {staff.avatar}
+                  {staff.photoUrl ? (
+                    <img
+                      src={staff.photoUrl}
+                      alt=""
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    />
+                  ) : (
+                    <RoleAvatarIcon role={staff.role} size={24} />
+                  )}
                 </div>
                 <div className="staff-text-group" style={{ gap: '2px' }}>
                   <span className="staff-name" style={{ fontSize: '1.08rem' }}>

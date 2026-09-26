@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { authService } from '../services/authService';
+import { IconDoctor, IconFile } from '../../../shared/icons/AppIcons';
 
 export default function DoctorSignupForm({ onSuccess }) {
   const [formData, setFormData] = useState({
@@ -132,7 +133,7 @@ export default function DoctorSignupForm({ onSuccess }) {
             {profilePicPreview ? (
               <img src={profilePicPreview} alt="Preview" className="file-upload-thumb" />
             ) : (
-              <span>👨‍⚕️</span>
+              <span style={{ display: 'inline-flex' }}><IconDoctor size={22} /></span>
             )}
             <span>{profilePicName || 'Upload Profile Photo (JPG/PNG)'}</span>
           </div>
@@ -208,7 +209,7 @@ export default function DoctorSignupForm({ onSuccess }) {
           tabIndex={0}
         >
           <div className="file-upload-info">
-            <span>📑</span>
+            <span style={{ display: 'inline-flex' }}><IconFile size={20} /></span>
             <span>{slmcDocName || 'Upload SLMC Certificate (PDF/JPG/PNG)'}</span>
           </div>
           <span className="file-upload-btn-text">Browse</span>
@@ -233,7 +234,7 @@ export default function DoctorSignupForm({ onSuccess }) {
           tabIndex={0}
         >
           <div className="file-upload-info">
-            <span>📎</span>
+            <span style={{ display: 'inline-flex' }}><IconFile size={20} /></span>
             <span>{supportingDocName || 'Upload Additional Proof (PDF/JPG)'}</span>
           </div>
           <span className="file-upload-btn-text">Browse</span>

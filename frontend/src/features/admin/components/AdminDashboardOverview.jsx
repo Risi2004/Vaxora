@@ -1,6 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authService } from '../../auth';
+import {
+  IconClipboard,
+  IconClock,
+  IconHospital,
+  IconPackage,
+  IconShield,
+  IconSnowflake,
+  IconSyringe,
+  IconUsers,
+  RoleAvatarIcon,
+} from '../../../shared/icons/AppIcons';
 
 export default function AdminDashboardOverview() {
   const navigate = useNavigate();
@@ -76,11 +87,17 @@ export default function AdminDashboardOverview() {
             Welcome, Dr. V. Ratnayake • Ministry of Health &amp; National IT Directorate
           </p>
           <div className="doctor-hero-session-pill">
-            <span>🛡️ Superadmin Access Active</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+              <IconShield size={14} /> Superadmin Access Active
+            </span>
             <span>•</span>
-            <span>🏥 14 Registered Centers Live</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+              <IconHospital size={14} /> 14 Registered Centers Live
+            </span>
             <span>•</span>
-            <span>❄️ Cold-Chain Telemetry: 100% Verified</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+              <IconSnowflake size={14} /> Cold-Chain Telemetry: 100% Verified
+            </span>
           </div>
         </div>
 
@@ -88,18 +105,18 @@ export default function AdminDashboardOverview() {
           <button
             type="button"
             className="doctor-btn-call-next"
-            style={{ background: '#0284c7' }}
+            style={{ background: '#0284c7', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
             onClick={() => navigate('/admin/approvals')}
           >
-            📋 Review Approvals ({pendingRequests.length})
+            <IconClipboard size={16} /> Review Approvals ({pendingRequests.length})
           </button>
           <button
             type="button"
             className="doctor-btn-report-aefi"
-            style={{ background: '#0f172a', borderColor: '#334155' }}
+            style={{ background: '#0f172a', borderColor: '#334155', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
             onClick={() => navigate('/admin/hospitals')}
           >
-            🏥 Hospital Performance
+            <IconHospital size={16} /> Hospital Performance
           </button>
         </div>
       </section>
@@ -115,7 +132,7 @@ export default function AdminDashboardOverview() {
             </span>
           </div>
           <div className="doctor-stat-icon-wrapper doctor-icon-blue">
-            <span>👥</span>
+            <IconUsers size={22} />
           </div>
         </div>
 
@@ -128,7 +145,7 @@ export default function AdminDashboardOverview() {
             </span>
           </div>
           <div className="doctor-stat-icon-wrapper doctor-icon-green">
-            <span>💉</span>
+            <IconSyringe size={22} />
           </div>
         </div>
 
@@ -141,7 +158,7 @@ export default function AdminDashboardOverview() {
             </span>
           </div>
           <div className="doctor-stat-icon-wrapper doctor-icon-amber">
-            <span>⏳</span>
+            <IconClock size={22} />
           </div>
         </div>
 
@@ -154,7 +171,7 @@ export default function AdminDashboardOverview() {
             </span>
           </div>
           <div className="doctor-stat-icon-wrapper doctor-icon-purple">
-            <span>❄️</span>
+            <IconSnowflake size={22} />
           </div>
         </div>
       </section>
@@ -164,8 +181,8 @@ export default function AdminDashboardOverview() {
         {/* Left Column: Live Hospital Telemetry & Activity */}
         <div className="doctor-card">
           <div className="doctor-card-header">
-            <div className="doctor-card-title">
-              <span>🏥</span>
+            <div className="doctor-card-title" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+              <span className="icon-shade icon-shade-blue"><IconHospital size={22} /></span>
               Real-Time Hospital Center Telemetry
             </div>
             <button
@@ -223,8 +240,8 @@ export default function AdminDashboardOverview() {
           {/* Urgent Approvals Widget */}
           <div className="doctor-obs-card">
             <div className="doctor-obs-header">
-              <div className="doctor-obs-title">
-                <span>🛡️</span>
+              <div className="doctor-obs-title" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                <span className="icon-shade icon-shade-amber"><IconShield size={22} /></span>
                 Pending Verification Queue
               </div>
               <span className="admin-pill-badge amber" style={{ cursor: 'pointer' }} onClick={() => navigate('/admin/approvals')}>
@@ -236,8 +253,8 @@ export default function AdminDashboardOverview() {
               {pendingRequests.map((req) => (
                 <div key={req.id} className="doctor-obs-item" style={{ cursor: 'pointer' }} onClick={() => navigate('/admin/approvals')}>
                   <div className="doctor-obs-item-info">
-                    <span className="doctor-obs-item-name">
-                      {req.type === 'doctor' ? '🩺 ' : req.type === 'nurse' ? '👩‍⚕️ ' : '🏥 '}
+                    <span className="doctor-obs-item-name" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                      <RoleAvatarIcon role={req.type} size={16} />
                       {req.name}
                     </span>
                     <span className="doctor-obs-item-meta">
@@ -268,8 +285,8 @@ export default function AdminDashboardOverview() {
           {/* Central Stock Reserves */}
           <div className="doctor-coldbox-card">
             <div className="doctor-coldbox-header">
-              <div className="doctor-coldbox-title">
-                <span>📦</span>
+              <div className="doctor-coldbox-title" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                <span className="icon-shade icon-shade-purple"><IconPackage size={22} /></span>
                 National Central Stock Reserve
               </div>
               <span className="doctor-coldbox-temp">Storage OK</span>

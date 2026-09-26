@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { IconClose, IconSyringe } from '../../../shared/icons/AppIcons';
 
 export default function BookAppointmentModal({ isOpen, onClose, onBookSuccess }) {
   const [formData, setFormData] = useState({
@@ -33,13 +34,13 @@ export default function BookAppointmentModal({ isOpen, onClose, onBookSuccess })
       <div className="modal-content-card" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header-row">
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '1.4rem' }}>💉</span>
+            <span className="icon-shade icon-shade-blue"><IconSyringe size={20} /></span>
             <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1e1b4b', margin: 0 }}>
               Schedule Vaccination
             </h3>
           </div>
           <button type="button" className="modal-close-btn" onClick={onClose}>
-            ✕
+            <IconClose size={16} />
           </button>
         </div>
 

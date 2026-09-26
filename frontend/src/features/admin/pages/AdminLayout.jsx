@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import AdminSidebar from '../components/AdminSidebar';
 import { authService } from '../../auth';
+import { IconCalendar } from '../../../shared/icons/AppIcons';
 import '../../../styles/doctor.css';
 import '../../../styles/admin.css';
 
@@ -65,7 +66,9 @@ export default function AdminLayout() {
             </div>
 
             <div className="admin-topbar-time">
-              <span>🗓️ Sep 2026</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                <IconCalendar size={14} /> Sep 2026
+              </span>
             </div>
           </div>
         </header>

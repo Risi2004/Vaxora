@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { IconClock, IconClose, IconSearch, IconShield } from '../../../shared/icons/AppIcons';
 
 export default function AdminFeedbackTab() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -299,7 +300,7 @@ export default function AdminFeedbackTab() {
       {/* Toast Notification */}
       {toastMessage && (
         <div className="doctor-toast">
-          <span style={{ fontSize: '1.1rem' }}>🛡️</span>
+          <span style={{ display: 'inline-flex' }}><IconShield size={18} /></span>
           <span>{toastMessage}</span>
         </div>
       )}
@@ -361,7 +362,7 @@ export default function AdminFeedbackTab() {
 
         <div className="doctor-stat-card">
           <div className="doctor-stat-icon-wrapper" style={{ background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8' }}>
-            ⏳
+            <IconClock size={22} />
           </div>
           <div className="doctor-stat-content">
             <span className="doctor-stat-label">Pending Review</span>
@@ -415,7 +416,7 @@ export default function AdminFeedbackTab() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '20px' }}>
           {/* Search */}
           <div className="doctor-search-bar" style={{ margin: 0 }}>
-            <span className="doctor-search-icon">🔍</span>
+            <span className="doctor-search-icon" style={{ display: 'inline-flex' }}><IconSearch size={16} /></span>
             <input
               type="text"
               className="doctor-search-input"
@@ -429,7 +430,7 @@ export default function AdminFeedbackTab() {
                 onClick={() => setSearchQuery('')}
                 style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '0 8px' }}
               >
-                ✕
+                <IconClose size={14} />
               </button>
             )}
           </div>
@@ -441,7 +442,7 @@ export default function AdminFeedbackTab() {
             onChange={(e) => setRoleFilter(e.target.value)}
             style={{ height: '42px', fontSize: '0.85rem' }}
           >
-            <option value="ALL">👤 All Stakeholder Roles</option>
+            <option value="ALL">All Stakeholder Roles</option>
             <option value="PATIENT">Patient</option>
             <option value="DOCTOR">Doctor</option>
             <option value="NURSE">Nurse</option>
@@ -629,7 +630,7 @@ export default function AdminFeedbackTab() {
                 onClick={() => setSelectedFeedback(null)}
                 style={{ background: 'transparent', border: 'none', color: '#94a3b8', fontSize: '1.3rem', cursor: 'pointer' }}
               >
-                ✕
+                <IconClose size={18} />
               </button>
             </div>
 

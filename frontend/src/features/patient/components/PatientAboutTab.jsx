@@ -1,4 +1,5 @@
 import React from 'react';
+import { IconRocket, IconShield } from '../../../shared/icons/AppIcons';
 
 export default function PatientAboutTab() {
   return (
@@ -32,7 +33,7 @@ export default function PatientAboutTab() {
               border: '1px solid #cbdbee',
             }}
           >
-            <div style={{ fontSize: '2rem', marginBottom: '10px' }}>🛡️</div>
+            <div style={{ marginBottom: '10px', color: '#1d1854' }}><IconShield size={28} /></div>
             <h3 style={{ fontFamily: "'Lora', Georgia, serif", fontSize: '1.15rem', color: '#1d1854', marginBottom: '8px' }}>
               Cryptographically Verified
             </h3>
@@ -49,7 +50,7 @@ export default function PatientAboutTab() {
               border: '1px solid #cbdbee',
             }}
           >
-            <div style={{ fontSize: '2rem', marginBottom: '10px' }}>⚡</div>
+            <div style={{ marginBottom: '10px', color: '#1d1854' }}><IconRocket size={28} /></div>
             <h3 style={{ fontFamily: "'Lora', Georgia, serif", fontSize: '1.15rem', color: '#1d1854', marginBottom: '8px' }}>
               Instant Scheduling
             </h3>
@@ -66,7 +67,7 @@ export default function PatientAboutTab() {
               border: '1px solid #cbdbee',
             }}
           >
-            <div style={{ fontSize: '2rem', marginBottom: '10px' }}>🔒</div>
+            <div style={{ marginBottom: '10px', color: '#1d1854' }}><IconShield size={28} /></div>
             <h3 style={{ fontFamily: "'Lora', Georgia, serif", fontSize: '1.15rem', color: '#1d1854', marginBottom: '8px' }}>
               Patient Privacy First
             </h3>

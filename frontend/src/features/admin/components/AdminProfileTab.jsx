@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { authService } from '../../auth/services/authService';
+import { IconClose, IconShield } from '../../../shared/icons/AppIcons';
 
 export default function AdminProfileTab() {
   const [loading, setLoading] = useState(true);
@@ -163,7 +164,7 @@ export default function AdminProfileTab() {
             background: '#0c1b33',
           }}
         >
-          <span>{notificationType === 'error' ? '⚠️' : '✓'}</span>
+          <span style={{ display: 'inline-flex' }}>{notificationType === 'error' ? <IconShield size={16} /> : '✓'}</span>
           <span>{notification}</span>
         </div>
       )}
@@ -404,7 +405,7 @@ export default function AdminProfileTab() {
                 onClick={() => setIsPasswordModalOpen(false)}
                 style={{ background: 'transparent', border: 'none', color: '#94a3b8', fontSize: '1.3rem', cursor: 'pointer' }}
               >
-                ✕
+                <IconClose size={18} />
               </button>
             </div>
 
@@ -424,7 +425,7 @@ export default function AdminProfileTab() {
                   gap: '8px',
                 }}
               >
-                <span>⚠️</span>
+                <span style={{ display: 'inline-flex' }}><IconShield size={16} /></span>
                 <span>{passwordError}</span>
               </div>
             )}

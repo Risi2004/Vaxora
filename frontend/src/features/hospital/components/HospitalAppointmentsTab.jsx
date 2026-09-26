@@ -345,7 +345,7 @@ export default function HospitalAppointmentsTab() {
           role="alert"
           style={{ maxWidth: '1060px', width: '100%', marginBottom: '20px' }}
         >
-          ✓ {notification}
+          {notification}
         </div>
       )}
 
@@ -427,7 +427,7 @@ export default function HospitalAppointmentsTab() {
                         className={`schedule-day-pill ${isSelected ? 'selected' : ''}`}
                         onClick={() => handleToggleDay(day.key)}
                       >
-                        {isSelected ? '✓ ' : ''}{day.key} ({day.label})
+                        {day.key} ({day.label})
                       </button>
                     );
                   })}
@@ -825,7 +825,7 @@ export default function HospitalAppointmentsTab() {
                               title="Accept and Confirm Appointment"
                               onClick={() => handleAcceptAppointment(item.id || item.Id)}
                             >
-                              ✓ Confirm
+                              Confirm
                             </button>
                             <button
                               type="button"

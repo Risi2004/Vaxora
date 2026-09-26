@@ -39,7 +39,22 @@ public class InventoryService : IInventoryService
     // ==================== HELPERS ====================
 
     private async Task<HospitalProfile?> GetHospitalAsync(Guid userId)
-        => await _context.HospitalProfiles.FirstOrDefaultAsync(h => h.UserId == userId);
+    {
+        var own = await _context.HospitalProfiles.FirstOrDefaultAsync(h => h.UserId == userId);
+        if (own != null) return own;
+
+        // Doctor/Nurse: use first active hospital affiliation
+        var hospitalUserId = await _context.StaffAffiliations
+            .AsNoTracking()
+            .Where(a => a.StaffUserId == userId && a.Status == AffiliationStatus.Active)
+            .OrderBy(a => a.InvitedAt)
+            .Select(a => (Guid?)a.HospitalUserId)
+            .FirstOrDefaultAsync();
+
+        if (hospitalUserId == null) return null;
+
+        return await _context.HospitalProfiles.FirstOrDefaultAsync(h => h.UserId == hospitalUserId.Value);
+    }
 
     private async Task<(string Name, string Email)> GetUserInfoAsync(Guid userId)
     {

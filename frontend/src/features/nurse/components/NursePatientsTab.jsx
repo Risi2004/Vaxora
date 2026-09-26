@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import clinicalPatientService from '../services/clinicalPatientService';
+import { IconSearch } from '../../../shared/icons/AppIcons';
 
 function mapPatientDetail(detail) {
   if (!detail) return null;
@@ -38,9 +39,9 @@ export default function NursePatientsTab() {
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState(null);
-  const [showDetailsCard, setShowDetailsCard] = useState(false);
   const [loadingPatient, setLoadingPatient] = useState(false);
   const [recentUpdates, setRecentUpdates] = useState([]);
+  const [recentLoading, setRecentLoading] = useState(true);
   const [notification, setNotification] = useState('');
   const [error, setError] = useState('');
 
@@ -50,11 +51,14 @@ export default function NursePatientsTab() {
   };
 
   const loadRecent = useCallback(async () => {
+    setRecentLoading(true);
     try {
       const data = await clinicalPatientService.getRecentUpdates(10);
       setRecentUpdates(Array.isArray(data) ? data : []);
     } catch {
       setRecentUpdates([]);
+    } finally {
+      setRecentLoading(false);
     }
   }, []);
 
@@ -64,7 +68,7 @@ export default function NursePatientsTab() {
 
   useEffect(() => {
     const q = searchQuery.trim();
-    if (q.length < 2) {
+    if (selectedPatient || q.length < 2) {
       setSearchResults([]);
       setSearching(false);
       return undefined;
@@ -75,9 +79,7 @@ export default function NursePatientsTab() {
       setSearching(true);
       try {
         const results = await clinicalPatientService.searchPatients(q, 10);
-        if (!cancelled) {
-          setSearchResults(Array.isArray(results) ? results : []);
-        }
+        if (!cancelled) setSearchResults(Array.isArray(results) ? results : []);
       } catch (err) {
         if (!cancelled) {
           setSearchResults([]);
@@ -92,7 +94,14 @@ export default function NursePatientsTab() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [searchQuery]);
+  }, [searchQuery, selectedPatient]);
+
+  const clearSelection = () => {
+    setSelectedPatient(null);
+    setSearchQuery('');
+    setShowDropdown(false);
+    setError('');
+  };
 
   const loadPatientByVaxoraId = async (vaxoraId, displayName) => {
     setLoadingPatient(true);
@@ -101,10 +110,9 @@ export default function NursePatientsTab() {
       const detail = await clinicalPatientService.getPatientByVaxoraId(vaxoraId);
       const mapped = mapPatientDetail(detail);
       setSelectedPatient(mapped);
-      setShowDetailsCard(true);
       setShowDropdown(false);
       setSearchQuery(mapped.name || displayName || vaxoraId);
-      showToast(`Patient record loaded: ${mapped.name} (${mapped.vaxoraId})`);
+      showToast(`Record loaded: ${mapped.name} (${mapped.vaxoraId})`);
     } catch (err) {
       setError(err.message || 'Failed to load patient.');
     } finally {
@@ -112,230 +120,185 @@ export default function NursePatientsTab() {
     }
   };
 
-  const handleSelectSearchResult = (result) => {
-    loadPatientByVaxoraId(result.vaxoraId, result.name);
-  };
-
-  const handleRecentClick = (vaxoraId) => {
-    if (!vaxoraId) return;
-    loadPatientByVaxoraId(vaxoraId);
-  };
-
   return (
-    <div className="doctor-patient-history-page">
+    <div className="doctor-manage-appointments-card" style={{ maxWidth: 1100, margin: '0 auto' }}>
+      <h1 className="doctor-manage-title">Patient History</h1>
+
       {notification && (
-        <div
-          className="appointment-alert-pill"
-          role="status"
-          style={{ maxWidth: '820px', margin: '0 auto 20px', width: '100%' }}
-        >
-          ✓ {notification}
+        <div className="appointment-alert-pill" role="status">
+          {notification}
         </div>
       )}
-
       {error && (
         <div
           className="appointment-alert-pill"
           role="alert"
-          style={{
-            maxWidth: '820px',
-            margin: '0 auto 20px',
-            width: '100%',
-            background: '#fef2f2',
-            color: '#b91c1c',
-            borderColor: '#fecaca',
-          }}
+          style={{ background: '#fef2f2', color: '#b91c1c', borderColor: '#fecaca' }}
         >
           {error}
         </div>
       )}
 
-      <section className="patient-search-section">
-        <div className="patient-search-card-wrapper">
-          <div className="patient-search-input-box">
-            <input
-              type="text"
-              className="patient-search-input"
-              placeholder="Search by Vaxora ID, name, or NIC"
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setShowDropdown(true);
-                setError('');
-              }}
-              onFocus={() => setShowDropdown(true)}
-              aria-label="Search patient with name or Vaxora ID"
-            />
-            <button
-              type="button"
-              className="patient-search-icon-btn"
-              title="Search"
-              aria-label="Search button"
-              disabled={searching || loadingPatient}
-              onClick={() => {
-                if (searchResults.length > 0) {
-                  handleSelectSearchResult(searchResults[0]);
-                }
-              }}
-            >
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="#1a164c"
-                strokeWidth="2.4"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <circle cx="11" cy="11" r="7" />
-                <line x1="16.5" y1="16.5" x2="21" y2="21" />
-              </svg>
-            </button>
+      {!selectedPatient && (
+        <div className="doctor-appointment-inner-card">
+          <h2 className="doctor-inner-facility-name">Find a Patient</h2>
 
-            {showDropdown && searchQuery.trim().length >= 2 && (
-              <div className="patient-search-dropdown">
-                {searching && (
-                  <div className="patient-dropdown-item" style={{ cursor: 'default' }}>
-                    <span className="patient-dropdown-name">Searching...</span>
-                  </div>
-                )}
-                {!searching && searchResults.length === 0 && (
-                  <div className="patient-dropdown-item" style={{ cursor: 'default' }}>
-                    <span className="patient-dropdown-name">No patients found</span>
-                  </div>
-                )}
-                {!searching &&
-                  searchResults.map((p) => (
-                    <div
-                      key={p.patientUserId || p.vaxoraId}
-                      className="patient-dropdown-item"
-                      onClick={() => handleSelectSearchResult(p)}
-                    >
-                      <span className="patient-dropdown-name">{p.name}</span>
-                      <span className="patient-dropdown-id">{p.vaxoraId}</span>
-                    </div>
-                  ))}
-              </div>
-            )}
+          <div className="doctor-appointments-filter-bar">
+            <div className="doctor-filter-group" style={{ flex: 1, position: 'relative' }}>
+              <label className="doctor-filter-label" htmlFor="ph-nurse-search" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <IconSearch size={16} /> Search:
+              </label>
+              <input
+                id="ph-nurse-search"
+                type="text"
+                className="doctor-filter-date-input"
+                style={{ minWidth: 260, flex: 1 }}
+                placeholder="Vaxora ID, name, or NIC"
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setShowDropdown(true);
+                  setError('');
+                }}
+                onFocus={() => setShowDropdown(true)}
+                autoComplete="off"
+              />
+              <button type="button" className="doctor-filter-btn" onClick={loadRecent} disabled={recentLoading}>
+                Refresh
+              </button>
+
+              {showDropdown && searchQuery.trim().length >= 2 && (
+                <div className="ph-appointments-search-dropdown">
+                  {searching && <div className="ph-appointments-search-empty">Searching…</div>}
+                  {!searching && searchResults.length === 0 && (
+                    <div className="ph-appointments-search-empty">No patients found</div>
+                  )}
+                  {!searching &&
+                    searchResults.map((p) => (
+                      <button
+                        key={p.patientUserId || p.vaxoraId}
+                        type="button"
+                        className="ph-appointments-search-option"
+                        onClick={() => loadPatientByVaxoraId(p.vaxoraId, p.name)}
+                      >
+                        <strong>{p.name}</strong>
+                        <span>
+                          {p.vaxoraId}
+                          {p.nic ? ` · ${p.nic}` : ''}
+                        </span>
+                      </button>
+                    ))}
+                </div>
+              )}
+            </div>
+
+            <div style={{ fontSize: '0.88rem', color: '#64748b', fontWeight: 600 }}>
+              {recentLoading
+                ? 'Loading...'
+                : `${recentUpdates.length} recent update${recentUpdates.length === 1 ? '' : 's'}`}
+            </div>
           </div>
 
-          <div className="patient-recent-updates-box">
-            <div className="patient-recent-header">
-              <h3 className="patient-recent-title">Recent updates</h3>
-              <button type="button" className="patient-recent-see-more" onClick={loadRecent}>
-                refresh
+          <div className="doctor-appointments-table-wrapper">
+            <table className="doctor-appointments-mockup-table">
+              <thead>
+                <tr>
+                  <th style={{ width: '28%' }}>Patient</th>
+                  <th style={{ width: '18%' }}>Vaxora ID</th>
+                  <th style={{ width: '26%' }}>Vaccine</th>
+                  <th style={{ width: '14%' }}>Dosage</th>
+                  <th style={{ width: '14%' }}>Updated</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loadingPatient ? (
+                  <tr>
+                    <td colSpan={5} className="empty-table-cell">
+                      Loading patient record...
+                    </td>
+                  </tr>
+                ) : recentLoading ? (
+                  <tr>
+                    <td colSpan={5} className="empty-table-cell">
+                      Loading recent dosage updates...
+                    </td>
+                  </tr>
+                ) : recentUpdates.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="empty-table-cell">
+                      No dosage updates yet. Search by Vaxora ID, name, or NIC above to open a patient record.
+                    </td>
+                  </tr>
+                ) : (
+                  recentUpdates.map((item) => (
+                    <tr
+                      key={item.appointmentId}
+                      className="ph-appointments-click-row"
+                      onClick={() => loadPatientByVaxoraId(item.vaxoraId, item.patientName)}
+                    >
+                      <td>{item.patientName || 'Patient'}</td>
+                      <td>{item.vaxoraId}</td>
+                      <td>{item.vaccine || '—'}</td>
+                      <td>{item.dosage || '—'}</td>
+                      <td>{item.relativeTime || '—'}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {selectedPatient && !loadingPatient && (
+        <>
+          <div className="doctor-appointment-inner-card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 8 }}>
+              <button type="button" className="doctor-filter-btn" onClick={clearSelection}>
+                ← Back to search
+              </button>
+              <button
+                type="button"
+                className="doctor-filter-btn"
+                onClick={() => loadPatientByVaxoraId(selectedPatient.vaxoraId)}
+              >
+                Refresh
               </button>
             </div>
 
-            <div className="patient-recent-list">
-              {recentUpdates.length === 0 ? (
-                <div className="patient-recent-item" style={{ cursor: 'default' }}>
-                  <span className="patient-recent-id">No dosage updates yet</span>
-                  <span className="patient-recent-time">—</span>
-                </div>
-              ) : (
-                recentUpdates.map((item) => (
-                  <div
-                    key={item.appointmentId}
-                    className="patient-recent-item"
-                    title={`Click to view ${item.vaxoraId}`}
-                    onClick={() => handleRecentClick(item.vaxoraId)}
-                  >
-                    <span className="patient-recent-id">{item.vaxoraId}</span>
-                    <span className="patient-recent-time">{item.relativeTime}</span>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-      </section>
+            <h2 className="doctor-inner-facility-name">{selectedPatient.name}</h2>
 
-      {loadingPatient && (
-        <p style={{ textAlign: 'center', color: '#64748b', marginTop: 16 }}>Loading patient record...</p>
-      )}
-
-      {showDetailsCard && selectedPatient && !loadingPatient && (
-        <section className="patient-details-card-container">
-          <button
-            type="button"
-            className="btn-close-patient-details"
-            title="Close patient details view"
-            aria-label="Close patient details"
-            onClick={() => setShowDetailsCard(false)}
-          >
-            ✕
-          </button>
-
-          <div className="patient-personal-info-box">
-            <div className="patient-avatar-wrapper">
-              <div className="patient-avatar-circle">
-                <svg
-                  className="patient-avatar-silhouette"
-                  viewBox="0 0 100 100"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <circle cx="50" cy="50" r="50" fill="#d8dce3" />
-                  <circle cx="50" cy="38" r="18" fill="#5a5e66" />
-                  <path d="M20 86C20 68 34 60 50 60C66 60 80 68 80 86" fill="#5a5e66" />
-                </svg>
+            <div className="doctor-appointments-filter-bar">
+              <div className="doctor-filter-group" style={{ gap: 16, flexWrap: 'wrap' }}>
+                <span className="doctor-filter-label">ID: {selectedPatient.vaxoraId}</span>
+                <span className="doctor-filter-label">NIC: {selectedPatient.nic || '—'}</span>
+                <span className="doctor-filter-label">Phone: {selectedPatient.phone || '—'}</span>
+                <span className="doctor-filter-label">Email: {selectedPatient.email || '—'}</span>
+              </div>
+              <div style={{ fontSize: '0.88rem', color: '#64748b', fontWeight: 600 }}>
+                {selectedPatient.vaccinationHistory.length} completed · {selectedPatient.pendingVaccines.length} pending
               </div>
             </div>
 
-            <div className="patient-info-content">
-              <h2 className="patient-info-heading">Personal Information</h2>
-
-              <div className="patient-info-grid">
-                <div className="patient-info-row">
-                  <span className="patient-info-label">ID</span>
-                  <span className="patient-info-colon">:</span>
-                  <span className="patient-info-val">{selectedPatient.vaxoraId}</span>
-                </div>
-
-                <div className="patient-info-row">
-                  <span className="patient-info-label">NIC</span>
-                  <span className="patient-info-colon">:</span>
-                  <span className="patient-info-val">{selectedPatient.nic}</span>
-                </div>
-
-                <div className="patient-info-row">
-                  <span className="patient-info-label">NAME</span>
-                  <span className="patient-info-colon">:</span>
-                  <span className="patient-info-val">{selectedPatient.name}</span>
-                </div>
-
-                <div className="patient-info-row">
-                  <span className="patient-info-label">EMAIL</span>
-                  <span className="patient-info-colon">:</span>
-                  <span className="patient-info-val">{selectedPatient.email}</span>
-                </div>
-
-                <div className="patient-info-row">
-                  <span className="patient-info-label">PHONE NUMBER</span>
-                  <span className="patient-info-colon">:</span>
-                  <span className="patient-info-val">{selectedPatient.phone}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <h3 className="patient-section-heading">Vaccination History</h3>
-
-            <div className="patient-mockup-table-wrapper">
-              <table className="patient-mockup-table">
+            <h3 className="ph-appointments-section-label">Vaccination History</h3>
+            <div className="doctor-appointments-table-wrapper">
+              <table className="doctor-appointments-mockup-table">
                 <thead>
                   <tr>
-                    <th style={{ width: '22%' }}>Vaccine</th>
-                    <th style={{ width: '20%' }}>Date</th>
-                    <th style={{ width: '38%' }}>Location</th>
-                    <th style={{ width: '20%' }}>Status</th>
+                    <th style={{ width: '28%' }}>Vaccine</th>
+                    <th style={{ width: '22%' }}>Date</th>
+                    <th style={{ width: '32%' }}>Location</th>
+                    <th style={{ width: '18%' }}>Status</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {selectedPatient.vaccinationHistory.length > 0 ? (
+                  {selectedPatient.vaccinationHistory.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="empty-table-cell">
+                        No completed vaccination records.
+                      </td>
+                    </tr>
+                  ) : (
                     selectedPatient.vaccinationHistory.map((item) => (
                       <tr key={item.id}>
                         <td>{item.vaccine}</td>
@@ -344,93 +307,50 @@ export default function NursePatientsTab() {
                         <td>{item.status}</td>
                       </tr>
                     ))
-                  ) : (
-                    <tr>
-                      <td colSpan={4} style={{ padding: '20px', fontStyle: 'italic' }}>
-                        No completed vaccination history records.
-                      </td>
-                    </tr>
                   )}
                 </tbody>
               </table>
             </div>
           </div>
 
-          <div>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                marginBottom: '8px',
-              }}
-            >
-              <h3 className="patient-section-heading" style={{ margin: 0 }}>
-                Pending Vaccine
-              </h3>
-              <span className="nurse-readonly-notice">
-                🔒 Dosage levels are locked (Prescribed by Physician)
-              </span>
-            </div>
-
-            <div className="patient-mockup-table-wrapper">
-              <table className="patient-mockup-table">
+          <div className="doctor-appointment-inner-card" style={{ marginBottom: 0 }}>
+            <h3 className="ph-appointments-section-label" style={{ marginTop: 0 }}>
+              Pending Vaccines
+            </h3>
+            <div className="doctor-appointments-table-wrapper">
+              <table className="doctor-appointments-mockup-table">
                 <thead>
                   <tr>
-                    <th style={{ width: '18%' }}>Vaccine</th>
-                    <th style={{ width: '20%' }}>Date</th>
+                    <th style={{ width: '22%' }}>Vaccine</th>
+                    <th style={{ width: '18%' }}>Date</th>
                     <th style={{ width: '16%' }}>Time</th>
                     <th style={{ width: '26%' }}>Location</th>
-                    <th style={{ width: '20%' }}>Dosage Level</th>
+                    <th style={{ width: '18%' }}>Dosage</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {selectedPatient.pendingVaccines.length > 0 ? (
+                  {selectedPatient.pendingVaccines.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="empty-table-cell">
+                        No pending immunization doses scheduled.
+                      </td>
+                    </tr>
+                  ) : (
                     selectedPatient.pendingVaccines.map((pv) => (
                       <tr key={pv.id}>
                         <td>{pv.vaccine}</td>
                         <td>{pv.date}</td>
                         <td>{pv.time}</td>
                         <td>{pv.location}</td>
-                        <td>
-                          <div
-                            className="nurse-dosage-cell"
-                            title={
-                              pv.dosage
-                                ? `Dosage prescribed by physician${pv.prescribedBy ? `: ${pv.prescribedBy}` : ''}: ${pv.dosage}`
-                                : 'No dosage prescribed yet'
-                            }
-                          >
-                            <span className="nurse-dosage-badge">{pv.dosage || 'Not set'}</span>
-                            {pv.dosage ? (
-                              <span className="nurse-prescribed-tag">🔒 Prescribed</span>
-                            ) : (
-                              <span className="nurse-prescribed-tag">Awaiting doctor</span>
-                            )}
-                          </div>
-                        </td>
+                        <td>{pv.dosage || 'Not set'}</td>
                       </tr>
                     ))
-                  ) : (
-                    <tr>
-                      <td colSpan={5} style={{ padding: '20px', fontStyle: 'italic' }}>
-                        No pending immunization doses scheduled.
-                      </td>
-                    </tr>
                   )}
                 </tbody>
               </table>
             </div>
           </div>
-        </section>
-      )}
-
-      {!showDetailsCard && selectedPatient && (
-        <div style={{ textAlign: 'center', marginTop: '24px' }}>
-          <button type="button" className="btn-add-schedule" onClick={() => setShowDetailsCard(true)}>
-            Open Patient Record ({selectedPatient.name})
-          </button>
-        </div>
+        </>
       )}
     </div>
   );

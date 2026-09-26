@@ -1,6 +1,47 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { getUser } from '../../auth/services/authService';
+import staffService from '../../hospital/services/staffService';
+import staffAppointmentService from '../../staff/services/staffAppointmentService';
 import NurseClinicalAdministerModal from './NurseClinicalAdministerModal';
 import NurseAefiReportModal from './NurseAefiReportModal';
+import {
+  IconCalendar,
+  IconClipboard,
+  IconClock,
+  IconHospital,
+  IconRefresh,
+  IconShield,
+  IconSyringe,
+  IconUser,
+} from '../../../shared/icons/AppIcons';
+import nurseHomeHero from '../../../assets/images/nurse-home-hero.jpg';
+
+const dutyLabel = {
+  Off: 'Off duty',
+  OnDuty: 'On duty',
+  OnBreak: 'On break',
+};
+
+function greetingForNow(date = new Date()) {
+  const hour = date.getHours();
+  if (hour < 12) return 'Good morning';
+  if (hour < 17) return 'Good afternoon';
+  return 'Good evening';
+}
+
+function formatNurseName(user) {
+  const raw = (user?.name || '').trim();
+  if (!raw) return 'Nurse';
+  if (/^nurse\s/i.test(raw)) return raw;
+  return `Nurse ${raw}`;
+}
+
+function toDateInputValue(date = new Date()) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
 
 export default function NurseDashboardOverview() {
   const [isAdministerModalOpen, setIsAdministerModalOpen] = useState(false);
@@ -8,205 +49,160 @@ export default function NurseDashboardOverview() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [toastMessage, setToastMessage] = useState(null);
+  const [user] = useState(() => getUser());
+  const [affiliations, setAffiliations] = useState([]);
+  const [todayAppointments, setTodayAppointments] = useState([]);
+  const [statsLoading, setStatsLoading] = useState(true);
 
   const showToast = (msg) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 4000);
   };
 
-  // Currently Active Patient in Immunization Booth
-  const [activePatient, setActivePatient] = useState({
-    id: 3,
-    token: 'T-103',
-    name: 'Rohan Jayatillake',
-    nic: '197612349876',
-    age: 50,
-    gender: 'Male',
-    phone: '+94 77 234 5678',
-    vaccine: 'Hepatitis B Recombinant',
-    dose: 'Dose 2 of 3 (1.0 mL)',
-    time: '09:22 AM',
-    allergy: 'Penicillin Allergy',
-    vitals: {
-      bp: '120/80 mmHg',
-      temp: '36.6 °C',
-      pulse: '72 bpm',
-      spo2: '99%',
-    },
-    status: 'consulting',
-  });
+  const loadDashboardData = useCallback(async () => {
+    setStatsLoading(true);
+    try {
+      const list = await staffService.getMyAffiliations();
+      const active = Array.isArray(list) ? list : [];
+      setAffiliations(active);
 
-  // Patient Queue State
-  const [patients, setPatients] = useState([
-    {
-      id: 1,
-      token: 'T-101',
-      name: 'Chaminda Wickramasinghe',
-      nic: '198845210982',
-      age: 38,
-      gender: 'Male',
-      vaccine: 'Pfizer-BioNTech Bivalent',
-      dose: 'Booster Dose 3 (0.3 mL)',
-      time: '09:15 AM',
-      allergy: 'None Reported',
-      status: 'completed',
-    },
-    {
-      id: 2,
-      token: 'T-102',
-      name: 'Nadeeka Priyadarshani',
-      nic: '199589234120',
-      age: 29,
-      gender: 'Female',
-      vaccine: 'Influenza (Quadrivalent)',
-      dose: 'Annual Routine (0.5 mL)',
-      time: '09:18 AM',
-      allergy: 'Dust & Pollen',
-      status: 'observation',
-      obsRemaining: '6 mins',
-    },
-    {
-      id: 3,
-      token: 'T-103',
-      name: 'Rohan Jayatillake',
-      nic: '197612349876',
-      age: 50,
-      gender: 'Male',
-      vaccine: 'Hepatitis B Recombinant',
-      dose: 'Dose 2 of 3 (1.0 mL)',
-      time: '09:22 AM',
-      allergy: 'Penicillin Allergy',
-      status: 'consulting',
-    },
-    {
-      id: 4,
-      token: 'T-104',
-      name: 'Sanduni Malshani',
-      nic: '200156789123',
-      age: 23,
-      gender: 'Female',
-      vaccine: 'MMR (Measles, Mumps)',
-      dose: 'Booster Dose (0.5 mL)',
-      time: '09:25 AM',
-      allergy: 'None Reported',
-      status: 'waiting',
-    },
-    {
-      id: 5,
-      token: 'T-105',
-      name: 'Kasun Bandara Herath',
-      nic: '198423456789',
-      age: 42,
-      gender: 'Male',
-      vaccine: 'Moderna Spikevax',
-      dose: 'Booster Dose 4 (0.5 mL)',
-      time: '09:28 AM',
-      allergy: 'Asthmatic (Mild)',
-      status: 'waiting',
-    },
-    {
-      id: 6,
-      token: 'T-106',
-      name: 'Kumari Dissanayake',
-      nic: '197945612300',
-      age: 47,
-      gender: 'Female',
-      vaccine: 'Hepatitis B Recombinant',
-      dose: 'Dose 1 (Primary 1.0 mL)',
-      time: '09:35 AM',
-      allergy: 'None Reported',
-      status: 'waiting',
-    },
-    {
-      id: 7,
-      token: 'T-100',
-      name: 'Malini Senanayake',
-      nic: '196234567890',
-      age: 64,
-      gender: 'Female',
-      vaccine: 'Influenza (Quadrivalent)',
-      dose: 'Senior High-Dose (0.5 mL)',
-      time: '09:00 AM',
-      allergy: 'None Reported',
-      status: 'completed',
-    },
-  ]);
+      const hospitalId = active[0]?.hospitalUserId;
+      if (!hospitalId) {
+        setTodayAppointments([]);
+        return;
+      }
 
-  // Observation Room List
-  const [observationPatients, setObservationPatients] = useState([
-    {
-      id: 2,
-      token: 'T-102',
-      name: 'Nadeeka Priyadarshani',
-      vaccine: 'Influenza (Quadrivalent)',
-      administeredTime: '09:18 AM',
-      minsLeft: 6,
-      condition: 'Stable - Normal',
-    },
-    {
-      id: 8,
-      token: 'T-099',
-      name: 'Dinesh Weerakoon',
-      vaccine: 'Pfizer-BioNTech Bivalent',
-      administeredTime: '09:10 AM',
-      minsLeft: 2,
-      condition: 'Stable - Normal',
-    },
-  ]);
+      const appts = await staffAppointmentService.getHospitalAppointments(
+        hospitalId,
+        toDateInputValue()
+      );
+      setTodayAppointments(Array.isArray(appts) ? appts : []);
+    } catch {
+      setAffiliations([]);
+      setTodayAppointments([]);
+    } finally {
+      setStatsLoading(false);
+    }
+  }, []);
 
-  // Booth Cold Box Stock
-  const coldBoxStock = [
-    { name: 'Pfizer-BioNTech Bivalent', lot: 'PF-9082', count: 12, unit: 'vials' },
-    { name: 'Hepatitis B Recombinant', lot: 'HB-8821', count: 14, unit: 'vials' },
-    { name: 'Moderna Spikevax', lot: 'MD-4419', count: 8, unit: 'vials' },
-    { name: 'Influenza Quadrivalent', lot: 'INF-7012', count: 19, unit: 'vials' },
-    { name: 'MMR Live Attenuated', lot: 'MMR-3301', count: 6, unit: 'vials' },
-  ];
+  useEffect(() => {
+    loadDashboardData();
+  }, [loadDashboardData]);
 
-  // Call Next Patient Function
+  const heroDateLabel = useMemo(
+    () =>
+      new Date().toLocaleDateString(undefined, {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      }),
+    []
+  );
+
+  const primaryAffiliation = affiliations[0];
+  const nurseTitle = formatNurseName(user);
+  const greeting = greetingForNow();
+  const dutyText = primaryAffiliation
+    ? dutyLabel[primaryAffiliation.dutyStatus] || primaryAffiliation.dutyStatus
+    : null;
+
+  const todayTotal = todayAppointments.length;
+  const todayCompleted = todayAppointments.filter((a) => a.status === 'Completed').length;
+  const todayUpcoming = todayAppointments.filter(
+    (a) => a.status === 'Confirmed' || a.status === 'PendingPayment'
+  ).length;
+  const todayNeedsDosage = todayAppointments.filter(
+    (a) => a.status === 'Confirmed' && !a.prescribedDosage
+  ).length;
+
+  const [activePatientId, setActivePatientId] = useState(null);
+  const [statusOverrides, setStatusOverrides] = useState({});
+  const [observationPatients, setObservationPatients] = useState([]);
+
+  const patients = useMemo(() => {
+    return todayAppointments.map((a) => {
+      const id = a.id;
+      let status = 'waiting';
+      if (a.status === 'Completed') status = 'completed';
+      else if (a.status === 'Confirmed' || a.status === 'PendingPayment') status = 'waiting';
+      if (statusOverrides[id]) status = statusOverrides[id];
+
+      const short = String(id).replace(/-/g, '').slice(0, 4).toUpperCase();
+      return {
+        id,
+        token: `T-${short}`,
+        name: a.patientName || 'Patient',
+        nic: a.patientNic || '—',
+        age: null,
+        gender: null,
+        phone: a.patientPhone || '—',
+        vaccine: a.vaccineName || '—',
+        dose: a.prescribedDosage || 'Dosage not set',
+        time: a.timeSlot || [a.startTime, a.endTime].filter(Boolean).join(' – ') || '—',
+        allergy: null,
+        status,
+        appointmentStatus: a.status,
+        notes: a.notes || '',
+        vitals: null,
+      };
+    });
+  }, [todayAppointments, statusOverrides]);
+
+  const activePatient = useMemo(
+    () => patients.find((p) => p.id === activePatientId) || null,
+    [patients, activePatientId]
+  );
+
   const handleCallNext = () => {
     const nextWaiting = patients.find((p) => p.status === 'waiting');
     if (!nextWaiting) {
-      showToast('No more waiting patients in queue.');
+      showToast("No more waiting patients in today's queue.");
       return;
     }
 
-    setPatients((prev) =>
-      prev.map((p) => {
-        if (p.id === nextWaiting.id) return { ...p, status: 'consulting' };
-        if (p.id === activePatient?.id && p.status === 'consulting') return { ...p, status: 'observation' };
-        return p;
-      })
-    );
+    const current = activePatientId
+      ? patients.find((p) => p.id === activePatientId)
+      : null;
 
-    setActivePatient({
-      ...nextWaiting,
-      status: 'consulting',
-      vitals: {
-        bp: '118/78 mmHg',
-        temp: '36.5 °C',
-        pulse: '70 bpm',
-        spo2: '99%',
-      },
+    if (current?.status === 'consulting') {
+      setObservationPatients((obs) => {
+        if (obs.some((o) => o.id === current.id)) return obs;
+        return [
+          {
+            id: current.id,
+            token: current.token,
+            name: current.name,
+            vaccine: current.vaccine,
+            administeredTime: new Date().toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+            }),
+            minsLeft: 15,
+            condition: 'In observation',
+          },
+          ...obs,
+        ];
+      });
+    }
+
+    setStatusOverrides((prev) => {
+      const next = { ...prev };
+      if (current?.status === 'consulting') next[current.id] = 'observation';
+      next[nextWaiting.id] = 'consulting';
+      return next;
     });
-
-    showToast(`📢 Calling ${nextWaiting.name} (Token ${nextWaiting.token}) to Nursing Station`);
+    setActivePatientId(nextWaiting.id);
+    showToast(`📢 Calling ${nextWaiting.name} (${nextWaiting.token})`);
   };
 
-  // Select patient into spotlight
   const handleSelectPatient = (patient) => {
-    setActivePatient({
-      ...patient,
-      vitals: activePatient?.id === patient.id && activePatient.vitals ? activePatient.vitals : {
-        bp: '120/80 mmHg',
-        temp: '36.6 °C',
-        pulse: '72 bpm',
-        spo2: '99%',
-      },
-    });
+    setActivePatientId(patient.id);
+    if (patient.status === 'waiting') {
+      setStatusOverrides((prev) => ({ ...prev, [patient.id]: 'consulting' }));
+    }
   };
 
-  // Certify and complete administration
   const handleCertifyAdministration = (certifiedData) => {
     setObservationPatients((prev) => [
       {
@@ -218,37 +214,31 @@ export default function NurseDashboardOverview() {
         minsLeft: 15,
         condition: 'Stable - Normal',
       },
-      ...prev,
+      ...prev.filter((p) => p.id !== certifiedData.id),
     ]);
-
-    setPatients((prev) =>
-      prev.map((p) => (p.id === certifiedData.id ? { ...p, status: 'observation' } : p))
-    );
-
-    showToast(`✅ Successfully administered & logged dosage for ${certifiedData.name}`);
+    setStatusOverrides((prev) => ({ ...prev, [certifiedData.id]: 'observation' }));
+    showToast(`✅ Recorded administration for ${certifiedData.name}`);
   };
 
-  // Discharge from observation
   const handleDischargeObservation = (id, name) => {
     setObservationPatients((prev) => prev.filter((p) => p.id !== id));
-    setPatients((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, status: 'completed' } : p))
-    );
-    showToast(`👍 ${name} discharged from 15-minute observation watch.`);
+    setStatusOverrides((prev) => ({ ...prev, [id]: 'completed' }));
+    if (activePatientId === id) setActivePatientId(null);
+    showToast(`👍 ${name} discharged from observation.`);
   };
 
-  // Submit AEFI Report
   const handleAefiSubmit = (data) => {
-    showToast(`⚠️ AEFI Report recorded for ${data.patientName}. Attending Doctor & MOH alerted.`);
+    showToast(`⚠️ AEFI report noted for ${data.patientName}.`);
   };
 
-  // Filter queue
   const filteredPatients = patients.filter((p) => {
+    const q = searchQuery.toLowerCase();
     const matchesSearch =
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.token.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.nic.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.vaccine.toLowerCase().includes(searchQuery.toLowerCase());
+      !q ||
+      p.name.toLowerCase().includes(q) ||
+      p.token.toLowerCase().includes(q) ||
+      String(p.nic).toLowerCase().includes(q) ||
+      p.vaccine.toLowerCase().includes(q);
 
     if (!matchesSearch) return false;
     if (filterStatus === 'all') return true;
@@ -257,11 +247,10 @@ export default function NurseDashboardOverview() {
 
   const waitingCount = patients.filter((p) => p.status === 'waiting').length;
   const completedCount = patients.filter((p) => p.status === 'completed').length;
-  const alertCount = patients.filter((p) => p.allergy && p.allergy !== 'None Reported').length;
+  const observationCount = patients.filter((p) => p.status === 'observation').length;
 
   return (
-    <div className="nurse-dashboard-page">
-      {/* Toast Notification */}
+    <div>
       {toastMessage && (
         <div className="doctor-toast">
           <span>🔔</span>
@@ -269,100 +258,120 @@ export default function NurseDashboardOverview() {
         </div>
       )}
 
-      {/* 1. Hero Banner with Welcome, Station Status, and Quick Actions */}
-      <section className="doctor-hero-banner nurse-hero-banner">
-        <div className="doctor-hero-info">
-          <h1 className="doctor-hero-title">Good morning, Nurse Anoma Silva</h1>
-          <p className="doctor-hero-subtitle">
-            Monday, 7 September 2026 • Adult &amp; Pediatric Immunization Clinic
+      {/* Hero shell — image slot ready for your asset */}
+      <section className="hospital-hero-banner doctor-home-hero nurse-home-hero">
+        <div className="hospital-hero-content doctor-home-hero-content">
+          <p className="hospital-hero-eyebrow">Clinical session</p>
+          <h1>
+            {greeting}, {nurseTitle}
+          </h1>
+          <p className="hospital-hero-sub">
+            {heroDateLabel}
+            {primaryAffiliation?.hospitalName
+              ? ` · ${primaryAffiliation.hospitalName}`
+              : ' · No active hospital affiliation yet'}
           </p>
           <div className="doctor-hero-session-pill">
-            <span>🏥 Booth 01 Active Station</span>
-            <span>•</span>
-            <span>❄️ Cold-Chain: 3.8°C Verified</span>
-            <span>•</span>
-            <span>🩺 Supervising Doctor: Dr. Samantha Perera</span>
+            {primaryAffiliation ? (
+              <>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                  <IconHospital size={14} />{' '}
+                  {primaryAffiliation.hospitalName || 'Affiliated hospital'}
+                </span>
+                <span>·</span>
+                <span>{dutyText}</span>
+              </>
+            ) : (
+              <span>Accept a hospital invitation on Affiliations to join a roster</span>
+            )}
+          </div>
+          <div className="doctor-hero-actions">
+            <button type="button" className="doctor-btn-call-next" onClick={handleCallNext}>
+              Call Next Patient
+            </button>
+            <button
+              type="button"
+              className="doctor-btn-report-aefi"
+              onClick={() => setIsAefiModalOpen(true)}
+            >
+              Report AEFI
+            </button>
           </div>
         </div>
-
-        <div className="doctor-hero-actions">
-          <button
-            type="button"
-            className="doctor-btn-call-next"
-            onClick={handleCallNext}
-          >
-            📢 Call Next Patient
-          </button>
-          <button
-            type="button"
-            className="doctor-btn-report-aefi"
-            onClick={() => setIsAefiModalOpen(true)}
-          >
-            ⚠️ Report AEFI
-          </button>
+        <div className="hospital-hero-media" aria-hidden="true">
+          <img
+            src={nurseHomeHero}
+            alt=""
+            className="hospital-hero-image nurse-home-hero-image"
+          />
         </div>
       </section>
 
-      {/* 2. Key Metrics Ribbon (4 Cards) */}
-      <section className="doctor-stats-grid">
-        <div className="doctor-stat-card">
-          <div className="doctor-stat-content">
-            <span className="doctor-stat-label">Today's Appointments</span>
-            <span className="doctor-stat-value">24</span>
-            <span className="doctor-stat-meta">
-              <span style={{ color: '#059669', fontWeight: 700 }}>{completedCount} Completed</span> • {waitingCount} Remaining
+      <section className="hospital-metrics-grid doctor-stats-grid">
+        <div className="hospital-stat-card">
+          <div className="hospital-stat-icon stat-icon-blue">
+            <IconCalendar size={22} />
+          </div>
+          <div className="hospital-stat-info">
+            <span className="hospital-stat-label">Today&apos;s Appointments</span>
+            <span className="hospital-stat-value">{statsLoading ? '—' : todayTotal}</span>
+            <span className="hospital-stat-meta">
+              <span className="meta-positive">
+                {statsLoading ? '—' : todayCompleted} Completed
+              </span>
+              {' · '}
+              {statsLoading ? '—' : todayUpcoming} Upcoming
             </span>
           </div>
-          <div className="doctor-stat-icon-wrapper doctor-icon-blue">
-            <span>📅</span>
+        </div>
+
+        <div className="hospital-stat-card">
+          <div className="hospital-stat-icon stat-icon-amber">
+            <IconClock size={22} />
+          </div>
+          <div className="hospital-stat-info">
+            <span className="hospital-stat-label">Upcoming Today</span>
+            <span className="hospital-stat-value">{statsLoading ? '—' : todayUpcoming}</span>
+            <span className="hospital-stat-meta">Confirmed or awaiting payment</span>
           </div>
         </div>
 
-        <div className="doctor-stat-card">
-          <div className="doctor-stat-content">
-            <span className="doctor-stat-label">Waiting in Queue</span>
-            <span className="doctor-stat-value" style={{ color: '#d97706' }}>{waitingCount}</span>
-            <span className="doctor-stat-meta">Avg wait time: ~11 mins</span>
+        <div className="hospital-stat-card">
+          <div className="hospital-stat-icon stat-icon-green">
+            <IconSyringe size={22} />
           </div>
-          <div className="doctor-stat-icon-wrapper doctor-icon-amber">
-            <span>⏳</span>
-          </div>
-        </div>
-
-        <div className="doctor-stat-card">
-          <div className="doctor-stat-content">
-            <span className="doctor-stat-label">Doses Administered</span>
-            <span className="doctor-stat-value" style={{ color: '#059669' }}>18</span>
-            <span className="doctor-stat-meta">Recorded &amp; batch verified</span>
-          </div>
-          <div className="doctor-stat-icon-wrapper doctor-icon-green">
-            <span>💉</span>
+          <div className="hospital-stat-info">
+            <span className="hospital-stat-label">Completed Today</span>
+            <span className="hospital-stat-value">{statsLoading ? '—' : todayCompleted}</span>
+            <span className="hospital-stat-meta">Marked completed at this hospital</span>
           </div>
         </div>
 
-        <div className="doctor-stat-card">
-          <div className="doctor-stat-content">
-            <span className="doctor-stat-label">Allergy / High-Risk Flags</span>
-            <span className="doctor-stat-value" style={{ color: '#dc2626' }}>{alertCount}</span>
-            <span className="doctor-stat-meta">Pre-screening flags active</span>
+        <div className="hospital-stat-card">
+          <div className="hospital-stat-icon stat-icon-purple">
+            <IconShield size={22} />
           </div>
-          <div className="doctor-stat-icon-wrapper doctor-icon-purple">
-            <span>⚠️</span>
+          <div className="hospital-stat-info">
+            <span className="hospital-stat-label">Needs Dosage</span>
+            <span className="hospital-stat-value">{statsLoading ? '—' : todayNeedsDosage}</span>
+            <span className="hospital-stat-meta">Confirmed visits without prescribed dosage</span>
           </div>
         </div>
       </section>
 
-      {/* 3. Active Consultation Spotlight Workspace */}
       {activePatient && (
-        <section className="doctor-spotlight-card nurse-spotlight-card">
+        <section className="doctor-spotlight-card">
           <div className="doctor-spotlight-header">
             <div>
-              <div className="doctor-spotlight-badge" style={{ background: '#e0f2fe', color: '#0369a1' }}>
-                <span className="doctor-spotlight-pulse" style={{ background: '#0284c7' }}></span>
+              <div className="doctor-spotlight-badge">
+                <span className="doctor-spotlight-pulse"></span>
                 Active Immunization Station
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span className="doctor-token-pill" style={{ fontSize: '1.05rem', padding: '4px 12px' }}>
+                <span
+                  className="doctor-token-pill"
+                  style={{ fontSize: '1.05rem', padding: '4px 12px' }}
+                >
                   {activePatient.token}
                 </span>
                 <span className="doctor-spotlight-token">{activePatient.name}</span>
@@ -372,87 +381,77 @@ export default function NurseDashboardOverview() {
             <div style={{ textAlign: 'right' }}>
               <span style={{ fontSize: '0.82rem', color: '#64748b' }}>Scheduled Slot</span>
               <div style={{ fontWeight: 700, color: '#1e1b4b', fontSize: '1rem' }}>
-                {activePatient.time} (On Time)
+                {activePatient.time}
+              </div>
+              <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: 4 }}>
+                {activePatient.appointmentStatus || '—'}
               </div>
             </div>
           </div>
 
           <div className="doctor-spotlight-details-grid">
-            {/* Bio & Details */}
             <div className="doctor-patient-bio">
               <div className="doctor-patient-avatar">
-                {activePatient.gender === 'Female' ? '👩' : '👨'}
+                <IconUser size={28} />
               </div>
               <div>
                 <div className="doctor-patient-name">{activePatient.name}</div>
                 <div className="doctor-patient-meta-text">
                   NIC: <strong>{activePatient.nic}</strong>
                 </div>
-                <div className="doctor-patient-meta-text">
-                  Age: {activePatient.age} yrs • Gender: {activePatient.gender}
-                </div>
+                <div className="doctor-patient-meta-text">Phone: {activePatient.phone}</div>
                 <div style={{ marginTop: '6px' }}>
-                  <span className={`doctor-allergy-flag ${activePatient.allergy !== 'None Reported' ? 'doctor-allergy-warning' : 'doctor-allergy-none'}`}>
-                    {activePatient.allergy !== 'None Reported' ? '⚠️ ' : '✅ '}
-                    {activePatient.allergy}
+                  <span className="doctor-allergy-flag doctor-allergy-none">
+                    Allergy data not linked yet
                   </span>
                 </div>
               </div>
             </div>
 
-            {/* Pre-Screen Vitals */}
             <div className="doctor-vitals-box">
               <div className="doctor-vital-item">
                 <span className="doctor-vital-label">Blood Pressure</span>
-                <span className="doctor-vital-value">{activePatient.vitals?.bp || '120/80'}</span>
+                <span className="doctor-vital-value">{activePatient.vitals?.bp || '—'}</span>
               </div>
               <div className="doctor-vital-item">
                 <span className="doctor-vital-label">Pulse</span>
-                <span className="doctor-vital-value">{activePatient.vitals?.pulse || '72 bpm'}</span>
+                <span className="doctor-vital-value">{activePatient.vitals?.pulse || '—'}</span>
               </div>
               <div className="doctor-vital-item">
                 <span className="doctor-vital-label">Temperature</span>
-                <span className="doctor-vital-value">{activePatient.vitals?.temp || '36.6 °C'}</span>
+                <span className="doctor-vital-value">{activePatient.vitals?.temp || '—'}</span>
               </div>
               <div className="doctor-vital-item">
                 <span className="doctor-vital-label">Oxygen (SpO2)</span>
-                <span className="doctor-vital-value">{activePatient.vitals?.spo2 || '99%'}</span>
+                <span className="doctor-vital-value">{activePatient.vitals?.spo2 || '—'}</span>
               </div>
             </div>
 
-            {/* Vaccine to Administer (Prescribed by Physician) */}
             <div className="doctor-vaccine-assign-box">
-              <span className="doctor-vaccine-assign-title">Prescribed Vaccine &amp; Dosage</span>
+              <span className="doctor-vaccine-assign-title">Vaccine Prescription</span>
               <span className="doctor-vaccine-name">{activePatient.vaccine}</span>
-              <span className="doctor-vaccine-lot">
-                {activePatient.dose} • Cold Box Lot: <strong>HB-8821</strong>
-              </span>
-              <div style={{ marginTop: '4px', fontSize: '0.74rem', color: '#0369a1', fontWeight: 600 }}>
-                🔒 Dosage prescribed by attending physician
-              </div>
+              <span className="doctor-vaccine-lot">{activePatient.dose}</span>
             </div>
           </div>
 
-          {/* Pre-Screen Checklist */}
           <div className="doctor-checklist-bar">
-            <span style={{ fontWeight: 700, color: '#334155' }}>Nurse Pre-Administration Check:</span>
+            <span style={{ fontWeight: 700, color: '#334155' }}>Clinical Safety Screen:</span>
             <div className="doctor-checklist-items">
               <span className="doctor-check-pill">
-                <span className="doctor-check-icon-ok">✓</span> Patient Identification Verified
+                <span className="doctor-check-icon-ok">✓</span> No Acute Fever / Illness
               </span>
               <span className="doctor-check-pill">
-                <span className="doctor-check-icon-ok">✓</span> No Contraindications / Fever
+                <span className="doctor-check-icon-ok">✓</span> No Prior Anaphylaxis
               </span>
               <span className="doctor-check-pill">
-                <span className="doctor-check-icon-ok">✓</span> Informed Consent Confirmed
+                <span className="doctor-check-icon-ok">✓</span> Informed Consent Signed
               </span>
               <span className="doctor-check-pill">
-                <span className="doctor-check-icon-ok">✓</span> Cold-Chain Lot Ready
+                <span className="doctor-check-icon-ok">✓</span> Dose Interval Compliant
               </span>
             </div>
           </div>
 
-          {/* Action Buttons */}
           <div className="doctor-spotlight-actions">
             <button
               type="button"
@@ -467,79 +466,99 @@ export default function NurseDashboardOverview() {
               onClick={() => {
                 handleCertifyAdministration({
                   ...activePatient,
-                  administeredAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  administeredAt: new Date().toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  }),
                 });
               }}
             >
-              ⏱️ Transfer to Observation
+              Transfer to Observation
             </button>
             <button
               type="button"
               className="doctor-btn-certify"
-              style={{ background: '#0284c7' }}
               onClick={() => setIsAdministerModalOpen(true)}
             >
-              💉 Administer &amp; Record Dose
+              Certify &amp; Record Administration
             </button>
           </div>
         </section>
       )}
 
-      {/* 4. Main Two-Column Layout (Queue + Side Panels) */}
       <div className="doctor-main-grid">
-        {/* Left Column: Today's Patient Queue Table */}
-        <div className="doctor-card">
-          <div className="doctor-card-header">
-            <div className="doctor-card-title">
-              <span>📋</span>
-              Today's Nursing Clinic Queue
+        <div className="doctor-card doctor-queue-card">
+          <div className="section-card-header queue-section-header">
+            <div className="section-title-group">
+              <h2>
+                <span className="section-title-icon icon-shade-purple">
+                  <IconClipboard size={22} />
+                </span>
+                Today&apos;s Consultation Queue
+              </h2>
+              <p className="section-title-desc">
+                Live patient flow for today&apos;s session at your affiliated hospital
+              </p>
             </div>
+          </div>
 
-            <div className="doctor-filter-pills">
+          <div className="queue-controls-bar">
+            <div className="queue-controls-left">
+              <div className="queue-scope-switch">
+                <button
+                  type="button"
+                  className={`queue-scope-btn${filterStatus === 'all' ? ' active' : ''}`}
+                  onClick={() => setFilterStatus('all')}
+                >
+                  All ({patients.length})
+                </button>
+                <button
+                  type="button"
+                  className={`queue-scope-btn${filterStatus === 'waiting' ? ' active' : ''}`}
+                  onClick={() => setFilterStatus('waiting')}
+                >
+                  Waiting ({waitingCount})
+                </button>
+                <button
+                  type="button"
+                  className={`queue-scope-btn${filterStatus === 'observation' ? ' active' : ''}`}
+                  onClick={() => setFilterStatus('observation')}
+                >
+                  Observation ({observationCount})
+                </button>
+                <button
+                  type="button"
+                  className={`queue-scope-btn${filterStatus === 'completed' ? ' active' : ''}`}
+                  onClick={() => setFilterStatus('completed')}
+                >
+                  Completed ({completedCount})
+                </button>
+              </div>
+
+              <input
+                type="text"
+                className="queue-search-input"
+                placeholder="Search patient, phone, token..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+
               <button
                 type="button"
-                className={`doctor-filter-btn ${filterStatus === 'all' ? 'active' : ''}`}
-                onClick={() => setFilterStatus('all')}
+                className="btn-inventory-refresh"
+                onClick={() => {
+                  setFilterStatus('all');
+                  setSearchQuery('');
+                  loadDashboardData();
+                }}
+                disabled={statsLoading}
+                title="Refresh consultation queue"
               >
-                All ({patients.length})
-              </button>
-              <button
-                type="button"
-                className={`doctor-filter-btn ${filterStatus === 'waiting' ? 'active' : ''}`}
-                onClick={() => setFilterStatus('waiting')}
-              >
-                Waiting ({waitingCount})
-              </button>
-              <button
-                type="button"
-                className={`doctor-filter-btn ${filterStatus === 'observation' ? 'active' : ''}`}
-                onClick={() => setFilterStatus('observation')}
-              >
-                Observation
-              </button>
-              <button
-                type="button"
-                className={`doctor-filter-btn ${filterStatus === 'completed' ? 'active' : ''}`}
-                onClick={() => setFilterStatus('completed')}
-              >
-                Completed ({completedCount})
+                {statsLoading ? '...' : <IconRefresh size={16} />}
               </button>
             </div>
           </div>
 
-          {/* Search Input */}
-          <div className="doctor-search-bar">
-            <span className="doctor-search-icon">🔍</span>
-            <input
-              type="text"
-              className="doctor-search-input"
-              placeholder="Search by patient name, NIC, token, or vaccine..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-
-          {/* Queue Table */}
           <div className="doctor-table-wrapper">
             <table className="doctor-table">
               <thead>
@@ -557,14 +576,18 @@ export default function NurseDashboardOverview() {
                 {filteredPatients.length === 0 ? (
                   <tr>
                     <td colSpan={7} style={{ textAlign: 'center', padding: '32px', color: '#64748b' }}>
-                      No patients matching your search criteria.
+                      {statsLoading
+                        ? "Loading today's appointments..."
+                        : patients.length === 0
+                          ? 'No appointments for today at your affiliated hospital.'
+                          : 'No patients matching your search criteria.'}
                     </td>
                   </tr>
                 ) : (
                   filteredPatients.map((p) => {
                     const isCurrent = activePatient?.id === p.id;
                     return (
-                      <tr key={p.id} style={{ background: isCurrent ? '#f0f9ff' : undefined }}>
+                      <tr key={p.id} style={{ background: isCurrent ? '#f0f7ff' : undefined }}>
                         <td>
                           <span className="doctor-token-pill">{p.token}</span>
                         </td>
@@ -577,7 +600,8 @@ export default function NurseDashboardOverview() {
                               {p.name}
                             </span>
                             <span className="doctor-patient-sub">
-                              NIC: {p.nic} • {p.age}y/{p.gender[0]}
+                              NIC: {p.nic}
+                              {p.phone && p.phone !== '—' ? ` • ${p.phone}` : ''}
                             </span>
                           </div>
                         </td>
@@ -586,21 +610,18 @@ export default function NurseDashboardOverview() {
                           <span className="doctor-dose-sub">{p.dose}</span>
                         </td>
                         <td>
-                          <span className={`doctor-allergy-flag ${p.allergy !== 'None Reported' ? 'doctor-allergy-warning' : 'doctor-allergy-none'}`}>
-                            {p.allergy !== 'None Reported' ? '⚠️ ' : '✅ '}
-                            {p.allergy}
-                          </span>
+                          <span className="doctor-allergy-flag doctor-allergy-none">—</span>
                         </td>
                         <td style={{ color: '#475569', fontWeight: 600 }}>{p.time}</td>
                         <td>
                           <span className={`doctor-status-badge status-${p.status}`}>
                             {p.status === 'consulting'
-                              ? 'Active'
+                              ? 'Consulting'
                               : p.status === 'waiting'
-                              ? 'In Queue'
-                              : p.status === 'observation'
-                              ? 'Observation'
-                              : 'Completed'}
+                                ? 'In Queue'
+                                : p.status === 'observation'
+                                  ? 'Observation'
+                                  : 'Completed'}
                           </span>
                         </td>
                         <td>
@@ -617,7 +638,7 @@ export default function NurseDashboardOverview() {
                             <button
                               type="button"
                               className="doctor-table-btn"
-                              style={{ background: '#0284c7', color: '#ffffff' }}
+                              style={{ background: '#19469d', color: '#ffffff' }}
                               onClick={() => setIsAdministerModalOpen(true)}
                             >
                               Administer
@@ -635,7 +656,7 @@ export default function NurseDashboardOverview() {
                           )}
                           {p.status === 'completed' && (
                             <span style={{ fontSize: '0.78rem', color: '#059669', fontWeight: 700 }}>
-                              ✓ Completed
+                              ✓ Certified
                             </span>
                           )}
                         </td>
@@ -648,22 +669,32 @@ export default function NurseDashboardOverview() {
           </div>
         </div>
 
-        {/* Right Column: Observation Room Watch & Station Cold Box Stock */}
         <div className="doctor-side-column">
-          {/* Observation Watch Widget */}
           <div className="doctor-obs-card">
             <div className="doctor-obs-header">
-              <div className="doctor-obs-title">
-                <span>⏱️</span>
+              <div
+                className="doctor-obs-title"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+              >
+                <span className="icon-shade icon-shade-amber">
+                  <IconClock size={22} />
+                </span>
                 15-Min Observation Watch
               </div>
-              <span className="doctor-obs-count-badge" style={{ background: '#e0f2fe', color: '#0369a1' }}>
+              <span className="doctor-obs-count-badge">
                 {observationPatients.length} Under Watch
               </span>
             </div>
 
             {observationPatients.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '24px 10px', color: '#64748b', fontSize: '0.88rem' }}>
+              <div
+                style={{
+                  textAlign: 'center',
+                  padding: '24px 10px',
+                  color: '#64748b',
+                  fontSize: '0.88rem',
+                }}
+              >
                 Observation recovery room is currently clear.
               </div>
             ) : (
@@ -675,13 +706,23 @@ export default function NurseDashboardOverview() {
                       <span className="doctor-obs-item-meta">
                         {obs.vaccine} • {obs.administeredTime}
                       </span>
-                      <span style={{ fontSize: '0.74rem', color: '#059669', fontWeight: 600, marginTop: '2px' }}>
+                      <span
+                        style={{
+                          fontSize: '0.74rem',
+                          color: '#059669',
+                          fontWeight: 600,
+                          marginTop: '2px',
+                        }}
+                      >
                         ✓ {obs.condition}
                       </span>
                     </div>
                     <div className="doctor-obs-countdown">
-                      <span className="doctor-obs-timer-pill">
-                        ⏳ {obs.minsLeft} mins left
+                      <span
+                        className="doctor-obs-timer-pill"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                      >
+                        <IconClock size={14} /> {obs.minsLeft} mins left
                       </span>
                       <button
                         type="button"
@@ -697,60 +738,51 @@ export default function NurseDashboardOverview() {
             )}
           </div>
 
-          {/* Booth Cold Box Vaccine Inventory */}
           <div className="doctor-coldbox-card">
             <div className="doctor-coldbox-header">
-              <div className="doctor-coldbox-title">
-                <span>❄️</span>
-                Station Cold-Box Stock
-              </div>
-              <span className="doctor-coldbox-temp">3.8°C (Normal)</span>
-            </div>
-
-            <div className="doctor-coldbox-list">
-              {coldBoxStock.map((item, idx) => (
-                <div key={idx} className="doctor-coldbox-item">
-                  <div>
-                    <div className="doctor-coldbox-name">{item.name}</div>
-                    <div className="doctor-coldbox-lot">Lot: {item.lot}</div>
-                  </div>
-                  <div className="doctor-coldbox-count">
-                    <span className="doctor-coldbox-number">{item.count}</span>
-                    <span className="doctor-coldbox-unit">{item.unit}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Today's Clinic Session Schedule */}
-          <div className="doctor-coldbox-card">
-            <div className="doctor-coldbox-header">
-              <div className="doctor-coldbox-title">
-                <span>🕒</span>
-                Today's Clinic Blocks
+              <div
+                className="doctor-coldbox-title"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+              >
+                <span className="icon-shade icon-shade-amber">
+                  <IconClock size={22} />
+                </span>
+                Today&apos;s Slots
               </div>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.85rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: '#f1f5f9', borderRadius: '8px' }}>
-                <span style={{ fontWeight: 600, color: '#334155' }}>08:30 - 10:30</span>
-                <span style={{ color: '#059669', fontWeight: 700 }}>Adult Boosters (Completed)</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: '#f0f9ff', borderRadius: '8px', border: '1px solid #bae6fd' }}>
-                <span style={{ fontWeight: 700, color: '#0284c7' }}>10:30 - 12:30</span>
-                <span style={{ color: '#0284c7', fontWeight: 700 }}>Pediatric &amp; Routine (Active)</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                <span style={{ fontWeight: 600, color: '#64748b' }}>13:30 - 16:00</span>
-                <span style={{ color: '#64748b' }}>Travel Clinic (Upcoming)</span>
-              </div>
+              {todayAppointments.length === 0 ? (
+                <p style={{ margin: 0, color: '#64748b' }}>No slots booked for today.</p>
+              ) : (
+                todayAppointments.slice(0, 6).map((a) => (
+                  <div
+                    key={a.id}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      gap: 8,
+                      padding: '8px 12px',
+                      background: a.status === 'Completed' ? '#f1f5f9' : '#eff6ff',
+                      borderRadius: '8px',
+                      border:
+                        a.status === 'Completed' ? '1px solid #e2e8f0' : '1px solid #bfdbfe',
+                    }}
+                  >
+                    <span style={{ fontWeight: 600, color: '#334155' }}>
+                      {a.timeSlot || a.startTime || '—'}
+                    </span>
+                    <span style={{ color: '#1e40af', fontWeight: 650, textAlign: 'right' }}>
+                      {a.patientName} · {a.status}
+                    </span>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Clinical Administration & Certification Modal */}
       <NurseClinicalAdministerModal
         isOpen={isAdministerModalOpen}
         onClose={() => setIsAdministerModalOpen(false)}
@@ -758,7 +790,6 @@ export default function NurseDashboardOverview() {
         onCertify={handleCertifyAdministration}
       />
 
-      {/* AEFI Report Modal */}
       <NurseAefiReportModal
         isOpen={isAefiModalOpen}
         onClose={() => setIsAefiModalOpen(false)}

@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import logo from '../../../assets/images/logo.png';
-import { authService, getUser } from '../../auth';
+import { authService, getUser, subscribeAuthUser } from '../../auth';
 import DeleteAccountModal from '../../auth/components/DeleteAccountModal';
+import { IconClose, IconLogout, IconMenu, IconShield, IconTrash } from '../../../shared/icons/AppIcons';
 
 export default function AdminNavbar({ pendingApprovalsCount = 0 }) {
   const navigate = useNavigate();
@@ -10,9 +11,18 @@ export default function AdminNavbar({ pendingApprovalsCount = 0 }) {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [user, setUser] = useState(() =>
+    typeof authService?.getUser === 'function' ? authService.getUser() : (getUser ? getUser() : null)
+  );
   const profileMenuRef = useRef(null);
 
-  const user = typeof authService?.getUser === 'function' ? authService.getUser() : (getUser ? getUser() : null);
+  useEffect(
+    () =>
+      subscribeAuthUser(() => {
+        setUser(typeof authService?.getUser === 'function' ? authService.getUser() : (getUser ? getUser() : null));
+      }),
+    []
+  );
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -104,28 +114,24 @@ export default function AdminNavbar({ pendingApprovalsCount = 0 }) {
               aria-label="Superadmin Profile"
               style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
             >
+              <span className="navbar-user-meta">
+                <span className="navbar-user-name">{user?.name || 'Admin'}</span>
+                <span className="navbar-user-sub">
+                  {user?.email || 'Administrator'}
+                </span>
+              </span>
               {user?.profilePhotoUrl ? (
                 <img
+                  key={user.profilePhotoUrl}
                   src={user.profilePhotoUrl}
                   alt={user.name || 'Admin'}
                   className="navbar-avatar-img"
                   style={{ borderColor: '#0ea5e9' }}
                 />
               ) : (
-                <svg
-                  viewBox="0 0 48 48"
-                  width="40"
-                  height="40"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <circle cx="24" cy="24" r="23" fill="#e0f2fe" stroke="#0ea5e9" strokeWidth="2" />
-                  <circle cx="24" cy="18" r="8" fill="#0284c7" />
-                  <path
-                    d="M10 40C10 32.268 16.268 28 24 28C31.732 28 38 32.268 38 40"
-                    fill="#0284c7"
-                  />
-                </svg>
+                <div className="navbar-avatar-fallback" style={{ background: '#e0f2fe', color: '#0284c7', borderColor: '#0ea5e9' }}>
+                  <IconShield size={20} />
+                </div>
               )}
             </button>
 
@@ -168,7 +174,9 @@ export default function AdminNavbar({ pendingApprovalsCount = 0 }) {
                     setIsDeleteModalOpen(true);
                   }}
                 >
-                  🗑️ Delete Account
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    <IconTrash size={16} /> Delete Account
+                  </span>
                 </button>
               </div>
             )}
@@ -184,7 +192,7 @@ export default function AdminNavbar({ pendingApprovalsCount = 0 }) {
             }}
             aria-label={mobileMenuOpen ? 'Close Navigation Menu' : 'Open Navigation Menu'}
           >
-            {mobileMenuOpen ? '✕' : '☰'}
+            {mobileMenuOpen ? <IconClose size={18} /> : <IconMenu size={18} />}
           </button>
         </div>
       </div>
@@ -212,14 +220,18 @@ export default function AdminNavbar({ pendingApprovalsCount = 0 }) {
               className="portal-mobile-nav-btn"
               onClick={() => handleNavigate('/admin/profile')}
             >
-              🛡️ Admin Profile
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                <IconShield size={16} /> Admin Profile
+              </span>
             </button>
             <button
               type="button"
               className="portal-mobile-nav-btn text-danger"
               onClick={handleLogout}
             >
-              🚪 Log Out
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                <IconLogout size={16} /> Log Out
+              </span>
             </button>
             <button
               type="button"
@@ -229,7 +241,9 @@ export default function AdminNavbar({ pendingApprovalsCount = 0 }) {
                 setIsDeleteModalOpen(true);
               }}
             >
-              🗑️ Delete Account
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                <IconTrash size={16} /> Delete Account
+              </span>
             </button>
           </nav>
         </div>

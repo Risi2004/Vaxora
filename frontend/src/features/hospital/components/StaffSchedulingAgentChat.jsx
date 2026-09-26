@@ -367,7 +367,7 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, initialPr
         ...prev,
         {
           role: 'assistant',
-          content: `⚠️ **Agent Communication Error**: ${
+          content: `**Agent Communication Error**: ${
             err.message ||
             'Could not connect to the Staff Scheduling Agent service. Please ensure the agent backend is running.'
           }`,
@@ -431,7 +431,7 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, initialPr
         ...prev,
         {
           role: 'assistant',
-          content: `⚠️ Failed to create shift: ${err.message || 'Request failed'}`,
+          content: `Failed to create shift: ${err.message || 'Request failed'}`,
           isError: true,
         },
       ]);

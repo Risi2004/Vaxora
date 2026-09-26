@@ -1,6 +1,14 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { appointmentService } from '../services/appointmentService';
 import BookingAgentChat from './BookingAgentChat';
+import { IconCalendar, IconClock, IconDoctor, IconHospital, IconRefresh, IconShield } from '../../../shared/icons/AppIcons';
+
+const STEP_ICONS = {
+  hospital: IconHospital,
+  calendar: IconCalendar,
+  clock: IconClock,
+  shield: IconShield,
+};
 
 export default function AppointmentsTab() {
   const [showAgentModal, setShowAgentModal] = useState(false);
@@ -530,28 +538,28 @@ export default function AppointmentsTab() {
     if (!formData.vaccine) {
       return {
         type: 'guide-prompt',
-        icon: '👉',
+        iconKey: null,
         text: 'Step 1: Please select a vaccine from the list below to check which hospitals are offering it.',
       };
     }
     if (availableHospitals.length === 0) {
       return {
         type: 'guide-warning',
-        icon: '⚠️',
+        iconKey: 'shield',
         text: `No hospitals are currently offering "${formData.vaccine}". Please select another vaccine.`,
       };
     }
     if (!formData.hospitalUserId) {
       return {
         type: 'guide-success',
-        icon: '🏥',
+        iconKey: 'hospital',
         text: `Step 2: ${availableHospitals.length} hospital(s) found offering ${formData.vaccine}. Choose your preferred hospital.`,
       };
     }
     if (!formData.date) {
       return {
         type: 'guide-prompt',
-        icon: '📅',
+        iconKey: 'calendar',
         text: availableDates.length > 0
           ? `Step 3: Choose an available session date (${availableDates.length} date(s) found).`
           : 'Step 3: Checking available schedule dates from hospital...',
@@ -560,13 +568,13 @@ export default function AppointmentsTab() {
     if (!formData.time) {
       return {
         type: 'guide-prompt',
-        icon: '⏰',
+        iconKey: 'clock',
         text: 'Step 4: Select an available 20-minute time slot.',
       };
     }
     return {
       type: 'guide-success',
-      icon: '✅',
+      iconKey: 'shield',
       text: 'Ready! Click "Book Appointment" to reserve your vaccination slot.',
     };
   };
@@ -641,7 +649,11 @@ export default function AppointmentsTab() {
 
           {/* Dynamic Step Guidance Prompt */}
           <div className={`booking-step-guide ${stepInfo.type}`}>
-            <span style={{ fontSize: '1.2rem', marginRight: '6px' }}>{stepInfo.icon}</span>
+            {stepInfo.iconKey && STEP_ICONS[stepInfo.iconKey] ? (
+              <span style={{ display: 'inline-flex', marginRight: '6px', verticalAlign: 'middle' }}>
+                {React.createElement(STEP_ICONS[stepInfo.iconKey], { size: 18 })}
+              </span>
+            ) : null}
             <span>{stepInfo.text}</span>
           </div>
 
@@ -721,8 +733,8 @@ export default function AppointmentsTab() {
                   </span>
                 )}
                 {isVaccineSelected && availableHospitals.length === 0 && (
-                  <span className="field-helper-hint hint-warning">
-                    ⚠️ No hospitals currently offer this vaccine
+                  <span className="field-helper-hint hint-warning" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    <IconShield size={14} /> No hospitals currently offer this vaccine
                   </span>
                 )}
               </div>
@@ -749,7 +761,7 @@ export default function AppointmentsTab() {
                     disabled={!isHospitalSelected || loadingDates || availableDates.length === 0}
                   >
                     <span style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      <span>📅</span>
+                      <IconCalendar size={16} />
                       <span style={{ color: formData.date ? '#0f172a' : '#94a3b8', fontWeight: formData.date ? '600' : 'normal' }}>
                         {!isHospitalSelected
                           ? 'Select Hospital first...'
@@ -870,7 +882,9 @@ export default function AppointmentsTab() {
                         </div>
                         {selectedDateInfo.doctorName && (
                           <div className="cal-detail-sub">
-                            <span>👨‍⚕️ Dr. {selectedDateInfo.doctorName.replace(/^Dr\.\s*/i, '')}</span>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                              <IconDoctor size={14} /> Dr. {selectedDateInfo.doctorName.replace(/^Dr\.\s*/i, '')}
+                            </span>
                             {selectedDateInfo.formattedPrice && (
                               <span className="cal-fee-tag">• {selectedDateInfo.formattedPrice}</span>
                             )}
@@ -883,8 +897,10 @@ export default function AppointmentsTab() {
                       className="cal-change-btn"
                       onClick={() => setShowCalendarPopup(true)}
                     >
-                      <span>📅</span>
-                      <span>Change Date</span>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                        <IconCalendar size={14} />
+                        <span>Change Date</span>
+                      </span>
                     </button>
                   </div>
                 )}
@@ -898,8 +914,8 @@ export default function AppointmentsTab() {
                     Fetching hospital immunization schedules...
                   </span>
                 ) : availableDates.length === 0 ? (
-                  <span className="field-helper-hint hint-warning">
-                    ⚠️ Hospital has not yet posted active schedule slots for this vaccine.
+                  <span className="field-helper-hint hint-warning" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    <IconShield size={14} /> Hospital has not yet posted active schedule slots for this vaccine.
                   </span>
                 ) : (
                   <span className="field-helper-hint hint-success">
@@ -960,8 +976,8 @@ export default function AppointmentsTab() {
                     Calculating 20-minute intervals and checking existing bookings...
                   </span>
                 ) : availableSlots.filter((s) => !s.isBooked && !s.IsBooked).length === 0 ? (
-                  <span className="field-helper-hint hint-warning">
-                    ⚠️ All 20-minute slots on this date are fully booked. Please select another date.
+                  <span className="field-helper-hint hint-warning" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    <IconShield size={14} /> All 20-minute slots on this date are fully booked. Please select another date.
                   </span>
                 ) : (
                   <span className="field-helper-hint hint-success">
@@ -1107,7 +1123,9 @@ export default function AppointmentsTab() {
               disabled={loadingAppointments}
               style={{ padding: '6px 14px', fontSize: '0.85rem' }}
             >
-              🔄 Refresh
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                <IconRefresh size={14} /> Refresh
+              </span>
             </button>
           </div>
 
