@@ -6,6 +6,20 @@ import { inventoryService } from '../services/inventoryService';
 import { appointmentService } from '../../patient/services/appointmentService';
 import { authService } from '../../auth';
 import { hospitalMinutesNow, hospitalToday } from '../utils/hospitalDate';
+import hospitalHeroImage from '../../../assets/images/hospital-hero-vaccine.webp';
+import {
+  IconClipboard,
+  IconClock,
+  IconClose,
+  IconDoor,
+  IconPackage,
+  IconRefresh,
+  IconShield,
+  IconSnowflake,
+  IconSyringe,
+  IconThermometer,
+  RoleAvatarIcon,
+} from './HospitalIcons';
 
 function timeToMinutes(value) {
   const raw = String(value || '').slice(0, 5);
@@ -24,6 +38,13 @@ function roleLabel(role) {
   if (role === 'DOCTOR') return 'Doctor';
   if (role === 'NURSE') return 'Nurse';
   return role || 'Staff';
+}
+
+function boothStatusClass(status) {
+  if (status === 'Unstaffed') return 'is-unstaffed';
+  if (status === 'On duty') return 'is-on-duty';
+  if (status === 'In session') return 'is-in-session';
+  return 'is-scheduled';
 }
 
 function mapDbStatusToQueueStatus(dbStatus) {
@@ -262,6 +283,9 @@ export default function HospitalDashboardOverview() {
       const dutyByAffiliation = new Map(
         staff.map((s) => [s.affiliationId, s.dutyStatus || 'Off'])
       );
+      const photoByAffiliation = new Map(
+        staff.map((s) => [s.affiliationId, s.staffProfilePhotoUrl || null])
+      );
 
       const cards = booths.map((booth, index) => {
         const boothShifts = shifts
@@ -286,7 +310,8 @@ export default function HospitalDashboardOverview() {
           role: primary
             ? `${roleLabel(primary.staffRole)} · ${formatShiftWindow(primary)}`
             : 'No shift scheduled today',
-          avatar: primary?.staffRole === 'NURSE' ? '👩‍⚕️' : '👨‍⚕️',
+          roleKey: primary?.staffRole === 'NURSE' ? 'Nurse' : 'Doctor',
+          photoUrl: primary ? (photoByAffiliation.get(primary.affiliationId) || null) : null,
           rosterLine: boothShifts.length
             ? boothShifts
                 .map((s) => `${s.staffName} (${formatShiftWindow(s)})`)
@@ -434,28 +459,26 @@ export default function HospitalDashboardOverview() {
       {/* 1. Hospital Facility Hero Banner */}
       <div className="hospital-hero-banner">
         <div className="hospital-hero-content">
-          <h1 style={{ color: '#ffffff' }}>{hospitalCenterName}</h1>
+          <p className="hospital-hero-eyebrow">Hospital operations</p>
+          <h1>{hospitalCenterName}</h1>
           <p className="hospital-hero-sub">
             Real-time management for daily vaccinations, cold-chain monitoring,
             and live patient queueing.
           </p>
           <div className="hospital-hero-tags">
             {hospitalCenterCode && (
-              <span className="hospital-tag-item">
-                <span>🏛️</span> {hospitalCenterCode}
-              </span>
+              <span className="hospital-tag-item">{hospitalCenterCode}</span>
             )}
             {hospitalSessionHours && (
-              <span className="hospital-tag-item">
-                <span>⏰</span> Hours: {hospitalSessionHours}
-              </span>
+              <span className="hospital-tag-item">Hours: {hospitalSessionHours}</span>
             )}
             {hospitalType && (
-              <span className="hospital-tag-item">
-                <span>🏥</span> {hospitalType}
-              </span>
+              <span className="hospital-tag-item">{hospitalType}</span>
             )}
           </div>
+        </div>
+        <div className="hospital-hero-media" aria-hidden="true">
+          <img src={hospitalHeroImage} alt="" className="hospital-hero-image" />
         </div>
       </div>
 
@@ -483,7 +506,7 @@ export default function HospitalDashboardOverview() {
             onClick={() => setToastMessage('')}
             style={{ background: 'none', border: 'none', color: '#065f46', cursor: 'pointer', fontWeight: 800 }}
           >
-            ✕
+            <IconClose size={14} />
           </button>
         </div>
       )}
@@ -491,7 +514,9 @@ export default function HospitalDashboardOverview() {
       {/* 2. Operations Metrics Cards Grid */}
       <div className="hospital-metrics-grid">
         <div className="hospital-stat-card">
-          <div className="hospital-stat-icon stat-icon-blue">💉</div>
+          <div className="hospital-stat-icon stat-icon-blue">
+            <IconSyringe size={22} />
+          </div>
           <div className="hospital-stat-info">
             <span className="hospital-stat-label">Administered Vaccinations</span>
             <span className="hospital-stat-value">{completedTodayCount}</span>
@@ -502,7 +527,9 @@ export default function HospitalDashboardOverview() {
         </div>
 
         <div className="hospital-stat-card">
-          <div className="hospital-stat-icon stat-icon-amber">⏳</div>
+          <div className="hospital-stat-icon stat-icon-amber">
+            <IconClock size={22} />
+          </div>
           <div className="hospital-stat-info">
             <span className="hospital-stat-label">Active Patient Queue</span>
             <span className="hospital-stat-value">{activeQueueCount}</span>
@@ -513,7 +540,9 @@ export default function HospitalDashboardOverview() {
         </div>
 
         <div className="hospital-stat-card">
-          <div className="hospital-stat-icon stat-icon-teal">❄️</div>
+          <div className="hospital-stat-icon stat-icon-teal">
+            <IconSnowflake size={22} />
+          </div>
           <div className="hospital-stat-info">
             <span className="hospital-stat-label">Cold-Chain Storage</span>
             <span className="hospital-stat-value">
@@ -533,7 +562,9 @@ export default function HospitalDashboardOverview() {
         </div>
 
         <div className="hospital-stat-card">
-          <div className="hospital-stat-icon stat-icon-purple">📦</div>
+          <div className="hospital-stat-icon stat-icon-purple">
+            <IconPackage size={22} />
+          </div>
           <div className="hospital-stat-info">
             <span className="hospital-stat-label">Total Vaccine Stock</span>
             <span className="hospital-stat-value">
@@ -546,7 +577,9 @@ export default function HospitalDashboardOverview() {
         </div>
 
         <div className="hospital-stat-card">
-          <div className="hospital-stat-icon stat-icon-green">🛡️</div>
+          <div className="hospital-stat-icon stat-icon-green">
+            <IconShield size={22} />
+          </div>
           <div className="hospital-stat-info">
             <span className="hospital-stat-label">On-Duty Medical Staff</span>
             <span className="hospital-stat-value">{onDutyCount}</span>
@@ -561,50 +594,31 @@ export default function HospitalDashboardOverview() {
       <div className="hospital-dashboard-columns">
         {/* Left Column: Live Queue */}
         <div className="hospital-section-card" id="queue">
-          <div className="section-card-header">
+          <div className="section-card-header queue-section-header">
             <div className="section-title-group">
               <h2>
-                <span>📋</span> Live Vaccination Queue
+                <span className="section-title-icon icon-shade-purple"><IconClipboard size={22} /></span> Live Vaccination Queue
               </h2>
               <p className="section-title-desc">
                 Real-time patient flow, booth assignments, and dose verification from database
               </p>
             </div>
+          </div>
 
-            <div className="section-controls-group">
-              {/* Scope Switch: Today vs All */}
-              <div style={{ display: 'flex', gap: '4px', background: '#f1f5f9', padding: '3px', borderRadius: '8px' }}>
+          <div className="queue-controls-bar">
+            <div className="queue-controls-left">
+              <div className="queue-scope-switch">
                 <button
                   type="button"
+                  className={`queue-scope-btn${viewScope === 'today' ? ' active' : ''}`}
                   onClick={() => setViewScope('today')}
-                  style={{
-                    border: 'none',
-                    background: viewScope === 'today' ? '#ffffff' : 'transparent',
-                    color: viewScope === 'today' ? '#1d1854' : '#64748b',
-                    padding: '4px 10px',
-                    borderRadius: '6px',
-                    fontSize: '0.78rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    boxShadow: viewScope === 'today' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                  }}
                 >
                   Today ({queuePatients.filter((p) => p.date === todayStr).length})
                 </button>
                 <button
                   type="button"
+                  className={`queue-scope-btn${viewScope === 'all' ? ' active' : ''}`}
                   onClick={() => setViewScope('all')}
-                  style={{
-                    border: 'none',
-                    background: viewScope === 'all' ? '#ffffff' : 'transparent',
-                    color: viewScope === 'all' ? '#1d1854' : '#64748b',
-                    padding: '4px 10px',
-                    borderRadius: '6px',
-                    fontSize: '0.78rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    boxShadow: viewScope === 'all' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                  }}
                 >
                   All ({queuePatients.length})
                 </button>
@@ -631,24 +645,22 @@ export default function HospitalDashboardOverview() {
 
               <button
                 type="button"
-                className="btn-hospital-secondary"
-                style={{ padding: '6px 12px', fontSize: '0.8rem' }}
+                className="btn-inventory-refresh"
                 onClick={loadAppointmentsQueue}
                 disabled={queueLoading}
                 title="Refresh live queue from database"
               >
-                {queueLoading ? '...' : '🔄'}
-              </button>
-
-              <button
-                type="button"
-                className="btn-hospital-primary"
-                style={{ padding: '6px 12px', fontSize: '0.8rem' }}
-                onClick={() => setIsWalkInOpen(true)}
-              >
-                + Walk-In
+                {queueLoading ? '...' : <IconRefresh size={16} />}
               </button>
             </div>
+
+            <button
+              type="button"
+              className="btn-queue-walkin"
+              onClick={() => setIsWalkInOpen(true)}
+            >
+              + Walk-In
+            </button>
           </div>
 
           <div className="table-responsive">
@@ -717,7 +729,7 @@ export default function HospitalDashboardOverview() {
                       </td>
                       <td>
                         <span className="queue-booth-tag">
-                          <span>🚪</span> {patient.booth}
+                          <span className="inline-icon-label"><IconDoor size={14} /> {patient.booth}</span>
                         </span>
                       </td>
                       <td>
@@ -726,7 +738,9 @@ export default function HospitalDashboardOverview() {
                           {patient.status === 'administering' && '● In Session'}
                           {patient.status === 'observation' && '● Observation 15m'}
                           {patient.status === 'completed' && '✓ Completed'}
-                          {patient.status === 'cancelled' && '✕ Cancelled'}
+                          {patient.status === 'cancelled' && (
+                            <span className="inline-icon-label"><IconClose size={12} /> Cancelled</span>
+                          )}
                         </span>
                       </td>
                       <td>
@@ -780,41 +794,39 @@ export default function HospitalDashboardOverview() {
 
         {/* Right Column: Vaccine Inventory Tracker */}
         <div className="hospital-section-card" id="inventory">
-          <div className="section-card-header">
-            <div className="section-title-group">
+          <div className="section-card-header inventory-section-header">
+            <div className="inventory-section-title-row">
               <h2>
-                <span>❄️</span> Vaccine Stock &amp; Cold Vaults
+                <span className="section-title-icon section-title-icon--teal"><IconSnowflake size={22} /></span> Vaccine Stock &amp; Cold Vaults
               </h2>
-              <p className="section-title-desc">
-                Live batch numbers, expiration tracking, and cold-chain storage from database
-              </p>
+              <div className="inventory-section-actions">
+                <button
+                  type="button"
+                  className="btn-inventory-refresh"
+                  onClick={loadInventory}
+                  disabled={inventoryLoading}
+                  title="Refresh inventory from database"
+                >
+                  {inventoryLoading ? '...' : <IconRefresh size={16} />}
+                </button>
+                <button
+                  type="button"
+                  className="btn-inventory-restock"
+                  onClick={() => setIsRestockOpen(true)}
+                >
+                  + Restock
+                </button>
+              </div>
             </div>
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-              <button
-                type="button"
-                className="btn-hospital-secondary"
-                style={{ padding: '6px 12px', fontSize: '0.8rem' }}
-                onClick={loadInventory}
-                disabled={inventoryLoading}
-                title="Refresh inventory from database"
-              >
-                {inventoryLoading ? '...' : '🔄'}
-              </button>
-              <button
-                type="button"
-                className="btn-hospital-primary"
-                style={{ padding: '6px 12px', fontSize: '0.8rem' }}
-                onClick={() => setIsRestockOpen(true)}
-              >
-                + Restock
-              </button>
-            </div>
+            <p className="section-title-desc inventory-section-desc">
+              Live batch numbers, expiration tracking, and cold-chain storage from database
+            </p>
           </div>
 
           {/* Cold Chain IoT Health Banner */}
           <div className="cold-chain-monitor-bar">
             <div className="cold-chain-info">
-              <span className="cold-chain-icon">🌡️</span>
+              <span className="cold-chain-icon"><IconThermometer size={22} /></span>
               <div>
                 <div className="cold-chain-temp">{coldChainTemp || '—'}</div>
                 <div className="cold-chain-label">
@@ -846,32 +858,32 @@ export default function HospitalDashboardOverview() {
             ) : (
               inventory.map((item) => {
                 const percent = Math.round(((item.available || 0) / (item.capacity || 1)) * 100);
-                return (
-                  <div key={item.id} className="inventory-item-card">
-                    <div className="inventory-item-header">
-                      <span className="inventory-name">{item.name}</span>
-                      <span className="inventory-count">{item.available} vials</span>
-                    </div>
-
-                    <div className="inventory-meta">
-                      <span>Lot: <strong>{item.lotNumber}</strong> • Exp: {item.expiry}</span>
-                      <span>{item.temp}</span>
-                    </div>
-
-                    <div className="inventory-progress-track">
-                      <div
-                        className={`inventory-progress-bar ${item.statusColor}`}
-                        style={{ width: `${Math.min(Math.max(percent, 0), 100)}%` }}
-                      />
-                    </div>
-
-                    {item.warning && (
-                      <div style={{ color: '#b45309', fontSize: '0.72rem', fontWeight: 700, marginTop: '6px' }}>
-                        ⚠️ {item.warning}
-                      </div>
-                    )}
+              return (
+                <div key={item.id} className="inventory-item-card">
+                  <div className="inventory-item-header">
+                    <span className="inventory-name">{item.name}</span>
+                    <span className="inventory-count">{item.available} vials</span>
                   </div>
-                );
+
+                  <div className="inventory-meta">
+                    <span>Lot: <strong>{item.lotNumber}</strong> • Exp: {item.expiry}</span>
+                    <span>{item.temp}</span>
+                  </div>
+
+                  <div className="inventory-progress-track">
+                    <div
+                      className={`inventory-progress-bar ${item.statusColor}`}
+                        style={{ width: `${Math.min(Math.max(percent, 0), 100)}%` }}
+                    />
+                  </div>
+
+                  {item.warning && (
+                    <div style={{ color: '#b45309', fontSize: '0.72rem', fontWeight: 700, marginTop: '6px' }}>
+                      ⚠️ {item.warning}
+                    </div>
+                  )}
+                </div>
+              );
               })
             )}
           </div>
@@ -883,19 +895,19 @@ export default function HospitalDashboardOverview() {
         <div className="section-card-header">
           <div className="section-title-group">
             <h2>
-              <span>🚪</span> Vaccination Booths &amp; On-Duty Medical Staff
+              <span className="section-title-icon section-title-icon--teal"><IconDoor size={22} /></span> Vaccination Booths &amp; On-Duty Medical Staff
             </h2>
             <p className="section-title-desc">
               Live from Booths and today’s shift roster
             </p>
           </div>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-            <span className="hospital-tag-item" style={{ background: '#f1f5f9', color: '#334155' }}>
+          <span className="hospital-tag-item" style={{ background: '#f0fdfa', color: '#0f766e' }}>
               {boothCards.length} booth{boothCards.length === 1 ? '' : 's'} · {staffedBoothCount} staffed
             </span>
-            <span className="hospital-tag-item" style={{ background: '#ecfdf5', color: '#047857' }}>
+            <span className="hospital-tag-item" style={{ background: '#ecfdf5', color: '#0f766e' }}>
               {onDutyCount} on duty now
-            </span>
+          </span>
             <button
               type="button"
               className="btn-hospital-secondary"
@@ -925,51 +937,50 @@ export default function HospitalDashboardOverview() {
             No active booths yet. Add stations under Staff → Booths, then assign shifts to them.
           </p>
         ) : (
-          <div className="booths-grid">
+        <div className="booths-grid">
             {boothCards.map((booth) => (
-              <div key={booth.id} className="booth-card">
-                <div className="booth-card-header">
-                  <div className="booth-title-box">
+            <div key={booth.id} className="booth-card">
+              <div className="booth-card-header">
+                <div className="booth-title-box">
                     <span className="booth-number-tag">{booth.code}</span>
-                    <span className="booth-title">{booth.boothName}</span>
-                  </div>
-                  <div className="booth-status-indicator">
-                    <span className="telemetry-pulse" style={{ width: '6px', height: '6px' }} />
-                    <span>{booth.status}</span>
-                  </div>
+                  <span className="booth-title">{booth.boothName}</span>
                 </div>
-
-                <div className="booth-staff-info">
-                  <div className="staff-avatar-mini">{booth.avatar}</div>
-                  <div className="staff-text-group">
-                    <span className="staff-name">{booth.staffName}</span>
-                    <span className="staff-role-desc">{booth.role}</span>
-                  </div>
+                <div className={`booth-status-indicator ${boothStatusClass(booth.status)}`}>
+                  <span className="booth-status-dot" aria-hidden="true" />
+                  <span>{booth.status}</span>
                 </div>
+              </div>
 
-                <div className="booth-stats-row">
-                  <span>
+              <div className="booth-staff-info">
+                <div className="staff-avatar-mini">
+                  {booth.photoUrl ? (
+                    <img src={booth.photoUrl} alt="" />
+                  ) : (
+                    <RoleAvatarIcon role={booth.roleKey} size={18} />
+                  )}
+                </div>
+                <div className="staff-text-group">
+                  <span className="staff-name">{booth.staffName}</span>
+                  <span className="staff-role-desc">{booth.role}</span>
+                </div>
+              </div>
+
+              <div className="booth-stats-row">
+                <span>
                     Today:{' '}
-                    <strong style={{ color: '#19469d' }}>
+                    <strong className="booth-stat-bold">
                       {booth.shiftCount} shift{booth.shiftCount === 1 ? '' : 's'}
                     </strong>
-                  </span>
+                </span>
                 </div>
                 {booth.rosterLine ? (
-                  <p
-                    style={{
-                      margin: '8px 0 0',
-                      fontSize: '0.78rem',
-                      color: '#64748b',
-                      lineHeight: 1.35,
-                    }}
-                  >
+                  <p className="booth-roster-line">
                     {booth.rosterLine}
                   </p>
                 ) : null}
-              </div>
-            ))}
-          </div>
+            </div>
+          ))}
+        </div>
         )}
       </div>
 
