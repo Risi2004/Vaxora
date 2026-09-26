@@ -8,6 +8,49 @@ function speakDate(iso) {
   return new Date(year, month - 1, day).toLocaleDateString('en-GB', { day: 'numeric', month: 'long' });
 }
 
+function FairnessSummary({ summary, validation }) {
+  const before = Array.isArray(summary?.before) ? summary.before : [];
+  const after = Array.isArray(summary?.after) ? summary.after : [];
+  if (before.length === 0 && after.length === 0) return null;
+
+  const renderRows = (rows, title) => (
+    <div style={{ flex: 1, minWidth: 180 }}>
+      <div style={{ fontWeight: 700, color: '#0f172a', marginBottom: '6px' }}>{title}</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+        {rows.slice(0, 6).map((row) => (
+          <div key={`${title}-${row.affiliationId || row.staffName}`} style={{ fontSize: '12px', color: '#334155' }}>
+            {row.staffName} · {row.shiftCount} shift{row.shiftCount === 1 ? '' : 's'}
+            {row.load ? ` · ${row.load}` : ''}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  return (
+    <div
+      style={{
+        marginTop: '10px',
+        padding: '10px 12px',
+        borderRadius: '8px',
+        border: '1px solid #dbeafe',
+        background: '#eff6ff',
+      }}
+    >
+      <div style={{ fontWeight: 700, color: '#1d4ed8', marginBottom: '8px' }}>Workload fairness</div>
+      <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+        {before.length > 0 ? renderRows(before, 'Before') : null}
+        {after.length > 0 ? renderRows(after, 'After plan') : null}
+      </div>
+      {validation && Array.isArray(validation.issues) && validation.issues.length > 0 ? (
+        <div style={{ marginTop: '8px', color: '#b45309', fontSize: '12px' }}>
+          {validation.issues.length} proposal(s) need review before approval.
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function BookingBrief({ briefing }) {
   const days = Array.isArray(briefing?.days) ? briefing.days : [];
   return (
@@ -308,6 +351,8 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, initialPr
           role: 'assistant',
           content: res.content || 'I processed your scheduling request.',
           briefing: res.briefing || null,
+          fairnessSummary: res.fairnessSummary || res.fairness_summary || null,
+          validation: res.validation || null,
           proposals,
           workflowId: res.workflowId || res.WorkflowId || null,
           createdShifts: res.created_shifts || res.createdShifts || null,
@@ -467,21 +512,29 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, initialPr
     const id = proposalIdentity(proposal);
     stickToBottomRef.current = false;
 
+    let alternative = null;
     try {
-      await agentService.sendMessage(
+      const res = await agentService.sendMessage(
         [
           {
             role: 'user',
             content: `__shift_declined__ ${JSON.stringify({
               affiliationId: proposal.affiliationId,
+              gapId: proposal.gapId,
               shiftDate: String(proposal.shiftDate).slice(0, 10),
               startTime: normalizeTime(proposal.startTime),
               endTime: normalizeTime(proposal.endTime),
+              requestAlternative: Boolean(proposal.gapId),
             })}`,
           },
         ],
         { targetAgent: 'StaffSchedulingAgent' },
       );
+      if (Array.isArray(res.proposals) && res.proposals.length > 0) {
+        alternative = res.proposals[0];
+      } else if (res.proposal) {
+        alternative = res.proposal;
+      }
     } catch (err) {
       stickToBottomRef.current = true;
       setMessages((prev) => [
@@ -517,10 +570,16 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, initialPr
         const nextProposals = msg.proposals.map((p) =>
           proposalIdentity(p) === id ? { ...p, _status: 'declined' } : p
         );
+        if (alternative) {
+          nextProposals.push(alternative);
+        }
         const pending = nextProposals.filter((p) => p._status !== 'approved' && p._status !== 'declined');
         return {
           ...msg,
           proposals: nextProposals,
+          fairnessSummary: alternative
+            ? msg.fairnessSummary
+            : msg.fairnessSummary,
           decision:
             pending.length === 0
               ? approvedCount > 0
@@ -687,6 +746,9 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, initialPr
                 }}
               >
                 {msg.briefing ? <BookingBrief briefing={msg.briefing} /> : formatMarkdownText(msg.content, isUser)}
+                {msg.fairnessSummary ? (
+                  <FairnessSummary summary={msg.fairnessSummary} validation={msg.validation} />
+                ) : null}
               </div>
 
               {Array.isArray(msg.proposals) && msg.proposals.length > 0 && (() => {
@@ -751,6 +813,11 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, initialPr
                                 {proposal.staffRole || 'Staff'} · {String(proposal.startTime).slice(0, 5)}–
                                 {String(proposal.endTime).slice(0, 5)}
                               </div>
+                              {Array.isArray(proposal.alternatives) && proposal.alternatives.length > 0 ? (
+                                <div style={{ color: '#64748b', fontSize: '10px', marginTop: '4px' }}>
+                                  Alt: {proposal.alternatives.map((alt) => alt.staffName).join(', ')}
+                                </div>
+                              ) : null}
                               {resolved ? (
                                 <div
                                   style={{
