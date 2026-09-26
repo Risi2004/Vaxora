@@ -1,10 +1,20 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { getUser } from '../../auth/services/authService';
 import staffService from '../../hospital/services/staffService';
 import staffAppointmentService from '../../staff/services/staffAppointmentService';
 import NurseClinicalAdministerModal from './NurseClinicalAdministerModal';
 import NurseAefiReportModal from './NurseAefiReportModal';
-import { IconCalendar, IconClipboard, IconClock, IconHospital, IconShield, IconSyringe, IconUser } from '../../../shared/icons/AppIcons';
+import {
+  IconCalendar,
+  IconClipboard,
+  IconClock,
+  IconHospital,
+  IconRefresh,
+  IconShield,
+  IconSyringe,
+  IconUser,
+} from '../../../shared/icons/AppIcons';
+import nurseHomeHero from '../../../assets/images/nurse-home-hero.jpg';
 
 const dutyLabel = {
   Off: 'Off duty',
@@ -49,41 +59,35 @@ export default function NurseDashboardOverview() {
     setTimeout(() => setToastMessage(null), 4000);
   };
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setStatsLoading(true);
-      try {
-        const list = await staffService.getMyAffiliations();
-        const active = Array.isArray(list) ? list : [];
-        if (cancelled) return;
-        setAffiliations(active);
+  const loadDashboardData = useCallback(async () => {
+    setStatsLoading(true);
+    try {
+      const list = await staffService.getMyAffiliations();
+      const active = Array.isArray(list) ? list : [];
+      setAffiliations(active);
 
-        const hospitalId = active[0]?.hospitalUserId;
-        if (!hospitalId) {
-          setTodayAppointments([]);
-          return;
-        }
-
-        const appts = await staffAppointmentService.getHospitalAppointments(hospitalId, toDateInputValue());
-        if (cancelled) return;
-
-        setTodayAppointments(Array.isArray(appts) ? appts : []);
-      } catch {
-        if (!cancelled) {
-          setAffiliations([]);
-          setTodayAppointments([]);
-        }
-      } finally {
-        if (!cancelled) {
-          setStatsLoading(false);
-        }
+      const hospitalId = active[0]?.hospitalUserId;
+      if (!hospitalId) {
+        setTodayAppointments([]);
+        return;
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
+
+      const appts = await staffAppointmentService.getHospitalAppointments(
+        hospitalId,
+        toDateInputValue()
+      );
+      setTodayAppointments(Array.isArray(appts) ? appts : []);
+    } catch {
+      setAffiliations([]);
+      setTodayAppointments([]);
+    } finally {
+      setStatsLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    loadDashboardData();
+  }, [loadDashboardData]);
 
   const heroDateLabel = useMemo(
     () =>
@@ -112,7 +116,6 @@ export default function NurseDashboardOverview() {
     (a) => a.status === 'Confirmed' && !a.prescribedDosage
   ).length;
 
-  // Local UI status for today's live appointments (consulting / observation)
   const [activePatientId, setActivePatientId] = useState(null);
   const [statusOverrides, setStatusOverrides] = useState({});
   const [observationPatients, setObservationPatients] = useState([]);
@@ -154,7 +157,7 @@ export default function NurseDashboardOverview() {
   const handleCallNext = () => {
     const nextWaiting = patients.find((p) => p.status === 'waiting');
     if (!nextWaiting) {
-      showToast('No more waiting patients in today\'s queue.');
+      showToast("No more waiting patients in today's queue.");
       return;
     }
 
@@ -247,8 +250,7 @@ export default function NurseDashboardOverview() {
   const observationCount = patients.filter((p) => p.status === 'observation').length;
 
   return (
-    <div className="nurse-dashboard-page">
-      {/* Toast Notification */}
+    <div>
       {toastMessage && (
         <div className="doctor-toast">
           <span>🔔</span>
@@ -256,119 +258,109 @@ export default function NurseDashboardOverview() {
         </div>
       )}
 
-      {/* 1. Hero Banner with Welcome, Station Status, and Quick Actions */}
-      <section className="doctor-hero-banner nurse-hero-banner">
-        <div className="doctor-hero-info">
-          <h1 className="doctor-hero-title">
+      {/* Hero shell — image slot ready for your asset */}
+      <section className="hospital-hero-banner doctor-home-hero nurse-home-hero">
+        <div className="hospital-hero-content doctor-home-hero-content">
+          <p className="hospital-hero-eyebrow">Clinical session</p>
+          <h1>
             {greeting}, {nurseTitle}
           </h1>
-          <p className="doctor-hero-subtitle">
+          <p className="hospital-hero-sub">
             {heroDateLabel}
             {primaryAffiliation?.hospitalName
-              ? ` • ${primaryAffiliation.hospitalName}`
-              : ' • No active hospital affiliation yet'}
+              ? ` · ${primaryAffiliation.hospitalName}`
+              : ' · No active hospital affiliation yet'}
           </p>
           <div className="doctor-hero-session-pill">
             {primaryAffiliation ? (
               <>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                  <IconHospital size={14} /> {primaryAffiliation.hospitalName || 'Affiliated hospital'}
+                  <IconHospital size={14} />{' '}
+                  {primaryAffiliation.hospitalName || 'Affiliated hospital'}
                 </span>
-                <span>•</span>
+                <span>·</span>
                 <span>{dutyText}</span>
-                {affiliations.length > 1 && (
-                  <>
-                    <span>•</span>
-                    <span>{affiliations.length} hospitals</span>
-                  </>
-                )}
               </>
             ) : (
               <span>Accept a hospital invitation on Affiliations to join a roster</span>
             )}
           </div>
+          <div className="doctor-hero-actions">
+            <button type="button" className="doctor-btn-call-next" onClick={handleCallNext}>
+              Call Next Patient
+            </button>
+            <button
+              type="button"
+              className="doctor-btn-report-aefi"
+              onClick={() => setIsAefiModalOpen(true)}
+            >
+              Report AEFI
+            </button>
+          </div>
         </div>
-
-        <div className="doctor-hero-actions">
-          <button
-            type="button"
-            className="doctor-btn-call-next"
-            onClick={handleCallNext}
-          >
-            📢 Call Next Patient
-          </button>
-          <button
-            type="button"
-            className="doctor-btn-report-aefi"
-            onClick={() => setIsAefiModalOpen(true)}
-          >
-            ⚠️ Report AEFI
-          </button>
+        <div className="hospital-hero-media" aria-hidden="true">
+          <img
+            src={nurseHomeHero}
+            alt=""
+            className="hospital-hero-image nurse-home-hero-image"
+          />
         </div>
       </section>
 
-      {/* 2. Key Metrics Ribbon (4 Cards) — live hospital appointments for today */}
-      <section className="doctor-stats-grid">
-        <div className="doctor-stat-card">
-          <div className="doctor-stat-content">
-            <span className="doctor-stat-label">Today&apos;s Appointments</span>
-            <span className="doctor-stat-value">{statsLoading ? '—' : todayTotal}</span>
-            <span className="doctor-stat-meta">
-              <span style={{ color: '#059669', fontWeight: 700 }}>
+      <section className="hospital-metrics-grid doctor-stats-grid">
+        <div className="hospital-stat-card">
+          <div className="hospital-stat-icon stat-icon-blue">
+            <IconCalendar size={22} />
+          </div>
+          <div className="hospital-stat-info">
+            <span className="hospital-stat-label">Today&apos;s Appointments</span>
+            <span className="hospital-stat-value">{statsLoading ? '—' : todayTotal}</span>
+            <span className="hospital-stat-meta">
+              <span className="meta-positive">
                 {statsLoading ? '—' : todayCompleted} Completed
               </span>
-              {' • '}
+              {' · '}
               {statsLoading ? '—' : todayUpcoming} Upcoming
             </span>
           </div>
-          <div className="doctor-stat-icon-wrapper doctor-icon-blue">
-            <IconCalendar size={22} />
-          </div>
         </div>
 
-        <div className="doctor-stat-card">
-          <div className="doctor-stat-content">
-            <span className="doctor-stat-label">Upcoming Today</span>
-            <span className="doctor-stat-value" style={{ color: '#d97706' }}>
-              {statsLoading ? '—' : todayUpcoming}
-            </span>
-            <span className="doctor-stat-meta">Confirmed or awaiting payment</span>
-          </div>
-          <div className="doctor-stat-icon-wrapper doctor-icon-amber">
+        <div className="hospital-stat-card">
+          <div className="hospital-stat-icon stat-icon-amber">
             <IconClock size={22} />
           </div>
+          <div className="hospital-stat-info">
+            <span className="hospital-stat-label">Upcoming Today</span>
+            <span className="hospital-stat-value">{statsLoading ? '—' : todayUpcoming}</span>
+            <span className="hospital-stat-meta">Confirmed or awaiting payment</span>
+          </div>
         </div>
 
-        <div className="doctor-stat-card">
-          <div className="doctor-stat-content">
-            <span className="doctor-stat-label">Completed Today</span>
-            <span className="doctor-stat-value" style={{ color: '#059669' }}>
-              {statsLoading ? '—' : todayCompleted}
-            </span>
-            <span className="doctor-stat-meta">Marked completed at this hospital</span>
-          </div>
-          <div className="doctor-stat-icon-wrapper doctor-icon-green">
+        <div className="hospital-stat-card">
+          <div className="hospital-stat-icon stat-icon-green">
             <IconSyringe size={22} />
           </div>
+          <div className="hospital-stat-info">
+            <span className="hospital-stat-label">Completed Today</span>
+            <span className="hospital-stat-value">{statsLoading ? '—' : todayCompleted}</span>
+            <span className="hospital-stat-meta">Marked completed at this hospital</span>
+          </div>
         </div>
 
-        <div className="doctor-stat-card">
-          <div className="doctor-stat-content">
-            <span className="doctor-stat-label">Needs Dosage</span>
-            <span className="doctor-stat-value" style={{ color: '#dc2626' }}>
-              {statsLoading ? '—' : todayNeedsDosage}
-            </span>
-            <span className="doctor-stat-meta">Confirmed visits without prescribed dosage</span>
-          </div>
-          <div className="doctor-stat-icon-wrapper doctor-icon-purple">
+        <div className="hospital-stat-card">
+          <div className="hospital-stat-icon stat-icon-purple">
             <IconShield size={22} />
+          </div>
+          <div className="hospital-stat-info">
+            <span className="hospital-stat-label">Needs Dosage</span>
+            <span className="hospital-stat-value">{statsLoading ? '—' : todayNeedsDosage}</span>
+            <span className="hospital-stat-meta">Confirmed visits without prescribed dosage</span>
           </div>
         </div>
       </section>
 
-      {/* 3. Active Consultation Spotlight Workspace */}
       {activePatient && (
-        <section className="doctor-spotlight-card nurse-spotlight-card">
+        <section className="doctor-spotlight-card">
           <div className="doctor-spotlight-header">
             <div>
               <div className="doctor-spotlight-badge">
@@ -376,7 +368,10 @@ export default function NurseDashboardOverview() {
                 Active Immunization Station
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span className="doctor-token-pill" style={{ fontSize: '1.05rem', padding: '4px 12px' }}>
+                <span
+                  className="doctor-token-pill"
+                  style={{ fontSize: '1.05rem', padding: '4px 12px' }}
+                >
                   {activePatient.token}
                 </span>
                 <span className="doctor-spotlight-token">{activePatient.name}</span>
@@ -395,17 +390,16 @@ export default function NurseDashboardOverview() {
           </div>
 
           <div className="doctor-spotlight-details-grid">
-            {/* Bio & Details */}
             <div className="doctor-patient-bio">
-              <div className="doctor-patient-avatar"><IconUser size={28} /></div>
+              <div className="doctor-patient-avatar">
+                <IconUser size={28} />
+              </div>
               <div>
                 <div className="doctor-patient-name">{activePatient.name}</div>
                 <div className="doctor-patient-meta-text">
                   NIC: <strong>{activePatient.nic}</strong>
                 </div>
-                <div className="doctor-patient-meta-text">
-                  Phone: {activePatient.phone}
-                </div>
+                <div className="doctor-patient-meta-text">Phone: {activePatient.phone}</div>
                 <div style={{ marginTop: '6px' }}>
                   <span className="doctor-allergy-flag doctor-allergy-none">
                     Allergy data not linked yet
@@ -414,7 +408,6 @@ export default function NurseDashboardOverview() {
               </div>
             </div>
 
-            {/* Pre-Screen Vitals */}
             <div className="doctor-vitals-box">
               <div className="doctor-vital-item">
                 <span className="doctor-vital-label">Blood Pressure</span>
@@ -434,17 +427,13 @@ export default function NurseDashboardOverview() {
               </div>
             </div>
 
-            {/* Vaccine to Administer */}
             <div className="doctor-vaccine-assign-box">
               <span className="doctor-vaccine-assign-title">Vaccine Prescription</span>
               <span className="doctor-vaccine-name">{activePatient.vaccine}</span>
-              <span className="doctor-vaccine-lot">
-                {activePatient.dose}
-              </span>
+              <span className="doctor-vaccine-lot">{activePatient.dose}</span>
             </div>
           </div>
 
-          {/* Pre-Screen Checklist */}
           <div className="doctor-checklist-bar">
             <span style={{ fontWeight: 700, color: '#334155' }}>Clinical Safety Screen:</span>
             <div className="doctor-checklist-items">
@@ -463,7 +452,6 @@ export default function NurseDashboardOverview() {
             </div>
           </div>
 
-          {/* Action Buttons */}
           <div className="doctor-spotlight-actions">
             <button
               type="button"
@@ -478,78 +466,99 @@ export default function NurseDashboardOverview() {
               onClick={() => {
                 handleCertifyAdministration({
                   ...activePatient,
-                  administeredAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  administeredAt: new Date().toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  }),
                 });
               }}
             >
-              ⏱️ Transfer to Observation
+              Transfer to Observation
             </button>
             <button
               type="button"
               className="doctor-btn-certify"
               onClick={() => setIsAdministerModalOpen(true)}
             >
-              💉 Certify &amp; Record Administration
+              Certify &amp; Record Administration
             </button>
           </div>
         </section>
       )}
 
-      {/* 4. Main Two-Column Layout (Queue + Side Panels) */}
       <div className="doctor-main-grid">
-        {/* Left Column: Today's Patient Queue Table */}
-        <div className="doctor-card">
-          <div className="doctor-card-header">
-            <div className="doctor-card-title" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-              <span className="icon-shade icon-shade-blue"><IconClipboard size={22} /></span>
-              Today's Nursing Clinic Queue
+        <div className="doctor-card doctor-queue-card">
+          <div className="section-card-header queue-section-header">
+            <div className="section-title-group">
+              <h2>
+                <span className="section-title-icon icon-shade-purple">
+                  <IconClipboard size={22} />
+                </span>
+                Today&apos;s Consultation Queue
+              </h2>
+              <p className="section-title-desc">
+                Live patient flow for today&apos;s session at your affiliated hospital
+              </p>
             </div>
+          </div>
 
-            <div className="doctor-filter-pills">
+          <div className="queue-controls-bar">
+            <div className="queue-controls-left">
+              <div className="queue-scope-switch">
+                <button
+                  type="button"
+                  className={`queue-scope-btn${filterStatus === 'all' ? ' active' : ''}`}
+                  onClick={() => setFilterStatus('all')}
+                >
+                  All ({patients.length})
+                </button>
+                <button
+                  type="button"
+                  className={`queue-scope-btn${filterStatus === 'waiting' ? ' active' : ''}`}
+                  onClick={() => setFilterStatus('waiting')}
+                >
+                  Waiting ({waitingCount})
+                </button>
+                <button
+                  type="button"
+                  className={`queue-scope-btn${filterStatus === 'observation' ? ' active' : ''}`}
+                  onClick={() => setFilterStatus('observation')}
+                >
+                  Observation ({observationCount})
+                </button>
+                <button
+                  type="button"
+                  className={`queue-scope-btn${filterStatus === 'completed' ? ' active' : ''}`}
+                  onClick={() => setFilterStatus('completed')}
+                >
+                  Completed ({completedCount})
+                </button>
+              </div>
+
+              <input
+                type="text"
+                className="queue-search-input"
+                placeholder="Search patient, phone, token..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+
               <button
                 type="button"
-                className={`doctor-filter-btn ${filterStatus === 'all' ? 'active' : ''}`}
-                onClick={() => setFilterStatus('all')}
+                className="btn-inventory-refresh"
+                onClick={() => {
+                  setFilterStatus('all');
+                  setSearchQuery('');
+                  loadDashboardData();
+                }}
+                disabled={statsLoading}
+                title="Refresh consultation queue"
               >
-                All ({patients.length})
-              </button>
-              <button
-                type="button"
-                className={`doctor-filter-btn ${filterStatus === 'waiting' ? 'active' : ''}`}
-                onClick={() => setFilterStatus('waiting')}
-              >
-                Waiting ({waitingCount})
-              </button>
-              <button
-                type="button"
-                className={`doctor-filter-btn ${filterStatus === 'observation' ? 'active' : ''}`}
-                onClick={() => setFilterStatus('observation')}
-              >
-                Observation ({observationCount})
-              </button>
-              <button
-                type="button"
-                className={`doctor-filter-btn ${filterStatus === 'completed' ? 'active' : ''}`}
-                onClick={() => setFilterStatus('completed')}
-              >
-                Completed ({completedCount})
+                {statsLoading ? '...' : <IconRefresh size={16} />}
               </button>
             </div>
           </div>
 
-          {/* Search Input */}
-          <div className="doctor-search-bar">
-            <span className="doctor-search-icon">🔍</span>
-            <input
-              type="text"
-              className="doctor-search-input"
-              placeholder="Search by patient name, NIC, token, or vaccine..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-
-          {/* Queue Table */}
           <div className="doctor-table-wrapper">
             <table className="doctor-table">
               <thead>
@@ -568,7 +577,7 @@ export default function NurseDashboardOverview() {
                   <tr>
                     <td colSpan={7} style={{ textAlign: 'center', padding: '32px', color: '#64748b' }}>
                       {statsLoading
-                        ? 'Loading today\'s appointments...'
+                        ? "Loading today's appointments..."
                         : patients.length === 0
                           ? 'No appointments for today at your affiliated hospital.'
                           : 'No patients matching your search criteria.'}
@@ -601,9 +610,7 @@ export default function NurseDashboardOverview() {
                           <span className="doctor-dose-sub">{p.dose}</span>
                         </td>
                         <td>
-                          <span className="doctor-allergy-flag doctor-allergy-none">
-                            —
-                          </span>
+                          <span className="doctor-allergy-flag doctor-allergy-none">—</span>
                         </td>
                         <td style={{ color: '#475569', fontWeight: 600 }}>{p.time}</td>
                         <td>
@@ -611,10 +618,10 @@ export default function NurseDashboardOverview() {
                             {p.status === 'consulting'
                               ? 'Consulting'
                               : p.status === 'waiting'
-                              ? 'In Queue'
-                              : p.status === 'observation'
-                              ? 'Observation'
-                              : 'Completed'}
+                                ? 'In Queue'
+                                : p.status === 'observation'
+                                  ? 'Observation'
+                                  : 'Completed'}
                           </span>
                         </td>
                         <td>
@@ -662,13 +669,16 @@ export default function NurseDashboardOverview() {
           </div>
         </div>
 
-        {/* Right Column: Observation Room Watch & Station Cold Box Stock */}
         <div className="doctor-side-column">
-          {/* Observation Watch Widget */}
           <div className="doctor-obs-card">
             <div className="doctor-obs-header">
-              <div className="doctor-obs-title" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-                <span className="icon-shade icon-shade-amber"><IconClock size={22} /></span>
+              <div
+                className="doctor-obs-title"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+              >
+                <span className="icon-shade icon-shade-amber">
+                  <IconClock size={22} />
+                </span>
                 15-Min Observation Watch
               </div>
               <span className="doctor-obs-count-badge">
@@ -677,7 +687,14 @@ export default function NurseDashboardOverview() {
             </div>
 
             {observationPatients.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '24px 10px', color: '#64748b', fontSize: '0.88rem' }}>
+              <div
+                style={{
+                  textAlign: 'center',
+                  padding: '24px 10px',
+                  color: '#64748b',
+                  fontSize: '0.88rem',
+                }}
+              >
                 Observation recovery room is currently clear.
               </div>
             ) : (
@@ -689,12 +706,22 @@ export default function NurseDashboardOverview() {
                       <span className="doctor-obs-item-meta">
                         {obs.vaccine} • {obs.administeredTime}
                       </span>
-                      <span style={{ fontSize: '0.74rem', color: '#059669', fontWeight: 600, marginTop: '2px' }}>
+                      <span
+                        style={{
+                          fontSize: '0.74rem',
+                          color: '#059669',
+                          fontWeight: 600,
+                          marginTop: '2px',
+                        }}
+                      >
                         ✓ {obs.condition}
                       </span>
                     </div>
                     <div className="doctor-obs-countdown">
-                      <span className="doctor-obs-timer-pill" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                      <span
+                        className="doctor-obs-timer-pill"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                      >
                         <IconClock size={14} /> {obs.minsLeft} mins left
                       </span>
                       <button
@@ -711,11 +738,15 @@ export default function NurseDashboardOverview() {
             )}
           </div>
 
-          {/* Today's appointment slots */}
           <div className="doctor-coldbox-card">
             <div className="doctor-coldbox-header">
-              <div className="doctor-coldbox-title" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-                <span className="icon-shade icon-shade-amber"><IconClock size={22} /></span>
+              <div
+                className="doctor-coldbox-title"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+              >
+                <span className="icon-shade icon-shade-amber">
+                  <IconClock size={22} />
+                </span>
                 Today&apos;s Slots
               </div>
             </div>
@@ -734,7 +765,8 @@ export default function NurseDashboardOverview() {
                       padding: '8px 12px',
                       background: a.status === 'Completed' ? '#f1f5f9' : '#eff6ff',
                       borderRadius: '8px',
-                      border: a.status === 'Completed' ? '1px solid #e2e8f0' : '1px solid #bfdbfe',
+                      border:
+                        a.status === 'Completed' ? '1px solid #e2e8f0' : '1px solid #bfdbfe',
                     }}
                   >
                     <span style={{ fontWeight: 600, color: '#334155' }}>
@@ -751,7 +783,6 @@ export default function NurseDashboardOverview() {
         </div>
       </div>
 
-      {/* Clinical Administration & Certification Modal */}
       <NurseClinicalAdministerModal
         isOpen={isAdministerModalOpen}
         onClose={() => setIsAdministerModalOpen(false)}
@@ -759,7 +790,6 @@ export default function NurseDashboardOverview() {
         onCertify={handleCertifyAdministration}
       />
 
-      {/* AEFI Report Modal */}
       <NurseAefiReportModal
         isOpen={isAefiModalOpen}
         onClose={() => setIsAefiModalOpen(false)}

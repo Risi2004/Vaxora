@@ -161,54 +161,6 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff' }) {
 
       <div className="doctor-card" style={{ padding: '24px', marginBottom: '24px' }}>
         <h2 className="doctor-card-title" style={{ marginTop: 0, marginBottom: 18 }}>
-          Pending Invitations ({invitations.length})
-        </h2>
-
-        {loading ? (
-          <p style={{ color: '#64748b' }}>Loading invitations...</p>
-        ) : invitations.length === 0 ? (
-          <p style={{ color: '#64748b' }}>No pending hospital invitations.</p>
-        ) : (
-          <div style={{ display: 'grid', gap: '14px' }}>
-            {invitations.map((item) => (
-              <div key={item.affiliationId} className="staff-affil-item-card">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
-                  <HospitalAvatar name={item.hospitalName} logoUrl={item.hospitalLogoUrl} />
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontWeight: 700, color: '#0f172a', lineHeight: 1.4 }}>
-                      {item.hospitalName || 'Hospital invitation'}
-                    </div>
-                    <div style={{ fontSize: '0.85rem', color: '#64748b', marginTop: 8 }}>
-                      Invited: {item.invitedAt ? new Date(item.invitedAt).toLocaleString() : '—'}
-                    </div>
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                  <button
-                    type="button"
-                    className="staff-affil-reject-btn"
-                    disabled={actionId != null && String(actionId).startsWith(item.affiliationId)}
-                    onClick={() => handleRespond(item.affiliationId, 'Reject')}
-                  >
-                    {actionId === `${item.affiliationId}-Reject` ? 'Rejecting...' : 'Reject'}
-                  </button>
-                  <button
-                    type="button"
-                    className="staff-affil-accept-btn"
-                    disabled={actionId != null && String(actionId).startsWith(item.affiliationId)}
-                    onClick={() => handleRespond(item.affiliationId, 'Accept')}
-                  >
-                    {actionId === `${item.affiliationId}-Accept` ? 'Accepting...' : 'Accept'}
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="doctor-card" style={{ padding: '24px', marginBottom: '24px' }}>
-        <h2 className="doctor-card-title" style={{ marginTop: 0, marginBottom: 18 }}>
           Active Affiliations ({affiliations.length})
         </h2>
 
@@ -268,7 +220,7 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff' }) {
         )}
       </div>
 
-      <div className="doctor-card" style={{ padding: '24px' }}>
+      <div className="doctor-card" style={{ padding: '24px', marginBottom: '24px' }}>
         <h2 className="doctor-card-title" style={{ marginTop: 0, marginBottom: 18 }}>
           My Shifts (next 14 days)
         </h2>
@@ -290,6 +242,54 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff' }) {
                     Booth: {shift.boothOrStation || '—'}
                     {shift.notes ? ` · ${shift.notes}` : ''}
                   </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="doctor-card" style={{ padding: '24px' }}>
+        <h2 className="doctor-card-title" style={{ marginTop: 0, marginBottom: 18 }}>
+          Pending Invitations ({invitations.length})
+        </h2>
+
+        {loading ? (
+          <p style={{ color: '#64748b' }}>Loading invitations...</p>
+        ) : invitations.length === 0 ? (
+          <p style={{ color: '#64748b' }}>No pending hospital invitations.</p>
+        ) : (
+          <div style={{ display: 'grid', gap: '14px' }}>
+            {invitations.map((item) => (
+              <div key={item.affiliationId} className="staff-affil-item-card">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
+                  <HospitalAvatar name={item.hospitalName} logoUrl={item.hospitalLogoUrl} />
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, color: '#0f172a', lineHeight: 1.4 }}>
+                      {item.hospitalName || 'Hospital invitation'}
+                    </div>
+                    <div style={{ fontSize: '0.85rem', color: '#64748b', marginTop: 8 }}>
+                      Invited: {item.invitedAt ? new Date(item.invitedAt).toLocaleString() : '—'}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    className="staff-affil-reject-btn"
+                    disabled={actionId != null && String(actionId).startsWith(item.affiliationId)}
+                    onClick={() => handleRespond(item.affiliationId, 'Reject')}
+                  >
+                    {actionId === `${item.affiliationId}-Reject` ? 'Rejecting...' : 'Reject'}
+                  </button>
+                  <button
+                    type="button"
+                    className="staff-affil-accept-btn"
+                    disabled={actionId != null && String(actionId).startsWith(item.affiliationId)}
+                    onClick={() => handleRespond(item.affiliationId, 'Accept')}
+                  >
+                    {actionId === `${item.affiliationId}-Accept` ? 'Accepting...' : 'Accept'}
+                  </button>
                 </div>
               </div>
             ))}
