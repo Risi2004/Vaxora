@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import staffService from '../../hospital/services/staffService';
 import { addHospitalDays, hospitalToday } from '../../hospital/utils/hospitalDate';
 import { IconHospital } from '../../../shared/icons/AppIcons';
+import affilHeroImage from '../../../assets/images/staff-affiliations-hero.png';
 
 const dutyLabel = {
   Off: 'Off',
@@ -134,10 +135,11 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff' }) {
         </div>
       )}
 
-      <section className="doctor-hero-banner staff-affil-hero" style={{ marginBottom: '24px' }}>
-        <div className="doctor-hero-info">
-          <h1 className="doctor-hero-title">Hospital Affiliations</h1>
-          <p className="doctor-hero-subtitle">
+      <section className="hospital-hero-banner staff-affil-hero">
+        <div className="hospital-hero-content staff-affil-hero-content">
+          <p className="hospital-hero-eyebrow">Roster &amp; invitations</p>
+          <h1>Hospital Affiliations</h1>
+          <p className="hospital-hero-sub">
             Invitations, roster membership, and upcoming shifts for your {roleLabel.toLowerCase()} account.
           </p>
           <div className="staff-affil-hero-pills" aria-label="Affiliation summary">
@@ -152,15 +154,8 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff' }) {
             </span>
           </div>
         </div>
-        <div className="doctor-hero-actions">
-          <button
-            type="button"
-            className="staff-affil-hero-refresh"
-            onClick={loadData}
-            disabled={loading}
-          >
-            {loading ? 'Refreshing…' : 'Refresh'}
-          </button>
+        <div className="hospital-hero-media" aria-hidden="true">
+          <img src={affilHeroImage} alt="" className="hospital-hero-image staff-affil-hero-image" />
         </div>
       </section>
 
