@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { authService } from '../../auth';
 import AddStaffRequestModal from './AddStaffRequestModal';
 import staffService from '../services/staffService';
+import { IconDoctor, IconFile, IconNurse } from './HospitalIcons';
 
 export default function HospitalProfileTab() {
   const fileInputRef = useRef(null);
@@ -424,7 +425,9 @@ export default function HospitalProfileTab() {
                         className="admin-action-btn view"
                         style={{ textDecoration: 'none', fontSize: '0.8rem' }}
                       >
-                        📄 Reg Certificate
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                          <IconFile size={14} /> Reg Certificate
+                        </span>
                       </a>
                     ) : (
                       <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>Registration Document on File</span>
@@ -466,19 +469,7 @@ export default function HospitalProfileTab() {
                   {doc.photoUrl ? (
                     <img src={doc.photoUrl} alt={doc.name} className="hospital-staff-silhouette" style={{ objectFit: 'cover' }} />
                   ) : (
-                    <svg
-                      className="hospital-staff-silhouette"
-                      viewBox="0 0 100 100"
-                      fill="none"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <circle cx="50" cy="50" r="50" fill="#d9dde3" />
-                      <circle cx="50" cy="40" r="19" fill="#525862" />
-                      <path
-                        d="M20 87C20 70.431 33.431 59 50 59C66.569 59 80 70.431 80 87"
-                        fill="#525862"
-                      />
-                    </svg>
+                    <IconDoctor size={40} style={{ color: '#525862' }} />
                   )}
                 </div>
                 <span className="hospital-staff-name">{doc.name}</span>
@@ -509,19 +500,7 @@ export default function HospitalProfileTab() {
                   {nurse.photoUrl ? (
                     <img src={nurse.photoUrl} alt={nurse.name} className="hospital-staff-silhouette" style={{ objectFit: 'cover' }} />
                   ) : (
-                    <svg
-                      className="hospital-staff-silhouette"
-                      viewBox="0 0 100 100"
-                      fill="none"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <circle cx="50" cy="50" r="50" fill="#e0f2fe" />
-                      <circle cx="50" cy="40" r="19" fill="#0284c7" />
-                      <path
-                        d="M20 87C20 70.431 33.431 59 50 59C66.569 59 80 70.431 80 87"
-                        fill="#0284c7"
-                      />
-                    </svg>
+                    <IconNurse size={40} style={{ color: '#0284c7' }} />
                   )}
                 </div>
                 <span className="hospital-staff-name">{nurse.name}</span>

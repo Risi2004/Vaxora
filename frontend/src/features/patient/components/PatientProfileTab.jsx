@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authService } from '../../auth';
+import { IconShield } from '../../../shared/icons/AppIcons';
 
 export default function PatientProfileTab() {
   const navigate = useNavigate();
@@ -130,7 +131,9 @@ export default function PatientProfileTab() {
             color: notificationType === 'error' ? '#f87171' : '#34d399',
           }}
         >
-          {notificationType === 'error' ? '⚠️' : '✓'} {notification}
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+            {notificationType === 'error' ? <IconShield size={16} /> : '✓'} {notification}
+          </span>
         </div>
       )}
 

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { getUser } from "../../auth/services/authService";
 import { patientVaccinationService } from "../services/patientVaccinationService";
+import { IconClose, IconShield } from "../../../shared/icons/AppIcons";
 
 export default function VaccinationHistoryTab() {
   const [loading, setLoading] = useState(true);
@@ -237,7 +238,7 @@ export default function VaccinationHistoryTab() {
               <div
                 style={{ display: "flex", alignItems: "center", gap: "8px" }}
               >
-                <span style={{ fontSize: "1.4rem" }}>🛡️</span>
+                <span style={{ display: "inline-flex", color: "#1e1b4b" }}><IconShield size={22} /></span>
                 <h3
                   style={{
                     fontSize: "1.25rem",
@@ -254,7 +255,7 @@ export default function VaccinationHistoryTab() {
                 className="modal-close-btn"
                 onClick={() => setSelectedCertificate(null)}
               >
-                ✕
+                <IconClose size={16} />
               </button>
             </div>
 

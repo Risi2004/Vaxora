@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import inventoryService from '../services/inventoryService';
+import { IconFile, IconPackage } from './HospitalIcons';
 
 export default function BatchAuditModal({ isOpen, onClose, vaccine }) {
   const [auditEntries, setAuditEntries] = useState([]);
@@ -34,7 +35,7 @@ export default function BatchAuditModal({ isOpen, onClose, vaccine }) {
         <div className="modal-header">
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '1.4rem' }}>📦</span>
+              <span style={{ display: 'inline-flex', color: '#475569' }}><IconPackage size={22} /></span>
               <h3 style={{ margin: 0 }}>Batch Audit &amp; Traceability Ledger</h3>
             </div>
             <p style={{ margin: '4px 0 0', fontSize: '0.86rem', color: '#64748b' }}>
@@ -100,7 +101,9 @@ export default function BatchAuditModal({ isOpen, onClose, vaccine }) {
 
         <div className="modal-footer" style={{ borderTop: '1px solid #e2e8f0', paddingTop: '14px' }}>
           <button type="button" className="btn-modal-cancel" onClick={() => alert(`Exporting audit log for Lot ${vaccine.lotNumber}...`)} style={{ marginRight: 'auto', background: '#f1f5f9', color: '#1e293b' }}>
-            📄 Export Lot Audit PDF
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+              <IconFile size={16} /> Export Lot Audit PDF
+            </span>
           </button>
           <button type="button" className="btn-modal-cancel" onClick={onClose}>Close</button>
         </div>

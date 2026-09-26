@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { authService } from '../../auth';
+import { IconFile, IconShield } from '../../../shared/icons/AppIcons';
 
 export default function NurseProfileTab() {
   const fileInputRef = useRef(null);
@@ -153,7 +154,9 @@ export default function NurseProfileTab() {
             color: notificationType === 'error' ? '#f87171' : '#34d399',
           }}
         >
-          {notificationType === 'error' ? '⚠️' : '✓'} {notification}
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+            {notificationType === 'error' ? <IconShield size={16} /> : '✓'} {notification}
+          </span>
         </div>
       )}
 
@@ -444,7 +447,7 @@ export default function NurseProfileTab() {
                       className="admin-action-btn view"
                       style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem' }}
                     >
-                      📄 View SLNC Certificate
+                      <IconFile size={14} /> View SLNC Certificate
                     </a>
                   ) : (
                     <span style={{ color: '#94a3b8', fontSize: '0.85rem' }}>SLNC Document Uploaded on File</span>
@@ -458,7 +461,7 @@ export default function NurseProfileTab() {
                       className="admin-action-btn view"
                       style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem' }}
                     >
-                      📎 View Supporting Credentials
+                      <IconFile size={14} /> View Supporting Credentials
                     </a>
                   )}
                 </div>

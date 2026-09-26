@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { authService } from '../services/authService';
+import { IconFile, IconHospital } from '../../../shared/icons/AppIcons';
 
 const SRI_LANKA_PROVINCES = [
   {
@@ -235,7 +236,7 @@ export default function HospitalSignupForm({ onSuccess }) {
                 style={{ borderRadius: '6px' }}
               />
             ) : (
-              <span>🏥</span>
+              <span style={{ display: 'inline-flex' }}><IconHospital size={22} /></span>
             )}
             <span>{logoName || 'Upload Hospital Logo (JPG/PNG)'}</span>
           </div>
@@ -397,7 +398,7 @@ export default function HospitalSignupForm({ onSuccess }) {
           tabIndex={0}
         >
           <div className="file-upload-info">
-            <span>📑</span>
+            <span style={{ display: 'inline-flex' }}><IconFile size={20} /></span>
             <span>{regProofName || 'Upload Registration Certificate (PDF/JPG)'}</span>
           </div>
           <span className="file-upload-btn-text">Browse</span>
@@ -422,7 +423,7 @@ export default function HospitalSignupForm({ onSuccess }) {
           tabIndex={0}
         >
           <div className="file-upload-info">
-            <span>📍</span>
+            <span style={{ display: 'inline-flex' }}><IconFile size={20} /></span>
             <span>{addrProofName || 'Upload MOH / Hospital Letter (PDF/JPG)'}</span>
           </div>
           <span className="file-upload-btn-text">Browse</span>

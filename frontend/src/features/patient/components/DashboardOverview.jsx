@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authService, getUser } from '../../auth';
+import { IconCalendar, IconClock, IconDoctor, IconShield, IconSyringe } from '../../../shared/icons/AppIcons';
 
 export default function DashboardOverview({ onNavigateTab, onOpenBookModal }) {
   const navigate = useNavigate();
@@ -36,7 +37,7 @@ export default function DashboardOverview({ onNavigateTab, onOpenBookModal }) {
       status: 'Scheduled',
       statusClass: 'status-scheduled',
       date: 'Oct 12, 2026',
-      icon: '💉',
+      Icon: IconSyringe,
     },
     {
       id: 2,
@@ -45,7 +46,7 @@ export default function DashboardOverview({ onNavigateTab, onOpenBookModal }) {
       status: 'Due Soon',
       statusClass: 'status-due',
       date: 'Nov 2026',
-      icon: '🛡️',
+      Icon: IconShield,
     },
     {
       id: 3,
@@ -54,7 +55,7 @@ export default function DashboardOverview({ onNavigateTab, onOpenBookModal }) {
       status: 'Completed',
       statusClass: 'status-completed',
       date: 'Jan 15, 2026',
-      icon: '✅',
+      Icon: IconShield,
     },
     {
       id: 4,
@@ -63,7 +64,7 @@ export default function DashboardOverview({ onNavigateTab, onOpenBookModal }) {
       status: 'Completed',
       statusClass: 'status-completed',
       date: 'Aug 04, 2025',
-      icon: '✅',
+      Icon: IconShield,
     },
   ];
 
@@ -91,7 +92,7 @@ export default function DashboardOverview({ onNavigateTab, onOpenBookModal }) {
       <div className="patient-stats-grid">
         <div className="patient-stat-card">
           <div className="stat-card-icon-box icon-blue">
-            📅
+            <IconCalendar size={22} />
           </div>
           <div className="stat-card-info">
             <span className="stat-card-label">Upcoming Dose</span>
@@ -102,7 +103,7 @@ export default function DashboardOverview({ onNavigateTab, onOpenBookModal }) {
 
         <div className="patient-stat-card">
           <div className="stat-card-icon-box icon-green">
-            💉
+            <IconSyringe size={22} />
           </div>
           <div className="stat-card-info">
             <span className="stat-card-label">Doses Received</span>
@@ -113,7 +114,7 @@ export default function DashboardOverview({ onNavigateTab, onOpenBookModal }) {
 
         <div className="patient-stat-card">
           <div className="stat-card-icon-box icon-purple">
-            🛡️
+            <IconShield size={22} />
           </div>
           <div className="stat-card-info">
             <span className="stat-card-label">Health Pass Status</span>
@@ -124,7 +125,7 @@ export default function DashboardOverview({ onNavigateTab, onOpenBookModal }) {
 
         <div className="patient-stat-card">
           <div className="stat-card-icon-box icon-amber">
-            ⏰
+            <IconClock size={22} />
           </div>
           <div className="stat-card-info">
             <span className="stat-card-label">Next Due</span>
@@ -164,9 +165,15 @@ export default function DashboardOverview({ onNavigateTab, onOpenBookModal }) {
               </div>
 
               <div className="appointment-date-time-bar">
-                <span>🗓️ Monday, Oct 12, 2026</span>
-                <span>⏰ 10:30 AM - 11:00 AM</span>
-                <span>👨‍⚕️ Dr. N. Wickramasinghe</span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                  <IconCalendar size={14} /> Monday, Oct 12, 2026
+                </span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                  <IconClock size={14} /> 10:30 AM - 11:00 AM
+                </span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                  <IconDoctor size={14} /> Dr. N. Wickramasinghe
+                </span>
               </div>
 
               <div className="appointment-actions-row">
@@ -243,25 +250,30 @@ export default function DashboardOverview({ onNavigateTab, onOpenBookModal }) {
           </div>
 
           <div className="schedule-checklist">
-            {scheduleItems.map((item) => (
-              <div key={item.id} className="schedule-item">
-                <div className="schedule-left">
-                  <div className="schedule-icon-circle">{item.icon}</div>
-                  <div>
-                    <div className="schedule-name">{item.name}</div>
-                    <div className="schedule-target">{item.target}</div>
+            {scheduleItems.map((item) => {
+              const ItemIcon = item.Icon;
+              return (
+                <div key={item.id} className="schedule-item">
+                  <div className="schedule-left">
+                    <div className="schedule-icon-circle" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <ItemIcon size={18} />
+                    </div>
+                    <div>
+                      <div className="schedule-name">{item.name}</div>
+                      <div className="schedule-target">{item.target}</div>
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <span className={`schedule-status-tag ${item.statusClass}`}>
+                      {item.status}
+                    </span>
+                    <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '4px', fontWeight: 600 }}>
+                      {item.date}
+                    </div>
                   </div>
                 </div>
-                <div style={{ textAlign: 'right' }}>
-                  <span className={`schedule-status-tag ${item.statusClass}`}>
-                    {item.status}
-                  </span>
-                  <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '4px', fontWeight: 600 }}>
-                    {item.date}
-                  </div>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           <div style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid #f1f5f9', textAlign: 'center' }}>

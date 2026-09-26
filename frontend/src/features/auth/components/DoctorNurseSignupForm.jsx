@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { IconFile, IconUser } from '../../../shared/icons/AppIcons';
 
 export default function DoctorNurseSignupForm({ onSuccess }) {
   const [formData, setFormData] = useState({
@@ -81,7 +82,7 @@ export default function DoctorNurseSignupForm({ onSuccess }) {
             {profilePicPreview ? (
               <img src={profilePicPreview} alt="Preview" className="file-upload-thumb" />
             ) : (
-              <span>📷</span>
+              <span style={{ display: 'inline-flex' }}><IconUser size={22} /></span>
             )}
             <span>{profilePicFile || 'Upload Profile Picture (JPG/PNG)'}</span>
           </div>
@@ -130,7 +131,7 @@ export default function DoctorNurseSignupForm({ onSuccess }) {
           tabIndex={0}
         >
           <div className="file-upload-info">
-            <span>📄</span>
+            <span style={{ display: 'inline-flex' }}><IconFile size={20} /></span>
             <span>{registrationCardFile || 'Upload Card (PDF/JPG)'}</span>
           </div>
           <span className="file-upload-btn-text">Browse</span>

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import staffService from '../services/staffService';
 import StaffSchedulingAgentChat from './StaffSchedulingAgentChat';
 import { hospitalMinutesNow, hospitalToday } from '../utils/hospitalDate';
+import { IconCalendar, RoleAvatarIcon } from './HospitalIcons';
 
 function toDateInputValue(date = new Date()) {
   const y = date.getFullYear();
@@ -162,12 +163,9 @@ export default function HospitalShiftsPanel() {
       try {
         const coverageReport = await staffService.getCoverage({ from: weekStart, to: weekEnd });
         setCoverage(coverageReport || null);
-      } catch (coverageErr) {
+      } catch {
+        // Coverage is optional UI — don't block the roster with a hard error banner.
         setCoverage(null);
-        setError(
-          coverageErr.message ||
-            'Coverage summary unavailable. Restart the API if you recently pulled updates, then refresh.'
-        );
       }
     } catch (err) {
       setError(err.message || 'Failed to load shifts.');
@@ -375,7 +373,7 @@ export default function HospitalShiftsPanel() {
         >
           <div className="section-title-group">
             <h2 style={{ margin: 0 }}>
-              <span>🗓️</span> Staff Shift Roster
+              <span className="section-title-icon"><IconCalendar size={22} /></span> Staff Shift Roster
             </h2>
             <p className="section-title-desc">
               Weekly roster with coverage insights. Overlaps and shifts over 12 hours are blocked.
@@ -798,25 +796,28 @@ export default function HospitalShiftsPanel() {
               {staffCalendarRows.map(({ member, byDay, weekMinutes }) => {
                 const roleKey = String(member.staffRole || '').toUpperCase();
                 const roleStyle = roleCalendarStyle[roleKey] || roleCalendarStyle.NURSE;
-                const initials = String(member.staffName || '?')
-                  .split(' ')
-                  .map((part) => part[0])
-                  .join('')
-                  .slice(0, 2)
-                  .toUpperCase();
+                const avatarRole = roleKey === 'DOCTOR' ? 'Doctor' : 'Nurse';
 
                 return (
                   <React.Fragment key={member.affiliationId}>
                     <div className="shift-week-calendar-staff">
                       <div
-                        className="shift-week-calendar-avatar"
+                        className={`shift-week-calendar-avatar${member.staffProfilePhotoUrl ? ' has-photo' : ''}`}
                         style={{
                           background: roleStyle.bg,
                           color: roleStyle.accent,
                           borderColor: roleStyle.border,
                         }}
                       >
-                        {initials}
+                        {member.staffProfilePhotoUrl ? (
+                          <img
+                            src={member.staffProfilePhotoUrl}
+                            alt=""
+                            className="shift-week-calendar-avatar-img"
+                          />
+                        ) : (
+                          <RoleAvatarIcon role={avatarRole} size={16} />
+                        )}
                       </div>
                       <div className="shift-week-calendar-staff-text">
                         <span className="shift-week-calendar-staff-name">{member.staffName}</span>

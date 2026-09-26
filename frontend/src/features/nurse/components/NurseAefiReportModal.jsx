@@ -134,7 +134,7 @@ export default function NurseAefiReportModal({ isOpen, onClose, onSubmitReport }
             <button type="button" className="doctor-btn-cancel" onClick={onClose}>
               Cancel
             </button>
-            <button type="submit" className="doctor-btn-submit danger">
+            <button type="submit" className="doctor-btn-submit danger" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
               ⚠️ Dispatch Emergency AEFI Alert
             </button>
           </div>

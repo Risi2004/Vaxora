@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import clinicalPatientService from '../services/clinicalPatientService';
+import { IconClose } from '../../../shared/icons/AppIcons';
 
 function mapPatientDetail(detail) {
   if (!detail) return null;
@@ -265,7 +266,7 @@ export default function NursePatientsTab() {
             aria-label="Close patient details"
             onClick={() => setShowDetailsCard(false)}
           >
-            ✕
+            <IconClose size={16} />
           </button>
 
           <div className="patient-personal-info-box">

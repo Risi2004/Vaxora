@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { authService } from '../services/authService';
+import { IconFile, IconNurse } from '../../../shared/icons/AppIcons';
 
 export default function NurseSignupForm({ onSuccess }) {
   const [formData, setFormData] = useState({
@@ -130,7 +131,7 @@ export default function NurseSignupForm({ onSuccess }) {
             {profilePicPreview ? (
               <img src={profilePicPreview} alt="Preview" className="file-upload-thumb" />
             ) : (
-              <span>👩‍⚕️</span>
+              <span style={{ display: 'inline-flex' }}><IconNurse size={22} /></span>
             )}
             <span>{profilePicName || 'Upload Profile Photo (JPG/PNG)'}</span>
           </div>
@@ -194,7 +195,7 @@ export default function NurseSignupForm({ onSuccess }) {
           tabIndex={0}
         >
           <div className="file-upload-info">
-            <span>📑</span>
+            <span style={{ display: 'inline-flex' }}><IconFile size={20} /></span>
             <span>{slncDocName || 'Upload SLNC Certificate (PDF/JPG/PNG)'}</span>
           </div>
           <span className="file-upload-btn-text">Browse</span>
@@ -219,7 +220,7 @@ export default function NurseSignupForm({ onSuccess }) {
           tabIndex={0}
         >
           <div className="file-upload-info">
-            <span>📎</span>
+            <span style={{ display: 'inline-flex' }}><IconFile size={20} /></span>
             <span>{supportingDocName || 'Upload Supporting Letter (PDF/JPG)'}</span>
           </div>
           <span className="file-upload-btn-text">Browse</span>

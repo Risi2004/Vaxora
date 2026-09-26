@@ -4,6 +4,7 @@ import logo from '../../../assets/images/logo.png';
 
 import { authService, getUser, subscribeAuthUser } from '../../auth';
 import DeleteAccountModal from '../../auth/components/DeleteAccountModal';
+import { IconClose, IconLogout, IconMenu, IconTrash, IconUser } from '../../../shared/icons/AppIcons';
 
 export default function PatientNavbar() {
   const navigate = useNavigate();
@@ -125,20 +126,9 @@ export default function PatientNavbar() {
                   className="navbar-avatar-img"
                 />
               ) : (
-                <svg
-                  viewBox="0 0 48 48"
-                  width="40"
-                  height="40"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <circle cx="24" cy="24" r="23" fill="#cbd5e1" stroke="#94a3b8" strokeWidth="2" />
-                  <circle cx="24" cy="18" r="8" fill="#1e4a9e" />
-                  <path
-                    d="M10 40C10 32.268 16.268 28 24 28C31.732 28 38 32.268 38 40"
-                    fill="#1e4a9e"
-                  />
-                </svg>
+                <div className="navbar-avatar-fallback">
+                  <IconUser size={20} />
+                </div>
               )}
             </button>
 
@@ -178,7 +168,9 @@ export default function PatientNavbar() {
                     setIsDeleteModalOpen(true);
                   }}
                 >
-                  🗑️ Delete Account
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    <IconTrash size={16} /> Delete Account
+                  </span>
                 </button>
               </div>
             )}
@@ -194,7 +186,7 @@ export default function PatientNavbar() {
             }}
             aria-label={mobileMenuOpen ? 'Close Navigation Menu' : 'Open Navigation Menu'}
           >
-            {mobileMenuOpen ? '✕' : '☰'}
+            {mobileMenuOpen ? <IconClose size={18} /> : <IconMenu size={18} />}
           </button>
         </div>
       </div>
@@ -222,14 +214,18 @@ export default function PatientNavbar() {
               className="portal-mobile-nav-btn"
               onClick={() => handleNavigate('/patient/profile')}
             >
-              👤 View My Profile
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                <IconUser size={16} /> View My Profile
+              </span>
             </button>
             <button
               type="button"
               className="portal-mobile-nav-btn text-danger"
               onClick={handleLogout}
             >
-              🚪 Log Out
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                <IconLogout size={16} /> Log Out
+              </span>
             </button>
             <button
               type="button"
@@ -239,7 +235,9 @@ export default function PatientNavbar() {
                 setIsDeleteModalOpen(true);
               }}
             >
-              🗑️ Delete Account
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                <IconTrash size={16} /> Delete Account
+              </span>
             </button>
           </nav>
         </div>

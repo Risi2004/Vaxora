@@ -4,6 +4,7 @@ import logo from '../../../assets/images/logo.png';
 
 import { authService, getUser, subscribeAuthUser } from '../../auth';
 import DeleteAccountModal from '../../auth/components/DeleteAccountModal';
+import { IconClose, IconHospital, IconLogout, IconMenu, IconTrash } from './HospitalIcons';
 
 export default function HospitalNavbar() {
   const navigate = useNavigate();
@@ -125,7 +126,7 @@ export default function HospitalNavbar() {
                 />
               ) : (
                 <div className="hospital-avatar-circle">
-                  <span>🏥</span>
+                  <IconHospital size={18} />
                 </div>
               )}
             </button>
@@ -171,7 +172,9 @@ export default function HospitalNavbar() {
                     setIsDeleteModalOpen(true);
                   }}
                 >
-                  🗑️ Delete Account
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    <IconTrash size={16} /> Delete Account
+                  </span>
                 </button>
               </div>
             )}
@@ -187,7 +190,7 @@ export default function HospitalNavbar() {
             }}
             aria-label={mobileMenuOpen ? 'Close Navigation Menu' : 'Open Navigation Menu'}
           >
-            {mobileMenuOpen ? '✕' : '☰'}
+            {mobileMenuOpen ? <IconClose size={18} /> : <IconMenu size={18} />}
           </button>
         </div>
       </div>
@@ -215,14 +218,18 @@ export default function HospitalNavbar() {
               className="portal-mobile-nav-btn"
               onClick={() => handleNavigate('/hospital/profile')}
             >
-              🏥 Hospital Profile
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                <IconHospital size={16} /> Hospital Profile
+              </span>
             </button>
             <button
               type="button"
               className="portal-mobile-nav-btn text-danger"
               onClick={handleLogout}
             >
-              🚪 Log Out
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                <IconLogout size={16} /> Log Out
+              </span>
             </button>
             <button
               type="button"
@@ -232,7 +239,9 @@ export default function HospitalNavbar() {
                 setIsDeleteModalOpen(true);
               }}
             >
-              🗑️ Delete Account
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                <IconTrash size={16} /> Delete Account
+              </span>
             </button>
           </nav>
         </div>

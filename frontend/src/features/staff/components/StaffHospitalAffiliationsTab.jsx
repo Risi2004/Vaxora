@@ -1,20 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import staffService from '../../hospital/services/staffService';
 import { addHospitalDays, hospitalToday } from '../../hospital/utils/hospitalDate';
+import { IconHospital } from '../../../shared/icons/AppIcons';
 
 const dutyLabel = {
   Off: 'Off',
   OnDuty: 'On Duty',
   OnBreak: 'On Break',
 };
-
-function hospitalInitials(name) {
-  if (!name || typeof name !== 'string') return 'H';
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return 'H';
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
-}
 
 function HospitalAvatar({ name, logoUrl }) {
   if (logoUrl) {
@@ -28,7 +21,7 @@ function HospitalAvatar({ name, logoUrl }) {
   }
   return (
     <div className="staff-affil-hospital-avatar staff-affil-hospital-avatar--fallback" aria-hidden>
-      {hospitalInitials(name)}
+      <IconHospital size={18} />
     </div>
   );
 }

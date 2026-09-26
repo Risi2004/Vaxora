@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { IconClose, IconHospital, IconRocket, IconSearch, IconSyringe, IconUsers } from '../../../shared/icons/AppIcons';
 
 export default function AdminCampaignsTab() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -255,7 +256,7 @@ export default function AdminCampaignsTab() {
 
         <div className="doctor-stat-card">
           <div className="doctor-stat-icon-wrapper" style={{ background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8' }}>
-            👥
+            <IconUsers size={22} />
           </div>
           <div className="doctor-stat-content">
             <span className="doctor-stat-label">Target Population</span>
@@ -270,7 +271,7 @@ export default function AdminCampaignsTab() {
 
         <div className="doctor-stat-card">
           <div className="doctor-stat-icon-wrapper" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#34d399' }}>
-            💉
+            <IconSyringe size={22} />
           </div>
           <div className="doctor-stat-content">
             <span className="doctor-stat-label">Doses Administered</span>
@@ -326,7 +327,7 @@ export default function AdminCampaignsTab() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '12px', marginBottom: '20px' }}>
           {/* Search */}
           <div className="doctor-search-bar" style={{ margin: 0 }}>
-            <span className="doctor-search-icon">🔍</span>
+            <span className="doctor-search-icon" style={{ display: 'inline-flex' }}><IconSearch size={16} /></span>
             <input
               type="text"
               className="doctor-search-input"
@@ -340,7 +341,7 @@ export default function AdminCampaignsTab() {
                 onClick={() => setSearchQuery('')}
                 style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '0 8px' }}
               >
-                ✕
+                <IconClose size={16} />
               </button>
             )}
           </div>
@@ -403,7 +404,9 @@ export default function AdminCampaignsTab() {
                           🎯 Target: <span style={{ color: '#cbd5e1' }}>{cmp.targetCohort}</span>
                         </div>
                         <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '2px' }}>
-                          🏥 {cmp.participatingHospitalsCount} Active Hospitals • {cmp.provinces.join(', ')}
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                            <IconHospital size={14} /> {cmp.participatingHospitalsCount} Active Hospitals • {cmp.provinces.join(', ')}
+                          </span>
                         </div>
                       </td>
 
@@ -506,7 +509,7 @@ export default function AdminCampaignsTab() {
                 onClick={() => setIsCreateModalOpen(false)}
                 style={{ background: 'transparent', border: 'none', color: '#94a3b8', fontSize: '1.3rem', cursor: 'pointer' }}
               >
-                ✕
+                <IconClose size={16} />
               </button>
             </div>
 
@@ -646,7 +649,7 @@ export default function AdminCampaignsTab() {
                 onClick={() => setIsBroadcastModalOpen(false)}
                 style={{ background: 'transparent', border: 'none', color: '#94a3b8', fontSize: '1.3rem', cursor: 'pointer' }}
               >
-                ✕
+                <IconClose size={16} />
               </button>
             </div>
 
@@ -713,7 +716,9 @@ export default function AdminCampaignsTab() {
                   className="doctor-hero-session-pill"
                   style={{ cursor: 'pointer', background: '#0284c7', color: '#ffffff', border: '1px solid #38bdf8', fontWeight: 700, padding: '8px 20px' }}
                 >
-                  🚀 Dispatch Broadcast Bulletin
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    <IconRocket size={16} /> Dispatch Broadcast Bulletin
+                  </span>
                 </button>
               </div>
             </form>
@@ -745,7 +750,7 @@ export default function AdminCampaignsTab() {
                 onClick={() => setSelectedCampaign(null)}
                 style={{ background: 'transparent', border: 'none', color: '#94a3b8', fontSize: '1.3rem', cursor: 'pointer' }}
               >
-                ✕
+                <IconClose size={16} />
               </button>
             </div>
 

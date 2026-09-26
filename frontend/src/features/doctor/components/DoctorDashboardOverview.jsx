@@ -5,6 +5,7 @@ import { inventoryService } from '../../hospital/services/inventoryService';
 import staffAppointmentService from '../../staff/services/staffAppointmentService';
 import ClinicalAdministerModal from './ClinicalAdministerModal';
 import AefiReportModal from './AefiReportModal';
+import { IconCalendar, IconClipboard, IconClock, IconHospital, IconShield, IconSnowflake, IconSyringe, IconUser } from '../../../shared/icons/AppIcons';
 
 const dutyLabel = {
   Off: 'Off duty',
@@ -290,7 +291,9 @@ export default function DoctorDashboardOverview() {
           <div className="doctor-hero-session-pill">
             {primaryAffiliation ? (
               <>
-                <span>🏥 {primaryAffiliation.hospitalName || 'Affiliated hospital'}</span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                  <IconHospital size={14} /> {primaryAffiliation.hospitalName || 'Affiliated hospital'}
+                </span>
                 <span>•</span>
                 <span>{dutyText}</span>
                 {affiliations.length > 1 && (
@@ -339,7 +342,7 @@ export default function DoctorDashboardOverview() {
             </span>
           </div>
           <div className="doctor-stat-icon-wrapper doctor-icon-blue">
-            <span>📅</span>
+            <IconCalendar size={22} />
           </div>
         </div>
 
@@ -352,7 +355,7 @@ export default function DoctorDashboardOverview() {
             <span className="doctor-stat-meta">Confirmed or awaiting payment</span>
           </div>
           <div className="doctor-stat-icon-wrapper doctor-icon-amber">
-            <span>⏳</span>
+            <IconClock size={22} />
           </div>
         </div>
 
@@ -365,7 +368,7 @@ export default function DoctorDashboardOverview() {
             <span className="doctor-stat-meta">Marked completed at this hospital</span>
           </div>
           <div className="doctor-stat-icon-wrapper doctor-icon-green">
-            <span>💉</span>
+            <IconSyringe size={22} />
           </div>
         </div>
 
@@ -378,7 +381,7 @@ export default function DoctorDashboardOverview() {
             <span className="doctor-stat-meta">Confirmed visits without prescribed dosage</span>
           </div>
           <div className="doctor-stat-icon-wrapper doctor-icon-purple">
-            <span>⚠️</span>
+            <IconShield size={22} />
           </div>
         </div>
       </section>
@@ -414,7 +417,7 @@ export default function DoctorDashboardOverview() {
           <div className="doctor-spotlight-details-grid">
             {/* Bio & Details */}
             <div className="doctor-patient-bio">
-              <div className="doctor-patient-avatar">👤</div>
+              <div className="doctor-patient-avatar"><IconUser size={28} /></div>
               <div>
                 <div className="doctor-patient-name">{activePatient.name}</div>
                 <div className="doctor-patient-meta-text">
@@ -517,8 +520,8 @@ export default function DoctorDashboardOverview() {
         {/* Left Column: Today's Patient Queue Table */}
         <div className="doctor-card">
           <div className="doctor-card-header">
-            <div className="doctor-card-title">
-              <span>📋</span>
+            <div className="doctor-card-title" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+              <span className="icon-shade icon-shade-blue"><IconClipboard size={22} /></span>
               Today's Consultation Queue
             </div>
 
@@ -684,8 +687,8 @@ export default function DoctorDashboardOverview() {
           {/* Observation Watch Widget */}
           <div className="doctor-obs-card">
             <div className="doctor-obs-header">
-              <div className="doctor-obs-title">
-                <span>⏱️</span>
+              <div className="doctor-obs-title" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                <span className="icon-shade icon-shade-amber"><IconClock size={22} /></span>
                 15-Min Observation Watch
               </div>
               <span className="doctor-obs-count-badge">
@@ -711,8 +714,8 @@ export default function DoctorDashboardOverview() {
                       </span>
                     </div>
                     <div className="doctor-obs-countdown">
-                      <span className="doctor-obs-timer-pill">
-                        ⏳ {obs.minsLeft} mins left
+                      <span className="doctor-obs-timer-pill" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                        <IconClock size={14} /> {obs.minsLeft} mins left
                       </span>
                       <button
                         type="button"
@@ -731,8 +734,8 @@ export default function DoctorDashboardOverview() {
           {/* Booth Cold Box Vaccine Inventory */}
           <div className="doctor-coldbox-card">
             <div className="doctor-coldbox-header">
-              <div className="doctor-coldbox-title">
-                <span>❄️</span>
+              <div className="doctor-coldbox-title" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                <span className="icon-shade icon-shade-teal"><IconSnowflake size={22} /></span>
                 Cold-Box Stock
               </div>
             </div>
@@ -770,8 +773,8 @@ export default function DoctorDashboardOverview() {
           {/* Today's appointment slots */}
           <div className="doctor-coldbox-card">
             <div className="doctor-coldbox-header">
-              <div className="doctor-coldbox-title">
-                <span>🕒</span>
+              <div className="doctor-coldbox-title" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                <span className="icon-shade icon-shade-amber"><IconClock size={22} /></span>
                 Today&apos;s Slots
               </div>
             </div>

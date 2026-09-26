@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import logo from '../../../assets/images/logo.png';
 
 import { authService } from '../../auth';
+import { IconClose, IconMenu } from '../../../shared/icons/AppIcons';
 
 export default function AdminSidebar({ pendingApprovalsCount = 0 }) {
   const navigate = useNavigate();
@@ -134,7 +135,7 @@ export default function AdminSidebar({ pendingApprovalsCount = 0 }) {
           onClick={() => setMobileOpen((prev) => !prev)}
           aria-label={mobileOpen ? 'Close Menu' : 'Open Menu'}
         >
-          {mobileOpen ? '✕' : '☰'}
+          {mobileOpen ? <IconClose size={18} /> : <IconMenu size={18} />}
         </button>
       </header>
 

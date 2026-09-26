@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import staffAppointmentService from '../services/staffAppointmentService';
+import { IconCalendar } from '../../../shared/icons/AppIcons';
 
 function toDateInputValue(date = new Date()) {
   const y = date.getFullYear();
@@ -148,8 +149,8 @@ export default function StaffAppointmentsPanel({
 
           <div className="doctor-appointments-filter-bar">
             <div className="doctor-filter-group">
-              <label htmlFor="staff-filter-date" className="doctor-filter-label">
-                <span>📅</span> Filter Date:
+              <label htmlFor="staff-filter-date" className="doctor-filter-label" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                <IconCalendar size={16} /> Filter Date:
               </label>
               <input
                 id="staff-filter-date"
