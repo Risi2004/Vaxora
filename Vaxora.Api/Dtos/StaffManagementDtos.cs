@@ -129,6 +129,7 @@ public class StaffAffiliationDto
     public Guid AffiliationId { get; set; }
     public Guid HospitalUserId { get; set; }
     public string? HospitalName { get; set; }
+    public string? HospitalLogoUrl { get; set; }
     public Guid StaffUserId { get; set; }
     public string StaffRegistrationNumber { get; set; } = string.Empty;
     public string StaffName { get; set; } = string.Empty;

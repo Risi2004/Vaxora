@@ -1234,6 +1234,7 @@ public class StaffManagementService : IStaffManagementService
             AffiliationId = affiliation.Id,
             HospitalUserId = affiliation.HospitalUserId,
             HospitalName = hospitalUser.HospitalProfile?.HospitalName,
+            HospitalLogoUrl = hospitalUser.HospitalProfile?.LogoUrl,
             StaffUserId = affiliation.StaffUserId,
             StaffRegistrationNumber = staffUser.RegistrationNumber ?? string.Empty,
             StaffName = GetStaffName(staffUser),

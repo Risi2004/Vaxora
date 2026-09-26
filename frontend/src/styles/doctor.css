@@ -1926,7 +1926,7 @@
   margin-top: 24px;
 }
 
-/* Red Close Button [ ✕ ] at top-right */
+/* Red Close Button [ â ] at top-right */
 .btn-close-patient-details {
   position: absolute;
   top: -12px;
@@ -2502,5 +2502,200 @@
   .btn-aefi-trigger {
     padding: 6px 10px;
     font-size: 0.78rem;
+  }
+}
+
+/* Affiliations Reject  avoid blue table-btn hover */
+.staff-affil-reject-btn {
+  border: 1px solid #fecaca;
+  background-color: #ffffff;
+  color: #dc2626;
+  font-weight: 650;
+  font-size: 0.8rem;
+  padding: 7px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.staff-affil-reject-btn:hover:not(:disabled) {
+  background-color: #fef2f2;
+  border-color: #f87171;
+  color: #b91c1c;
+}
+
+.staff-affil-reject-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.staff-affil-accept-btn {
+  border: 1px solid #93c5fd;
+  background-color: #ffffff;
+  color: #1d4ed8;
+  font-weight: 650;
+  font-size: 0.8rem;
+  padding: 7px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.staff-affil-accept-btn:hover:not(:disabled) {
+  background-color: #eff6ff;
+  border-color: #60a5fa;
+  color: #1e40af;
+}
+
+.staff-affil-accept-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.staff-affil-item-card {
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  padding: 22px 24px;
+  background: #eff6ff;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.staff-affil-duty-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 10px;
+  background: #ffffff;
+  border: 1px solid #bfdbfe;
+  flex-shrink: 0;
+}
+
+.staff-affil-duty-btn {
+  border: none;
+  background: transparent;
+  color: #64748b;
+  font-weight: 650;
+  font-size: 0.78rem;
+  padding: 7px 12px;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.staff-affil-duty-btn:hover:not(:disabled):not(.is-active) {
+  background: #f1f5f9;
+  color: #334155;
+}
+
+.staff-affil-duty-btn.is-active {
+  background: #e2e8f0;
+  color: #334155;
+}
+
+.staff-affil-duty-btn.is-active.is-on {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.staff-affil-duty-btn.is-active.is-break {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.staff-affil-duty-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.staff-affil-hospital-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 1.5px solid #e2e8f0;
+  background: #e2e8f0;
+}
+
+.staff-affil-hospital-avatar--fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #dbeafe;
+  color: #1e40af;
+  font-size: 0.8rem;
+  font-weight: 700;
+  border-color: #bfdbfe;
+}
+
+.staff-affil-hero .doctor-hero-subtitle {
+  margin-bottom: 14px;
+}
+
+.staff-affil-hero-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  position: relative;
+  z-index: 1;
+}
+
+.staff-affil-hero-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 0.8rem;
+  font-weight: 600;
+  backdrop-filter: blur(8px);
+}
+
+.staff-affil-hero-pill strong {
+  font-weight: 750;
+  color: #ffffff;
+}
+
+.staff-affil-hero-refresh {
+  position: relative;
+  z-index: 1;
+  border: 1.5px solid rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  font-weight: 650;
+  font-size: 0.85rem;
+  padding: 10px 16px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.staff-affil-hero-refresh:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.22);
+  border-color: #ffffff;
+}
+
+.staff-affil-hero-refresh:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+@media (max-width: 720px) {
+  .staff-affil-hero {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+  }
+
+  .staff-affil-hero-refresh {
+    align-self: flex-start;
   }
 }
