@@ -42,6 +42,7 @@ class AgentRepository {
       body: {
         'messages': payloadMessages,
         'patientInfo': patientInfo,
+        'targetAgent': 'BookingAgent',
       },
     );
 

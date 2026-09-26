@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../data/models/agent_models.dart';
 import '../../data/repositories/agent_repository.dart';
+import 'appointment_card.dart';
+import 'payhere_checkout_sheet.dart';
 
 class AgentBookingSheet extends StatefulWidget {
   final VoidCallback? onAppointmentBooked;
@@ -102,6 +104,9 @@ class _AgentBookingSheetState extends State<AgentBookingSheet> {
 
         if (response.booking != null && response.booking!.success) {
           widget.onAppointmentBooked?.call();
+          if (!response.booking!.isFree && response.booking!.payherePayload != null) {
+            _launchPayHere(response.booking!);
+          }
         }
       }
     } catch (e) {
@@ -125,6 +130,49 @@ class _AgentBookingSheetState extends State<AgentBookingSheet> {
     final prompt =
         'I approve and confirm booking for ${proposal.vaccineName} at ${proposal.hospitalName} on ${proposal.appointmentDate} at ${proposal.timeSlot}. Please proceed with booking.';
     _sendMessage(prompt);
+  }
+
+  void _launchPayHere(AgentBooking booking) {
+    final aptMap = booking.appointment ?? {};
+    final rawId = aptMap['id']?.toString() ?? aptMap['Id']?.toString() ?? '';
+    final aptId = rawId.isNotEmpty && rawId.length >= 8
+        ? 'VAX-${rawId.substring(0, 8).toUpperCase()}'
+        : (aptMap['referenceNumber']?.toString() ?? 'VAX-APT');
+    final fee = (aptMap['fee'] as num?)?.toDouble() ??
+        ((booking.payherePayload?['amount'] as num?)?.toDouble() ?? 0.0);
+
+    final appointment = PatientAppointment(
+      id: aptId,
+      rawId: rawId,
+      vaccineName: aptMap['vaccineName']?.toString() ?? 'Vaccine',
+      hospitalName: aptMap['hospitalName']?.toString() ?? 'Hospital',
+      location: aptMap['hospitalName']?.toString() ?? 'Hospital Center',
+      date: aptMap['appointmentDate']?.toString() ?? '',
+      time: aptMap['timeSlot']?.toString() ?? '',
+      doctorName: aptMap['doctorName']?.toString() ?? 'Assigned Medical Staff',
+      status: 'PendingPayment',
+      fee: fee,
+      isPaid: false,
+    );
+
+    PayHereCheckoutSheet.show(
+      context,
+      appointment: appointment,
+      onPaymentSuccess: () {
+        widget.onAppointmentBooked?.call();
+        if (mounted) {
+          setState(() {
+            _messages.add(
+              const AgentMessage(
+                role: 'assistant',
+                content: '🎉 **Payment Verified Successfully!**\nYour vaccination appointment is now fully confirmed.',
+              ),
+            );
+          });
+          _scrollToBottom();
+        }
+      },
+    );
   }
 
   void _declineProposal() {
@@ -373,15 +421,10 @@ class _AgentBookingSheetState extends State<AgentBookingSheet> {
                           : (msg.isError ? const Color(0xFFFCA5A5) : AppColors.borderLight),
                     ),
                   ),
-                  child: Text(
+                  child: _buildFormattedText(
                     msg.content,
-                    style: TextStyle(
-                      fontSize: 13,
-                      height: 1.45,
-                      color: isUser
-                          ? Colors.white
-                          : (msg.isError ? Colors.red.shade900 : AppColors.textTitle),
-                    ),
+                    isUser,
+                    isError: msg.isError,
                   ),
                 ),
               ),
@@ -402,6 +445,238 @@ class _AgentBookingSheetState extends State<AgentBookingSheet> {
         ],
       ),
     );
+  }
+
+  Widget _buildFormattedText(String text, bool isUser, {bool isError = false}) {
+    if (text.isEmpty) return const SizedBox.shrink();
+
+    final lines = text.split('\n');
+    final List<Widget> widgets = [];
+
+    for (int i = 0; i < lines.length; i++) {
+      final line = lines[i];
+      final trimmed = line.trim();
+
+      if (trimmed.isEmpty) {
+        widgets.add(const SizedBox(height: 6));
+        continue;
+      }
+
+      final leadingSpaces = line.length - line.trimLeft().length;
+      final indentPadding = leadingSpaces >= 2 ? 14.0 : 0.0;
+
+      final isBullet = (trimmed.startsWith('- ') ||
+          trimmed.startsWith('• ') ||
+          (trimmed.startsWith('* ') && !trimmed.startsWith('**')));
+
+      final numMatch = RegExp(r'^(\d+)\.\s+(.*)').firstMatch(trimmed);
+      final isHeader = trimmed.startsWith('#');
+
+      if (isBullet) {
+        final content = trimmed.substring(2).trim();
+        widgets.add(
+          Padding(
+            padding: EdgeInsets.only(left: 4 + indentPadding, top: 2, bottom: 2),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  margin: const EdgeInsets.only(top: 6, right: 8),
+                  width: 5,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: isUser
+                        ? Colors.white70
+                        : (isError ? Colors.red.shade700 : AppColors.primary),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                Expanded(
+                  child: RichText(
+                    text: TextSpan(
+                      children: _parseInlineMarkdown(
+                        content,
+                        isUser,
+                        isError: isError,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      } else if (numMatch != null) {
+        final numStr = numMatch.group(1)!;
+        final content = numMatch.group(2)!;
+        widgets.add(
+          Padding(
+            padding: EdgeInsets.only(left: 4 + indentPadding, top: 3, bottom: 3),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: 22,
+                  child: Text(
+                    '$numStr.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: isUser
+                          ? Colors.white
+                          : (isError ? Colors.red.shade900 : AppColors.primary),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: RichText(
+                    text: TextSpan(
+                      children: _parseInlineMarkdown(
+                        content,
+                        isUser,
+                        isError: isError,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      } else if (isHeader) {
+        final headerText = trimmed.replaceFirst(RegExp(r'^#+\s*'), '');
+        widgets.add(
+          Padding(
+            padding: const EdgeInsets.only(top: 6, bottom: 4),
+            child: RichText(
+              text: TextSpan(
+                children: _parseInlineMarkdown(
+                  headerText,
+                  isUser,
+                  isError: isError,
+                  fontSize: 14,
+                  isBold: true,
+                ),
+              ),
+            ),
+          ),
+        );
+      } else {
+        widgets.add(
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2),
+            child: RichText(
+              text: TextSpan(
+                children: _parseInlineMarkdown(
+                  line,
+                  isUser,
+                  isError: isError,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+          ),
+        );
+      }
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: widgets,
+    );
+  }
+
+  List<InlineSpan> _parseInlineMarkdown(
+    String text,
+    bool isUser, {
+    bool isError = false,
+    double fontSize = 13,
+    bool isBold = false,
+  }) {
+    final List<InlineSpan> spans = [];
+    final baseColor = isUser
+        ? Colors.white
+        : (isError ? Colors.red.shade900 : AppColors.textTitle);
+    final boldColor = isUser
+        ? Colors.white
+        : (isError ? Colors.red.shade900 : const Color(0xFF0F172A));
+    final baseStyle = TextStyle(
+      fontSize: fontSize,
+      height: 1.45,
+      color: baseColor,
+      fontWeight: isBold ? FontWeight.w700 : FontWeight.w400,
+    );
+
+    final regex = RegExp(r'(\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*)');
+    int lastIndex = 0;
+
+    for (final match in regex.allMatches(text)) {
+      if (match.start > lastIndex) {
+        spans.add(
+          TextSpan(
+            text: text.substring(lastIndex, match.start),
+            style: baseStyle,
+          ),
+        );
+      }
+
+      final matchedText = match.group(0)!;
+      if (matchedText.startsWith('**') && matchedText.endsWith('**')) {
+        spans.add(
+          TextSpan(
+            text: matchedText.substring(2, matchedText.length - 2),
+            style: baseStyle.copyWith(
+              fontWeight: FontWeight.w700,
+              color: boldColor,
+            ),
+          ),
+        );
+      } else if (matchedText.startsWith('`') && matchedText.endsWith('`')) {
+        spans.add(
+          WidgetSpan(
+            alignment: PlaceholderAlignment.middle,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+              decoration: BoxDecoration(
+                color: isUser ? Colors.white24 : const Color(0xFFE2E8F0),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                matchedText.substring(1, matchedText.length - 1),
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: fontSize * 0.9,
+                  color: isUser ? Colors.white : const Color(0xFF0F172A),
+                ),
+              ),
+            ),
+          ),
+        );
+      } else if (matchedText.startsWith('*') && matchedText.endsWith('*')) {
+        spans.add(
+          TextSpan(
+            text: matchedText.substring(1, matchedText.length - 1),
+            style: baseStyle.copyWith(fontStyle: FontStyle.italic),
+          ),
+        );
+      }
+
+      lastIndex = match.end;
+    }
+
+    if (lastIndex < text.length) {
+      spans.add(
+        TextSpan(
+          text: text.substring(lastIndex),
+          style: baseStyle,
+        ),
+      );
+    }
+
+    return spans;
   }
 
   Widget _buildProposalCard(AgentProposal p) {
@@ -500,6 +775,20 @@ class _AgentBookingSheetState extends State<AgentBookingSheet> {
             b.message ?? 'Your appointment has been registered in the National Immunization registry.',
             style: const TextStyle(fontSize: 12, color: Color(0xFF047857), height: 1.4),
           ),
+          if (!b.isFree && b.payherePayload != null) ...[
+            const SizedBox(height: 10),
+            ElevatedButton.icon(
+              onPressed: () => _launchPayHere(b),
+              icon: const Icon(Icons.payment, size: 16),
+              label: const Text('Pay with PayHere'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
         ],
       ),
     );

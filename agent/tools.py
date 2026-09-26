@@ -7,6 +7,12 @@ try:
 except ImportError:
     from config import settings
 
+def _is_valid_uuid(val: Any) -> bool:
+    if not val:
+        return False
+    s = str(val).strip()
+    return bool(re.match(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$', s))
+
 def _clean_date_string(date_str: Any) -> str:
     """Extracts YYYY-MM-DD from any text (e.g. '2026-09-18 (Friday) - 09:00 AM - 11:00 AM')."""
     if not date_str:
@@ -32,7 +38,15 @@ async def api_get(endpoint: str, token: Optional[str] = None, params: Optional[D
         headers["Authorization"] = f"Bearer {token}"
     async with httpx.AsyncClient(timeout=15.0) as client:
         response = await client.get(f"{settings.vaxora_api_base_url}{endpoint}", headers=headers, params=params)
-        response.raise_for_status()
+        if response.is_error:
+            try:
+                err_data = response.json()
+                msg = err_data.get("message") or err_data.get("title") or err_data.get("errors") or str(err_data)
+                raise Exception(f"API Error ({response.status_code}): {msg}")
+            except Exception as pe:
+                if "API Error" in str(pe):
+                    raise pe
+                raise Exception(f"API Error ({response.status_code}): {response.text}")
         return response.json()
 
 async def api_post(endpoint: str, data: Dict[str, Any], token: Optional[str] = None) -> Any:
@@ -41,7 +55,15 @@ async def api_post(endpoint: str, data: Dict[str, Any], token: Optional[str] = N
         headers["Authorization"] = f"Bearer {token}"
     async with httpx.AsyncClient(timeout=15.0) as client:
         response = await client.post(f"{settings.vaxora_api_base_url}{endpoint}", headers=headers, json=data)
-        response.raise_for_status()
+        if response.is_error:
+            try:
+                err_data = response.json()
+                msg = err_data.get("message") or err_data.get("title") or err_data.get("errors") or str(err_data)
+                raise Exception(f"API Error ({response.status_code}): {msg}")
+            except Exception as pe:
+                if "API Error" in str(pe):
+                    raise pe
+                raise Exception(f"API Error ({response.status_code}): {response.text}")
         return response.json()
 
 async def api_delete(endpoint: str, token: Optional[str] = None) -> Any:
@@ -50,32 +72,111 @@ async def api_delete(endpoint: str, token: Optional[str] = None) -> Any:
         headers["Authorization"] = f"Bearer {token}"
     async with httpx.AsyncClient(timeout=15.0) as client:
         response = await client.delete(f"{settings.vaxora_api_base_url}{endpoint}", headers=headers)
-        response.raise_for_status()
+        if response.is_error:
+            try:
+                err_data = response.json()
+                msg = err_data.get("message") or err_data.get("title") or err_data.get("errors") or str(err_data)
+                raise Exception(f"API Error ({response.status_code}): {msg}")
+            except Exception as pe:
+                if "API Error" in str(pe):
+                    raise pe
+                raise Exception(f"API Error ({response.status_code}): {response.text}")
         return response.json()
 
 # Tool Implementations
-async def _resolve_hospital_and_vaccine(hospital_id_or_name: str, vaccine_name: str, token: Optional[str] = None):
-    resolved_hospital_id = hospital_id_or_name
-    resolved_vaccine_name = vaccine_name
+async def _resolve_hospital_and_vaccine(hospital_id_or_name: Optional[str], vaccine_name: Optional[str], token: Optional[str] = None):
+    resolved_hospital_id = str(hospital_id_or_name).strip() if hospital_id_or_name else ""
+    resolved_vaccine_name = str(vaccine_name).strip() if vaccine_name else ""
 
     try:
+        # Load inventory vaccines and active schedules
         data = await api_get("/inventory/vaccines-with-hospitals", token=token)
-        # Find exact vaccine name match if possible
-        for v in data:
-            if vaccine_name and (v.get("name", "").lower() == vaccine_name.lower() or vaccine_name.lower() in v.get("name", "").lower()):
-                resolved_vaccine_name = v.get("name")
-                for h in v.get("hospitals", []):
-                    if not hospital_id_or_name or hospital_id_or_name.lower() in h.get("name", "").lower() or h.get("userId") == hospital_id_or_name:
-                        resolved_hospital_id = h.get("userId") or h.get("id")
-                        return resolved_hospital_id, resolved_vaccine_name
+        schedules = []
+        try:
+            schedules = await api_get("/schedule/available", token=token)
+        except Exception:
+            pass
 
-        # If hospital still not matched, check all hospitals
-        if not (hospital_id_or_name and len(hospital_id_or_name) == 36 and "-" in hospital_id_or_name):
-            for v in data:
-                for h in v.get("hospitals", []):
-                    if hospital_id_or_name and hospital_id_or_name.lower() in h.get("name", "").lower():
-                        resolved_hospital_id = h.get("userId") or h.get("id")
-                        return resolved_hospital_id, resolved_vaccine_name
+        # Collect all hospital references: [{userId, id, name}]
+        known_hospitals = []
+        for v in (data if isinstance(data, list) else []):
+            for h in v.get("hospitals", []):
+                uid = h.get("userId") or h.get("id")
+                name = h.get("name", "")
+                if uid and uid not in [kh["userId"] for kh in known_hospitals]:
+                    known_hospitals.append({"userId": uid, "name": name, "profileId": h.get("hospitalProfileId")})
+
+        for s in (schedules if isinstance(schedules, list) else []):
+            uid = s.get("hospitalUserId")
+            name = s.get("hospitalName", "")
+            if uid and uid not in [kh["userId"] for kh in known_hospitals]:
+                known_hospitals.append({"userId": uid, "name": name, "profileId": None})
+
+        # Match vaccine name from known inventory / schedules
+        v_input = (vaccine_name or "").lower().strip()
+        matched_vname = None
+
+        if v_input:
+            # 1. Exact or bidirectional containment with inventory
+            for v in (data if isinstance(data, list) else []):
+                db_vname = v.get("name", "")
+                if db_vname.lower() == v_input or db_vname.lower() in v_input or v_input in db_vname.lower():
+                    matched_vname = db_vname
+                    break
+
+            # 2. Check schedules if still not matched
+            if not matched_vname:
+                for s in (schedules if isinstance(schedules, list) else []):
+                    sched_vname = s.get("vaccineName", "")
+                    if sched_vname.lower() == v_input or sched_vname.lower() in v_input or v_input in sched_vname.lower():
+                        matched_vname = sched_vname
+                        break
+
+            # 3. Word token matching (e.g. "astrazeneca" in "AstraZeneca COVID-19 Vaccine")
+            if not matched_vname:
+                v_words = [w for w in re.split(r'[\s\-_]+', v_input) if len(w) >= 4]
+                for v in (data if isinstance(data, list) else []):
+                    db_vname = v.get("name", "")
+                    if any(w in db_vname.lower() for w in v_words):
+                        matched_vname = db_vname
+                        break
+
+        if matched_vname:
+            resolved_vaccine_name = matched_vname
+
+        # If hospital_id_or_name is ALREADY a valid UUID, keep it
+        if _is_valid_uuid(resolved_hospital_id):
+            return resolved_hospital_id, resolved_vaccine_name
+
+        h_input = (hospital_id_or_name or "").lower().strip()
+        # Clean sluggy terms like "hospital-royal" -> ["royal"]
+        h_tokens = [t for t in re.split(r'[\s\-_]+', h_input) if t and t not in ("hospital", "hospitals", "clinic", "center")]
+
+        matched_hid = None
+        for kh in known_hospitals:
+            kh_name = kh["name"].lower()
+            if h_input and (h_input in kh_name or kh_name in h_input):
+                matched_hid = kh["userId"]
+                break
+            if h_tokens and any(t in kh_name for t in h_tokens):
+                matched_hid = kh["userId"]
+                break
+
+        # If still not matched, check if a hospital offers the matched vaccine
+        if not matched_hid and resolved_vaccine_name:
+            for v in (data if isinstance(data, list) else []):
+                if v.get("name", "").lower() == resolved_vaccine_name.lower():
+                    if v.get("hospitals"):
+                        matched_hid = v["hospitals"][0].get("userId") or v["hospitals"][0].get("id")
+                        break
+
+        # Fallback to the first available hospital in system if still not a valid UUID
+        if not matched_hid and known_hospitals:
+            matched_hid = known_hospitals[0]["userId"]
+
+        if matched_hid and _is_valid_uuid(matched_hid):
+            resolved_hospital_id = matched_hid
+
     except Exception:
         pass
 
@@ -85,7 +186,64 @@ async def tool_get_available_vaccines_and_hospitals(token: Optional[str] = None)
     """Retrieve all available vaccines, current hospital stock, and pricing information."""
     try:
         data = await api_get("/inventory/vaccines-with-hospitals", token=token)
-        return {"success": True, "vaccines": data}
+        schedules = []
+        try:
+            schedules = await api_get("/schedule/available", token=token)
+        except Exception:
+            pass
+
+        # Enrich inventory with price and schedule information
+        enriched_vaccines = []
+        for v in (data if isinstance(data, list) else []):
+            v_copy = dict(v)
+            v_name = v_copy.get("name", "").strip().lower()
+            hospitals = v_copy.get("hospitals", [])
+            enriched_hospitals = []
+            matched_prices = []
+
+            for h in hospitals:
+                h_copy = dict(h)
+                h_uid = str(h_copy.get("userId") or h_copy.get("id") or "").lower()
+
+                # Find matching schedule for this hospital and vaccine
+                matched_sched = None
+                for s in schedules:
+                    s_huid = str(s.get("hospitalUserId") or "").lower()
+                    s_vname = str(s.get("vaccineName") or "").strip().lower()
+                    if (s_huid == h_uid or not h_uid) and (s_vname == v_name or s_vname in v_name or v_name in s_vname):
+                        matched_sched = s
+                        break
+
+                if matched_sched:
+                    price = float(matched_sched.get("price") or 0.0)
+                    h_copy["price"] = price
+                    h_copy["formattedPrice"] = matched_sched.get("formattedPrice") or (f"LKR {price:,.2f}" if price > 0 else "Free (0 LKR)")
+                    h_copy["is_free"] = price <= 0
+                    h_copy["vaccineScheduleId"] = matched_sched.get("id")
+                    h_copy["doctorName"] = matched_sched.get("doctorName")
+                    h_copy["nurseName"] = matched_sched.get("nurseName")
+                    matched_prices.append(price)
+                else:
+                    h_copy["price"] = 0.0
+                    h_copy["formattedPrice"] = "Free (0 LKR)"
+                    h_copy["is_free"] = True
+
+                enriched_hospitals.append(h_copy)
+
+            v_copy["hospitals"] = enriched_hospitals
+            if matched_prices:
+                primary_price = matched_prices[0]
+                v_copy["price"] = primary_price
+                v_copy["formattedPrice"] = f"LKR {primary_price:,.2f}" if primary_price > 0 else "Free (0 LKR)"
+                v_copy["is_free"] = primary_price <= 0
+            else:
+                v_copy["price"] = 0.0
+                v_copy["formattedPrice"] = "Free (0 LKR)"
+                v_copy["is_free"] = True
+
+            enriched_vaccines.append(v_copy)
+
+        return {"success": True, "vaccines": enriched_vaccines}
     except Exception as e:
         return {"success": False, "error": str(e)}
 
@@ -125,25 +283,56 @@ async def tool_book_appointment(
     try:
         clean_date = _clean_date_string(appointment_date)
         clean_slot = _clean_slot_string(time_slot)
+        hid, vname = await _resolve_hospital_and_vaccine(hospital_user_id, vaccine_name, token=token)
+
+        # Lookup schedule if vaccine_schedule_id not supplied
+        resolved_schedule_id = vaccine_schedule_id
+        resolved_vaccine_id = vaccine_id
+        schedule_price = 0.0
+
+        try:
+            schedules = await api_get("/schedule/available", token=token)
+            for s in schedules:
+                s_huid = str(s.get("hospitalUserId") or "").lower()
+                s_vname = str(s.get("vaccineName") or "").strip().lower()
+                if (s_huid == str(hid).lower() or not hid) and (s_vname == vname.lower() or s_vname in vname.lower() or vname.lower() in s_vname):
+                    if not resolved_schedule_id:
+                        resolved_schedule_id = s.get("id")
+                    if not resolved_vaccine_id:
+                        resolved_vaccine_id = s.get("vaccineId")
+                    schedule_price = float(s.get("price") or 0.0)
+                    break
+        except Exception:
+            pass
+
+        # Determine payment method based on schedule pricing
+        if schedule_price > 0 or payment_method.lower() in ("payhere", "paid", "online"):
+            resolved_payment_method = "PayHere"
+        else:
+            resolved_payment_method = "Free"
+
         payload = {
-            "hospitalUserId": hospital_user_id,
-            "vaccineName": vaccine_name,
+            "hospitalUserId": hid,
+            "vaccineName": vname,
             "appointmentDate": clean_date,
             "timeSlot": clean_slot,
             "notes": notes or "Booked via Vaxora AI Agent",
-            "paymentMethod": payment_method
+            "paymentMethod": resolved_payment_method
         }
-        if vaccine_id:
-            payload["vaccineId"] = vaccine_id
-        if vaccine_schedule_id:
-            payload["vaccineScheduleId"] = vaccine_schedule_id
+        if resolved_vaccine_id and _is_valid_uuid(resolved_vaccine_id):
+            payload["vaccineId"] = resolved_vaccine_id
+        if resolved_schedule_id and _is_valid_uuid(resolved_schedule_id):
+            payload["vaccineScheduleId"] = resolved_schedule_id
 
         res = await api_post("/appointments", data=payload, token=token)
         appointment_id = res.get("id") or res.get("Id")
 
         # If it's a paid booking, initialize PayHere checkout payload automatically
         payhere_payload = None
-        if payment_method.lower() != "free" or res.get("status") == "PendingPayment" or res.get("fee", 0) > 0:
+        fee = float(res.get("fee") or schedule_price or 0.0)
+        is_free = fee <= 0 and res.get("status") != "PendingPayment"
+
+        if not is_free or res.get("status") == "PendingPayment" or fee > 0:
             try:
                 payhere_payload = await api_post("/payment/payhere-init", data={"appointmentId": appointment_id}, token=token)
             except Exception as pe:
@@ -153,7 +342,8 @@ async def tool_book_appointment(
             "success": True,
             "appointment": res,
             "payhere_payload": payhere_payload,
-            "is_free": payment_method.lower() == "free" and (res.get("fee", 0) == 0)
+            "is_free": is_free,
+            "fee": fee
         }
     except Exception as e:
         return {"success": False, "error": str(e)}

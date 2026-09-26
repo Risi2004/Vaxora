@@ -39,13 +39,18 @@ class AgentProposal {
   });
 
   factory AgentProposal.fromJson(Map<String, dynamic> json) {
+    final rawFee = json['price'] ?? json['fee'];
+    final feeVal = (rawFee as num?)?.toDouble() ?? 0.0;
+    final isFreeVal = json['is_free'] == true || (json['is_free'] == null && feeVal <= 0.0);
+    final requiresPayVal = json['requires_payment'] == true || (!isFreeVal && feeVal > 0.0);
+
     return AgentProposal(
       vaccineName: json['vaccine_name']?.toString() ?? 'Vaccine',
       hospitalName: json['hospital_name']?.toString() ?? 'Hospital',
       appointmentDate: json['appointment_date']?.toString() ?? '',
       timeSlot: json['time_slot']?.toString() ?? '',
-      fee: (json['fee'] as num?)?.toDouble() ?? 0.0,
-      requiresPayment: json['requires_payment'] == true,
+      fee: feeVal,
+      requiresPayment: requiresPayVal,
     );
   }
 }
