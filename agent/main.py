@@ -14,10 +14,12 @@ try:
     from .config import settings
     from .orchestrator import orchestrator
     from .bookingagent import booking_agent
+    from .patient_orchestrator import run_patient_care_workflow
 except ImportError:
     from config import settings
     from orchestrator import orchestrator
     from bookingagent import booking_agent
+    from patient_orchestrator import run_patient_care_workflow
 
 app = FastAPI(title="Vaxora Google ADK Multi-Agent API", version="1.0.0")
 
@@ -49,6 +51,10 @@ class ChatRequest(BaseModel):
     messages: List[Dict[str, Any]]
     patientInfo: Optional[Dict[str, Any]] = None
     targetAgent: Optional[str] = None  # e.g. "BookingAgent" | "RestockAgent" | "ExpiryAgent" | "StaffSchedulingAgent"
+
+
+class PatientCarePlanRequest(BaseModel):
+    patient_profile_id: str
 
 
 def _extract_user_id_from_token(token: Optional[str]) -> Optional[str]:
@@ -107,16 +113,21 @@ async def _run_agent(agent, messages, token, patient_info, user_id):
 
 @app.get("/api/agent/health")
 async def health():
-    return {
+    result = {
         "status": "healthy",
         "service": "Vaxora Multi-Agent Orchestrator",
         "registered_agents": list(orchestrator.agents.keys()),
         "model": settings.model_name,
         "runpod_endpoint": settings.runpod_base_url,
-        "groq_endpoint": settings.groq_base_url,
-        "groq_model": settings.groq_model,
         "vaxora_api": settings.vaxora_api_base_url,
     }
+    # Surface Groq settings if the merged config exposes them
+    try:
+        result["groq_endpoint"] = settings.groq_base_url
+        result["groq_model"] = settings.groq_model
+    except AttributeError:
+        pass
+    return result
 
 
 @app.post("/api/agent/chat")
@@ -126,7 +137,6 @@ async def chat_endpoint(
     authorization: Optional[str] = Header(None),
     x_agent_key: Optional[str] = Header(None),
 ):
-    # Enforce internal shared-secret if configured
     verify_internal_caller(x_agent_key)
 
     logger = logging.getLogger("vaxora-main")
@@ -165,6 +175,43 @@ async def chat_endpoint(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/agent/patient-care-plan")
+async def patient_care_plan_endpoint(
+    req: PatientCarePlanRequest,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
+    authorization: Optional[str] = Header(None),
+    x_agent_key: Optional[str] = Header(None),
+):
+    """
+    Runs the two-agent workflow: PatientDataAgent -> CarePlanningAgent.
+    Requires a bearer token so the agents can call the Vaxora API on behalf
+    of the current user, and the internal X-Agent-Key header when configured.
+    """
+    verify_internal_caller(x_agent_key)
+
+    # Prefer HTTPBearer (from Swagger's Authorize button), fall back to raw header
+    token = None
+    if credentials and credentials.credentials:
+        token = credentials.credentials
+    else:
+        token = _extract_bearer_token(authorization)
+
+    if not token:
+        raise HTTPException(status_code=401, detail="Missing bearer token.")
+
+    if not req.patient_profile_id:
+        raise HTTPException(status_code=400, detail="patient_profile_id is required.")
+
+    try:
+        result = await run_patient_care_workflow(
+            patient_profile_id=req.patient_profile_id,
+            token=token,
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 if __name__ == "__main__":
     uvicorn.run(
         "main:app",
@@ -173,3 +220,5 @@ if __name__ == "__main__":
         reload=True,
         reload_excludes=["*.db", "*.db-journal", "*.db-wal", "*.pyc", "__pycache__/*", "workflow_state.db", ".env"],
     )
+# Reload triggered for model update
+    

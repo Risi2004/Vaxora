@@ -80,3 +80,9 @@ public class AgentWorkflowDecisionDto
     [MaxLength(500)]
     public string? Note { get; set; }
 }
+
+public class PatientCarePlanRequestDto
+{
+    [Required]
+    public Guid PatientProfileId { get; set; }
+}

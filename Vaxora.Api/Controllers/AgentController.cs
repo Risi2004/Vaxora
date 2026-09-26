@@ -111,6 +111,32 @@ public class AgentController : ControllerBase
         return Content(AttachWorkflowId(result.Json!, workflow?.WorkflowId), "application/json");
     }
 
+    /// <summary>
+    /// Runs the two-agent Patient Care workflow (PatientDataAgent -> CarePlanningAgent).
+    /// Ownership is enforced downstream — the Python agents call the patient endpoints
+    /// using the caller's JWT, and those endpoints verify ownership when the caller is a PATIENT.
+    /// </summary>
+    [HttpPost("patient-care-plan")]
+    [Authorize(Roles = "DOCTOR,NURSE,HOSPITAL,ADMIN,PATIENT")]
+    public async Task<IActionResult> PatientCarePlan(
+        [FromBody] PatientCarePlanRequestDto request,
+        CancellationToken ct)
+    {
+        if (!TryGetUserId(out _))
+            return Unauthorized(new { message = "Invalid identity claim." });
+
+        var bearerToken = ExtractBearerToken();
+        if (string.IsNullOrWhiteSpace(bearerToken))
+            return Unauthorized(new { message = "Missing bearer token." });
+
+        var result = await _agentGateway.PatientCarePlanAsync(request.PatientProfileId, bearerToken, ct);
+
+        if (!result.Success)
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = result.Error });
+
+        return Content(result.Json!, "application/json");
+    }
+
     /// <summary>Injects workflowId into the agent JSON so the UI can approve/reject against the persisted run.</summary>
     private static string AttachWorkflowId(string agentJson, Guid? workflowId)
     {

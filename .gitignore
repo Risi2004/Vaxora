@@ -143,3 +143,9 @@ Thumbs.db
 # Python
 __pycache__/
 *.pyc
+*.py[cod]
+
+# Agent runtime state (SQLite)
+*.db
+*.db-journal
+*.db-wal
