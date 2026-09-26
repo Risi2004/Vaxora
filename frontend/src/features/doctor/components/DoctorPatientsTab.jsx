@@ -197,6 +197,10 @@ export default function DoctorPatientsTab() {
 
       <section className="patient-search-section">
         <div className="patient-search-card-wrapper">
+          <p className="patient-history-lead">
+            Look up a patient to review their vaccination history and set pending dosages.
+          </p>
+
           <div className="patient-search-input-box">
             <input
               type="text"
@@ -267,7 +271,7 @@ export default function DoctorPatientsTab() {
 
           <div className="patient-recent-updates-box">
             <div className="patient-recent-header">
-              <h3 className="patient-recent-title">Recent updates</h3>
+              <h3 className="patient-recent-title">Recent dosage updates</h3>
               <button type="button" className="patient-recent-see-more" onClick={loadRecent}>
                 refresh
               </button>
@@ -275,21 +279,28 @@ export default function DoctorPatientsTab() {
 
             <div className="patient-recent-list">
               {recentUpdates.length === 0 ? (
-                <div className="patient-recent-item" style={{ cursor: 'default' }}>
-                  <span className="patient-recent-id">No dosage updates yet</span>
-                  <span className="patient-recent-time">—</span>
+                <div className="patient-recent-empty">
+                  No dosage updates yet. Search a patient above to open their record.
                 </div>
               ) : (
                 recentUpdates.map((item) => (
-                  <div
+                  <button
                     key={item.appointmentId}
+                    type="button"
                     className="patient-recent-item"
-                    title={`Click to view ${item.vaxoraId}`}
+                    title={`Open ${item.patientName || item.vaxoraId}`}
                     onClick={() => handleRecentClick(item.vaxoraId)}
                   >
-                    <span className="patient-recent-id">{item.vaxoraId}</span>
+                    <span className="patient-recent-main">
+                      <span className="patient-recent-name">{item.patientName || 'Patient'}</span>
+                      <span className="patient-recent-meta">
+                        {item.vaxoraId}
+                        {item.vaccine ? ` · ${item.vaccine}` : ''}
+                        {item.dosage ? ` · ${item.dosage}` : ''}
+                      </span>
+                    </span>
                     <span className="patient-recent-time">{item.relativeTime}</span>
-                  </div>
+                  </button>
                 ))
               )}
             </div>
