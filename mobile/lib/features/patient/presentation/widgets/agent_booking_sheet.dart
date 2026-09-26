@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../data/models/agent_models.dart';
 import '../../data/repositories/agent_repository.dart';
+import 'appointment_card.dart';
+import 'payhere_checkout_sheet.dart';
 
 class AgentBookingSheet extends StatefulWidget {
   final VoidCallback? onAppointmentBooked;
@@ -102,6 +104,13 @@ class _AgentBookingSheetState extends State<AgentBookingSheet> {
 
         if (response.booking != null && response.booking!.success) {
           widget.onAppointmentBooked?.call();
+          if (!response.booking!.isFree && response.booking!.payherePayload != null) {
+            _launchPayHere(response.booking!);
+          }
+        } else if (response.cancellation != null ||
+            (response.content.toLowerCase().contains('cancelled') &&
+                response.content.toLowerCase().contains('appointment'))) {
+          widget.onAppointmentBooked?.call();
         }
       }
     } catch (e) {
@@ -125,6 +134,64 @@ class _AgentBookingSheetState extends State<AgentBookingSheet> {
     final prompt =
         'I approve and confirm booking for ${proposal.vaccineName} at ${proposal.hospitalName} on ${proposal.appointmentDate} at ${proposal.timeSlot}. Please proceed with booking.';
     _sendMessage(prompt);
+  }
+
+  void _approveCancellation(AgentProposal proposal) {
+    final target = proposal.vaccineName.isNotEmpty ? proposal.vaccineName : 'my appointment';
+    final dateStr = proposal.appointmentDate.isNotEmpty ? ' on ${proposal.appointmentDate}' : '';
+    final idStr = (proposal.appointmentId != null && proposal.appointmentId!.isNotEmpty)
+        ? ' (ID: ${proposal.appointmentId})'
+        : '';
+    final prompt =
+        'I approve and confirm cancellation of $target$dateStr$idStr. Please proceed with cancellation.';
+    _sendMessage(prompt);
+  }
+
+  void _declineCancellation() {
+    _sendMessage("I want to keep my appointment. Please do not cancel it.");
+  }
+
+  void _launchPayHere(AgentBooking booking) {
+    final aptMap = booking.appointment ?? {};
+    final rawId = aptMap['id']?.toString() ?? aptMap['Id']?.toString() ?? '';
+    final aptId = rawId.isNotEmpty && rawId.length >= 8
+        ? 'VAX-${rawId.substring(0, 8).toUpperCase()}'
+        : (aptMap['referenceNumber']?.toString() ?? 'VAX-APT');
+    final fee = (aptMap['fee'] as num?)?.toDouble() ??
+        ((booking.payherePayload?['amount'] as num?)?.toDouble() ?? 0.0);
+
+    final appointment = PatientAppointment(
+      id: aptId,
+      rawId: rawId,
+      vaccineName: aptMap['vaccineName']?.toString() ?? 'Vaccine',
+      hospitalName: aptMap['hospitalName']?.toString() ?? 'Hospital',
+      location: aptMap['hospitalName']?.toString() ?? 'Hospital Center',
+      date: aptMap['appointmentDate']?.toString() ?? '',
+      time: aptMap['timeSlot']?.toString() ?? '',
+      doctorName: aptMap['doctorName']?.toString() ?? 'Assigned Medical Staff',
+      status: 'PendingPayment',
+      fee: fee,
+      isPaid: false,
+    );
+
+    PayHereCheckoutSheet.show(
+      context,
+      appointment: appointment,
+      onPaymentSuccess: () {
+        widget.onAppointmentBooked?.call();
+        if (mounted) {
+          setState(() {
+            _messages.add(
+              const AgentMessage(
+                role: 'assistant',
+                content: '🎉 **Payment Verified Successfully!**\nYour vaccination appointment is now fully confirmed.',
+              ),
+            );
+          });
+          _scrollToBottom();
+        }
+      },
+    );
   }
 
   void _declineProposal() {
@@ -373,15 +440,10 @@ class _AgentBookingSheetState extends State<AgentBookingSheet> {
                           : (msg.isError ? const Color(0xFFFCA5A5) : AppColors.borderLight),
                     ),
                   ),
-                  child: Text(
+                  child: _buildFormattedText(
                     msg.content,
-                    style: TextStyle(
-                      fontSize: 13,
-                      height: 1.45,
-                      color: isUser
-                          ? Colors.white
-                          : (msg.isError ? Colors.red.shade900 : AppColors.textTitle),
-                    ),
+                    isUser,
+                    isError: msg.isError,
                   ),
                 ),
               ),
@@ -404,7 +466,242 @@ class _AgentBookingSheetState extends State<AgentBookingSheet> {
     );
   }
 
+  Widget _buildFormattedText(String text, bool isUser, {bool isError = false}) {
+    if (text.isEmpty) return const SizedBox.shrink();
+
+    final lines = text.split('\n');
+    final List<Widget> widgets = [];
+
+    for (int i = 0; i < lines.length; i++) {
+      final line = lines[i];
+      final trimmed = line.trim();
+
+      if (trimmed.isEmpty) {
+        widgets.add(const SizedBox(height: 6));
+        continue;
+      }
+
+      final leadingSpaces = line.length - line.trimLeft().length;
+      final indentPadding = leadingSpaces >= 2 ? 14.0 : 0.0;
+
+      final isBullet = (trimmed.startsWith('- ') ||
+          trimmed.startsWith('• ') ||
+          (trimmed.startsWith('* ') && !trimmed.startsWith('**')));
+
+      final numMatch = RegExp(r'^(\d+)\.\s+(.*)').firstMatch(trimmed);
+      final isHeader = trimmed.startsWith('#');
+
+      if (isBullet) {
+        final content = trimmed.substring(2).trim();
+        widgets.add(
+          Padding(
+            padding: EdgeInsets.only(left: 4 + indentPadding, top: 2, bottom: 2),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  margin: const EdgeInsets.only(top: 6, right: 8),
+                  width: 5,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: isUser
+                        ? Colors.white70
+                        : (isError ? Colors.red.shade700 : AppColors.primary),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                Expanded(
+                  child: RichText(
+                    text: TextSpan(
+                      children: _parseInlineMarkdown(
+                        content,
+                        isUser,
+                        isError: isError,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      } else if (numMatch != null) {
+        final numStr = numMatch.group(1)!;
+        final content = numMatch.group(2)!;
+        widgets.add(
+          Padding(
+            padding: EdgeInsets.only(left: 4 + indentPadding, top: 3, bottom: 3),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: 22,
+                  child: Text(
+                    '$numStr.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: isUser
+                          ? Colors.white
+                          : (isError ? Colors.red.shade900 : AppColors.primary),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: RichText(
+                    text: TextSpan(
+                      children: _parseInlineMarkdown(
+                        content,
+                        isUser,
+                        isError: isError,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      } else if (isHeader) {
+        final headerText = trimmed.replaceFirst(RegExp(r'^#+\s*'), '');
+        widgets.add(
+          Padding(
+            padding: const EdgeInsets.only(top: 6, bottom: 4),
+            child: RichText(
+              text: TextSpan(
+                children: _parseInlineMarkdown(
+                  headerText,
+                  isUser,
+                  isError: isError,
+                  fontSize: 14,
+                  isBold: true,
+                ),
+              ),
+            ),
+          ),
+        );
+      } else {
+        widgets.add(
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2),
+            child: RichText(
+              text: TextSpan(
+                children: _parseInlineMarkdown(
+                  line,
+                  isUser,
+                  isError: isError,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+          ),
+        );
+      }
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: widgets,
+    );
+  }
+
+  List<InlineSpan> _parseInlineMarkdown(
+    String text,
+    bool isUser, {
+    bool isError = false,
+    double fontSize = 13,
+    bool isBold = false,
+  }) {
+    final List<InlineSpan> spans = [];
+    final baseColor = isUser
+        ? Colors.white
+        : (isError ? Colors.red.shade900 : AppColors.textTitle);
+    final boldColor = isUser
+        ? Colors.white
+        : (isError ? Colors.red.shade900 : const Color(0xFF0F172A));
+    final baseStyle = TextStyle(
+      fontSize: fontSize,
+      height: 1.45,
+      color: baseColor,
+      fontWeight: isBold ? FontWeight.w700 : FontWeight.w400,
+    );
+
+    final regex = RegExp(r'(\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*)');
+    int lastIndex = 0;
+
+    for (final match in regex.allMatches(text)) {
+      if (match.start > lastIndex) {
+        spans.add(
+          TextSpan(
+            text: text.substring(lastIndex, match.start),
+            style: baseStyle,
+          ),
+        );
+      }
+
+      final matchedText = match.group(0)!;
+      if (matchedText.startsWith('**') && matchedText.endsWith('**')) {
+        spans.add(
+          TextSpan(
+            text: matchedText.substring(2, matchedText.length - 2),
+            style: baseStyle.copyWith(
+              fontWeight: FontWeight.w700,
+              color: boldColor,
+            ),
+          ),
+        );
+      } else if (matchedText.startsWith('`') && matchedText.endsWith('`')) {
+        spans.add(
+          WidgetSpan(
+            alignment: PlaceholderAlignment.middle,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+              decoration: BoxDecoration(
+                color: isUser ? Colors.white24 : const Color(0xFFE2E8F0),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                matchedText.substring(1, matchedText.length - 1),
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: fontSize * 0.9,
+                  color: isUser ? Colors.white : const Color(0xFF0F172A),
+                ),
+              ),
+            ),
+          ),
+        );
+      } else if (matchedText.startsWith('*') && matchedText.endsWith('*')) {
+        spans.add(
+          TextSpan(
+            text: matchedText.substring(1, matchedText.length - 1),
+            style: baseStyle.copyWith(fontStyle: FontStyle.italic),
+          ),
+        );
+      }
+
+      lastIndex = match.end;
+    }
+
+    if (lastIndex < text.length) {
+      spans.add(
+        TextSpan(
+          text: text.substring(lastIndex),
+          style: baseStyle,
+        ),
+      );
+    }
+
+    return spans;
+  }
+
   Widget _buildProposalCard(AgentProposal p) {
+    if (p.isCancellation) {
+      return _buildCancellationProposalCard(p);
+    }
     return Container(
       margin: const EdgeInsets.only(left: 38, top: 4),
       padding: const EdgeInsets.all(14),
@@ -473,6 +770,95 @@ class _AgentBookingSheetState extends State<AgentBookingSheet> {
     );
   }
 
+  Widget _buildCancellationProposalCard(AgentProposal p) {
+    return Container(
+      margin: const EdgeInsets.only(left: 38, top: 4),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFEF2F2),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFFCA5A5), width: 1.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.warning_amber_rounded, color: Color(0xFFDC2626), size: 20),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Cancellation Approval Required',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Color(0xFF991B1B)),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEE2E2),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFF87171), width: 0.8),
+                ),
+                child: const Text(
+                  'Action Needed',
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFFB91C1C)),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            '💉 ${p.vaccineName}',
+            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: AppColors.textTitle),
+          ),
+          if (p.hospitalName.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text('🏥 ${p.hospitalName}', style: const TextStyle(fontSize: 12, color: AppColors.textBody)),
+          ],
+          if (p.appointmentDate.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(
+              '📅 ${p.appointmentDate}${p.timeSlot.isNotEmpty ? " at ${p.timeSlot}" : ""}',
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFFB91C1C)),
+            ),
+          ],
+          const SizedBox(height: 8),
+          const Text(
+            'Please confirm if you wish to cancel this appointment. Once cancelled, your reserved time slot will be released.',
+            style: TextStyle(fontSize: 11.5, color: Color(0xFF7F1D1D), height: 1.35),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _isLoading ? null : () => _approveCancellation(p),
+                  icon: const Icon(Icons.cancel_outlined, size: 16),
+                  label: const Text('Confirm Cancellation'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFDC2626),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton(
+                onPressed: _isLoading ? null : _declineCancellation,
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  side: const BorderSide(color: Color(0xFFCBD5E1)),
+                ),
+                child: const Text('Keep Appointment', style: TextStyle(fontSize: 12, color: Color(0xFF475569))),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildBookingSuccessCard(AgentBooking b) {
     return Container(
       margin: const EdgeInsets.only(left: 38, top: 4),
@@ -500,6 +886,20 @@ class _AgentBookingSheetState extends State<AgentBookingSheet> {
             b.message ?? 'Your appointment has been registered in the National Immunization registry.',
             style: const TextStyle(fontSize: 12, color: Color(0xFF047857), height: 1.4),
           ),
+          if (!b.isFree && b.payherePayload != null) ...[
+            const SizedBox(height: 10),
+            ElevatedButton.icon(
+              onPressed: () => _launchPayHere(b),
+              icon: const Icon(Icons.payment, size: 16),
+              label: const Text('Pay with PayHere'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
         ],
       ),
     );

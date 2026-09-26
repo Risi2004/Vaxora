@@ -520,10 +520,13 @@ public class AppointmentService : IAppointmentService
                 .Where(a => isHospital ? a.HospitalUserId == userId : a.PatientUserId == userId)
                 .ToListAsync();
 
+            var cleanRef = idOrRef.Trim();
             appointment = userAppointments.FirstOrDefault(a =>
-                a.Id.ToString().Equals(idOrRef, StringComparison.OrdinalIgnoreCase) ||
-                a.Id.ToString().StartsWith(idOrRef, StringComparison.OrdinalIgnoreCase) ||
-                (!string.IsNullOrEmpty(idOrRef) && idOrRef.Length >= 4 && a.Id.ToString().StartsWith(idOrRef[^4..], StringComparison.OrdinalIgnoreCase)));
+                a.Id.ToString().Equals(cleanRef, StringComparison.OrdinalIgnoreCase) ||
+                a.Id.ToString().StartsWith(cleanRef, StringComparison.OrdinalIgnoreCase) ||
+                (!string.IsNullOrEmpty(a.ReferenceNumber) && a.ReferenceNumber.Equals(cleanRef, StringComparison.OrdinalIgnoreCase)) ||
+                (!string.IsNullOrEmpty(a.ReferenceNumber) && cleanRef.Contains(a.ReferenceNumber, StringComparison.OrdinalIgnoreCase)) ||
+                (!string.IsNullOrEmpty(cleanRef) && cleanRef.Length >= 4 && a.Id.ToString().StartsWith(cleanRef[^4..], StringComparison.OrdinalIgnoreCase)));
         }
 
         if (appointment == null)
@@ -536,13 +539,13 @@ public class AppointmentService : IAppointmentService
             return true; // Already cancelled
         }
 
-        // Rule: Patients cannot cancel past appointments (unless unpaid pending)
+        // Rule: Patients cannot cancel past appointments if already completed
         if (!isHospital)
         {
             var today = DateOnly.FromDateTime(DateTime.UtcNow);
-            if (appointment.AppointmentDate < today && appointment.Status != "PendingPayment")
+            if (appointment.Status == "Completed")
             {
-                throw new InvalidOperationException("Past appointments cannot be cancelled.");
+                throw new InvalidOperationException("Completed vaccination appointments cannot be cancelled.");
             }
         }
 

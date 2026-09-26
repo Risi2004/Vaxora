@@ -42,6 +42,7 @@ class AgentRepository {
       body: {
         'messages': payloadMessages,
         'patientInfo': patientInfo,
+        'targetAgent': 'BookingAgent',
       },
     );
 
@@ -58,11 +59,17 @@ class AgentRepository {
         booking = AgentBooking.fromJson(response['booking'] as Map<String, dynamic>);
       }
 
+      Map<String, dynamic>? cancellation;
+      if (response['cancellation'] != null && response['cancellation'] is Map<String, dynamic>) {
+        cancellation = response['cancellation'] as Map<String, dynamic>;
+      }
+
       return AgentMessage(
         role: 'assistant',
         content: content,
         proposal: proposal,
         booking: booking,
+        cancellation: cancellation,
       );
     }
 
