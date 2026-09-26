@@ -47,12 +47,28 @@ function boothStatusClass(status) {
   return 'is-scheduled';
 }
 
+function queueStatusLabel(status) {
+  if (status === 'waiting') return 'Waiting';
+  if (status === 'administering') return 'In Session';
+  if (status === 'observation') return 'Observation';
+  if (status === 'completed') return 'Completed';
+  if (status === 'cancelled') return 'Cancelled';
+  return status || 'Unknown';
+}
+
+function queueTimeSortKey(time) {
+  const match = String(time || '').match(/(\d{1,2}):(\d{2})/);
+  if (!match) return 0;
+  return Number(match[1]) * 60 + Number(match[2]);
+}
+
 function mapDbStatusToQueueStatus(dbStatus) {
-  const s = String(dbStatus || '').trim().toLowerCase();
+  const s = String(dbStatus || '').trim().toLowerCase().replace(/[\s_-]+/g, '');
   if (s === 'completed') return 'completed';
   if (s === 'observation') return 'observation';
-  if (s === 'administering' || s === 'insession' || s === 'in session') return 'administering';
+  if (s === 'administering' || s === 'insession') return 'administering';
   if (s === 'cancelled' || s === 'rejected') return 'cancelled';
+  // Confirmed / Pending / PendingPayment / CheckedIn → still in queue
   return 'waiting';
 }
 
@@ -229,9 +245,9 @@ export default function HospitalDashboardOverview() {
       const mapped = rawList
         .filter((a) => String(a.status || '').toLowerCase() !== 'rejected')
         .map((a, idx) => {
-          const rawId = a.id || a.Id || String(idx);
+          const rawId = String(a.id || a.Id || idx);
           const shortRef = a.referenceNumber || (rawId.length > 6 ? `T-${rawId.substring(0, 4).toUpperCase()}` : `T-10${idx + 1}`);
-          const rawStatus = a.status || 'Pending';
+          const rawStatus = a.status || a.Status || 'Pending';
           const queueStatus = mapDbStatusToQueueStatus(rawStatus);
 
           return {
@@ -380,16 +396,19 @@ export default function HospitalDashboardOverview() {
   // 3. Status Transition with Database Sync
   const updatePatientStatus = async (id, newStatus) => {
     const previousPatients = [...queuePatients];
+    const targetId = String(id);
 
     // Optimistically update UI
     setQueuePatients((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, status: newStatus } : p))
+      prev.map((p) => (String(p.id) === targetId ? { ...p, status: newStatus } : p))
     );
 
     try {
       const dbStatus = mapQueueStatusToDbStatus(newStatus);
       await appointmentService.updateAppointmentStatus(id, { status: dbStatus });
       showToast(`Updated patient status to "${newStatus.toUpperCase()}".`);
+      // Re-fetch so refresh / other clients stay in sync with DB
+      await loadAppointmentsQueue();
     } catch (err) {
       console.error('Failed to persist appointment status update:', err);
       // Revert on failure
@@ -402,7 +421,7 @@ export default function HospitalDashboardOverview() {
   const todayStr = hospitalToday();
 
   const filteredQueue = useMemo(() => {
-    return queuePatients.filter((p) => {
+    const list = queuePatients.filter((p) => {
       // Scope filter (Today vs All)
       if (viewScope === 'today' && p.date && p.date !== todayStr) {
         return false;
@@ -422,6 +441,12 @@ export default function HospitalDashboardOverview() {
         p.token.toLowerCase().includes(q) ||
         p.vaccine.toLowerCase().includes(q)
       );
+    });
+
+    return list.sort((a, b) => {
+      const byTime = queueTimeSortKey(a.time) - queueTimeSortKey(b.time);
+      if (byTime !== 0) return byTime;
+      return String(a.token || '').localeCompare(String(b.token || ''));
     });
   }, [queuePatients, viewScope, statusFilter, searchQuery, todayStr]);
 
@@ -520,9 +545,7 @@ export default function HospitalDashboardOverview() {
           <div className="hospital-stat-info">
             <span className="hospital-stat-label">Administered Vaccinations</span>
             <span className="hospital-stat-value">{completedTodayCount}</span>
-            <span className="hospital-stat-meta">
-              <span className="meta-positive">● Live Record</span> across registered patients
-            </span>
+            <span className="hospital-stat-meta">Completed today</span>
           </div>
         </div>
 
@@ -534,7 +557,7 @@ export default function HospitalDashboardOverview() {
             <span className="hospital-stat-label">Active Patient Queue</span>
             <span className="hospital-stat-value">{activeQueueCount}</span>
             <span className="hospital-stat-meta">
-              <span>{queuePatients.filter((p) => p.status === 'observation').length} in observation</span>
+              {queuePatients.filter((p) => p.status === 'observation').length} in observation
             </span>
           </div>
         </div>
@@ -550,13 +573,15 @@ export default function HospitalDashboardOverview() {
             </span>
             <span className="hospital-stat-meta">
               {primaryColdVault ? (
-                <span className={coldChainOk ? 'meta-positive' : 'meta-warning'}>
-                  ● {primaryColdVault.status || 'Monitored'}
-                </span>
+                <>
+                  <span className={coldChainOk ? 'meta-positive' : 'meta-warning'}>
+                    {primaryColdVault.status || 'Monitored'}
+                  </span>
+                  {primaryColdVault.target ? ` · Target ${primaryColdVault.target}` : ''}
+                </>
               ) : (
-                <span>No vault telemetry</span>
+                'No vault telemetry'
               )}
-              {primaryColdVault?.target ? ` (Target ${primaryColdVault.target})` : ''}
             </span>
           </div>
         </div>
@@ -571,7 +596,7 @@ export default function HospitalDashboardOverview() {
               {inventoryLoading ? '...' : totalStock.toLocaleString()}
             </span>
             <span className="hospital-stat-meta">
-              Vials in {inventory.length} formulations
+              {inventory.length} formulation{inventory.length === 1 ? '' : 's'}
             </span>
           </div>
         </div>
@@ -584,7 +609,7 @@ export default function HospitalDashboardOverview() {
             <span className="hospital-stat-label">On-Duty Medical Staff</span>
             <span className="hospital-stat-value">{onDutyCount}</span>
             <span className="hospital-stat-meta">
-              Across {staffedBoothCount} active booths
+              {staffedBoothCount} active booth{staffedBoothCount === 1 ? '' : 's'}
             </span>
           </div>
         </div>
@@ -641,12 +666,16 @@ export default function HospitalDashboardOverview() {
                 <option value="administering">Administering</option>
                 <option value="observation">In Observation</option>
                 <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
               </select>
 
               <button
                 type="button"
                 className="btn-inventory-refresh"
-                onClick={loadAppointmentsQueue}
+                onClick={() => {
+                  setStatusFilter('all');
+                  loadAppointmentsQueue();
+                }}
                 disabled={queueLoading}
                 title="Refresh live queue from database"
               >
@@ -665,6 +694,14 @@ export default function HospitalDashboardOverview() {
 
           <div className="table-responsive">
             <table className="hospital-queue-table">
+              <colgroup>
+                <col className="col-token" />
+                <col className="col-patient" />
+                <col className="col-vaccine" />
+                <col className="col-booth" />
+                <col className="col-status" />
+                <col className="col-actions" />
+              </colgroup>
               <thead>
                 <tr>
                   <th>Token</th>
@@ -715,32 +752,29 @@ export default function HospitalDashboardOverview() {
                   filteredQueue.map((patient) => (
                     <tr key={patient.id}>
                       <td>
-                        <span className="queue-token-pill">{patient.token}</span>
+                        <span className="queue-token-pill">{String(patient.token || '').replace(/-/g, '\u2011')}</span>
                       </td>
                       <td>
                         <div className="queue-patient-name">{patient.name}</div>
                         <div className="queue-patient-meta">
-                          {patient.phone ? `Tel: ${patient.phone}` : patient.date} • {patient.time}
+                          {patient.phone ? patient.phone : patient.date}
                         </div>
+                        {patient.time ? (
+                          <div className="queue-patient-meta queue-patient-time">{patient.time}</div>
+                        ) : null}
                       </td>
                       <td>
                         <div className="queue-vaccine-badge">{patient.vaccine}</div>
-                        <div className="queue-dose-meta">{patient.dose}</div>
+                        <div className="queue-dose-meta" title={patient.dose}>{patient.dose}</div>
                       </td>
                       <td>
-                        <span className="queue-booth-tag">
-                          <span className="inline-icon-label"><IconDoor size={14} /> {patient.booth}</span>
+                        <span className={`queue-booth-tag${patient.booth === 'Unassigned' ? ' is-unassigned' : ''}`}>
+                          {patient.booth}
                         </span>
                       </td>
                       <td>
                         <span className={`queue-status-badge status-${patient.status}`}>
-                          {patient.status === 'waiting' && '● Waiting'}
-                          {patient.status === 'administering' && '● In Session'}
-                          {patient.status === 'observation' && '● Observation 15m'}
-                          {patient.status === 'completed' && '✓ Completed'}
-                          {patient.status === 'cancelled' && (
-                            <span className="inline-icon-label"><IconClose size={12} /> Cancelled</span>
-                          )}
+                          {queueStatusLabel(patient.status)}
                         </span>
                       </td>
                       <td>
@@ -758,8 +792,7 @@ export default function HospitalDashboardOverview() {
                           {patient.status === 'administering' && (
                             <button
                               type="button"
-                              className="btn-queue-action"
-                              style={{ background: '#7c3aed' }}
+                              className="btn-queue-action btn-queue-action--session"
                               onClick={() => updatePatientStatus(patient.id, 'observation')}
                               title="Move to 15-min post vaccination observation"
                             >
@@ -769,8 +802,7 @@ export default function HospitalDashboardOverview() {
                           {patient.status === 'observation' && (
                             <button
                               type="button"
-                              className="btn-queue-action"
-                              style={{ background: '#16a34a' }}
+                              className="btn-queue-action btn-queue-action--release"
                               onClick={() => updatePatientStatus(patient.id, 'completed')}
                               title="Complete and issue digital pass"
                             >
@@ -778,9 +810,10 @@ export default function HospitalDashboardOverview() {
                             </button>
                           )}
                           {patient.status === 'completed' && (
-                            <span style={{ fontSize: '0.78rem', color: '#15803d', fontWeight: 600 }}>
-                              Pass Generated
-                            </span>
+                            <span className="queue-pass-note">Pass generated</span>
+                          )}
+                          {patient.status === 'cancelled' && (
+                            <span className="queue-action-empty">—</span>
                           )}
                         </div>
                       </td>
@@ -892,7 +925,7 @@ export default function HospitalDashboardOverview() {
 
       {/* 4. Booth Station & Medical Staff On-Duty Allocation */}
       <div className="hospital-section-card" id="booths">
-        <div className="section-card-header">
+        <div className="section-card-header booths-section-header">
           <div className="section-title-group">
             <h2>
               <span className="section-title-icon section-title-icon--teal"><IconDoor size={22} /></span> Vaccination Booths &amp; On-Duty Medical Staff
@@ -901,13 +934,19 @@ export default function HospitalDashboardOverview() {
               Live from Booths and today’s shift roster
             </p>
           </div>
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-          <span className="hospital-tag-item" style={{ background: '#f0fdfa', color: '#0f766e' }}>
+          <div className="booths-header-actions">
+            <span
+              className={`booth-stat-pill ${staffedBoothCount > 0 ? 'is-ok' : 'is-warn'}`}
+              title={staffedBoothCount > 0 ? 'Booths with shifts today' : 'No booths have shifts today'}
+            >
               {boothCards.length} booth{boothCards.length === 1 ? '' : 's'} · {staffedBoothCount} staffed
             </span>
-            <span className="hospital-tag-item" style={{ background: '#ecfdf5', color: '#0f766e' }}>
+            <span
+              className={`booth-stat-pill ${onDutyCount > 0 ? 'is-live' : 'is-idle'}`}
+              title={onDutyCount > 0 ? 'Staff marked on duty now' : 'No staff currently on duty'}
+            >
               {onDutyCount} on duty now
-          </span>
+            </span>
             <button
               type="button"
               className="btn-hospital-secondary"
