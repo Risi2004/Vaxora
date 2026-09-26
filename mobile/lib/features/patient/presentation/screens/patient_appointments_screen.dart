@@ -82,7 +82,10 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen> {
           ),
         );
       },
-    );
+    ).then((_) {
+      // Automatically refresh appointments when the AI Concierge sheet closes
+      _loadBackendAppointments();
+    });
   }
 
   void _openBookSheet() {
@@ -260,9 +263,25 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final filteredAppointments = _selectedFilter == 0
-        ? _appointments.where((a) => a.status.toLowerCase() != 'completed' && a.status.toLowerCase() != 'cancelled').toList()
-        : _appointments.where((a) => a.status.toLowerCase() == 'completed' || a.status.toLowerCase() == 'cancelled').toList();
+    final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day);
+
+    bool isUpcoming(PatientAppointment a) {
+      final statusLower = a.status.toLowerCase();
+      if (statusLower == 'completed' || statusLower == 'cancelled') {
+        return false;
+      }
+      try {
+        final aptDate = DateTime.parse(a.date);
+        return !aptDate.isBefore(todayStart);
+      } catch (_) {
+        return true;
+      }
+    }
+
+    final upcomingList = _appointments.where(isUpcoming).toList();
+    final pastList = _appointments.where((a) => !isUpcoming(a)).toList();
+    final filteredAppointments = _selectedFilter == 0 ? upcomingList : pastList;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
@@ -318,7 +337,7 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen> {
                               : null,
                         ),
                         child: Text(
-                          'Upcoming (${_appointments.where((a) => a.status.toLowerCase() != 'completed').length})',
+                          'Upcoming (${upcomingList.length})',
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: 13,
@@ -349,7 +368,7 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen> {
                               : null,
                         ),
                         child: Text(
-                          'Past / History (${_appointments.where((a) => a.status.toLowerCase() == 'completed' || a.status.toLowerCase() == 'cancelled').length})',
+                          'Past / History (${pastList.length})',
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: 13,

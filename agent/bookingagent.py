@@ -16,7 +16,8 @@ try:
         tool_get_available_slots,
         tool_book_appointment,
         tool_get_my_appointments,
-        tool_cancel_appointment
+        tool_cancel_appointment,
+        tool_propose_cancellation_for_approval
     )
 except ImportError:
     from config import settings
@@ -30,14 +31,16 @@ except ImportError:
         tool_get_available_slots,
         tool_book_appointment,
         tool_get_my_appointments,
-        tool_cancel_appointment
+        tool_cancel_appointment,
+        tool_propose_cancellation_for_approval
     )
 
 logger = logging.getLogger("vaxora-booking-agent")
 
-BOOKING_AGENT_SYSTEM_PROMPT = """You are the official Vaxora Autonomous Booking Agent, an advanced goal-oriented agent designed to help patients discover vaccines, check hospital schedules, and book vaccination appointments with minimal friction and maximum autonomy.
+BOOKING_AGENT_SYSTEM_PROMPT = """You are the official Vaxora Autonomous Booking Agent, an advanced goal-oriented agent designed to help patients discover vaccines, check hospital schedules, manage appointments, and complete vaccination bookings with maximum clarity and security.
 
-CORE CAPABILITIES & WORKFLOW:
+MANDATORY HUMAN-IN-THE-LOOP APPROVAL POLICY:
+You are STRICTLY FORBIDDEN from executing permanent database changes (`book_appointment` or `cancel_appointment`) without explicit prior user approval.
 
 1. ONE-PROMPT GOAL-BASED DELEGATED BOOKING (PRIMARY AUTONOMOUS MODE):
    Whenever the patient expresses an intent to book, schedule, or find an appointment (e.g.:
@@ -56,19 +59,30 @@ CORE CAPABILITIES & WORKFLOW:
    
    This autonomously discovers the hospital, fetches upcoming clinic dates, locates open time slots, verifies schedule pricing, and prepares the review card in ONE single action!
    Then, provide a clear, helpful summary:
-   "I have autonomously matched and prepared your optimal appointment slot: [Vaccine] at [Hospital] on [Date] at [Time Slot] (Fee: [Price]).
+   "I have matched and prepared your optimal appointment slot: [Vaccine] at [Hospital] on [Date] at [Time Slot] (Fee: [Price]).
    Please review the proposal card below and tap 'Confirm & Book' to finalize."
+   NEVER call `book_appointment` directly until the patient has approved the proposal!
 
-2. HUMAN-IN-THE-LOOP APPROVAL & MANUAL PAYMENT:
+2. BOOKING APPROVAL & PAYMENT:
    - The user must explicitly approve the proposal by tapping "Confirm & Book" (or sending "I approve and confirm booking...").
    - Once approved, IMMEDIATELY call `book_appointment` to register the booking in the national immunization registry.
-   - For paid vaccines (e.g. AstraZeneca at LKR 1,000.00), inform the user that their booking is registered and they can complete the payment using PayHere via the payment button on the booking confirmation card.
+   - For paid vaccines (e.g. AstraZeneca at LKR 1,000.00), inform the user that their booking is registered and they can complete payment using PayHere via the payment button on the booking confirmation card.
    - For free vaccines (0 LKR), the slot is confirmed immediately.
 
-3. EXPLORATORY CHAT (SECONDARY MODE):
-   If the user only asks general questions (e.g. "What vaccines do you have?"), call `get_available_vaccines_and_hospitals` and list the available vaccines with their prices.
+3. MANDATORY CANCELLATION APPROVAL WORKFLOW:
+   - When the patient asks to cancel an appointment (e.g. "cancel my appointment", "cancel AstraZeneca", "cancel my booking for Wednesday", "cancel all"):
+   - NEVER call `cancel_appointment` directly without user approval!
+   - You MUST FIRST call `propose_cancellation_for_approval` with `appointment_id`, `vaccine_name`, or `appointment_date`.
+   - This prepares an Appointment Cancellation Review card for the patient to approve or decline.
+   - Tell the patient: "I've located your appointment for [Vaccine] at [Hospital] on [Date] at [Time Slot]. Please review the cancellation card below and confirm if you would like to proceed with cancellation."
+   - ONLY call `cancel_appointment` AFTER the user explicitly approves/confirms the cancellation (e.g. tapping "Confirm Cancellation" or sending "I approve and confirm cancellation...").
+   - If the user says "Keep appointment" or declines cancellation, acknowledge that the appointment will remain active.
+   - If they ask "what appointments do I have?", call `get_my_appointments`.
 
-4. FORMATTING:
+4. EXPLORATORY CHAT:
+   If the user asks general questions (e.g. "What vaccines do you have?"), call `get_available_vaccines_and_hospitals` and list the available vaccines with their prices.
+
+5. FORMATTING:
    Keep responses concise, clear, and structured with clean bullet points. Avoid messy asterisks.
 """
 
@@ -141,6 +155,15 @@ class BookingAgent:
                 "status": "proposal_pending_user_approval",
                 "proposal": prop
             }
+        elif tool_name == "propose_cancellation_for_approval":
+            return await tool_propose_cancellation_for_approval(
+                appointment_id=arguments.get("appointment_id"),
+                vaccine_name=arguments.get("vaccine_name"),
+                hospital_name=arguments.get("hospital_name"),
+                appointment_date=arguments.get("appointment_date"),
+                time_slot=arguments.get("time_slot"),
+                token=token
+            )
         elif tool_name == "book_appointment":
             return await tool_book_appointment(
                 hospital_user_id=arguments.get("hospital_user_id"),
@@ -184,6 +207,7 @@ class BookingAgent:
         iteration = 0
         proposal_data = None
         booking_result = None
+        cancellation_result = None
 
         while iteration < max_iterations:
             iteration += 1
@@ -197,7 +221,8 @@ class BookingAgent:
                     "role": "assistant",
                     "content": f"I encountered an issue connecting to the AI model service ({self.model}): {str(e)}. Please verify your RunPod instance is running.",
                     "proposal": None,
-                    "booking": None
+                    "booking": None,
+                    "cancellation": None
                 }
 
             tool_calls = msg.get("tool_calls") or []
@@ -228,9 +253,13 @@ class BookingAgent:
                         proposal_data = fn_args
                     elif fn_name == "autonomous_find_and_propose" and tool_output.get("proposal"):
                         proposal_data = tool_output.get("proposal")
+                    elif fn_name == "propose_cancellation_for_approval" and tool_output.get("proposal"):
+                        proposal_data = tool_output.get("proposal")
 
                     if fn_name == "book_appointment" and tool_output.get("success"):
                         booking_result = tool_output
+                    elif fn_name == "cancel_appointment" and tool_output.get("success"):
+                        cancellation_result = tool_output
 
                     conversation.append({
                         "role": "tool",
@@ -244,7 +273,8 @@ class BookingAgent:
                     "role": "assistant",
                     "content": final_content,
                     "proposal": proposal_data,
-                    "booking": booking_result
+                    "booking": booking_result,
+                    "cancellation": cancellation_result
                 }
 
         final_content = msg.get("content") or msg.get("reasoning") or "I have processed your request."
@@ -253,7 +283,8 @@ class BookingAgent:
             "role": "assistant",
             "content": final_content,
             "proposal": proposal_data,
-            "booking": booking_result
+            "booking": booking_result,
+            "cancellation": cancellation_result
         }
 
 booking_agent = BookingAgent()

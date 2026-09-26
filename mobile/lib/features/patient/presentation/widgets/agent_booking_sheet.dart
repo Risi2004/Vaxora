@@ -107,6 +107,10 @@ class _AgentBookingSheetState extends State<AgentBookingSheet> {
           if (!response.booking!.isFree && response.booking!.payherePayload != null) {
             _launchPayHere(response.booking!);
           }
+        } else if (response.cancellation != null ||
+            (response.content.toLowerCase().contains('cancelled') &&
+                response.content.toLowerCase().contains('appointment'))) {
+          widget.onAppointmentBooked?.call();
         }
       }
     } catch (e) {
@@ -130,6 +134,21 @@ class _AgentBookingSheetState extends State<AgentBookingSheet> {
     final prompt =
         'I approve and confirm booking for ${proposal.vaccineName} at ${proposal.hospitalName} on ${proposal.appointmentDate} at ${proposal.timeSlot}. Please proceed with booking.';
     _sendMessage(prompt);
+  }
+
+  void _approveCancellation(AgentProposal proposal) {
+    final target = proposal.vaccineName.isNotEmpty ? proposal.vaccineName : 'my appointment';
+    final dateStr = proposal.appointmentDate.isNotEmpty ? ' on ${proposal.appointmentDate}' : '';
+    final idStr = (proposal.appointmentId != null && proposal.appointmentId!.isNotEmpty)
+        ? ' (ID: ${proposal.appointmentId})'
+        : '';
+    final prompt =
+        'I approve and confirm cancellation of $target$dateStr$idStr. Please proceed with cancellation.';
+    _sendMessage(prompt);
+  }
+
+  void _declineCancellation() {
+    _sendMessage("I want to keep my appointment. Please do not cancel it.");
   }
 
   void _launchPayHere(AgentBooking booking) {
@@ -680,6 +699,9 @@ class _AgentBookingSheetState extends State<AgentBookingSheet> {
   }
 
   Widget _buildProposalCard(AgentProposal p) {
+    if (p.isCancellation) {
+      return _buildCancellationProposalCard(p);
+    }
     return Container(
       margin: const EdgeInsets.only(left: 38, top: 4),
       padding: const EdgeInsets.all(14),
@@ -740,6 +762,95 @@ class _AgentBookingSheetState extends State<AgentBookingSheet> {
                   side: const BorderSide(color: Color(0xFFCBD5E1)),
                 ),
                 child: const Text('Decline', style: TextStyle(fontSize: 12, color: Colors.grey)),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCancellationProposalCard(AgentProposal p) {
+    return Container(
+      margin: const EdgeInsets.only(left: 38, top: 4),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFEF2F2),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFFCA5A5), width: 1.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.warning_amber_rounded, color: Color(0xFFDC2626), size: 20),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Cancellation Approval Required',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Color(0xFF991B1B)),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEE2E2),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFF87171), width: 0.8),
+                ),
+                child: const Text(
+                  'Action Needed',
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFFB91C1C)),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            '💉 ${p.vaccineName}',
+            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: AppColors.textTitle),
+          ),
+          if (p.hospitalName.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text('🏥 ${p.hospitalName}', style: const TextStyle(fontSize: 12, color: AppColors.textBody)),
+          ],
+          if (p.appointmentDate.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(
+              '📅 ${p.appointmentDate}${p.timeSlot.isNotEmpty ? " at ${p.timeSlot}" : ""}',
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFFB91C1C)),
+            ),
+          ],
+          const SizedBox(height: 8),
+          const Text(
+            'Please confirm if you wish to cancel this appointment. Once cancelled, your reserved time slot will be released.',
+            style: TextStyle(fontSize: 11.5, color: Color(0xFF7F1D1D), height: 1.35),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _isLoading ? null : () => _approveCancellation(p),
+                  icon: const Icon(Icons.cancel_outlined, size: 16),
+                  label: const Text('Confirm Cancellation'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFDC2626),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton(
+                onPressed: _isLoading ? null : _declineCancellation,
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  side: const BorderSide(color: Color(0xFFCBD5E1)),
+                ),
+                child: const Text('Keep Appointment', style: TextStyle(fontSize: 12, color: Color(0xFF475569))),
               ),
             ],
           ),

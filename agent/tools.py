@@ -512,13 +512,167 @@ async def tool_get_my_appointments(token: Optional[str] = None) -> Dict[str, Any
     except Exception as e:
         return {"success": False, "error": str(e)}
 
-async def tool_cancel_appointment(appointment_id: str, token: Optional[str] = None) -> Dict[str, Any]:
-    """Cancel an upcoming appointment (subject to 1-day advance notice rule)."""
+async def tool_cancel_appointment(appointment_id: Optional[str] = None, token: Optional[str] = None) -> Dict[str, Any]:
+    """Cancel an upcoming appointment. Accepts GUID, ReferenceNumber, Vaccine Name, Date, 'all', or 'latest'."""
     try:
-        data = await api_delete(f"/appointments/{appointment_id}/cancel", token=token)
-        return {"success": True, "result": data}
+        # 1. Fetch user's current appointments from database
+        patient_appts = []
+        try:
+            patient_appts = await api_get("/appointments/patient", token=token)
+        except Exception as ex_fetch:
+            # If fetching fails, still attempt direct delete if an ID is present
+            if appointment_id:
+                data = await api_delete(f"/appointments/{appointment_id.strip()}/cancel", token=token)
+                return {"success": True, "result": data, "message": f"Appointment {appointment_id} cancelled."}
+            raise ex_fetch
+
+        if not patient_appts or not isinstance(patient_appts, list):
+            return {"success": False, "error": "You currently have no booked appointments on record."}
+
+        target_input = (appointment_id or "").strip()
+        lower_input = target_input.lower()
+
+        # Filter candidates: non-cancelled
+        active_appts = [
+            a for a in patient_appts 
+            if str(a.get("status", "")).lower() != "cancelled"
+        ]
+
+        if not active_appts:
+            return {"success": False, "error": "No active upcoming appointments found to cancel."}
+
+        to_cancel = []
+
+        if not target_input or lower_input in ("latest", "upcoming", "my appointment", "appointment"):
+            to_cancel = [active_appts[0]]
+        elif lower_input in ("all", "everything", "all appointments", "all bookings"):
+            to_cancel = active_appts
+        else:
+            for a in active_appts:
+                a_id = str(a.get("id", "")).lower()
+                a_ref = str(a.get("referenceNumber", "")).lower()
+                a_vaccine = str(a.get("vaccineName", "")).lower()
+                a_date = str(a.get("appointmentDate", "")).lower()
+                a_hospital = str(a.get("hospitalName", "")).lower()
+
+                if (
+                    lower_input == a_id or
+                    (len(lower_input) >= 4 and a_id.startswith(lower_input)) or
+                    (a_ref and lower_input in a_ref) or
+                    (lower_input in a_vaccine) or
+                    (lower_input in a_date) or
+                    (lower_input in a_hospital)
+                ):
+                    to_cancel.append(a)
+
+            if not to_cancel:
+                for a in patient_appts:
+                    a_id = str(a.get("id", "")).lower()
+                    if lower_input in a_id:
+                        to_cancel.append(a)
+
+        if not to_cancel:
+            if target_input:
+                data = await api_delete(f"/appointments/{target_input}/cancel", token=token)
+                return {"success": True, "result": data, "message": f"Appointment {target_input} cancelled."}
+            return {"success": False, "error": f"Could not find an active appointment matching '{target_input}'."}
+
+        cancelled_items = []
+        for apt in to_cancel:
+            apt_id = apt.get("id")
+            await api_delete(f"/appointments/{apt_id}/cancel", token=token)
+            cancelled_items.append({
+                "id": apt_id,
+                "referenceNumber": apt.get("referenceNumber"),
+                "vaccineName": apt.get("vaccineName"),
+                "hospitalName": apt.get("hospitalName"),
+                "appointmentDate": apt.get("appointmentDate"),
+                "timeSlot": apt.get("timeSlot")
+            })
+
+        count = len(cancelled_items)
+        details = ", ".join([f"{item['vaccineName']} on {item['appointmentDate']} at {item['timeSlot']}" for item in cancelled_items])
+        return {
+            "success": True,
+            "count": count,
+            "message": f"Successfully cancelled {count} appointment(s): {details}.",
+            "cancelled": cancelled_items
+        }
     except Exception as e:
         return {"success": False, "error": str(e)}
+
+async def tool_propose_cancellation_for_approval(
+    appointment_id: Optional[str] = None,
+    vaccine_name: Optional[str] = None,
+    hospital_name: Optional[str] = None,
+    appointment_date: Optional[str] = None,
+    time_slot: Optional[str] = None,
+    token: Optional[str] = None
+) -> Dict[str, Any]:
+    """Prepares an appointment cancellation card for explicit patient approval BEFORE executing cancellation."""
+    target_apt = None
+    active_appts = []
+    try:
+        if token:
+            patient_appts = await api_get("/appointments/patient", token=token)
+            if isinstance(patient_appts, list):
+                active_appts = [a for a in patient_appts if str(a.get("status", "")).lower() != "cancelled"]
+                
+                # Check target criteria
+                search_terms = []
+                if appointment_id and appointment_id.lower() not in ("latest", "all", "none"):
+                    search_terms.append(appointment_id.lower().strip())
+                if vaccine_name:
+                    search_terms.append(vaccine_name.lower().strip())
+                if appointment_date:
+                    search_terms.append(appointment_date.strip())
+
+                if search_terms:
+                    for a in active_appts:
+                        a_id = str(a.get("id", "")).lower()
+                        a_ref = str(a.get("referenceNumber", "")).lower()
+                        a_vac = str(a.get("vaccineName", "")).lower()
+                        a_date = str(a.get("appointmentDate", "")).lower()
+                        
+                        for st in search_terms:
+                            if st in a_id or st in a_ref or st in a_vac or st in a_date:
+                                target_apt = a
+                                break
+                        if target_apt:
+                            break
+
+                # Fallback to latest/first active appointment if not specifically matched
+                if not target_apt and active_appts:
+                    target_apt = active_appts[0]
+    except Exception:
+        pass
+
+    if token and not target_apt and not active_appts:
+        return {
+            "success": False,
+            "error": "No active upcoming appointments found to cancel."
+        }
+
+    resolved_id = target_apt.get("id") if target_apt else (appointment_id or "")
+    resolved_vaccine = target_apt.get("vaccineName") if target_apt else (vaccine_name or "Vaccination Appointment")
+    resolved_hospital = target_apt.get("hospitalName") if target_apt else (hospital_name or "Assigned Hospital")
+    resolved_date = target_apt.get("appointmentDate") if target_apt else (appointment_date or "")
+    resolved_slot = target_apt.get("timeSlot") if target_apt else (time_slot or "")
+
+    return {
+        "success": True,
+        "status": "cancellation_pending_user_approval",
+        "proposal": {
+            "type": "cancellation",
+            "appointment_id": str(resolved_id),
+            "vaccine_name": resolved_vaccine,
+            "hospital_name": resolved_hospital,
+            "appointment_date": resolved_date,
+            "time_slot": resolved_slot,
+            "fee": 0.0,
+            "requires_payment": False
+        }
+    }
 
 
 # Function definitions for Qwen / OpenAI tool calling
@@ -674,14 +828,42 @@ TOOLS_SCHEMA = [
     {
         "type": "function",
         "function": {
-            "name": "cancel_appointment",
-            "description": "Cancel an existing appointment by its appointment ID.",
+            "name": "propose_cancellation_for_approval",
+            "description": "Prepares an appointment cancellation card for explicit patient approval BEFORE executing cancellation. Call this whenever a patient asks to cancel an appointment.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "appointment_id": {"type": "string", "description": "The GUID of the appointment to cancel"}
+                    "appointment_id": {
+                        "type": "string",
+                        "description": "The appointment GUID, reference number, vaccine name, date, 'latest', or 'all' to cancel."
+                    },
+                    "vaccine_name": {
+                        "type": "string",
+                        "description": "Optional name of the vaccine (e.g. 'AstraZeneca', 'Pfizer')."
+                    },
+                    "appointment_date": {
+                        "type": "string",
+                        "description": "Optional appointment date ('YYYY-MM-DD')."
+                    }
                 },
-                "required": ["appointment_id"]
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "cancel_appointment",
+            "description": "Execute the cancellation of an appointment in the database. Call this ONLY after the user has explicitly confirmed/approved the cancellation.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "appointment_id": {
+                        "type": "string",
+                        "description": "The appointment GUID, reference number, vaccine name, date, 'latest', or 'all' to cancel."
+                    }
+                },
+                "required": []
             }
         }
     }

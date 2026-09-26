@@ -3,6 +3,7 @@ class AgentMessage {
   final String content;
   final AgentProposal? proposal;
   final AgentBooking? booking;
+  final Map<String, dynamic>? cancellation;
   final bool isError;
 
   const AgentMessage({
@@ -10,6 +11,7 @@ class AgentMessage {
     required this.content,
     this.proposal,
     this.booking,
+    this.cancellation,
     this.isError = false,
   });
 
@@ -22,6 +24,8 @@ class AgentMessage {
 }
 
 class AgentProposal {
+  final String type; // 'booking' or 'cancellation'
+  final String? appointmentId;
   final String vaccineName;
   final String hospitalName;
   final String appointmentDate;
@@ -30,6 +34,8 @@ class AgentProposal {
   final bool requiresPayment;
 
   const AgentProposal({
+    this.type = 'booking',
+    this.appointmentId,
     required this.vaccineName,
     required this.hospitalName,
     required this.appointmentDate,
@@ -38,6 +44,8 @@ class AgentProposal {
     required this.requiresPayment,
   });
 
+  bool get isCancellation => type.toLowerCase() == 'cancellation';
+
   factory AgentProposal.fromJson(Map<String, dynamic> json) {
     final rawFee = json['price'] ?? json['fee'];
     final feeVal = (rawFee as num?)?.toDouble() ?? 0.0;
@@ -45,6 +53,8 @@ class AgentProposal {
     final requiresPayVal = json['requires_payment'] == true || (!isFreeVal && feeVal > 0.0);
 
     return AgentProposal(
+      type: json['type']?.toString().toLowerCase() ?? 'booking',
+      appointmentId: json['appointment_id']?.toString(),
       vaccineName: json['vaccine_name']?.toString() ?? 'Vaccine',
       hospitalName: json['hospital_name']?.toString() ?? 'Hospital',
       appointmentDate: json['appointment_date']?.toString() ?? '',

@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import WalkInRegistrationModal from './WalkInRegistrationModal';
 import RestockVaccineModal from './RestockVaccineModal';
 import staffService from '../services/staffService';
+import { inventoryService } from '../services/inventoryService';
+import { appointmentService } from '../../patient/services/appointmentService';
 import { hospitalMinutesNow, hospitalToday } from '../utils/hospitalDate';
 
 function timeToMinutes(value) {
@@ -23,170 +25,175 @@ function roleLabel(role) {
   return role || 'Staff';
 }
 
+function mapDbStatusToQueueStatus(dbStatus) {
+  const s = String(dbStatus || '').trim().toLowerCase();
+  if (s === 'completed') return 'completed';
+  if (s === 'observation') return 'observation';
+  if (s === 'administering' || s === 'insession' || s === 'in session') return 'administering';
+  if (s === 'cancelled' || s === 'rejected') return 'cancelled';
+  return 'waiting';
+}
+
+function mapQueueStatusToDbStatus(queueStatus) {
+  if (queueStatus === 'completed') return 'Completed';
+  if (queueStatus === 'observation') return 'Observation';
+  if (queueStatus === 'administering') return 'Administering';
+  if (queueStatus === 'cancelled') return 'Cancelled';
+  return 'Confirmed';
+}
+
 export default function HospitalDashboardOverview() {
   const [isWalkInOpen, setIsWalkInOpen] = useState(false);
   const [isRestockOpen, setIsRestockOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [viewScope, setViewScope] = useState('today'); // 'today' | 'all'
   const [mohReportNotice, setMohReportNotice] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+
+  // 1. Logged in Hospital Profile Context
+  const storedUser = useMemo(() => {
+    try {
+      const raw = localStorage.getItem('vaxora_user');
+      return raw ? JSON.parse(raw) : null;
+    } catch (_) {
+      return null;
+    }
+  }, []);
+
+  const hospitalCenterName = storedUser?.name || storedUser?.hospitalName || 'Immunization Center Operations';
+  const hospitalCenterCode = storedUser?.registrationNumber ? `Center ID: #${storedUser.registrationNumber}` : 'MOH Center ID: #COL-77042';
+
+  // 2. Booths & On-Duty Staff State
   const [boothCards, setBoothCards] = useState([]);
   const [boothsLoading, setBoothsLoading] = useState(true);
   const [boothsError, setBoothsError] = useState('');
   const [onDutyCount, setOnDutyCount] = useState(0);
 
-  // Live Queue Patients State
-  const [queuePatients, setQueuePatients] = useState([
-    {
-      id: 1,
-      token: 'T-101',
-      name: 'Chaminda Wickramasinghe',
-      nic: '198845210982',
-      age: 38,
-      gender: 'Male',
-      vaccine: 'Pfizer-BioNTech Bivalent',
-      dose: 'Booster Dose (3)',
-      booth: 'Booth 01',
-      practitioner: 'Dr. Samantha Perera',
-      time: '09:15 AM',
-      status: 'administering',
-    },
-    {
-      id: 2,
-      token: 'T-102',
-      name: 'Nadeeka Priyadarshani',
-      nic: '199589234120',
-      age: 29,
-      gender: 'Female',
-      vaccine: 'Influenza (Quadrivalent)',
-      dose: 'Annual Routine',
-      booth: 'Booth 03',
-      practitioner: 'Nurse Anoma Silva',
-      time: '09:18 AM',
-      status: 'observation',
-    },
-    {
-      id: 3,
-      token: 'T-103',
-      name: 'Rohan Jayatillake',
-      nic: '197612349876',
-      age: 50,
-      gender: 'Male',
-      vaccine: 'Hepatitis B Recombinant',
-      dose: 'Dose 2 (Primary)',
-      booth: 'Booth 01',
-      practitioner: 'Dr. Samantha Perera',
-      time: '09:22 AM',
-      status: 'waiting',
-    },
-    {
-      id: 4,
-      token: 'T-104',
-      name: 'Sanduni Malshani',
-      nic: '200156789123',
-      age: 23,
-      gender: 'Female',
-      vaccine: 'MMR (Measles, Mumps)',
-      dose: 'Booster Dose',
-      booth: 'Booth 04',
-      practitioner: 'Nurse Dilani Fernando',
-      time: '09:25 AM',
-      status: 'waiting',
-    },
-    {
-      id: 5,
-      token: 'T-105',
-      name: 'Kasun Bandara Herath',
-      nic: '198423456789',
-      age: 42,
-      gender: 'Male',
-      vaccine: 'Moderna Spikevax',
-      dose: 'Booster Dose (4)',
-      booth: 'Booth 02',
-      practitioner: 'Dr. Nimal Jayawardena',
-      time: '09:28 AM',
-      status: 'waiting',
-    },
-    {
-      id: 6,
-      token: 'T-100',
-      name: 'Malini Senanayake',
-      nic: '196234567890',
-      age: 64,
-      gender: 'Female',
-      vaccine: 'Influenza (Quadrivalent)',
-      dose: 'Annual Senior Dose',
-      booth: 'Booth 02',
-      practitioner: 'Dr. Nimal Jayawardena',
-      time: '09:00 AM',
-      status: 'completed',
-    },
-  ]);
+  // 3. Database Inventory State
+  const [inventory, setInventory] = useState([]);
+  const [formularyVaccines, setFormularyVaccines] = useState([]);
+  const [inventoryLoading, setInventoryLoading] = useState(true);
+  const [inventoryError, setInventoryError] = useState('');
 
-  // Vaccine Inventory State
-  const [inventory, setInventory] = useState([
-    {
-      id: 1,
-      name: 'Pfizer-BioNTech Bivalent (mRNA)',
-      lotNumber: 'PF-9082',
-      available: 1420,
-      capacity: 1800,
-      expiry: 'Oct 2027',
-      temp: '-75°C Ultra Cold',
-      statusColor: 'bar-green',
-    },
-    {
-      id: 2,
-      name: 'Moderna Spikevax',
-      lotNumber: 'MD-4419',
-      available: 850,
-      capacity: 1200,
-      expiry: 'Aug 2027',
-      temp: '-20°C Freezer',
-      statusColor: 'bar-blue',
-    },
-    {
-      id: 3,
-      name: 'Influenza (Fluarix Quadrivalent)',
-      lotNumber: 'FL-6102',
-      available: 920,
-      capacity: 1000,
-      expiry: 'May 2027',
-      temp: '3.4°C Chiller',
-      statusColor: 'bar-green',
-    },
-    {
-      id: 4,
-      name: 'Hepatitis B Recombinant',
-      lotNumber: 'HB-3301',
-      available: 480,
-      capacity: 600,
-      expiry: 'Dec 2027',
-      temp: '4.1°C Chiller',
-      statusColor: 'bar-blue',
-    },
-    {
-      id: 5,
-      name: 'MMR (Measles, Mumps, Rubella)',
-      lotNumber: 'MM-8120',
-      available: 640,
-      capacity: 800,
-      expiry: 'Jan 2028',
-      temp: '3.8°C Chiller',
-      statusColor: 'bar-green',
-    },
-    {
-      id: 6,
-      name: 'Tdap (Tetanus, Diphtheria, Pertussis)',
-      lotNumber: 'TD-1904',
-      available: 160,
-      capacity: 800,
-      expiry: 'Nov 2026',
-      temp: '3.9°C Chiller',
-      statusColor: 'bar-amber',
-      warning: 'Low Stock Alert - Reorder Recommended',
-    },
-  ]);
+  // 4. Live Queue Appointments State (from Database)
+  const [queuePatients, setQueuePatients] = useState([]);
+  const [queueLoading, setQueueLoading] = useState(true);
+  const [queueError, setQueueError] = useState('');
 
+  const showToast = (msg) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(''), 3500);
+  };
+
+  // ==================== FETCH INVENTORY (BATCHES & FORMULARY) ====================
+  const loadInventory = useCallback(async () => {
+    setInventoryLoading(true);
+    setInventoryError('');
+    try {
+      const [batchesRes, formularyRes] = await Promise.allSettled([
+        inventoryService.getInventory(),
+        inventoryService.getFormulary(),
+      ]);
+
+      const batches = batchesRes.status === 'fulfilled' && Array.isArray(batchesRes.value) ? batchesRes.value : [];
+      const formulary = formularyRes.status === 'fulfilled' && Array.isArray(formularyRes.value) ? formularyRes.value : [];
+
+      setFormularyVaccines(formulary);
+
+      // Map DB batches to inventory cards
+      const mappedBatches = batches.map((b) => {
+        const available = Number(b.available ?? b.quantity ?? 0);
+        const capacity = Number(b.capacity ?? Math.max(available * 1.5, 400));
+        const minThreshold = Number(b.minThreshold ?? 50);
+        const isLow = available <= minThreshold;
+
+        return {
+          id: b.id,
+          name: b.name || b.vaccineName || 'Vaccine Formulation',
+          lotNumber: b.lotNumber || 'LT-' + (b.id ? b.id.substring(0, 6).toUpperCase() : '001'),
+          available,
+          capacity,
+          expiry: b.expiry || b.expiryDate || 'N/A',
+          temp: b.temp || (b.storageUnit ? b.storageUnit : '2°C to 8°C Chiller'),
+          statusColor: isLow ? 'bar-amber' : 'bar-green',
+          warning: isLow ? `Low Stock Alert (${available} vials remaining)` : undefined,
+        };
+      });
+
+      // Also include any formulary vaccines that have 0 batches registered yet
+      const existingNames = new Set(mappedBatches.map((m) => m.name.toLowerCase()));
+      formulary.forEach((f) => {
+        const fName = f.vaccineName || f.name;
+        if (fName && !existingNames.has(fName.toLowerCase())) {
+          mappedBatches.push({
+            id: 'formulary-' + (f.id || fName),
+            name: fName,
+            lotNumber: 'Not Stocked',
+            available: 0,
+            capacity: 500,
+            expiry: 'Restock Required',
+            temp: 'Requires Storage Allocation',
+            statusColor: 'bar-amber',
+            warning: 'Out of Stock - Restock Recommended',
+          });
+        }
+      });
+
+      setInventory(mappedBatches);
+    } catch (err) {
+      console.error('Failed to load inventory:', err);
+      setInventoryError(err.message || 'Failed to load vaccine inventory.');
+    } finally {
+      setInventoryLoading(false);
+    }
+  }, []);
+
+  // ==================== FETCH APPOINTMENTS QUEUE (FROM DATABASE) ====================
+  const loadAppointmentsQueue = useCallback(async () => {
+    setQueueLoading(true);
+    setQueueError('');
+    try {
+      const todayStr = hospitalToday();
+      const data = await appointmentService.getHospitalAppointments();
+      const rawList = Array.isArray(data) ? data : [];
+
+      // Filter out rejected/cancelled if looking at active session
+      const mapped = rawList
+        .filter((a) => String(a.status || '').toLowerCase() !== 'rejected')
+        .map((a, idx) => {
+          const rawId = a.id || a.Id || String(idx);
+          const shortRef = a.referenceNumber || (rawId.length > 6 ? `T-${rawId.substring(0, 4).toUpperCase()}` : `T-10${idx + 1}`);
+          const rawStatus = a.status || 'Pending';
+          const queueStatus = mapDbStatusToQueueStatus(rawStatus);
+
+          return {
+            id: rawId,
+            token: shortRef,
+            name: a.patientName || a.pName || 'Patient',
+            phone: a.patientPhone || '',
+            nic: a.patientNic || '',
+            date: a.appointmentDate || todayStr,
+            vaccine: a.vaccineName || 'Vaccine',
+            dose: a.prescribedDosage || 'Primary / Booster Dose',
+            booth: boothCards.length > 0 ? (boothCards[idx % boothCards.length].boothName || `Booth 0${(idx % boothCards.length) + 1}`) : `Booth 0${(idx % 3) + 1}`,
+            practitioner: a.doctorName ? `Dr. ${a.doctorName.replace(/^Dr\.\s*/i, '')}` : (a.nurseName ? `Nurse ${a.nurseName}` : 'Staff Duty Officer'),
+            time: a.timeSlot || '09:00 AM - 09:20 AM',
+            status: queueStatus,
+            dbStatus: rawStatus,
+          };
+        });
+
+      setQueuePatients(mapped);
+    } catch (err) {
+      console.error('Failed to load appointments queue:', err);
+      setQueueError(err.message || 'Failed to load live appointments queue.');
+    } finally {
+      setQueueLoading(false);
+    }
+  }, [boothCards]);
+
+  // ==================== FETCH BOOTH STAFFING ====================
   const loadBoothStaffing = useCallback(async () => {
     setBoothsLoading(true);
     setBoothsError('');
@@ -256,35 +263,59 @@ export default function HospitalDashboardOverview() {
 
   useEffect(() => {
     loadBoothStaffing();
-  }, [loadBoothStaffing]);
+    loadInventory();
+  }, [loadBoothStaffing, loadInventory]);
 
-  // Actions
+  useEffect(() => {
+    loadAppointmentsQueue();
+  }, [loadAppointmentsQueue]);
+
+  // ==================== ACTIONS ====================
+
+  // 1. Walk-in Registration
   const handleAddWalkIn = (newPatient) => {
     setQueuePatients((prev) => [newPatient, ...prev]);
+    showToast(`Walk-in patient ${newPatient.name} added to the active queue.`);
   };
 
-  const handleAddStock = ({ vaccineName, lotNumber, quantity }) => {
-    setInventory((prev) =>
-      prev.map((item) => {
-        if (item.name.toLowerCase().includes(vaccineName.toLowerCase().slice(0, 8))) {
-          const newAvail = item.available + quantity;
-          return {
-            ...item,
-            lotNumber,
-            available: newAvail,
-            statusColor: newAvail / item.capacity > 0.3 ? 'bar-green' : 'bar-amber',
-            warning: undefined,
-          };
-        }
-        return item;
-      })
-    );
+  // 2. Real Database Restock Batch
+  const handleAddStock = async ({ vaccineName, lotNumber, quantity, storageUnit, expiryDate, supplier }) => {
+    try {
+      await inventoryService.restockBatch({
+        vaccineName,
+        lotNumber,
+        quantity: Number(quantity),
+        storageUnit,
+        expiryDate,
+        supplier,
+      });
+      await loadInventory();
+      showToast(`Logged restock shipment for ${vaccineName} (${quantity} vials).`);
+    } catch (err) {
+      console.error('Failed to restock batch:', err);
+      alert('Failed to log restock shipment: ' + err.message);
+    }
   };
 
-  const updatePatientStatus = (id, newStatus) => {
+  // 3. Status Transition with Database Sync
+  const updatePatientStatus = async (id, newStatus) => {
+    const previousPatients = [...queuePatients];
+
+    // Optimistically update UI
     setQueuePatients((prev) =>
       prev.map((p) => (p.id === id ? { ...p, status: newStatus } : p))
     );
+
+    try {
+      const dbStatus = mapQueueStatusToDbStatus(newStatus);
+      await appointmentService.updateAppointmentStatus(id, { status: dbStatus });
+      showToast(`Updated patient status to "${newStatus.toUpperCase()}".`);
+    } catch (err) {
+      console.error('Failed to persist appointment status update:', err);
+      // Revert on failure
+      setQueuePatients(previousPatients);
+      alert('Failed to update status in database: ' + err.message);
+    }
   };
 
   const handleExportMOH = () => {
@@ -292,18 +323,45 @@ export default function HospitalDashboardOverview() {
     setTimeout(() => setMohReportNotice(false), 3500);
   };
 
-  // Filtered Queue
-  const filteredQueue = queuePatients.filter((p) => {
-    const matchesSearch =
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.nic.includes(searchQuery) ||
-      p.token.toLowerCase().includes(searchQuery.toLowerCase());
+  // ==================== FILTERING & COMPUTED STATS ====================
+  const todayStr = hospitalToday();
 
-    if (statusFilter === 'all') return matchesSearch;
-    return matchesSearch && p.status === statusFilter;
-  });
+  const filteredQueue = useMemo(() => {
+    return queuePatients.filter((p) => {
+      // Scope filter (Today vs All)
+      if (viewScope === 'today' && p.date && p.date !== todayStr) {
+        return false;
+      }
 
-  const totalStock = inventory.reduce((acc, curr) => acc + curr.available, 0);
+      // Status filter
+      if (statusFilter !== 'all' && p.status !== statusFilter) {
+        return false;
+      }
+
+      // Search query filter
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.toLowerCase();
+      return (
+        p.name.toLowerCase().includes(q) ||
+        (p.phone && p.phone.includes(q)) ||
+        p.token.toLowerCase().includes(q) ||
+        p.vaccine.toLowerCase().includes(q)
+      );
+    });
+  }, [queuePatients, viewScope, statusFilter, searchQuery, todayStr]);
+
+  const totalStock = useMemo(() => {
+    return inventory.reduce((acc, curr) => acc + (curr.available || 0), 0);
+  }, [inventory]);
+
+  const completedTodayCount = useMemo(() => {
+    return queuePatients.filter((p) => p.status === 'completed').length;
+  }, [queuePatients]);
+
+  const activeQueueCount = useMemo(() => {
+    return queuePatients.filter((p) => p.status !== 'completed' && p.status !== 'cancelled').length;
+  }, [queuePatients]);
+
   const staffedBoothCount = useMemo(
     () => boothCards.filter((b) => b.shiftCount > 0).length,
     [boothCards]
@@ -314,14 +372,14 @@ export default function HospitalDashboardOverview() {
       {/* 1. Hospital Facility Hero Banner */}
       <div className="hospital-hero-banner">
         <div className="hospital-hero-content">
-          <h1 style={{ color: '#ffffff' }}>Immunization Center Operations</h1>
+          <h1 style={{ color: '#ffffff' }}>{hospitalCenterName}</h1>
           <p className="hospital-hero-sub">
             Real-time management for daily vaccinations, cold-chain telemetry monitoring,
             live patient queueing, and national MOH compliance reporting.
           </p>
           <div className="hospital-hero-tags">
             <span className="hospital-tag-item">
-              <span>🏛️</span> MOH Center ID: #COL-77042
+              <span>🏛️</span> {hospitalCenterCode}
             </span>
             <span className="hospital-tag-item">
               <span>⏰</span> Daily Session: 08:00 AM – 06:00 PM
@@ -329,11 +387,43 @@ export default function HospitalDashboardOverview() {
             <span className="hospital-tag-item">
               <span>🛡️</span> Cryptographic Audit: Active
             </span>
+            <span className="hospital-tag-item" style={{ background: 'rgba(255,255,255,0.2)', color: '#ffffff' }}>
+              <span>📡</span> Live Database Connected
+            </span>
           </div>
         </div>
       </div>
 
-      {/* MOH Export Toast */}
+      {/* Toast Notice */}
+      {toastMessage && (
+        <div
+          style={{
+            background: '#ecfdf5',
+            border: '1px solid #6ee7b7',
+            color: '#065f46',
+            padding: '12px 18px',
+            borderRadius: '10px',
+            marginBottom: '20px',
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            boxShadow: '0 4px 12px rgba(6, 95, 70, 0.1)',
+            animation: 'fadeIn 0.2s ease',
+          }}
+        >
+          <span>✓ {toastMessage}</span>
+          <button
+            type="button"
+            onClick={() => setToastMessage('')}
+            style={{ background: 'none', border: 'none', color: '#065f46', cursor: 'pointer', fontWeight: 800 }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* MOH Export Notice */}
       {mohReportNotice && (
         <div
           style={{
@@ -362,10 +452,10 @@ export default function HospitalDashboardOverview() {
         <div className="hospital-stat-card">
           <div className="hospital-stat-icon stat-icon-blue">💉</div>
           <div className="hospital-stat-info">
-            <span className="hospital-stat-label">Today's Vaccinations</span>
-            <span className="hospital-stat-value">142</span>
+            <span className="hospital-stat-label">Administered Vaccinations</span>
+            <span className="hospital-stat-value">{completedTodayCount}</span>
             <span className="hospital-stat-meta">
-              <span className="meta-positive">↑ 78.8%</span> of 180 booked target
+              <span className="meta-positive">● Live Record</span> across registered patients
             </span>
           </div>
         </div>
@@ -373,12 +463,10 @@ export default function HospitalDashboardOverview() {
         <div className="hospital-stat-card">
           <div className="hospital-stat-icon stat-icon-amber">⏳</div>
           <div className="hospital-stat-info">
-            <span className="hospital-stat-label">Active Queue</span>
-            <span className="hospital-stat-value">
-              {queuePatients.filter((p) => p.status !== 'completed').length}
-            </span>
+            <span className="hospital-stat-label">Active Patient Queue</span>
+            <span className="hospital-stat-value">{activeQueueCount}</span>
             <span className="hospital-stat-meta">
-              4 in 15-min post observation
+              <span>{queuePatients.filter((p) => p.status === 'observation').length} in observation</span>
             </span>
           </div>
         </div>
@@ -387,9 +475,9 @@ export default function HospitalDashboardOverview() {
           <div className="hospital-stat-icon stat-icon-teal">❄️</div>
           <div className="hospital-stat-info">
             <span className="hospital-stat-label">Cold-Chain Storage</span>
-            <span className="hospital-stat-value">3.6°C</span>
+            <span className="hospital-stat-value">3.4°C</span>
             <span className="hospital-stat-meta">
-              <span className="meta-positive">● Normal</span> (Target: 2°C – 8°C)
+              <span className="meta-positive">● Normal Chiller</span> (2°C – 8°C Safe)
             </span>
           </div>
         </div>
@@ -398,18 +486,22 @@ export default function HospitalDashboardOverview() {
           <div className="hospital-stat-icon stat-icon-purple">📦</div>
           <div className="hospital-stat-info">
             <span className="hospital-stat-label">Total Vaccine Stock</span>
-            <span className="hospital-stat-value">{totalStock.toLocaleString()}</span>
-            <span className="hospital-stat-meta">Vials in 6 formulations</span>
+            <span className="hospital-stat-value">
+              {inventoryLoading ? '...' : totalStock.toLocaleString()}
+            </span>
+            <span className="hospital-stat-meta">
+              Vials in {inventory.length} formulations
+            </span>
           </div>
         </div>
 
         <div className="hospital-stat-card">
           <div className="hospital-stat-icon stat-icon-green">🛡️</div>
           <div className="hospital-stat-info">
-            <span className="hospital-stat-label">Adverse Incidents (AEFI)</span>
-            <span className="hospital-stat-value">0</span>
+            <span className="hospital-stat-label">On-Duty Medical Staff</span>
+            <span className="hospital-stat-value">{onDutyCount}</span>
             <span className="hospital-stat-meta">
-              <span className="meta-positive">99.98%</span> safe administration
+              Across {staffedBoothCount} active booths
             </span>
           </div>
         </div>
@@ -422,17 +514,55 @@ export default function HospitalDashboardOverview() {
           <div className="section-card-header">
             <div className="section-title-group">
               <h2>
-                <span>📋</span> Today's Live Vaccination Queue
+                <span>📋</span> Live Vaccination Queue
               </h2>
               <p className="section-title-desc">
-                Real-time patient flow, booth assignments, and dose verification
+                Real-time patient flow, booth assignments, and dose verification from database
               </p>
             </div>
 
             <div className="section-controls-group">
+              {/* Scope Switch: Today vs All */}
+              <div style={{ display: 'flex', gap: '4px', background: '#f1f5f9', padding: '3px', borderRadius: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => setViewScope('today')}
+                  style={{
+                    border: 'none',
+                    background: viewScope === 'today' ? '#ffffff' : 'transparent',
+                    color: viewScope === 'today' ? '#1d1854' : '#64748b',
+                    padding: '4px 10px',
+                    borderRadius: '6px',
+                    fontSize: '0.78rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    boxShadow: viewScope === 'today' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                  }}
+                >
+                  Today ({queuePatients.filter((p) => p.date === todayStr).length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewScope('all')}
+                  style={{
+                    border: 'none',
+                    background: viewScope === 'all' ? '#ffffff' : 'transparent',
+                    color: viewScope === 'all' ? '#1d1854' : '#64748b',
+                    padding: '4px 10px',
+                    borderRadius: '6px',
+                    fontSize: '0.78rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    boxShadow: viewScope === 'all' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                  }}
+                >
+                  All ({queuePatients.length})
+                </button>
+              </div>
+
               <input
                 type="text"
-                placeholder="Search token, name, NIC..."
+                placeholder="Search patient, phone, token..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="queue-search-input"
@@ -448,6 +578,26 @@ export default function HospitalDashboardOverview() {
                 <option value="observation">In Observation</option>
                 <option value="completed">Completed</option>
               </select>
+
+              <button
+                type="button"
+                className="btn-hospital-secondary"
+                style={{ padding: '6px 12px', fontSize: '0.8rem' }}
+                onClick={loadAppointmentsQueue}
+                disabled={queueLoading}
+                title="Refresh live queue from database"
+              >
+                {queueLoading ? '...' : '🔄'}
+              </button>
+
+              <button
+                type="button"
+                className="btn-hospital-primary"
+                style={{ padding: '6px 12px', fontSize: '0.8rem' }}
+                onClick={() => setIsWalkInOpen(true)}
+              >
+                + Walk-In
+              </button>
             </div>
           </div>
 
@@ -464,10 +614,39 @@ export default function HospitalDashboardOverview() {
                 </tr>
               </thead>
               <tbody>
-                {filteredQueue.length === 0 ? (
+                {queueLoading ? (
+                  <tr>
+                    <td colSpan={6} style={{ textAlign: 'center', padding: '32px', color: '#64748b' }}>
+                      Loading live queue from database...
+                    </td>
+                  </tr>
+                ) : queueError ? (
+                  <tr>
+                    <td colSpan={6} style={{ textAlign: 'center', padding: '32px', color: '#dc2626' }}>
+                      {queueError}
+                    </td>
+                  </tr>
+                ) : filteredQueue.length === 0 ? (
                   <tr>
                     <td colSpan={6} style={{ textAlign: 'center', padding: '32px', color: '#94a3b8' }}>
-                      No patients matching current filter or search criteria.
+                      No patients in queue for {viewScope === 'today' ? "today's session" : 'selected filters'}.
+                      {viewScope === 'today' && (
+                        <button
+                          type="button"
+                          onClick={() => setViewScope('all')}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: '#1e40af',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            textDecoration: 'underline',
+                            marginLeft: '8px',
+                          }}
+                        >
+                          View All ({queuePatients.length})
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ) : (
@@ -479,7 +658,7 @@ export default function HospitalDashboardOverview() {
                       <td>
                         <div className="queue-patient-name">{patient.name}</div>
                         <div className="queue-patient-meta">
-                          NIC: {patient.nic} • {patient.age ? `${patient.age}y` : ''} {patient.gender}
+                          {patient.phone ? `Tel: ${patient.phone}` : patient.date} • {patient.time}
                         </div>
                       </td>
                       <td>
@@ -497,6 +676,7 @@ export default function HospitalDashboardOverview() {
                           {patient.status === 'administering' && '● In Session'}
                           {patient.status === 'observation' && '● Observation 15m'}
                           {patient.status === 'completed' && '✓ Completed'}
+                          {patient.status === 'cancelled' && '✕ Cancelled'}
                         </span>
                       </td>
                       <td>
@@ -556,17 +736,29 @@ export default function HospitalDashboardOverview() {
                 <span>❄️</span> Vaccine Stock &amp; Cold Vaults
               </h2>
               <p className="section-title-desc">
-                Batch numbers, expiration tracking, and storage temperature
+                Live batch numbers, expiration tracking, and cold-chain storage from database
               </p>
             </div>
-            <button
-              type="button"
-              className="btn-hospital-primary"
-              style={{ padding: '6px 12px', fontSize: '0.8rem' }}
-              onClick={() => setIsRestockOpen(true)}
-            >
-              + Restock
-            </button>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <button
+                type="button"
+                className="btn-hospital-secondary"
+                style={{ padding: '6px 12px', fontSize: '0.8rem' }}
+                onClick={loadInventory}
+                disabled={inventoryLoading}
+                title="Refresh inventory from database"
+              >
+                {inventoryLoading ? '...' : '🔄'}
+              </button>
+              <button
+                type="button"
+                className="btn-hospital-primary"
+                style={{ padding: '6px 12px', fontSize: '0.8rem' }}
+                onClick={() => setIsRestockOpen(true)}
+              >
+                + Restock
+              </button>
+            </div>
           </div>
 
           {/* Cold Chain IoT Health Banner */}
@@ -574,7 +766,7 @@ export default function HospitalDashboardOverview() {
             <div className="cold-chain-info">
               <span className="cold-chain-icon">🌡️</span>
               <div>
-                <div className="cold-chain-temp">3.6°C</div>
+                <div className="cold-chain-temp">3.4°C</div>
                 <div className="cold-chain-label">Main Vaccine Vault Sensor B-2</div>
               </div>
             </div>
@@ -584,35 +776,49 @@ export default function HospitalDashboardOverview() {
           </div>
 
           <div className="inventory-items-list">
-            {inventory.map((item) => {
-              const percent = Math.round((item.available / item.capacity) * 100);
-              return (
-                <div key={item.id} className="inventory-item-card">
-                  <div className="inventory-item-header">
-                    <span className="inventory-name">{item.name}</span>
-                    <span className="inventory-count">{item.available} vials</span>
-                  </div>
-
-                  <div className="inventory-meta">
-                    <span>Lot: <strong>{item.lotNumber}</strong> • Exp: {item.expiry}</span>
-                    <span>{item.temp}</span>
-                  </div>
-
-                  <div className="inventory-progress-track">
-                    <div
-                      className={`inventory-progress-bar ${item.statusColor}`}
-                      style={{ width: `${Math.min(percent, 100)}%` }}
-                    />
-                  </div>
-
-                  {item.warning && (
-                    <div style={{ color: '#b45309', fontSize: '0.72rem', fontWeight: 700, marginTop: '6px' }}>
-                      ⚠️ {item.warning}
+            {inventoryLoading ? (
+              <p style={{ color: '#64748b', textAlign: 'center', padding: '24px' }}>
+                Loading live inventory batches...
+              </p>
+            ) : inventoryError ? (
+              <p style={{ color: '#dc2626', textAlign: 'center', padding: '24px' }}>
+                {inventoryError}
+              </p>
+            ) : inventory.length === 0 ? (
+              <p style={{ color: '#64748b', textAlign: 'center', padding: '24px' }}>
+                No vaccine batches logged in database. Click "+ Restock" to register a batch.
+              </p>
+            ) : (
+              inventory.map((item) => {
+                const percent = Math.round(((item.available || 0) / (item.capacity || 1)) * 100);
+                return (
+                  <div key={item.id} className="inventory-item-card">
+                    <div className="inventory-item-header">
+                      <span className="inventory-name">{item.name}</span>
+                      <span className="inventory-count">{item.available} vials</span>
                     </div>
-                  )}
-                </div>
-              );
-            })}
+
+                    <div className="inventory-meta">
+                      <span>Lot: <strong>{item.lotNumber}</strong> • Exp: {item.expiry}</span>
+                      <span>{item.temp}</span>
+                    </div>
+
+                    <div className="inventory-progress-track">
+                      <div
+                        className={`inventory-progress-bar ${item.statusColor}`}
+                        style={{ width: `${Math.min(Math.max(percent, 0), 100)}%` }}
+                      />
+                    </div>
+
+                    {item.warning && (
+                      <div style={{ color: '#b45309', fontSize: '0.72rem', fontWeight: 700, marginTop: '6px' }}>
+                        ⚠️ {item.warning}
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
       </div>
@@ -723,6 +929,7 @@ export default function HospitalDashboardOverview() {
         isOpen={isRestockOpen}
         onClose={() => setIsRestockOpen(false)}
         onAddStock={handleAddStock}
+        registeredVaccines={formularyVaccines.map((f) => f.vaccineName || f.name)}
       />
     </div>
   );
