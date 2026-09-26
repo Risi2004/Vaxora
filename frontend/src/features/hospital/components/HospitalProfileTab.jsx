@@ -100,7 +100,6 @@ export default function HospitalProfileTab() {
           address: hospitalInfo.address,
           district: hospitalInfo.district,
           province: hospitalInfo.province,
-          profilePhotoUrl: hospitalInfo.logoUrl,
         });
         showNotification('Hospital profile updated successfully in the national directory!');
         setIsEditing(false);
@@ -114,21 +113,18 @@ export default function HospitalProfileTab() {
     }
   };
 
-  const handleLogoUpload = (e) => {
+  const handleLogoUpload = async (e) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = async () => {
-        const photoData = reader.result;
-        setHospitalInfo((prev) => ({ ...prev, logoUrl: photoData }));
-        try {
-          await authService.updateProfile({ profilePhotoUrl: photoData });
-          showNotification('Hospital logo updated successfully!');
-        } catch {
-          showNotification('Updated logo locally.', 'success');
-        }
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+    try {
+      const updated = await authService.updateProfilePhoto(file);
+      const url = updated?.profilePhotoUrl || updated?.profileDetails?.logoUrl;
+      if (url) setHospitalInfo((prev) => ({ ...prev, logoUrl: url }));
+      showNotification('Hospital logo updated successfully!');
+    } catch (err) {
+      showNotification(err.message || 'Failed to upload hospital logo.', 'error');
+    } finally {
+      if (e.target) e.target.value = '';
     }
   };
 

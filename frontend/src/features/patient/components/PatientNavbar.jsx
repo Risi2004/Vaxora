@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import logo from '../../../assets/images/logo.png';
 
-import { authService, getUser } from '../../auth';
+import { authService, getUser, subscribeAuthUser } from '../../auth';
 import DeleteAccountModal from '../../auth/components/DeleteAccountModal';
 
 export default function PatientNavbar() {
@@ -11,9 +11,18 @@ export default function PatientNavbar() {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [user, setUser] = useState(() =>
+    typeof authService?.getUser === 'function' ? authService.getUser() : (getUser ? getUser() : null)
+  );
   const profileMenuRef = useRef(null);
 
-  const user = typeof authService?.getUser === 'function' ? authService.getUser() : (getUser ? getUser() : null);
+  useEffect(
+    () =>
+      subscribeAuthUser(() => {
+        setUser(typeof authService?.getUser === 'function' ? authService.getUser() : (getUser ? getUser() : null));
+      }),
+    []
+  );
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -104,6 +113,7 @@ export default function PatientNavbar() {
             >
               {user?.profilePhotoUrl ? (
                 <img
+                  key={user.profilePhotoUrl}
                   src={user.profilePhotoUrl}
                   alt={user.name || 'Patient'}
                   className="navbar-avatar-img"

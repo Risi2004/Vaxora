@@ -83,7 +83,6 @@ export default function PatientProfileTab() {
           fullName: profileData.name,
           phoneNumber: profileData.phone,
           dateOfBirth: profileData.dob ? new Date(profileData.dob) : null,
-          profilePhotoUrl: profileData.profilePhotoUrl,
         });
         showNotification('Patient profile updated successfully in the national database!');
         setIsEditing(false);
@@ -97,21 +96,19 @@ export default function PatientProfileTab() {
     }
   };
 
-  const handlePhotoUpload = (e) => {
+  const handlePhotoUpload = async (e) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = async () => {
-        const photoData = reader.result;
-        setProfileData((prev) => ({ ...prev, profilePhotoUrl: photoData }));
-        try {
-          await authService.updateProfile({ profilePhotoUrl: photoData });
-          showNotification('Profile avatar updated successfully!');
-        } catch {
-          showNotification('Updated photo preview locally.', 'success');
-        }
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+    try {
+      const updated = await authService.updateProfilePhoto(file);
+      if (updated?.profilePhotoUrl) {
+        setProfileData((prev) => ({ ...prev, profilePhotoUrl: updated.profilePhotoUrl }));
+      }
+      showNotification('Profile avatar updated successfully!');
+    } catch (err) {
+      showNotification(err.message || 'Failed to upload profile photo.', 'error');
+    } finally {
+      if (e.target) e.target.value = '';
     }
   };
 

@@ -39,8 +39,28 @@ export const getUser = () => {
 export const setSession = (token, refreshToken, user) => {
   if (token) localStorage.setItem('vaxora_token', token);
   if (refreshToken) localStorage.setItem('vaxora_refresh_token', refreshToken);
-  if (user) localStorage.setItem('vaxora_user', JSON.stringify(user));
+  if (user) {
+    localStorage.setItem('vaxora_user', JSON.stringify(user));
+    emitAuthUserUpdated();
+  }
 };
+
+function mergeAndSaveUser(updatedUser) {
+  const next = { ...(getUser() || {}), ...updatedUser };
+  localStorage.setItem('vaxora_user', JSON.stringify(next));
+  emitAuthUserUpdated();
+  return next;
+}
+
+function emitAuthUserUpdated() {
+  window.dispatchEvent(new Event('vaxora-user-updated'));
+}
+
+/** Re-render listeners when localStorage user is updated (photo / getMe). */
+export function subscribeAuthUser(onChange) {
+  window.addEventListener('vaxora-user-updated', onChange);
+  return () => window.removeEventListener('vaxora-user-updated', onChange);
+}
 
 /**
  * Clear auth session
@@ -49,6 +69,7 @@ export const clearAuth = () => {
   localStorage.removeItem('vaxora_token');
   localStorage.removeItem('vaxora_refresh_token');
   localStorage.removeItem('vaxora_user');
+  emitAuthUserUpdated();
 };
 
 /**
@@ -178,10 +199,7 @@ export const authService = {
     const user = await apiRequest('/auth/me', {
       method: 'GET',
     });
-    if (user) {
-      const current = getUser() || {};
-      localStorage.setItem('vaxora_user', JSON.stringify({ ...current, ...user }));
-    }
+    if (user) mergeAndSaveUser(user);
     return user;
   },
 
@@ -191,10 +209,19 @@ export const authService = {
       method: 'PUT',
       body: JSON.stringify(payload),
     });
-    if (updatedUser) {
-      const current = getUser() || {};
-      localStorage.setItem('vaxora_user', JSON.stringify({ ...current, ...updatedUser }));
-    }
+    if (updatedUser) mergeAndSaveUser(updatedUser);
+    return updatedUser;
+  },
+
+  // 6.2 Upload profile photo / hospital logo (multipart → R2)
+  async updateProfilePhoto(file) {
+    const formData = new FormData();
+    formData.append('photo', file);
+    const updatedUser = await apiRequest('/auth/profile/photo', {
+      method: 'POST',
+      body: formData,
+    });
+    if (updatedUser) mergeAndSaveUser(updatedUser);
     return updatedUser;
   },
 

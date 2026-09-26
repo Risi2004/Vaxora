@@ -21,6 +21,7 @@ public interface IAuthService
     Task<bool> ResetPasswordAsync(ResetPasswordDto dto);
     Task<bool> ChangePasswordAsync(Guid userId, ChangePasswordDto dto);
     Task<UserDto> UpdateProfileAsync(Guid userId, UpdateProfileDto dto);
+    Task<UserDto> UpdateProfilePhotoAsync(Guid userId, IFormFile photo);
     Task<bool> DeleteAccountAsync(Guid userId);
 }
 
@@ -897,7 +898,6 @@ public class AuthService : IAuthService
                     if (!string.IsNullOrWhiteSpace(dto.FullName)) user.PatientProfile.FullName = dto.FullName.Trim();
                     if (!string.IsNullOrWhiteSpace(dto.PhoneNumber)) user.PatientProfile.PhoneNumber = dto.PhoneNumber.Trim();
                     if (dto.DateOfBirth.HasValue) user.PatientProfile.DateOfBirth = dto.DateOfBirth.Value;
-                    if (!string.IsNullOrWhiteSpace(dto.ProfilePhotoUrl)) user.PatientProfile.ProfilePhotoUrl = dto.ProfilePhotoUrl;
                 }
                 break;
 
@@ -907,7 +907,6 @@ public class AuthService : IAuthService
                     if (!string.IsNullOrWhiteSpace(dto.FullName)) user.DoctorProfile.FullName = dto.FullName.Trim();
                     if (!string.IsNullOrWhiteSpace(dto.PhoneNumber)) user.DoctorProfile.PhoneNumber = dto.PhoneNumber.Trim();
                     if (!string.IsNullOrWhiteSpace(dto.Specialization)) user.DoctorProfile.Specialization = dto.Specialization.Trim();
-                    if (!string.IsNullOrWhiteSpace(dto.ProfilePhotoUrl)) user.DoctorProfile.ProfilePhotoUrl = dto.ProfilePhotoUrl;
                 }
                 break;
 
@@ -916,7 +915,6 @@ public class AuthService : IAuthService
                 {
                     if (!string.IsNullOrWhiteSpace(dto.FullName)) user.NurseProfile.FullName = dto.FullName.Trim();
                     if (!string.IsNullOrWhiteSpace(dto.PhoneNumber)) user.NurseProfile.PhoneNumber = dto.PhoneNumber.Trim();
-                    if (!string.IsNullOrWhiteSpace(dto.ProfilePhotoUrl)) user.NurseProfile.ProfilePhotoUrl = dto.ProfilePhotoUrl;
                 }
                 break;
 
@@ -930,7 +928,6 @@ public class AuthService : IAuthService
                     if (!string.IsNullOrWhiteSpace(dto.Address)) user.HospitalProfile.Address = dto.Address.Trim();
                     if (!string.IsNullOrWhiteSpace(dto.District)) user.HospitalProfile.District = dto.District.Trim();
                     if (!string.IsNullOrWhiteSpace(dto.Province)) user.HospitalProfile.Province = dto.Province.Trim();
-                    if (!string.IsNullOrWhiteSpace(dto.ProfilePhotoUrl)) user.HospitalProfile.LogoUrl = dto.ProfilePhotoUrl;
                 }
                 break;
         }
@@ -944,6 +941,77 @@ public class AuthService : IAuthService
             Role = user.Role.ToString(),
             Action = "PROFILE_UPDATED",
             Details = $"User updated profile details ({user.Role})",
+            Timestamp = DateTime.UtcNow
+        });
+
+        await _context.SaveChangesAsync();
+
+        return new UserDto
+        {
+            Id = user.Id,
+            Email = user.Email,
+            Role = user.Role.ToString(),
+            Status = user.Status.ToString(),
+            Name = GetUserDisplayName(user),
+            PhoneNumber = user.PhoneNumber,
+            RegistrationNumber = user.RegistrationNumber,
+            ProfilePhotoUrl = GetUserPhotoUrl(user),
+            ProfileDetails = GetUserProfileObject(user)
+        };
+    }
+
+    public async Task<UserDto> UpdateProfilePhotoAsync(Guid userId, IFormFile photo)
+    {
+        if (photo == null || photo.Length == 0)
+            throw new InvalidOperationException("Please choose an image file to upload.");
+
+        var user = await _context.Users
+            .Include(u => u.PatientProfile)
+            .Include(u => u.DoctorProfile)
+            .Include(u => u.NurseProfile)
+            .Include(u => u.HospitalProfile)
+            .FirstOrDefaultAsync(u => u.Id == userId)
+            ?? throw new KeyNotFoundException("User not found.");
+
+        var folder = user.Role switch
+        {
+            UserRole.PATIENT => "patients/photos",
+            UserRole.DOCTOR => "doctors/photos",
+            UserRole.NURSE => "nurses/photos",
+            UserRole.HOSPITAL => "hospitals/logos",
+            _ => throw new InvalidOperationException("This account type cannot upload a profile photo.")
+        };
+
+        var photoUrl = await _r2Service.UploadFileAsync(photo, folder);
+
+        switch (user.Role)
+        {
+            case UserRole.PATIENT:
+                if (user.PatientProfile == null) throw new InvalidOperationException("Patient profile not found.");
+                user.PatientProfile.ProfilePhotoUrl = photoUrl;
+                break;
+            case UserRole.DOCTOR:
+                if (user.DoctorProfile == null) throw new InvalidOperationException("Doctor profile not found.");
+                user.DoctorProfile.ProfilePhotoUrl = photoUrl;
+                break;
+            case UserRole.NURSE:
+                if (user.NurseProfile == null) throw new InvalidOperationException("Nurse profile not found.");
+                user.NurseProfile.ProfilePhotoUrl = photoUrl;
+                break;
+            case UserRole.HOSPITAL:
+                if (user.HospitalProfile == null) throw new InvalidOperationException("Hospital profile not found.");
+                user.HospitalProfile.LogoUrl = photoUrl;
+                break;
+        }
+
+        user.UpdatedAt = DateTime.UtcNow;
+        _context.AuditLogs.Add(new AuditLog
+        {
+            UserId = user.Id,
+            UserEmail = user.Email,
+            Role = user.Role.ToString(),
+            Action = "PROFILE_PHOTO_UPDATED",
+            Details = $"User updated profile photo/logo ({user.Role})",
             Timestamp = DateTime.UtcNow
         });
 

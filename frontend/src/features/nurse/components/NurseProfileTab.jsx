@@ -96,7 +96,6 @@ export default function NurseProfileTab() {
         await authService.updateProfile({
           fullName: personalInfo.name,
           phoneNumber: personalInfo.phone,
-          profilePhotoUrl: personalInfo.profilePhotoUrl,
         });
         triggerNotification('Nurse personal details updated successfully in the national registry!');
         setIsEditingPersonal(false);
@@ -119,21 +118,19 @@ export default function NurseProfileTab() {
     }
   };
 
-  const handleAvatarUpload = (e) => {
+  const handleAvatarUpload = async (e) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = async () => {
-        const photoData = reader.result;
-        setPersonalInfo((prev) => ({ ...prev, profilePhotoUrl: photoData }));
-        try {
-          await authService.updateProfile({ profilePhotoUrl: photoData });
-          triggerNotification('Profile avatar updated successfully!');
-        } catch {
-          triggerNotification('Updated photo locally.', 'success');
-        }
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+    try {
+      const updated = await authService.updateProfilePhoto(file);
+      if (updated?.profilePhotoUrl) {
+        setPersonalInfo((prev) => ({ ...prev, profilePhotoUrl: updated.profilePhotoUrl }));
+      }
+      triggerNotification('Profile avatar updated successfully!');
+    } catch (err) {
+      triggerNotification(err.message || 'Failed to upload profile photo.', 'error');
+    } finally {
+      if (e.target) e.target.value = '';
     }
   };
 
