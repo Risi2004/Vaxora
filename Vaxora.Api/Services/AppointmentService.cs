@@ -522,11 +522,17 @@ public class AppointmentService : IAppointmentService
 
             var cleanRef = idOrRef.Trim();
             appointment = userAppointments.FirstOrDefault(a =>
-                a.Id.ToString().Equals(cleanRef, StringComparison.OrdinalIgnoreCase) ||
-                a.Id.ToString().StartsWith(cleanRef, StringComparison.OrdinalIgnoreCase) ||
-                (!string.IsNullOrEmpty(a.ReferenceNumber) && a.ReferenceNumber.Equals(cleanRef, StringComparison.OrdinalIgnoreCase)) ||
-                (!string.IsNullOrEmpty(a.ReferenceNumber) && cleanRef.Contains(a.ReferenceNumber, StringComparison.OrdinalIgnoreCase)) ||
-                (!string.IsNullOrEmpty(cleanRef) && cleanRef.Length >= 4 && a.Id.ToString().StartsWith(cleanRef[^4..], StringComparison.OrdinalIgnoreCase)));
+            {
+                var idStr = a.Id.ToString();
+                var shortId = idStr.Length >= 8 ? idStr.Substring(0, 8) : idStr;
+                var vaxRef = $"VAX-{shortId}";
+                return idStr.Equals(cleanRef, StringComparison.OrdinalIgnoreCase) ||
+                       idStr.StartsWith(cleanRef, StringComparison.OrdinalIgnoreCase) ||
+                       vaxRef.Equals(cleanRef, StringComparison.OrdinalIgnoreCase) ||
+                       cleanRef.Contains(shortId, StringComparison.OrdinalIgnoreCase) ||
+                       (!string.IsNullOrEmpty(a.VaccineName) && cleanRef.Contains(a.VaccineName, StringComparison.OrdinalIgnoreCase)) ||
+                       (!string.IsNullOrEmpty(cleanRef) && cleanRef.Length >= 4 && idStr.StartsWith(cleanRef[^4..], StringComparison.OrdinalIgnoreCase));
+            });
         }
 
         if (appointment == null)
