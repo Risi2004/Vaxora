@@ -1,11 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { authService } from '../../auth';
+import AddStaffRequestModal from './AddStaffRequestModal';
+import staffService from '../services/staffService';
 
 export default function HospitalProfileTab() {
   const fileInputRef = useRef(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [isInviteOpen, setIsInviteOpen] = useState(false);
+  const [isInviting, setIsInviting] = useState(false);
   const [notification, setNotification] = useState('');
   const [notificationType, setNotificationType] = useState('success');
 
@@ -26,18 +30,8 @@ export default function HospitalProfileTab() {
     mohDocKey: null,
   });
 
-  const [doctors, setDoctors] = useState([
-    { id: 1, name: 'Dr. S. Jayasinghe' },
-    { id: 2, name: 'Dr. K. Perera' },
-    { id: 3, name: 'Dr. M. Fernando' },
-    { id: 4, name: 'Dr. A. Silva' },
-  ]);
-
-  const [nurses, setNurses] = useState([
-    { id: 1, name: 'Nurse Anoma' },
-    { id: 2, name: 'Nurse Priyanthi' },
-    { id: 3, name: 'Nurse Dilani' },
-  ]);
+  const [doctors, setDoctors] = useState([]);
+  const [nurses, setNurses] = useState([]);
 
   const showNotification = (msg, type = 'success') => {
     setNotification(msg);
@@ -65,13 +59,39 @@ export default function HospitalProfileTab() {
     });
   };
 
+  const applyStaffList = (list) => {
+    const active = (Array.isArray(list) ? list : []).filter((item) => item.status === 'Active');
+    setDoctors(
+      active
+        .filter((item) => item.staffRole === 'DOCTOR')
+        .map((item) => ({
+          id: item.affiliationId,
+          name: item.staffName,
+          photoUrl: item.staffProfilePhotoUrl || null,
+        }))
+    );
+    setNurses(
+      active
+        .filter((item) => item.staffRole === 'NURSE')
+        .map((item) => ({
+          id: item.affiliationId,
+          name: item.staffName,
+          photoUrl: item.staffProfilePhotoUrl || null,
+        }))
+    );
+  };
+
   const loadHospitalProfile = async () => {
     try {
       const cached = authService.getUser();
       if (cached) populateState(cached);
 
-      const freshUser = await authService.getMe();
+      const [freshUser, staffList] = await Promise.all([
+        authService.getMe(),
+        staffService.getHospitalStaff({ status: 'Active' }).catch(() => []),
+      ]);
       if (freshUser) populateState(freshUser);
+      applyStaffList(staffList);
     } catch (err) {
       console.warn('Could not fetch latest hospital profile:', err);
     } finally {
@@ -128,19 +148,19 @@ export default function HospitalProfileTab() {
     }
   };
 
-  const handleAddDoctor = () => {
-    const docName = window.prompt('Enter Doctor Name to assign:', 'Dr. Samantha Perera');
-    if (docName && docName.trim()) {
-      setDoctors((prev) => [...prev, { id: Date.now(), name: docName.trim() }]);
-      showNotification(`Assigned ${docName.trim()} to hospital clinical roster.`);
-    }
-  };
-
-  const handleAddNurse = () => {
-    const nurseName = window.prompt('Enter Nurse Name to assign:', 'Nurse Kanthi Silva');
-    if (nurseName && nurseName.trim()) {
-      setNurses((prev) => [...prev, { id: Date.now(), name: nurseName.trim() }]);
-      showNotification(`Assigned ${nurseName.trim()} to hospital nursing roster.`);
+  const handleInviteStaff = async (registrationNumber) => {
+    setIsInviting(true);
+    try {
+      const invited = await staffService.inviteStaff(registrationNumber);
+      showNotification(`Invitation sent to ${invited.staffName} (${invited.staffRegistrationNumber}).`);
+      setIsInviteOpen(false);
+      const staffList = await staffService.getHospitalStaff({ status: 'Active' }).catch(() => []);
+      applyStaffList(staffList);
+    } catch (err) {
+      showNotification(err.message || 'Failed to send staff invitation.', 'error');
+      throw err;
+    } finally {
+      setIsInviting(false);
     }
   };
 
@@ -150,6 +170,13 @@ export default function HospitalProfileTab() {
 
   return (
     <div className="hospital-profile-wrapper">
+      <AddStaffRequestModal
+        isOpen={isInviteOpen}
+        onClose={() => setIsInviteOpen(false)}
+        onSendRequest={handleInviteStaff}
+        isSubmitting={isInviting}
+      />
+
       {notification && (
         <div
           className="appointment-alert-pill"
@@ -436,33 +463,38 @@ export default function HospitalProfileTab() {
             {doctors.map((doc) => (
               <div key={doc.id} className="hospital-staff-item">
                 <div className="hospital-staff-avatar-circle">
-                  <svg
-                    className="hospital-staff-silhouette"
-                    viewBox="0 0 100 100"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <circle cx="50" cy="50" r="50" fill="#d9dde3" />
-                    <circle cx="50" cy="40" r="19" fill="#525862" />
-                    <path
-                      d="M20 87C20 70.431 33.431 59 50 59C66.569 59 80 70.431 80 87"
-                      fill="#525862"
-                    />
-                  </svg>
+                  {doc.photoUrl ? (
+                    <img src={doc.photoUrl} alt={doc.name} className="hospital-staff-silhouette" style={{ objectFit: 'cover' }} />
+                  ) : (
+                    <svg
+                      className="hospital-staff-silhouette"
+                      viewBox="0 0 100 100"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <circle cx="50" cy="50" r="50" fill="#d9dde3" />
+                      <circle cx="50" cy="40" r="19" fill="#525862" />
+                      <path
+                        d="M20 87C20 70.431 33.431 59 50 59C66.569 59 80 70.431 80 87"
+                        fill="#525862"
+                      />
+                    </svg>
+                  )}
                 </div>
                 <span className="hospital-staff-name">{doc.name}</span>
               </div>
             ))}
 
-            {/* Plus button to add doctor */}
             <button
               type="button"
               className="hospital-staff-add-btn"
-              onClick={handleAddDoctor}
+              onClick={() => setIsInviteOpen(true)}
               title="Assign New Doctor"
               aria-label="Assign New Doctor"
             >
-              <span className="hospital-staff-add-icon">+</span>
+              <svg className="hospital-staff-add-icon" viewBox="0 0 28 28" fill="none" aria-hidden="true">
+                <path d="M14 5v18M5 14h18" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+              </svg>
             </button>
           </div>
         </div>
@@ -474,33 +506,38 @@ export default function HospitalProfileTab() {
             {nurses.map((nurse) => (
               <div key={nurse.id} className="hospital-staff-item">
                 <div className="hospital-staff-avatar-circle">
-                  <svg
-                    className="hospital-staff-silhouette"
-                    viewBox="0 0 100 100"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <circle cx="50" cy="50" r="50" fill="#e0f2fe" />
-                    <circle cx="50" cy="40" r="19" fill="#0284c7" />
-                    <path
-                      d="M20 87C20 70.431 33.431 59 50 59C66.569 59 80 70.431 80 87"
-                      fill="#0284c7"
-                    />
-                  </svg>
+                  {nurse.photoUrl ? (
+                    <img src={nurse.photoUrl} alt={nurse.name} className="hospital-staff-silhouette" style={{ objectFit: 'cover' }} />
+                  ) : (
+                    <svg
+                      className="hospital-staff-silhouette"
+                      viewBox="0 0 100 100"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <circle cx="50" cy="50" r="50" fill="#e0f2fe" />
+                      <circle cx="50" cy="40" r="19" fill="#0284c7" />
+                      <path
+                        d="M20 87C20 70.431 33.431 59 50 59C66.569 59 80 70.431 80 87"
+                        fill="#0284c7"
+                      />
+                    </svg>
+                  )}
                 </div>
                 <span className="hospital-staff-name">{nurse.name}</span>
               </div>
             ))}
 
-            {/* Plus button to add nurse */}
             <button
               type="button"
               className="hospital-staff-add-btn"
-              onClick={handleAddNurse}
+              onClick={() => setIsInviteOpen(true)}
               title="Assign New Nurse"
               aria-label="Assign New Nurse"
             >
-              <span className="hospital-staff-add-icon">+</span>
+              <svg className="hospital-staff-add-icon" viewBox="0 0 28 28" fill="none" aria-hidden="true">
+                <path d="M14 5v18M5 14h18" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+              </svg>
             </button>
           </div>
         </div>

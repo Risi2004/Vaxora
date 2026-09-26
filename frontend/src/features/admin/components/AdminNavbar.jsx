@@ -113,6 +113,12 @@ export default function AdminNavbar({ pendingApprovalsCount = 0 }) {
               aria-label="Superadmin Profile"
               style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
             >
+              <span className="navbar-user-meta">
+                <span className="navbar-user-name">{user?.name || 'Admin'}</span>
+                <span className="navbar-user-sub">
+                  {user?.email || 'Administrator'}
+                </span>
+              </span>
               {user?.profilePhotoUrl ? (
                 <img
                   key={user.profilePhotoUrl}

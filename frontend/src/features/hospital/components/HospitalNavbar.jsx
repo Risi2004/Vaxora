@@ -107,6 +107,14 @@ export default function HospitalNavbar() {
               aria-label="Hospital Account Profile"
               style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
             >
+              <span className="navbar-user-meta">
+                <span className="navbar-user-name">{user?.name || 'Hospital'}</span>
+                <span className="navbar-user-sub">
+                  {user?.registrationNumber
+                    || user?.profileDetails?.hospitalType
+                    || 'Hospital'}
+                </span>
+              </span>
               {user?.profilePhotoUrl ? (
                 <img
                   key={user.profilePhotoUrl}

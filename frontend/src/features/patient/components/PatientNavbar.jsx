@@ -111,6 +111,12 @@ export default function PatientNavbar() {
               aria-label="Account Profile"
               style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
             >
+              <span className="navbar-user-meta">
+                <span className="navbar-user-name">{user?.name || 'Patient'}</span>
+                <span className="navbar-user-sub">
+                  {user?.registrationNumber || user?.email || 'Patient'}
+                </span>
+              </span>
               {user?.profilePhotoUrl ? (
                 <img
                   key={user.profilePhotoUrl}
