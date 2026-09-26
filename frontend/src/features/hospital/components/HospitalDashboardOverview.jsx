@@ -4,6 +4,7 @@ import RestockVaccineModal from './RestockVaccineModal';
 import staffService from '../services/staffService';
 import { inventoryService } from '../services/inventoryService';
 import { appointmentService } from '../../patient/services/appointmentService';
+import { authService } from '../../auth';
 import { hospitalMinutesNow, hospitalToday } from '../utils/hospitalDate';
 
 function timeToMinutes(value) {
@@ -42,27 +43,68 @@ function mapQueueStatusToDbStatus(queueStatus) {
   return 'Confirmed';
 }
 
+function formatVaultTemp(temp) {
+  const raw = String(temp || '').trim();
+  if (!raw) return null;
+  return /°\s*c/i.test(raw) ? raw.replace(/\s+/g, '') : `${raw}°C`;
+}
+
+function normalizePersonName(value) {
+  return String(value || '')
+    .replace(/^(dr\.|doctor|nurse)\s+/i, '')
+    .trim()
+    .toLowerCase();
+}
+
+function resolveQueueBooth(appointment, boothCards) {
+  if (appointment.boothLabel) return appointment.boothLabel;
+
+  const practitioner = normalizePersonName(appointment.doctorName || appointment.nurseName);
+  if (practitioner && boothCards.length > 0) {
+    const match = boothCards.find((booth) => {
+      const staff = normalizePersonName(booth.staffName);
+      return staff && (practitioner.includes(staff) || staff.includes(practitioner));
+    });
+    if (match?.boothName) return match.boothName;
+  }
+
+  return 'Unassigned';
+}
+
 export default function HospitalDashboardOverview() {
   const [isWalkInOpen, setIsWalkInOpen] = useState(false);
   const [isRestockOpen, setIsRestockOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [viewScope, setViewScope] = useState('today'); // 'today' | 'all'
-  const [mohReportNotice, setMohReportNotice] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
 
   // 1. Logged in Hospital Profile Context
-  const storedUser = useMemo(() => {
-    try {
-      const raw = localStorage.getItem('vaxora_user');
-      return raw ? JSON.parse(raw) : null;
-    } catch (_) {
-      return null;
-    }
+  const [hospitalUser, setHospitalUser] = useState(() => authService.getUser());
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const fresh = await authService.getMe();
+        if (!cancelled && fresh) setHospitalUser(fresh);
+      } catch (_) {
+        /* keep cached user */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const hospitalCenterName = storedUser?.name || storedUser?.hospitalName || 'Immunization Center Operations';
-  const hospitalCenterCode = storedUser?.registrationNumber ? `Center ID: #${storedUser.registrationNumber}` : 'MOH Center ID: #COL-77042';
+  const hospitalDetails = hospitalUser?.profileDetails || {};
+  const hospitalCenterName =
+    hospitalDetails.hospitalName || hospitalUser?.name || 'Immunization Center Operations';
+  const hospitalCenterCode = hospitalUser?.registrationNumber
+    ? `Center ID: ${hospitalUser.registrationNumber}`
+    : null;
+  const hospitalSessionHours = hospitalDetails.operatingHours || null;
+  const hospitalType = hospitalDetails.hospitalType || null;
 
   // 2. Booths & On-Duty Staff State
   const [boothCards, setBoothCards] = useState([]);
@@ -73,6 +115,7 @@ export default function HospitalDashboardOverview() {
   // 3. Database Inventory State
   const [inventory, setInventory] = useState([]);
   const [formularyVaccines, setFormularyVaccines] = useState([]);
+  const [coldVaults, setColdVaults] = useState([]);
   const [inventoryLoading, setInventoryLoading] = useState(true);
   const [inventoryError, setInventoryError] = useState('');
 
@@ -91,15 +134,18 @@ export default function HospitalDashboardOverview() {
     setInventoryLoading(true);
     setInventoryError('');
     try {
-      const [batchesRes, formularyRes] = await Promise.allSettled([
+      const [batchesRes, formularyRes, vaultsRes] = await Promise.allSettled([
         inventoryService.getInventory(),
         inventoryService.getFormulary(),
+        inventoryService.getColdVaults(),
       ]);
 
       const batches = batchesRes.status === 'fulfilled' && Array.isArray(batchesRes.value) ? batchesRes.value : [];
       const formulary = formularyRes.status === 'fulfilled' && Array.isArray(formularyRes.value) ? formularyRes.value : [];
+      const vaults = vaultsRes.status === 'fulfilled' && Array.isArray(vaultsRes.value) ? vaultsRes.value : [];
 
       setFormularyVaccines(formulary);
+      setColdVaults(vaults);
 
       // Map DB batches to inventory cards
       const mappedBatches = batches.map((b) => {
@@ -176,7 +222,7 @@ export default function HospitalDashboardOverview() {
             date: a.appointmentDate || todayStr,
             vaccine: a.vaccineName || 'Vaccine',
             dose: a.prescribedDosage || 'Primary / Booster Dose',
-            booth: boothCards.length > 0 ? (boothCards[idx % boothCards.length].boothName || `Booth 0${(idx % boothCards.length) + 1}`) : `Booth 0${(idx % 3) + 1}`,
+            booth: resolveQueueBooth(a, boothCards),
             practitioner: a.doctorName ? `Dr. ${a.doctorName.replace(/^Dr\.\s*/i, '')}` : (a.nurseName ? `Nurse ${a.nurseName}` : 'Staff Duty Officer'),
             time: a.timeSlot || '09:00 AM - 09:20 AM',
             status: queueStatus,
@@ -272,10 +318,19 @@ export default function HospitalDashboardOverview() {
 
   // ==================== ACTIONS ====================
 
-  // 1. Walk-in Registration
-  const handleAddWalkIn = (newPatient) => {
-    setQueuePatients((prev) => [newPatient, ...prev]);
-    showToast(`Walk-in patient ${newPatient.name} added to the active queue.`);
+  // 1. Walk-in Registration (persisted appointment for registered patient NIC)
+  const handleAddWalkIn = async (payload) => {
+    await appointmentService.createWalkIn({
+      patientNic: payload.patientNic,
+      patientName: payload.patientName,
+      vaccineName: payload.vaccineName,
+      dose: payload.dose,
+      boothLabel: payload.boothLabel,
+      age: payload.age,
+      gender: payload.gender,
+    });
+    await loadAppointmentsQueue();
+    showToast(`Walk-in patient ${payload.patientName} added to the active queue.`);
   };
 
   // 2. Real Database Restock Batch
@@ -316,11 +371,6 @@ export default function HospitalDashboardOverview() {
       setQueuePatients(previousPatients);
       alert('Failed to update status in database: ' + err.message);
     }
-  };
-
-  const handleExportMOH = () => {
-    setMohReportNotice(true);
-    setTimeout(() => setMohReportNotice(false), 3500);
   };
 
   // ==================== FILTERING & COMPUTED STATS ====================
@@ -367,6 +417,18 @@ export default function HospitalDashboardOverview() {
     [boothCards]
   );
 
+  const primaryColdVault = useMemo(() => {
+    if (!coldVaults.length) return null;
+    return coldVaults.find((v) => formatVaultTemp(v.temp)) || coldVaults[0];
+  }, [coldVaults]);
+
+  const coldChainTemp = primaryColdVault ? formatVaultTemp(primaryColdVault.temp) : null;
+  const coldChainLabel = primaryColdVault
+    ? [primaryColdVault.name, primaryColdVault.type].filter(Boolean).join(' · ')
+    : null;
+  const coldChainOk = !primaryColdVault?.status
+    || /optimal|ok|normal|safe/i.test(String(primaryColdVault.status));
+
   return (
     <div className="hospital-dashboard-tab">
       {/* 1. Hospital Facility Hero Banner */}
@@ -374,22 +436,25 @@ export default function HospitalDashboardOverview() {
         <div className="hospital-hero-content">
           <h1 style={{ color: '#ffffff' }}>{hospitalCenterName}</h1>
           <p className="hospital-hero-sub">
-            Real-time management for daily vaccinations, cold-chain telemetry monitoring,
-            live patient queueing, and national MOH compliance reporting.
+            Real-time management for daily vaccinations, cold-chain monitoring,
+            and live patient queueing.
           </p>
           <div className="hospital-hero-tags">
-            <span className="hospital-tag-item">
-              <span>🏛️</span> {hospitalCenterCode}
-            </span>
-            <span className="hospital-tag-item">
-              <span>⏰</span> Daily Session: 08:00 AM – 06:00 PM
-            </span>
-            <span className="hospital-tag-item">
-              <span>🛡️</span> Cryptographic Audit: Active
-            </span>
-            <span className="hospital-tag-item" style={{ background: 'rgba(255,255,255,0.2)', color: '#ffffff' }}>
-              <span>📡</span> Live Database Connected
-            </span>
+            {hospitalCenterCode && (
+              <span className="hospital-tag-item">
+                <span>🏛️</span> {hospitalCenterCode}
+              </span>
+            )}
+            {hospitalSessionHours && (
+              <span className="hospital-tag-item">
+                <span>⏰</span> Hours: {hospitalSessionHours}
+              </span>
+            )}
+            {hospitalType && (
+              <span className="hospital-tag-item">
+                <span>🏥</span> {hospitalType}
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -423,30 +488,6 @@ export default function HospitalDashboardOverview() {
         </div>
       )}
 
-      {/* MOH Export Notice */}
-      {mohReportNotice && (
-        <div
-          style={{
-            background: '#f0fdf4',
-            border: '1px solid #86efac',
-            color: '#166534',
-            padding: '12px 18px',
-            borderRadius: '10px',
-            marginBottom: '20px',
-            fontWeight: 600,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            boxShadow: '0 4px 12px rgba(22, 101, 52, 0.1)',
-          }}
-        >
-          <span>
-            ✅ MOH Daily Immunization Summary (CSV/PDF) generated and synced to Ministry of Health Central Server!
-          </span>
-          <span style={{ fontSize: '0.8rem', color: '#15803d' }}>Verification: #MOH-SYNC-OK</span>
-        </div>
-      )}
-
       {/* 2. Operations Metrics Cards Grid */}
       <div className="hospital-metrics-grid">
         <div className="hospital-stat-card">
@@ -475,9 +516,18 @@ export default function HospitalDashboardOverview() {
           <div className="hospital-stat-icon stat-icon-teal">❄️</div>
           <div className="hospital-stat-info">
             <span className="hospital-stat-label">Cold-Chain Storage</span>
-            <span className="hospital-stat-value">3.4°C</span>
+            <span className="hospital-stat-value">
+              {inventoryLoading ? '...' : (coldChainTemp || '—')}
+            </span>
             <span className="hospital-stat-meta">
-              <span className="meta-positive">● Normal Chiller</span> (2°C – 8°C Safe)
+              {primaryColdVault ? (
+                <span className={coldChainOk ? 'meta-positive' : 'meta-warning'}>
+                  ● {primaryColdVault.status || 'Monitored'}
+                </span>
+              ) : (
+                <span>No vault telemetry</span>
+              )}
+              {primaryColdVault?.target ? ` (Target ${primaryColdVault.target})` : ''}
             </span>
           </div>
         </div>
@@ -766,12 +816,17 @@ export default function HospitalDashboardOverview() {
             <div className="cold-chain-info">
               <span className="cold-chain-icon">🌡️</span>
               <div>
-                <div className="cold-chain-temp">3.4°C</div>
-                <div className="cold-chain-label">Main Vaccine Vault Sensor B-2</div>
+                <div className="cold-chain-temp">{coldChainTemp || '—'}</div>
+                <div className="cold-chain-label">
+                  {coldChainLabel || 'No cold vault registered'}
+                </div>
               </div>
             </div>
-            <div className="cold-chain-status-ok">
-              <span>●</span> WHO / MOH SAIF Compliant
+            <div className="cold-chain-status-ok" style={!coldChainOk ? { color: '#b45309' } : undefined}>
+              <span>●</span>{' '}
+              {primaryColdVault
+                ? `${primaryColdVault.status || 'Monitored'}${primaryColdVault.sensorStatus ? ` · ${primaryColdVault.sensorStatus}` : ''}`
+                : 'Vault offline'}
             </div>
           </div>
 
@@ -923,6 +978,8 @@ export default function HospitalDashboardOverview() {
         isOpen={isWalkInOpen}
         onClose={() => setIsWalkInOpen(false)}
         onAddPatient={handleAddWalkIn}
+        vaccines={formularyVaccines.map((f) => f.vaccineName || f.name).filter(Boolean)}
+        booths={boothCards.map((b) => ({ id: b.id, label: b.boothName }))}
       />
 
       <RestockVaccineModal
