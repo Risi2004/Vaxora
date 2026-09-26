@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from "react";
+import { downloadCarePlanPdf } from "../services/carePlanPdfService";
+import { getUser } from "../../auth";
 
 const LOADING_MESSAGES = [
   "Retrieving your health records…",
@@ -13,8 +15,33 @@ export default function CarePlanModal({
   error,
   result,
   onClose,
+  onRegenerate,
+  patientName,
 }) {
   const [loadingMessageIndex, setLoadingMessageIndex] = useState(0);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadSuccess, setDownloadSuccess] = useState(false);
+  const [downloadError, setDownloadError] = useState(null);
+
+  const handleDownloadPdf = () => {
+    if (!result?.care_plan) return;
+    try {
+      setIsDownloading(true);
+      setDownloadError(null);
+      const user = getUser();
+      downloadCarePlanPdf(result, {
+        ...user,
+        name: patientName || user?.name || user?.profileDetails?.fullName,
+      });
+      setDownloadSuccess(true);
+      setTimeout(() => setDownloadSuccess(false), 4000);
+    } catch (err) {
+      console.error("Failed to generate Care Plan PDF:", err);
+      setDownloadError("Could not generate PDF document. Please try again.");
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
   useEffect(() => {
     if (!loading) {
@@ -466,6 +493,61 @@ export default function CarePlanModal({
                 </div>
               </div>
             )}
+
+            {/* Download Care Plan Banner at the bottom of the plan */}
+            <div className="careplan-download-box">
+              <div className="careplan-download-info">
+                <div className="careplan-download-icon">
+                  📄
+                </div>
+                <div>
+                  <h4 className="careplan-download-title">
+                    Export Official Care Plan (PDF)
+                  </h4>
+                  <p className="careplan-download-sub">
+                    Download a verified clinical PDF report for your health records or doctor consultation.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="btn-careplan-download"
+                onClick={handleDownloadPdf}
+                disabled={isDownloading}
+              >
+                {isDownloading ? (
+                  <>
+                    <span className="careplan-btn-spinner" />
+                    <span>Preparing PDF…</span>
+                  </>
+                ) : downloadSuccess ? (
+                  <>
+                    <span>✓</span>
+                    <span>PDF Downloaded</span>
+                  </>
+                ) : (
+                  <>
+                    <span>📥</span>
+                    <span>Download Care Plan (PDF)</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {downloadError && (
+              <div
+                style={{
+                  padding: "10px 14px",
+                  background: "#fef2f2",
+                  border: "1px solid #fecaca",
+                  borderRadius: "8px",
+                  color: "#991b1b",
+                  fontSize: "0.85rem",
+                }}
+              >
+                ⚠ {downloadError}
+              </div>
+            )}
           </div>
         )}
 
@@ -474,18 +556,62 @@ export default function CarePlanModal({
           <div
             style={{
               display: "flex",
-              justifyContent: "flex-end",
+              justifyContent: plan ? "space-between" : "flex-end",
+              alignItems: "center",
               gap: "10px",
-              marginTop: "20px",
+              marginTop: "24px",
+              paddingTop: "16px",
+              borderTop: "1px solid #e2e8f0",
+              flexWrap: "wrap",
             }}
           >
-            <button
-              type="button"
-              className="btn-modal-cancel"
-              onClick={onClose}
-            >
-              Close
-            </button>
+            <div>
+              {plan && onRegenerate && (
+                <button
+                  type="button"
+                  className="btn-modal-cancel"
+                  style={{ fontSize: "0.85rem", padding: "8px 14px" }}
+                  onClick={onRegenerate}
+                >
+                  🔄 Regenerate Plan
+                </button>
+              )}
+            </div>
+
+            <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+              {plan && (
+                <button
+                  type="button"
+                  className="btn-careplan-download"
+                  style={{ padding: "8px 18px", fontSize: "0.88rem" }}
+                  onClick={handleDownloadPdf}
+                  disabled={isDownloading}
+                >
+                  {isDownloading ? (
+                    <>
+                      <span className="careplan-btn-spinner" />
+                      <span>Generating…</span>
+                    </>
+                  ) : downloadSuccess ? (
+                    <>
+                      <span>✓ Downloaded</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>📥</span>
+                      <span>Download PDF</span>
+                    </>
+                  )}
+                </button>
+              )}
+              <button
+                type="button"
+                className="btn-modal-cancel"
+                onClick={onClose}
+              >
+                Close
+              </button>
+            </div>
           </div>
         )}
       </div>

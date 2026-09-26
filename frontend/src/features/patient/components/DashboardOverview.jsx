@@ -70,7 +70,24 @@ export default function DashboardOverview({ onNavigateTab, onOpenBookModal }) {
   const [carePlanOpen, setCarePlanOpen] = useState(false);
   const [carePlanLoading, setCarePlanLoading] = useState(false);
   const [carePlanError, setCarePlanError] = useState(null);
-  const [carePlanResult, setCarePlanResult] = useState(null);
+  const [carePlanResult, setCarePlanResult] = useState(() => {
+    try {
+      const user = getUser();
+      const patientProfileId =
+        user?.profileDetails?.id || user?.profileId || user?.patientProfileId;
+      if (!patientProfileId) return null;
+      const cached = localStorage.getItem(
+        `vaxora_care_plan_${patientProfileId}`
+      );
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed?.care_plan) return parsed;
+      }
+    } catch {
+      // ignore
+    }
+    return null;
+  });
 
   // ---------- Dashboard data state ----------
   const [nextAppointment, setNextAppointment] = useState(null);
@@ -164,6 +181,8 @@ export default function DashboardOverview({ onNavigateTab, onOpenBookModal }) {
     };
   }, []);
 
+
+
   // ---------- Care plan trigger ----------
   const handleGenerateCarePlan = async () => {
     const user = getUser();
@@ -181,12 +200,20 @@ export default function DashboardOverview({ onNavigateTab, onOpenBookModal }) {
     setCarePlanOpen(true);
     setCarePlanLoading(true);
     setCarePlanError(null);
-    setCarePlanResult(null);
 
     try {
       const result = await agentService.patientCarePlan(patientProfileId);
       setCarePlanResult(result);
-      if (!result?.success) {
+      if (result?.success) {
+        try {
+          localStorage.setItem(
+            `vaxora_care_plan_${patientProfileId}`,
+            JSON.stringify(result)
+          );
+        } catch (e) {
+          console.warn("Could not cache care plan:", e);
+        }
+      } else {
         setCarePlanError(
           result?.error || "The AI assistant could not generate a care plan.",
         );
@@ -219,18 +246,47 @@ export default function DashboardOverview({ onNavigateTab, onOpenBookModal }) {
           </p>
         </div>
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-          <button
-            type="button"
-            className="btn-banner-action"
-            style={{
-              background: "rgba(255,255,255,0.15)",
-              color: "#ffffff",
-              borderColor: "rgba(255,255,255,0.4)",
-            }}
-            onClick={handleGenerateCarePlan}
-          >
-            ✨ Generate AI Care Plan
-          </button>
+          {carePlanResult ? (
+            <>
+              <button
+                type="button"
+                className="btn-banner-action"
+                style={{
+                  background: "rgba(255,255,255,0.25)",
+                  color: "#ffffff",
+                  borderColor: "rgba(255,255,255,0.5)",
+                }}
+                onClick={() => setCarePlanOpen(true)}
+              >
+                ✨ View Care Plan
+              </button>
+              <button
+                type="button"
+                className="btn-banner-action"
+                style={{
+                  background: "rgba(255,255,255,0.12)",
+                  color: "#ffffff",
+                  borderColor: "rgba(255,255,255,0.35)",
+                }}
+                onClick={handleGenerateCarePlan}
+              >
+                🔄 Refresh Plan
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="btn-banner-action"
+              style={{
+                background: "rgba(255,255,255,0.15)",
+                color: "#ffffff",
+                borderColor: "rgba(255,255,255,0.4)",
+              }}
+              onClick={handleGenerateCarePlan}
+            >
+              ✨ Generate AI Care Plan
+            </button>
+          )}
           <button
             type="button"
             className="btn-banner-action"
@@ -602,11 +658,12 @@ export default function DashboardOverview({ onNavigateTab, onOpenBookModal }) {
         loading={carePlanLoading}
         error={carePlanError}
         result={carePlanResult}
+        patientName={displayName}
+        onRegenerate={handleGenerateCarePlan}
         onClose={() => {
           if (carePlanLoading) return;
           setCarePlanOpen(false);
           setCarePlanError(null);
-          setCarePlanResult(null);
         }}
       />
     </div>
