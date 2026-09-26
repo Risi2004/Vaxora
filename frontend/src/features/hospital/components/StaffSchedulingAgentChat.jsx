@@ -2,6 +2,96 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import agentService from '../../patient/services/agentService';
 import staffService from '../services/staffService';
 
+function speakDate(iso) {
+  const [year, month, day] = String(iso || '').slice(0, 10).split('-').map(Number);
+  if (!year || !month || !day) return iso || '';
+  return new Date(year, month - 1, day).toLocaleDateString('en-GB', { day: 'numeric', month: 'long' });
+}
+
+function FairnessSummary({ summary, validation }) {
+  const before = Array.isArray(summary?.before) ? summary.before : [];
+  const after = Array.isArray(summary?.after) ? summary.after : [];
+  if (before.length === 0 && after.length === 0) return null;
+
+  const renderRows = (rows, title) => (
+    <div style={{ flex: 1, minWidth: 180 }}>
+      <div style={{ fontWeight: 700, color: '#0f172a', marginBottom: '6px' }}>{title}</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+        {rows.slice(0, 6).map((row) => (
+          <div key={`${title}-${row.affiliationId || row.staffName}`} style={{ fontSize: '12px', color: '#334155' }}>
+            {row.staffName} · {row.shiftCount} shift{row.shiftCount === 1 ? '' : 's'}
+            {row.load ? ` · ${row.load}` : ''}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  return (
+    <div
+      style={{
+        marginTop: '10px',
+        padding: '10px 12px',
+        borderRadius: '8px',
+        border: '1px solid #dbeafe',
+        background: '#eff6ff',
+      }}
+    >
+      <div style={{ fontWeight: 700, color: '#1d4ed8', marginBottom: '8px' }}>Workload fairness</div>
+      <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+        {before.length > 0 ? renderRows(before, 'Before') : null}
+        {after.length > 0 ? renderRows(after, 'After plan') : null}
+      </div>
+      {validation && Array.isArray(validation.issues) && validation.issues.length > 0 ? (
+        <div style={{ marginTop: '8px', color: '#b45309', fontSize: '12px' }}>
+          {validation.issues.length} proposal(s) need review before approval.
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function BookingBrief({ briefing }) {
+  const days = Array.isArray(briefing?.days) ? briefing.days : [];
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      {days.map((day) => (
+        <div key={day.date}>
+          <div style={{ fontWeight: 700, color: '#0f172a', marginBottom: '6px' }}>{speakDate(day.date)}</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {(day.slots || []).map((slot) => (
+              <div
+                key={`${day.date}-${slot.name}-${slot.vaccine}`}
+                style={{
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '8px',
+                  padding: '8px 10px',
+                  background: '#f8fafc',
+                }}
+              >
+                <div style={{ fontWeight: 700, color: '#0369a1', fontSize: '13px' }}>{slot.name}</div>
+                <div style={{ color: '#0f172a', marginTop: '2px' }}>
+                  {slot.count} bookings · {slot.vaccine}
+                </div>
+                {(slot.booths || []).map((booth) => (
+                  <div key={booth} style={{ color: '#334155', fontSize: '13px', marginTop: '2px' }}>
+                    {booth}
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+      {briefing?.shiftCount ? (
+        <div>
+          {briefing.shiftCount} suggested shifts are ready. Press Approve all, or Approve or Decline on each one.
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 const formatMarkdownText = (text, isUser = false) => {
   if (!text) return '';
 
@@ -104,8 +194,69 @@ function normalizeTime(value) {
   return s;
 }
 
+function shiftPayload(proposal) {
+  return {
+    affiliationId: proposal.affiliationId,
+    shiftDate: String(proposal.shiftDate).slice(0, 10),
+    startTime: normalizeTime(proposal.startTime),
+    endTime: normalizeTime(proposal.endTime),
+    boothId: proposal.boothId || null,
+    boothOrStation: proposal.boothOrStation || null,
+    notes: proposal.notes || 'Approved via Staff Scheduling Agent',
+  };
+}
+
 function proposalIdentity(p) {
   return `${p.affiliationId}|${String(p.shiftDate).slice(0, 10)}|${p.startTime}|${p.endTime}`;
+}
+
+function proposalSlot(p) {
+  const start = String(p.startTime || '').slice(0, 5);
+  const hour = Number(start.split(':')[0] || 0);
+  return hour < 12 ? 'Morning' : 'Afternoon';
+}
+
+function boothKey(p) {
+  if (p.boothId) return String(p.boothId);
+  const raw = String(p.boothOrStation || '')
+    .replace(/\s*[—–-]\s*(Morning|Afternoon)\s*$/i, '')
+    .replace(/\s*·\s*/g, ' - ')
+    .trim();
+  return raw || 'Unassigned';
+}
+
+function boothLabel(p) {
+  const raw = String(p.boothOrStation || '')
+    .replace(/\s*[—–-]\s*(Morning|Afternoon)\s*$/i, '')
+    .replace(/\s*·\s*/g, ' - ')
+    .trim();
+  return raw || 'Unassigned';
+}
+
+function shortDateLabel(dateStr) {
+  const d = new Date(`${String(dateStr).slice(0, 10)}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return String(dateStr).slice(0, 10);
+  return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+function buildRosterGrid(proposals) {
+  const dates = [...new Set(proposals.map((p) => String(p.shiftDate).slice(0, 10)))].sort();
+  const boothOrder = [];
+  const boothNames = new Map();
+  for (const p of proposals) {
+    const key = boothKey(p);
+    if (!boothNames.has(key)) {
+      boothOrder.push(key);
+      boothNames.set(key, boothLabel(p));
+    }
+  }
+  const cells = new Map();
+  for (const p of proposals) {
+    const key = `${boothKey(p)}|${String(p.shiftDate).slice(0, 10)}|${proposalSlot(p)}`;
+    if (!cells.has(key)) cells.set(key, []);
+    cells.get(key).push(p);
+  }
+  return { dates, boothOrder, boothNames, cells };
 }
 
 /**
@@ -116,7 +267,7 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, initialPr
     {
       role: 'assistant',
       content:
-        'Hello! I am your **Vaxora Staff Scheduling Agent**.\n\nI can help you:\n- Review active doctors and nurses\n- Check weekly coverage gaps (Low / Partial / Good)\n- Suggest shifts for low-coverage days\n- Propose changes that require **your approval** before anything is saved\n\nHow can I help with this week’s roster?',
+        'Hello! I am your **Vaxora Staff Scheduling Agent**.\n\nI can help you:\n- Review active doctors and nurses\n- Open booths from booked appointments\n- Suggest the nurses and doctors those booths need\n- Propose changes that require **your approval** before anything is saved\n\nHow can I help with this week’s roster?',
     },
   ]);
   const [inputMessage, setInputMessage] = useState('');
@@ -126,16 +277,25 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, initialPr
   const [approvingId, setApprovingId] = useState(null);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  const stickToBottomRef = useRef(true);
 
-  const suggestedPrompts = useMemo(
+  const [followUpPrompts, setFollowUpPrompts] = useState([]);
+
+  const defaultPrompts = useMemo(
     () => [
-      `Check coverage from ${weekStart} to ${weekEnd}`,
-      `Suggest shifts for low coverage from ${weekStart} to ${weekEnd}`,
-      'List my active staff',
-      'Who can cover low days this week?',
+      'Staff the rest of the week',
+      'Who is working tomorrow?',
+      'Who is on my staff?',
+      'How busy are we this week?',
     ],
-    [weekStart, weekEnd]
+    []
   );
+
+  const chipPrompts = followUpPrompts.length > 0 ? followUpPrompts : defaultPrompts;
+
+  useEffect(() => {
+    setFollowUpPrompts([]);
+  }, [weekStart, weekEnd]);
 
   useEffect(() => {
     let mounted = true;
@@ -151,6 +311,7 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, initialPr
   }, []);
 
   useEffect(() => {
+    if (!stickToBottomRef.current) return;
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
 
@@ -158,6 +319,7 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, initialPr
     const text = (textToSend || inputMessage).trim();
     if (!text || isLoading) return;
 
+    stickToBottomRef.current = true;
     const newMessages = [...messages, { role: 'user', content: text }];
     setMessages(newMessages);
     setInputMessage('');
@@ -174,11 +336,23 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, initialPr
           ? [res.proposal]
           : [];
 
+      const nextFollowUps = Array.isArray(res.suggestedFollowUps)
+        ? res.suggestedFollowUps.filter((p) => typeof p === 'string' && p.trim())
+        : Array.isArray(res.suggested_follow_ups)
+          ? res.suggested_follow_ups.filter((p) => typeof p === 'string' && p.trim())
+          : [];
+      if (nextFollowUps.length > 0) {
+        setFollowUpPrompts(nextFollowUps);
+      }
+
       setMessages((prev) => [
         ...prev,
         {
           role: 'assistant',
           content: res.content || 'I processed your scheduling request.',
+          briefing: res.briefing || null,
+          fairnessSummary: res.fairnessSummary || res.fairness_summary || null,
+          validation: res.validation || null,
           proposals,
           workflowId: res.workflowId || res.WorkflowId || null,
           createdShifts: res.created_shifts || res.createdShifts || null,
@@ -216,16 +390,10 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, initialPr
 
   const handleApproveProposal = async (proposal, workflowId, remainingCount) => {
     const id = proposalIdentity(proposal);
+    stickToBottomRef.current = false;
     setApprovingId(id);
     try {
-      await staffService.createShift({
-        affiliationId: proposal.affiliationId,
-        shiftDate: String(proposal.shiftDate).slice(0, 10),
-        startTime: normalizeTime(proposal.startTime),
-        endTime: normalizeTime(proposal.endTime),
-        boothOrStation: proposal.boothOrStation || null,
-        notes: proposal.notes || 'Approved via Staff Scheduling Agent',
-      });
+      await staffService.createShift(shiftPayload(proposal));
 
       if (workflowId && remainingCount <= 1) {
         try {
@@ -233,33 +401,32 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, initialPr
             approved: true,
             note: 'Approved shift proposal(s) from agent run',
           });
-        } catch (decisionErr) {
-          console.warn('Failed to persist workflow approval:', decisionErr);
+        } catch {
+          // The shift is already saved. The workflow note is optional.
         }
       }
 
+      // Keep scroll position: mark approved in-place, do not append a new chat bubble.
       setMessages((prev) =>
-        prev
-          .map((msg) => {
-            if (!Array.isArray(msg.proposals) || msg.proposals.length === 0) return msg;
-            if (workflowId && msg.workflowId !== workflowId) return msg;
-            const nextProposals = msg.proposals.filter((p) => proposalIdentity(p) !== id);
-            return {
-              ...msg,
-              proposals: nextProposals,
-              approvedCount: (msg.approvedCount || 0) + 1,
-              decision: nextProposals.length === 0 ? 'Approved' : msg.decision,
-            };
-          })
-          .concat({
-            role: 'assistant',
-            content: `✅ Shift created for **${proposal.staffName}** on **${String(proposal.shiftDate).slice(0, 10)}** (${String(proposal.startTime).slice(0, 5)}–${String(proposal.endTime).slice(0, 5)}).`,
-            created: true,
-          })
+        prev.map((msg) => {
+          if (!Array.isArray(msg.proposals) || msg.proposals.length === 0) return msg;
+          if (workflowId && msg.workflowId !== workflowId) return msg;
+          const nextProposals = msg.proposals.map((p) =>
+            proposalIdentity(p) === id ? { ...p, _status: 'approved' } : p
+          );
+          const pending = nextProposals.filter((p) => p._status !== 'approved' && p._status !== 'declined');
+          return {
+            ...msg,
+            proposals: nextProposals,
+            approvedCount: (msg.approvedCount || 0) + 1,
+            decision: pending.length === 0 ? 'Approved' : msg.decision,
+          };
+        })
       );
 
       if (onShiftsChanged) onShiftsChanged();
     } catch (err) {
+      stickToBottomRef.current = true;
       setMessages((prev) => [
         ...prev,
         {
@@ -273,10 +440,116 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, initialPr
     }
   };
 
+  const handleApproveAll = async (proposals, workflowId) => {
+    const pending = (proposals || []).filter(
+      (p) => p._status !== 'approved' && p._status !== 'declined'
+    );
+    if (pending.length === 0) return;
+    stickToBottomRef.current = false;
+    setApprovingId('batch');
+    const approvedIds = new Set();
+    const failed = [];
+    for (const proposal of pending) {
+      try {
+        await staffService.createShift(shiftPayload(proposal));
+        approvedIds.add(proposalIdentity(proposal));
+      } catch {
+        failed.push(proposal.staffName || 'A shift');
+      }
+    }
+
+    if (workflowId && approvedIds.size === pending.length) {
+      try {
+        await agentService.recordDecision(workflowId, {
+          approved: true,
+          note: 'Approved the whole batch of shift proposals',
+        });
+      } catch {
+        // The shifts are already saved. The workflow note is optional.
+      }
+    }
+
+    if (approvedIds.size > 0) {
+      setMessages((prev) =>
+        prev.map((msg) => {
+          if (!Array.isArray(msg.proposals) || msg.proposals.length === 0) return msg;
+          if (workflowId && msg.workflowId !== workflowId) return msg;
+          const nextProposals = msg.proposals.map((p) =>
+            approvedIds.has(proposalIdentity(p)) ? { ...p, _status: 'approved' } : p
+          );
+          const stillPending = nextProposals.filter(
+            (p) => p._status !== 'approved' && p._status !== 'declined'
+          );
+          return {
+            ...msg,
+            proposals: nextProposals,
+            approvedCount: (msg.approvedCount || 0) + approvedIds.size,
+            decision: stillPending.length === 0 ? 'Approved' : msg.decision,
+          };
+        })
+      );
+      if (onShiftsChanged) onShiftsChanged();
+    }
+
+    if (failed.length > 0) {
+      stickToBottomRef.current = true;
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          content:
+            approvedIds.size === 0
+              ? 'Could not create those shifts. Nothing was saved.'
+              : `Could not create ${failed.length} shift${failed.length === 1 ? '' : 's'}: ${failed.join(', ')}. The others were saved.`,
+          isError: true,
+        },
+      ]);
+    }
+    setApprovingId(null);
+  };
+
   const handleDeclineProposal = async (proposal, workflowId, remainingCount, approvedCount = 0) => {
     const id = proposalIdentity(proposal);
+    stickToBottomRef.current = false;
 
-    if (workflowId && remainingCount <= 1) {
+    let alternative = null;
+    try {
+      const res = await agentService.sendMessage(
+        [
+          {
+            role: 'user',
+            content: `__shift_declined__ ${JSON.stringify({
+              affiliationId: proposal.affiliationId,
+              gapId: proposal.gapId,
+              shiftDate: String(proposal.shiftDate).slice(0, 10),
+              startTime: normalizeTime(proposal.startTime),
+              endTime: normalizeTime(proposal.endTime),
+              requestAlternative: Boolean(proposal.gapId),
+            })}`,
+          },
+        ],
+        { targetAgent: 'StaffSchedulingAgent' },
+      );
+      if (Array.isArray(res.proposals) && res.proposals.length > 0) {
+        alternative = res.proposals[0];
+      } else if (res.proposal) {
+        alternative = res.proposal;
+      }
+    } catch (err) {
+      stickToBottomRef.current = true;
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: `Could not remember that decline: ${err.message || 'Request failed'}`,
+          isError: true,
+        },
+      ]);
+      return;
+    }
+
+    const pendingLeft = remainingCount - 1;
+    if (workflowId && pendingLeft <= 0) {
       try {
         await agentService.recordDecision(workflowId, {
           approved: approvedCount > 0,
@@ -285,8 +558,8 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, initialPr
               ? 'Accepted some proposals and declined the rest'
               : 'Declined shift proposal(s)',
         });
-      } catch (decisionErr) {
-        console.warn('Failed to persist workflow rejection:', decisionErr);
+      } catch {
+        // The decline is already remembered. The workflow note is optional.
       }
     }
 
@@ -294,12 +567,21 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, initialPr
       prev.map((msg) => {
         if (!Array.isArray(msg.proposals) || msg.proposals.length === 0) return msg;
         if (workflowId && msg.workflowId !== workflowId) return msg;
-        const nextProposals = msg.proposals.filter((p) => proposalIdentity(p) !== id);
+        const nextProposals = msg.proposals.map((p) =>
+          proposalIdentity(p) === id ? { ...p, _status: 'declined' } : p
+        );
+        if (alternative) {
+          nextProposals.push(alternative);
+        }
+        const pending = nextProposals.filter((p) => p._status !== 'approved' && p._status !== 'declined');
         return {
           ...msg,
           proposals: nextProposals,
+          fairnessSummary: alternative
+            ? msg.fairnessSummary
+            : msg.fairnessSummary,
           decision:
-            nextProposals.length === 0
+            pending.length === 0
               ? approvedCount > 0
                 ? 'Approved'
                 : 'Rejected'
@@ -463,167 +745,289 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, initialPr
                   lineHeight: '1.6',
                 }}
               >
-                {formatMarkdownText(msg.content, isUser)}
+                {msg.briefing ? <BookingBrief briefing={msg.briefing} /> : formatMarkdownText(msg.content, isUser)}
+                {msg.fairnessSummary ? (
+                  <FairnessSummary summary={msg.fairnessSummary} validation={msg.validation} />
+                ) : null}
               </div>
 
-              {Array.isArray(msg.proposals) &&
-                msg.proposals.length > 0 &&
-                msg.proposals.map((proposal) => {
-                  const id = proposalIdentity(proposal);
+              {Array.isArray(msg.proposals) && msg.proposals.length > 0 && (() => {
+                const { dates, boothOrder, boothNames, cells } = buildRosterGrid(msg.proposals);
+                const pendingCount = msg.proposals.filter(
+                  (p) => p._status !== 'approved' && p._status !== 'declined'
+                ).length;
+                const cellStyle = {
+                  padding: '8px',
+                  borderBottom: '1px solid #e2e8f0',
+                  borderRight: '1px solid #e2e8f0',
+                  verticalAlign: 'top',
+                  wordBreak: 'break-word',
+                };
+
+                const renderCell = (booth, date, slot) => {
+                  const people = cells.get(`${booth}|${date}|${slot}`) || [];
+                  if (people.length === 0) {
+                    return (
+                      <td key={`${booth}|${date}|${slot}`} style={{ ...cellStyle, background: '#f8fafc', color: '#94a3b8', textAlign: 'center' }}>
+                        —
+                      </td>
+                    );
+                  }
                   return (
+                    <td key={`${booth}|${date}|${slot}`} style={cellStyle}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        {people.map((proposal) => {
+                          const id = proposalIdentity(proposal);
+                          const status = proposal._status;
+                          const resolved = status === 'approved' || status === 'declined';
+                          return (
+                            <div
+                              key={id}
+                              style={{
+                                padding: '6px',
+                                borderRadius: '6px',
+                                border: `1px solid ${
+                                  status === 'approved'
+                                    ? '#86efac'
+                                    : status === 'declined'
+                                      ? '#e2e8f0'
+                                      : '#bae6fd'
+                                }`,
+                                background:
+                                  status === 'approved'
+                                    ? '#f0fdf4'
+                                    : status === 'declined'
+                                      ? '#f8fafc'
+                                      : '#f0f9ff',
+                              }}
+                            >
+                              <div style={{ fontWeight: 700, color: '#0f172a', lineHeight: 1.3 }}>
+                                {proposal.staffName}
+                              </div>
+                              {proposal.vaccineName ? (
+                                <div style={{ color: '#0369a1', fontSize: '11px', fontWeight: 600, lineHeight: 1.3 }}>
+                                  {proposal.vaccineName}
+                                </div>
+                              ) : null}
+                              <div style={{ color: '#64748b', fontSize: '11px', lineHeight: 1.3 }}>
+                                {proposal.staffRole || 'Staff'} · {String(proposal.startTime).slice(0, 5)}–
+                                {String(proposal.endTime).slice(0, 5)}
+                              </div>
+                              {Array.isArray(proposal.alternatives) && proposal.alternatives.length > 0 ? (
+                                <div style={{ color: '#64748b', fontSize: '10px', marginTop: '4px' }}>
+                                  Alt: {proposal.alternatives.map((alt) => alt.staffName).join(', ')}
+                                </div>
+                              ) : null}
+                              {resolved ? (
+                                <div
+                                  style={{
+                                    marginTop: '4px',
+                                    fontWeight: 700,
+                                    fontSize: '11px',
+                                    color: status === 'approved' ? '#15803d' : '#64748b',
+                                  }}
+                                >
+                                  {status === 'approved' ? 'Created' : 'Declined'}
+                                </div>
+                              ) : (
+                                <div style={{ display: 'flex', gap: '4px', marginTop: '6px' }}>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleDeclineProposal(
+                                        proposal,
+                                        msg.workflowId,
+                                        pendingCount,
+                                        msg.approvedCount || 0
+                                      )
+                                    }
+                                    disabled={isLoading || approvingId !== null}
+                                    style={{
+                                      flex: 1,
+                                      padding: '4px 6px',
+                                      borderRadius: '4px',
+                                      border: '1px solid #cbd5e1',
+                                      background: '#ffffff',
+                                      color: '#64748b',
+                                      fontWeight: 600,
+                                      fontSize: '11px',
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    Decline
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleApproveProposal(
+                                        proposal,
+                                        msg.workflowId,
+                                        pendingCount
+                                      )
+                                    }
+                                    disabled={isLoading || approvingId !== null}
+                                    style={{
+                                      flex: 1,
+                                      padding: '4px 6px',
+                                      borderRadius: '4px',
+                                      border: 'none',
+                                      background: '#16a34a',
+                                      color: '#ffffff',
+                                      fontWeight: 600,
+                                      fontSize: '11px',
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    {approvingId === id ? '…' : 'Approve'}
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </td>
+                  );
+                };
+
+                return (
+                  <div
+                    style={{
+                      alignSelf: 'stretch',
+                      width: '100%',
+                      marginTop: '4px',
+                      border: '1px solid #bae6fd',
+                      borderRadius: '10px',
+                      background: '#ffffff',
+                      overflow: 'hidden',
+                    }}
+                  >
                     <div
-                      key={id}
                       style={{
-                        maxWidth: '90%',
-                        background: '#ffffff',
-                        border: '2px solid #0284c7',
-                        borderRadius: '12px',
-                        padding: '16px',
-                        boxShadow: '0 4px 14px rgba(2, 132, 199, 0.1)',
-                        marginTop: '4px',
+                        padding: '8px 12px',
+                        borderBottom: '1px solid #bae6fd',
+                        background: '#f0f9ff',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        color: '#0369a1',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '8px',
                       }}
                     >
-                      <div
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px',
-                          fontWeight: 700,
-                          color: '#0284c7',
-                          marginBottom: '12px',
-                          fontSize: '14px',
-                        }}
-                      >
-                        <span>🛡️</span> Shift Proposal (Approval Required)
-                      </div>
-
-                      <div
-                        style={{
-                          display: 'grid',
-                          gridTemplateColumns: 'repeat(2, 1fr)',
-                          gap: '10px',
-                          background: '#f0f9ff',
-                          padding: '12px',
-                          borderRadius: '8px',
-                          fontSize: '13px',
-                          color: '#0369a1',
-                          marginBottom: '14px',
-                        }}
-                      >
-                        <div>
-                          <strong>👤 Staff:</strong> {proposal.staffName}
-                        </div>
-                        <div>
-                          <strong>🏷️ Role:</strong> {proposal.staffRole || '—'}
-                        </div>
-                        <div>
-                          <strong>📅 Date:</strong> {String(proposal.shiftDate).slice(0, 10)}
-                        </div>
-                        <div>
-                          <strong>⏰ Time:</strong> {String(proposal.startTime).slice(0, 5)} –{' '}
-                          {String(proposal.endTime).slice(0, 5)}
-                        </div>
-                        {proposal.reason && (
-                          <div style={{ gridColumn: 'span 2' }}>
-                            <strong>📝 Reason:</strong> {proposal.reason}
-                          </div>
-                        )}
-                      </div>
-
-                      <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                      <span style={{ minWidth: 0 }}>
+                        {pendingCount > 0
+                          ? `Proposed roster · ${pendingCount} left`
+                          : 'Proposed roster · saved'}
+                      </span>
+                      {pendingCount > 1 ? (
                         <button
                           type="button"
-                          onClick={() =>
-                            handleDeclineProposal(
-                              proposal,
-                              msg.workflowId,
-                              msg.proposals.length,
-                              msg.approvedCount || 0
-                            )
-                          }
+                          onClick={() => handleApproveAll(msg.proposals, msg.workflowId)}
                           disabled={isLoading || approvingId !== null}
                           style={{
-                            padding: '8px 14px',
-                            borderRadius: '6px',
-                            border: '1px solid #cbd5e1',
-                            background: '#ffffff',
-                            color: '#64748b',
-                            fontWeight: 600,
-                            fontSize: '12px',
-                            cursor: 'pointer',
-                          }}
-                        >
-                          ✕ Decline
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            handleApproveProposal(proposal, msg.workflowId, msg.proposals.length)
-                          }
-                          disabled={isLoading || approvingId !== null}
-                          style={{
-                            padding: '8px 18px',
+                            flexShrink: 0,
+                            padding: '6px 12px',
                             borderRadius: '6px',
                             border: 'none',
                             background: '#16a34a',
                             color: '#ffffff',
-                            fontWeight: 600,
+                            fontWeight: 700,
                             fontSize: '12px',
                             cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            boxShadow: '0 2px 6px rgba(22, 163, 74, 0.3)',
                           }}
                         >
-                          {approvingId === id ? 'Approving...' : '✓ Approve & Create Shift'}
+                          {approvingId === 'batch' ? 'Approving…' : 'Approve all'}
                         </button>
-                      </div>
+                      ) : null}
                     </div>
-                  );
-                })}
+                    {dates.map((date) => {
+                      const dayBooths = boothOrder.filter(
+                        (booth) =>
+                          cells.has(`${booth}|${date}|Morning`) || cells.has(`${booth}|${date}|Afternoon`)
+                      );
+                      return (
+                        <div key={date}>
+                          <div
+                            style={{
+                              padding: '8px 12px',
+                              background: '#f8fafc',
+                              borderBottom: '1px solid #e2e8f0',
+                              fontWeight: 700,
+                              fontSize: '13px',
+                              color: '#0f172a',
+                            }}
+                          >
+                            {shortDateLabel(date)}
+                          </div>
+                          <table
+                            style={{
+                              width: '100%',
+                              tableLayout: 'fixed',
+                              borderCollapse: 'collapse',
+                              fontSize: '12px',
+                              color: '#0f172a',
+                            }}
+                          >
+                            <thead>
+                              <tr style={{ background: '#f0f9ff' }}>
+                                <th style={{ width: '28%', padding: '6px 8px', textAlign: 'left', color: '#0369a1', borderBottom: '1px solid #bae6fd' }}>
+                                  Booth
+                                </th>
+                                <th style={{ width: '36%', padding: '6px 8px', textAlign: 'center', color: '#0369a1', borderBottom: '1px solid #bae6fd' }}>
+                                  Morning
+                                </th>
+                                <th style={{ width: '36%', padding: '6px 8px', textAlign: 'center', color: '#0369a1', borderBottom: '1px solid #bae6fd' }}>
+                                  Afternoon
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {dayBooths.map((booth) => (
+                                <tr key={`${date}|${booth}`}>
+                                  <td
+                                    style={{
+                                      padding: '8px',
+                                      borderBottom: '1px solid #e2e8f0',
+                                      borderRight: '1px solid #e2e8f0',
+                                      fontWeight: 700,
+                                      verticalAlign: 'top',
+                                      wordBreak: 'break-word',
+                                    }}
+                                  >
+                                    {boothNames.get(booth) || booth}
+                                  </td>
+                                  {renderCell(booth, date, 'Morning')}
+                                  {renderCell(booth, date, 'Afternoon')}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
 
-              {msg.decision && (!msg.proposals || msg.proposals.length === 0) && (
+              {msg.decision &&
+                Array.isArray(msg.proposals) &&
+                msg.proposals.every((p) => p._status === 'approved' || p._status === 'declined') && (
                 <div
                   style={{
                     maxWidth: '90%',
                     background: msg.decision === 'Approved' ? '#f0fdf4' : '#f8fafc',
                     border: `1px solid ${msg.decision === 'Approved' ? '#86efac' : '#cbd5e1'}`,
-                    borderRadius: '12px',
-                    padding: '10px 14px',
-                    marginTop: '4px',
-                    fontSize: '12px',
+                    borderRadius: '8px',
+                    padding: '6px 10px',
+                    marginTop: '2px',
+                    fontSize: '11px',
                     color: '#475569',
                     fontWeight: 600,
                   }}
                 >
-                  {msg.decision}
-                </div>
-              )}
-
-              {msg.created && (
-                <div
-                  style={{
-                    maxWidth: '90%',
-                    background: '#f0fdf4',
-                    border: '1px solid #86efac',
-                    borderRadius: '12px',
-                    padding: '14px 16px',
-                    marginTop: '4px',
-                  }}
-                >
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      color: '#15803d',
-                      fontWeight: 700,
-                      fontSize: '13px',
-                    }}
-                  >
-                    <span>🎉</span> Shift Confirmed on Roster
-                  </div>
+                  Batch {msg.decision.toLowerCase()}
                 </div>
               )}
             </div>
@@ -649,7 +1053,7 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, initialPr
         <div ref={messagesEndRef} />
       </div>
 
-      {messages.length <= 2 && (
+      {!isLoading && (
         <div
           style={{
             padding: '10px 16px',
@@ -660,9 +1064,9 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, initialPr
             overflowX: 'auto',
           }}
         >
-          {suggestedPrompts.map((prompt, i) => (
+          {chipPrompts.map((prompt, i) => (
             <button
-              key={i}
+              key={`${i}-${prompt}`}
               type="button"
               onClick={() => handleSendMessage(prompt)}
               disabled={isLoading}

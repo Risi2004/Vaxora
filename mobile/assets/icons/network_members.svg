@@ -1,0 +1,38 @@
+<svg width="90" height="90" viewBox="0 0 90 90" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Connectors -->
+  <line x1="45" y1="45" x2="18" y2="28" stroke="#1E293B" stroke-width="3" stroke-linecap="round"/>
+  <line x1="45" y1="45" x2="72" y2="28" stroke="#1E293B" stroke-width="3" stroke-linecap="round"/>
+  <line x1="45" y1="45" x2="16" y2="60" stroke="#1E293B" stroke-width="3" stroke-linecap="round"/>
+  <line x1="45" y1="45" x2="74" y2="60" stroke="#1E293B" stroke-width="3" stroke-linecap="round"/>
+  <line x1="45" y1="45" x2="45" y2="76" stroke="#1E293B" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- Center Node -->
+  <circle cx="45" cy="45" r="15" fill="white" stroke="#1E293B" stroke-width="3"/>
+  <circle cx="45" cy="40" r="4.5" fill="#1E293B"/>
+  <path d="M37 52C37 47.5 40.5 46.5 45 46.5C49.5 46.5 53 47.5 53 52" stroke="#1E293B" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+
+  <!-- Top-left Node -->
+  <circle cx="18" cy="24" r="10" fill="white" stroke="#1E293B" stroke-width="2.5"/>
+  <circle cx="18" cy="21" r="3" fill="#1E293B"/>
+  <path d="M12 29C12 26 14.5 25 18 25C21.5 25 24 26 24 29" stroke="#1E293B" stroke-width="1.8" fill="none"/>
+
+  <!-- Top-right Node -->
+  <circle cx="72" cy="24" r="10" fill="white" stroke="#1E293B" stroke-width="2.5"/>
+  <circle cx="72" cy="21" r="3" fill="#1E293B"/>
+  <path d="M66 29C66 26 68.5 25 72 25C75.5 25 78 26 78 29" stroke="#1E293B" stroke-width="1.8" fill="none"/>
+
+  <!-- Bottom-left Node -->
+  <circle cx="16" cy="62" r="10" fill="white" stroke="#1E293B" stroke-width="2.5"/>
+  <circle cx="16" cy="59" r="3" fill="#1E293B"/>
+  <path d="M10 67C10 64 12.5 63 16 63C19.5 63 22 64 22 67" stroke="#1E293B" stroke-width="1.8" fill="none"/>
+
+  <!-- Bottom-right Node -->
+  <circle cx="74" cy="62" r="10" fill="white" stroke="#1E293B" stroke-width="2.5"/>
+  <circle cx="74" cy="59" r="3" fill="#1E293B"/>
+  <path d="M68 67C68 64 70.5 63 74 63C77.5 63 80 64 80 67" stroke="#1E293B" stroke-width="1.8" fill="none"/>
+
+  <!-- Bottom Node -->
+  <circle cx="45" cy="76" r="8" fill="white" stroke="#1E293B" stroke-width="2.5"/>
+  <circle cx="45" cy="74" r="2.5" fill="#1E293B"/>
+  <path d="M40 81C40 78.5 42 77.5 45 77.5C48 77.5 50 78.5 50 81" stroke="#1E293B" stroke-width="1.5" fill="none"/>
+</svg>

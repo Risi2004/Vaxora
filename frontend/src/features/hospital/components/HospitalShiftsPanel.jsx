@@ -29,6 +29,33 @@ function formatDayLabel(dateInput) {
   return date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
+function formatDayHeader(dateInput) {
+  const date = new Date(`${dateInput}T00:00:00`);
+  return {
+    weekday: date.toLocaleDateString(undefined, { weekday: 'short' }),
+    dateLabel: date.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }),
+  };
+}
+
+function shiftDurationMinutes(shift) {
+  const start = String(shift.startTime || '00:00').slice(0, 5);
+  const end = String(shift.endTime || '00:00').slice(0, 5);
+  const [sh, sm] = start.split(':').map(Number);
+  const [eh, em] = end.split(':').map(Number);
+  return Math.max(0, eh * 60 + em - (sh * 60 + sm));
+}
+
+function formatHours(totalMinutes) {
+  const hours = Math.floor(totalMinutes / 60);
+  const mins = totalMinutes % 60;
+  if (mins === 0) return `${hours}h`;
+  return `${hours}h ${mins}m`;
+}
+
+function formatShiftTime(shift) {
+  return `${String(shift.startTime).slice(0, 5)} – ${String(shift.endTime).slice(0, 5)}`;
+}
+
 function validateShiftForm({ shiftDate, startTime, endTime }) {
   const today = hospitalToday();
   if (shiftDate < today) {
@@ -61,7 +88,7 @@ const emptyForm = {
   shiftDate: hospitalToday(),
   startTime: '08:00',
   endTime: '16:00',
-  boothOrStation: '',
+  boothId: '',
   notes: '',
 };
 
@@ -76,14 +103,14 @@ const weekNavButtonStyle = {
   cursor: 'pointer',
 };
 
-const coverageColor = {
-  Good: { bg: '#ecfdf5', border: '#6ee7b7', text: '#047857' },
-  Partial: { bg: '#fffbeb', border: '#fcd34d', text: '#b45309' },
-  Low: { bg: '#fef2f2', border: '#fca5a5', text: '#b91c1c' },
+const roleCalendarStyle = {
+  DOCTOR: { accent: '#6366f1', bg: '#eef2ff', border: '#c7d2fe', label: 'Doctor' },
+  NURSE: { accent: '#059669', bg: '#ecfdf5', border: '#a7f3d0', label: 'Nurse' },
 };
 
 export default function HospitalShiftsPanel() {
   const [activeStaff, setActiveStaff] = useState([]);
+  const [booths, setBooths] = useState([]);
   const [shifts, setShifts] = useState([]);
   const [coverage, setCoverage] = useState(null);
   const [form, setForm] = useState(emptyForm);
@@ -95,6 +122,8 @@ export default function HospitalShiftsPanel() {
   const [actionId, setActionId] = useState(null);
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
+  const [staffQuery, setStaffQuery] = useState('');
+  const [staffMenuOpen, setStaffMenuOpen] = useState(false);
   const [weekStart, setWeekStart] = useState(startOfWeek(hospitalToday()));
 
   const today = useMemo(() => hospitalToday(), []);
@@ -114,17 +143,21 @@ export default function HospitalShiftsPanel() {
 
   useEffect(() => () => clearTimeout(toastTimerRef.current), []);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) {
+      setLoading(true);
+    }
     setError('');
     try {
-      const [staff, shiftList] = await Promise.all([
+      const [staff, shiftList, boothList] = await Promise.all([
         staffService.getHospitalStaff({ status: 'Active' }),
         staffService.getHospitalShifts({ from: weekStart, to: weekEnd }),
+        staffService.getHospitalBooths({ activeOnly: true }).catch(() => []),
       ]);
 
       setActiveStaff(Array.isArray(staff) ? staff : []);
       setShifts(Array.isArray(shiftList) ? shiftList : []);
+      setBooths(Array.isArray(boothList) ? boothList : []);
 
       try {
         const coverageReport = await staffService.getCoverage({ from: weekStart, to: weekEnd });
@@ -138,11 +171,16 @@ export default function HospitalShiftsPanel() {
       }
     } catch (err) {
       setError(err.message || 'Failed to load shifts.');
-      setActiveStaff([]);
-      setShifts([]);
-      setCoverage(null);
+      if (!silent) {
+        setActiveStaff([]);
+        setShifts([]);
+        setBooths([]);
+        setCoverage(null);
+      }
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   }, [weekStart, weekEnd]);
 
@@ -150,27 +188,63 @@ export default function HospitalShiftsPanel() {
     loadData();
   }, [loadData]);
 
+  /** Refresh shifts + coverage without blanking the calendar. */
+  const refreshRosterQuietly = useCallback(async () => {
+    try {
+      const [shiftList, coverageReport, boothList] = await Promise.all([
+        staffService.getHospitalShifts({ from: weekStart, to: weekEnd }),
+        staffService.getCoverage({ from: weekStart, to: weekEnd }).catch(() => null),
+        staffService.getHospitalBooths({ activeOnly: true }).catch(() => []),
+      ]);
+      setShifts(Array.isArray(shiftList) ? shiftList : []);
+      if (coverageReport) setCoverage(coverageReport);
+      setBooths(Array.isArray(boothList) ? boothList : []);
+    } catch (err) {
+      setError(err.message || 'Failed to refresh roster.');
+    }
+  }, [weekStart, weekEnd]);
   const staffOptions = useMemo(
     () =>
       activeStaff.map((s) => ({
         value: s.affiliationId,
-        label: `${s.staffName} (${s.staffRegistrationNumber})`,
+        label: `${s.staffName} · ${s.staffRole === 'DOCTOR' ? 'Doctor' : 'Nurse'} · ${s.staffRegistrationNumber}`,
+        search: `${s.staffName} ${s.staffRole} ${s.staffRegistrationNumber}`.toLowerCase(),
       })),
     [activeStaff]
   );
 
-  const shiftsByDay = useMemo(() => {
-    const map = {};
-    weekDays.forEach((day) => {
-      map[day] = [];
+  const filteredStaff = useMemo(() => {
+    const query = staffQuery.trim().toLowerCase();
+    if (!query) return staffOptions;
+    return staffOptions.filter((opt) => opt.search.includes(query));
+  }, [staffOptions, staffQuery]);
+
+  const staffCalendarRows = useMemo(() => {
+    const sorted = [...activeStaff].sort((a, b) => {
+      const roleOrder = { DOCTOR: 0, NURSE: 1 };
+      const roleDiff = (roleOrder[a.staffRole] ?? 2) - (roleOrder[b.staffRole] ?? 2);
+      if (roleDiff !== 0) return roleDiff;
+      return String(a.staffName || '').localeCompare(String(b.staffName || ''));
     });
-    shifts.forEach((shift) => {
-      const key = String(shift.shiftDate).slice(0, 10);
-      if (!map[key]) map[key] = [];
-      map[key].push(shift);
+    return sorted.map((member) => {
+      let weekMinutes = 0;
+      const byDay = {};
+      weekDays.forEach((day) => {
+        byDay[day] = [];
+      });
+      shifts.forEach((shift) => {
+        if (shift.affiliationId !== member.affiliationId) return;
+        const day = String(shift.shiftDate).slice(0, 10);
+        if (!byDay[day]) byDay[day] = [];
+        byDay[day].push(shift);
+        weekMinutes += shiftDurationMinutes(shift);
+      });
+      weekDays.forEach((day) => {
+        byDay[day].sort((a, b) => String(a.startTime).localeCompare(String(b.startTime)));
+      });
+      return { member, byDay, weekMinutes };
     });
-    return map;
-  }, [shifts, weekDays]);
+  }, [activeStaff, shifts, weekDays]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -179,17 +253,21 @@ export default function HospitalShiftsPanel() {
 
   const resetForm = (keepDate = true) => {
     setEditingShiftId(null);
+    setStaffQuery('');
+    setStaffMenuOpen(false);
     setForm((prev) => ({ ...emptyForm, shiftDate: keepDate ? prev.shiftDate : emptyForm.shiftDate }));
   };
 
   const beginEdit = (shift) => {
     setEditingShiftId(shift.shiftId);
+    setStaffQuery(`${shift.staffName || 'Staff'} · ${shift.staffRole === 'DOCTOR' ? 'Doctor' : 'Nurse'}`);
+    setStaffMenuOpen(false);
     setForm({
       affiliationId: shift.affiliationId,
       shiftDate: String(shift.shiftDate).slice(0, 10),
       startTime: String(shift.startTime).slice(0, 5),
       endTime: String(shift.endTime).slice(0, 5),
-      boothOrStation: shift.boothOrStation || '',
+      boothId: shift.boothId || '',
       notes: shift.notes || '',
     });
     setError('');
@@ -212,7 +290,8 @@ export default function HospitalShiftsPanel() {
       shiftDate: form.shiftDate,
       startTime: form.startTime.length === 5 ? `${form.startTime}:00` : form.startTime,
       endTime: form.endTime.length === 5 ? `${form.endTime}:00` : form.endTime,
-      boothOrStation: form.boothOrStation || null,
+      boothId: form.boothId || null,
+      boothOrStation: null,
       notes: form.notes || null,
     };
 
@@ -230,7 +309,7 @@ export default function HospitalShiftsPanel() {
         showToast('Shift created.');
       }
       resetForm();
-      await loadData();
+      await refreshRosterQuietly();
     } catch (err) {
       setError(err.message || (editingShiftId ? 'Failed to update shift.' : 'Failed to create shift.'));
     } finally {
@@ -241,11 +320,15 @@ export default function HospitalShiftsPanel() {
   const handleDelete = async (shiftId) => {
     setActionId(shiftId);
     setError('');
+    // Optimistic remove so the calendar does not flash / remount.
+    const previousShifts = shifts;
+    setShifts((prev) => prev.filter((s) => s.shiftId !== shiftId));
     try {
       await staffService.deleteShift(shiftId);
       showToast('Shift deleted.');
-      await loadData();
+      await refreshRosterQuietly();
     } catch (err) {
+      setShifts(previousShifts);
       setError(err.message || 'Failed to delete shift.');
     } finally {
       setActionId(null);
@@ -253,7 +336,7 @@ export default function HospitalShiftsPanel() {
   };
 
   const handleSuggestWeek = () => {
-    setAgentPrompt(`Suggest shifts for low coverage from ${weekStart} to ${weekEnd}`);
+    setAgentPrompt(`Suggest shifts for booked appointments from ${weekStart} to ${weekEnd}`);
     setShowAgentChat(true);
   };
 
@@ -464,23 +547,82 @@ export default function HospitalShiftsPanel() {
 
         <form onSubmit={handleSaveShift} style={{ display: 'grid', gap: '12px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
-            <div className="modal-form-group" style={{ margin: 0 }}>
-              <label className="modal-label">Staff *</label>
-              <select
-                name="affiliationId"
-                value={form.affiliationId}
-                onChange={handleChange}
-                className="modal-select"
-                required
+            <div className="modal-form-group" style={{ margin: 0, position: 'relative' }}>
+              <label className="modal-label" htmlFor="shift-staff-search">Staff *</label>
+              <input
+                id="shift-staff-search"
+                type="text"
+                className="modal-input"
+                value={staffQuery}
+                placeholder="Search name or ID"
+                autoComplete="off"
                 disabled={Boolean(editingShiftId)}
-              >
-                <option value="">Select active staff</option>
-                {staffOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
+                onFocus={() => {
+                  if (!editingShiftId) setStaffMenuOpen(true);
+                }}
+                onBlur={() => {
+                  setTimeout(() => setStaffMenuOpen(false), 150);
+                }}
+                onChange={(e) => {
+                  setStaffQuery(e.target.value);
+                  setStaffMenuOpen(true);
+                  setForm((prev) => ({ ...prev, affiliationId: '' }));
+                }}
+              />
+              {staffMenuOpen && !editingShiftId && (
+                <div
+                  role="listbox"
+                  aria-label="Active staff"
+                  style={{
+                    position: 'absolute',
+                    zIndex: 20,
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    marginTop: 4,
+                    maxHeight: 220,
+                    overflowY: 'auto',
+                    background: '#ffffff',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: 8,
+                    boxShadow: '0 8px 20px rgba(15, 23, 42, 0.08)',
+                  }}
+                >
+                  {filteredStaff.length === 0 ? (
+                    <div style={{ padding: '10px 12px', color: '#64748b', fontSize: '0.85rem' }}>
+                      No matching staff
+                    </div>
+                  ) : (
+                    filteredStaff.map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        role="option"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => {
+                          setForm((prev) => ({ ...prev, affiliationId: opt.value }));
+                          setStaffQuery(opt.label);
+                          setStaffMenuOpen(false);
+                        }}
+                        style={{
+                          display: 'block',
+                          width: '100%',
+                          textAlign: 'left',
+                          padding: '8px 12px',
+                          border: 'none',
+                          borderBottom: '1px solid #f1f5f9',
+                          background: form.affiliationId === opt.value ? '#eff6ff' : '#ffffff',
+                          color: '#0f172a',
+                          fontSize: '0.85rem',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {opt.label}
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="modal-form-group" style={{ margin: 0 }}>
@@ -521,15 +663,25 @@ export default function HospitalShiftsPanel() {
             </div>
 
             <div className="modal-form-group" style={{ margin: 0 }}>
-              <label className="modal-label">Booth / Station</label>
-              <input
-                type="text"
-                name="boothOrStation"
-                value={form.boothOrStation}
+              <label className="modal-label">Booth</label>
+              <select
+                name="boothId"
+                value={form.boothId}
                 onChange={handleChange}
-                className="modal-input"
-                placeholder="Optional"
-              />
+                className="modal-select"
+              >
+                <option value="">No booth assigned</option>
+                {booths.map((booth) => (
+                  <option key={booth.boothId} value={booth.boothId}>
+                    {booth.displayLabel || `${booth.code} · ${booth.name}`}
+                  </option>
+                ))}
+              </select>
+              {booths.length === 0 && (
+                <p style={{ margin: '6px 0 0', fontSize: '0.78rem', color: '#64748b' }}>
+                  Add booths under Booths to assign stations here.
+                </p>
+              )}
             </div>
           </div>
 
@@ -597,117 +749,165 @@ export default function HospitalShiftsPanel() {
               weekStart={weekStart}
               weekEnd={weekEnd}
               initialPrompt={agentPrompt}
-              onShiftsChanged={loadData}
+              onShiftsChanged={refreshRosterQuietly}
               onClose={handleCloseAgentChat}
             />
           </div>
         </div>
       )}
 
-      <h3 style={{ margin: '0 0 12px' }}>Week calendar & coverage</h3>
+      <h3 style={{ margin: '0 0 12px' }}>Week calendar</h3>
       {loading ? (
         <div className="hospital-section-card">
           <p style={{ color: '#64748b' }}>Loading roster...</p>
         </div>
+      ) : staffCalendarRows.length === 0 ? (
+        <div className="hospital-section-card">
+          <p style={{ color: '#64748b' }}>No active staff to show on the calendar yet.</p>
+        </div>
       ) : (
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-            gap: '12px',
-          }}
-        >
-          {weekDays.map((day) => {
-            const dayCoverage = coverage?.days?.find((d) => String(d.date).slice(0, 10) === day);
-            const level = dayCoverage?.coverageLevel || 'Low';
-            const colors = coverageColor[level] || coverageColor.Low;
-            const dayShifts = shiftsByDay[day] || [];
+        <div className="shift-week-calendar">
+          <div className="shift-week-calendar-scroll">
+            <div className="shift-week-calendar-grid">
+              <div className="shift-week-calendar-corner">
+                <span className="shift-week-calendar-corner-label">Staff</span>
+                <span className="shift-week-calendar-corner-sub">
+                  {formatDayLabel(weekStart)} – {formatDayLabel(weekEnd)}
+                </span>
+              </div>
 
-            return (
-              <div
-                key={day}
-                className="hospital-section-card"
-                style={{
-                  margin: 0,
-                  padding: '14px',
-                  borderTop: `4px solid ${colors.border}`,
-                  background: colors.bg,
-                  minHeight: 220,
-                }}
-              >
-                <div style={{ fontWeight: 800, color: '#0f172a', marginBottom: 4 }}>{formatDayLabel(day)}</div>
-                <div style={{ fontSize: '0.75rem', color: colors.text, fontWeight: 700, marginBottom: 8 }}>
-                  {level} · D {dayCoverage?.scheduledDoctors ?? 0}/{dayCoverage?.activeDoctors ?? 0} · N{' '}
-                  {dayCoverage?.scheduledNurses ?? 0}/{dayCoverage?.activeNurses ?? 0}
-                </div>
-                <div style={{ fontSize: '0.72rem', color: '#64748b', marginBottom: 10 }}>
-                  {dayCoverage?.summary || 'No coverage data'}
-                </div>
+              {weekDays.map((day) => {
+                const header = formatDayHeader(day);
+                const isToday = day === today;
+                return (
+                  <div
+                    key={`head-${day}`}
+                    className={`shift-week-calendar-day-head ${isToday ? 'is-today' : ''}`}
+                  >
+                    <div className="shift-week-calendar-day-top">
+                      <span className="shift-week-calendar-weekday">{header.weekday}</span>
+                      {isToday ? <span className="shift-week-calendar-today-pill">Today</span> : null}
+                    </div>
+                    <span className="shift-week-calendar-date">{header.dateLabel}</span>
+                  </div>
+                );
+              })}
 
-                {dayShifts.length === 0 ? (
-                  <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>No shifts</div>
-                ) : (
-                  <div style={{ display: 'grid', gap: 8 }}>
-                    {dayShifts.map((shift) => (
+              <div className="shift-week-calendar-total-head">Hours</div>
+
+              {staffCalendarRows.map(({ member, byDay, weekMinutes }) => {
+                const roleKey = String(member.staffRole || '').toUpperCase();
+                const roleStyle = roleCalendarStyle[roleKey] || roleCalendarStyle.NURSE;
+                const initials = String(member.staffName || '?')
+                  .split(' ')
+                  .map((part) => part[0])
+                  .join('')
+                  .slice(0, 2)
+                  .toUpperCase();
+
+                return (
+                  <React.Fragment key={member.affiliationId}>
+                    <div className="shift-week-calendar-staff">
                       <div
-                        key={shift.shiftId}
+                        className="shift-week-calendar-avatar"
                         style={{
-                          background: '#ffffff',
-                          border: '1px solid #e2e8f0',
-                          borderRadius: 8,
-                          padding: '8px',
+                          background: roleStyle.bg,
+                          color: roleStyle.accent,
+                          borderColor: roleStyle.border,
                         }}
                       >
-                        <div style={{ fontWeight: 700, fontSize: '0.82rem', color: '#0f172a' }}>
-                          {shift.staffName}
-                        </div>
-                        <div style={{ fontSize: '0.75rem', color: '#475569' }}>
-                          {String(shift.startTime).slice(0, 5)} – {String(shift.endTime).slice(0, 5)}
-                          {shift.boothOrStation ? ` · ${shift.boothOrStation}` : ''}
-                        </div>
-                        <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
-                          {String(shift.shiftDate).slice(0, 10) >= today && (
-                            <button
-                              type="button"
-                              onClick={() => beginEdit(shift)}
-                              disabled={saving || actionId === shift.shiftId}
-                              style={{
-                                background: 'none',
-                                border: 'none',
-                                color: '#19469d',
-                                fontWeight: 600,
-                                fontSize: '0.72rem',
-                                cursor: 'pointer',
-                                padding: 0,
-                              }}
-                            >
-                              {editingShiftId === shift.shiftId ? 'Editing' : 'Edit'}
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(shift.shiftId)}
-                            disabled={actionId === shift.shiftId}
-                            style={{
-                              background: 'none',
-                              border: 'none',
-                              color: '#dc2626',
-                              fontWeight: 600,
-                              fontSize: '0.72rem',
-                              cursor: 'pointer',
-                              padding: 0,
-                            }}
-                          >
-                            {actionId === shift.shiftId ? 'Deleting...' : 'Delete'}
-                          </button>
-                        </div>
+                        {initials}
                       </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+                      <div className="shift-week-calendar-staff-text">
+                        <span className="shift-week-calendar-staff-name">{member.staffName}</span>
+                        <span
+                          className="shift-week-calendar-staff-role"
+                          style={{ color: roleStyle.accent }}
+                        >
+                          {roleStyle.label}
+                        </span>
+                      </div>
+                    </div>
+
+                    {weekDays.map((day) => {
+                      const dayShifts = byDay[day] || [];
+                      const isToday = day === today;
+                      return (
+                        <div
+                          key={`${member.affiliationId}-${day}`}
+                          className={`shift-week-calendar-cell ${isToday ? 'is-today' : ''}`}
+                        >
+                          {dayShifts.length === 0 ? (
+                            <span className="shift-week-calendar-empty">—</span>
+                          ) : (
+                            dayShifts.map((shift) => (
+                              <div
+                                key={shift.shiftId}
+                                className="shift-week-card"
+                                style={{ borderLeftColor: roleStyle.accent }}
+                              >
+                                <div className="shift-week-card-time">{formatShiftTime(shift)}</div>
+                                <div
+                                  className="shift-week-card-role"
+                                  style={{ color: roleStyle.accent }}
+                                >
+                                  {roleStyle.label}
+                                </div>
+                                {shift.boothOrStation ? (
+                                  <div className="shift-week-card-booth">{shift.boothOrStation}</div>
+                                ) : null}
+                                <div className="shift-week-card-actions">
+                                  {String(shift.shiftDate).slice(0, 10) >= today && (
+                                    <button
+                                      type="button"
+                                      onClick={() => beginEdit(shift)}
+                                      disabled={saving || actionId === shift.shiftId}
+                                      className="shift-week-card-action shift-week-card-action-edit"
+                                    >
+                                      {editingShiftId === shift.shiftId ? 'Editing' : 'Edit'}
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDelete(shift.shiftId)}
+                                    disabled={actionId === shift.shiftId}
+                                    className="shift-week-card-action shift-week-card-action-delete"
+                                  >
+                                    {actionId === shift.shiftId ? 'Deleting...' : 'Delete'}
+                                  </button>
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    <div className="shift-week-calendar-total">
+                      <span>{formatHours(weekMinutes)}</span>
+                    </div>
+                  </React.Fragment>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="shift-week-calendar-legend">
+            <span className="shift-week-calendar-legend-item">
+              <span
+                className="shift-week-calendar-legend-swatch"
+                style={{ background: '#6366f1' }}
+              />
+              Doctor shift
+            </span>
+            <span className="shift-week-calendar-legend-item">
+              <span
+                className="shift-week-calendar-legend-swatch"
+                style={{ background: '#059669' }}
+              />
+              Nurse shift
+            </span>
+          </div>
         </div>
       )}
     </div>
