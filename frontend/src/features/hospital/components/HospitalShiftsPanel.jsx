@@ -29,6 +29,33 @@ function formatDayLabel(dateInput) {
   return date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
+function formatDayHeader(dateInput) {
+  const date = new Date(`${dateInput}T00:00:00`);
+  return {
+    weekday: date.toLocaleDateString(undefined, { weekday: 'short' }),
+    dateLabel: date.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }),
+  };
+}
+
+function shiftDurationMinutes(shift) {
+  const start = String(shift.startTime || '00:00').slice(0, 5);
+  const end = String(shift.endTime || '00:00').slice(0, 5);
+  const [sh, sm] = start.split(':').map(Number);
+  const [eh, em] = end.split(':').map(Number);
+  return Math.max(0, eh * 60 + em - (sh * 60 + sm));
+}
+
+function formatHours(totalMinutes) {
+  const hours = Math.floor(totalMinutes / 60);
+  const mins = totalMinutes % 60;
+  if (mins === 0) return `${hours}h`;
+  return `${hours}h ${mins}m`;
+}
+
+function formatShiftTime(shift) {
+  return `${String(shift.startTime).slice(0, 5)} – ${String(shift.endTime).slice(0, 5)}`;
+}
+
 function validateShiftForm({ shiftDate, startTime, endTime }) {
   const today = hospitalToday();
   if (shiftDate < today) {
@@ -76,10 +103,9 @@ const weekNavButtonStyle = {
   cursor: 'pointer',
 };
 
-const coverageColor = {
-  Good: { bg: '#ecfdf5', border: '#6ee7b7', text: '#047857' },
-  Partial: { bg: '#fffbeb', border: '#fcd34d', text: '#b45309' },
-  Low: { bg: '#fef2f2', border: '#fca5a5', text: '#b91c1c' },
+const roleCalendarStyle = {
+  DOCTOR: { accent: '#6366f1', bg: '#eef2ff', border: '#c7d2fe', label: 'Doctor' },
+  NURSE: { accent: '#059669', bg: '#ecfdf5', border: '#a7f3d0', label: 'Nurse' },
 };
 
 export default function HospitalShiftsPanel() {
@@ -193,18 +219,32 @@ export default function HospitalShiftsPanel() {
     return staffOptions.filter((opt) => opt.search.includes(query));
   }, [staffOptions, staffQuery]);
 
-  const shiftsByDay = useMemo(() => {
-    const map = {};
-    weekDays.forEach((day) => {
-      map[day] = [];
+  const staffCalendarRows = useMemo(() => {
+    const sorted = [...activeStaff].sort((a, b) => {
+      const roleOrder = { DOCTOR: 0, NURSE: 1 };
+      const roleDiff = (roleOrder[a.staffRole] ?? 2) - (roleOrder[b.staffRole] ?? 2);
+      if (roleDiff !== 0) return roleDiff;
+      return String(a.staffName || '').localeCompare(String(b.staffName || ''));
     });
-    shifts.forEach((shift) => {
-      const key = String(shift.shiftDate).slice(0, 10);
-      if (!map[key]) map[key] = [];
-      map[key].push(shift);
+    return sorted.map((member) => {
+      let weekMinutes = 0;
+      const byDay = {};
+      weekDays.forEach((day) => {
+        byDay[day] = [];
+      });
+      shifts.forEach((shift) => {
+        if (shift.affiliationId !== member.affiliationId) return;
+        const day = String(shift.shiftDate).slice(0, 10);
+        if (!byDay[day]) byDay[day] = [];
+        byDay[day].push(shift);
+        weekMinutes += shiftDurationMinutes(shift);
+      });
+      weekDays.forEach((day) => {
+        byDay[day].sort((a, b) => String(a.startTime).localeCompare(String(b.startTime)));
+      });
+      return { member, byDay, weekMinutes };
     });
-    return map;
-  }, [shifts, weekDays]);
+  }, [activeStaff, shifts, weekDays]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -716,110 +756,158 @@ export default function HospitalShiftsPanel() {
         </div>
       )}
 
-      <h3 style={{ margin: '0 0 12px' }}>Week calendar & coverage</h3>
+      <h3 style={{ margin: '0 0 12px' }}>Week calendar</h3>
       {loading ? (
         <div className="hospital-section-card">
           <p style={{ color: '#64748b' }}>Loading roster...</p>
         </div>
+      ) : staffCalendarRows.length === 0 ? (
+        <div className="hospital-section-card">
+          <p style={{ color: '#64748b' }}>No active staff to show on the calendar yet.</p>
+        </div>
       ) : (
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-            gap: '12px',
-          }}
-        >
-          {weekDays.map((day) => {
-            const dayCoverage = coverage?.days?.find((d) => String(d.date).slice(0, 10) === day);
-            const level = dayCoverage?.coverageLevel || 'Low';
-            const colors = coverageColor[level] || coverageColor.Low;
-            const dayShifts = shiftsByDay[day] || [];
+        <div className="shift-week-calendar">
+          <div className="shift-week-calendar-scroll">
+            <div className="shift-week-calendar-grid">
+              <div className="shift-week-calendar-corner">
+                <span className="shift-week-calendar-corner-label">Staff</span>
+                <span className="shift-week-calendar-corner-sub">
+                  {formatDayLabel(weekStart)} – {formatDayLabel(weekEnd)}
+                </span>
+              </div>
 
-            return (
-              <div
-                key={day}
-                className="hospital-section-card"
-                style={{
-                  margin: 0,
-                  padding: '14px',
-                  borderTop: `4px solid ${colors.border}`,
-                  background: colors.bg,
-                  minHeight: 220,
-                }}
-              >
-                <div style={{ fontWeight: 800, color: '#0f172a', marginBottom: 4 }}>{formatDayLabel(day)}</div>
-                <div style={{ fontSize: '0.75rem', color: colors.text, fontWeight: 700, marginBottom: 8 }}>
-                  {level} · D {dayCoverage?.scheduledDoctors ?? 0}/{dayCoverage?.activeDoctors ?? 0} · N{' '}
-                  {dayCoverage?.scheduledNurses ?? 0}/{dayCoverage?.activeNurses ?? 0}
-                </div>
-                <div style={{ fontSize: '0.72rem', color: '#64748b', marginBottom: 10 }}>
-                  {dayCoverage?.summary || 'No coverage data'}
-                </div>
+              {weekDays.map((day) => {
+                const header = formatDayHeader(day);
+                const isToday = day === today;
+                return (
+                  <div
+                    key={`head-${day}`}
+                    className={`shift-week-calendar-day-head ${isToday ? 'is-today' : ''}`}
+                  >
+                    <div className="shift-week-calendar-day-top">
+                      <span className="shift-week-calendar-weekday">{header.weekday}</span>
+                      {isToday ? <span className="shift-week-calendar-today-pill">Today</span> : null}
+                    </div>
+                    <span className="shift-week-calendar-date">{header.dateLabel}</span>
+                  </div>
+                );
+              })}
 
-                {dayShifts.length === 0 ? (
-                  <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>No shifts</div>
-                ) : (
-                  <div style={{ display: 'grid', gap: 8 }}>
-                    {dayShifts.map((shift) => (
+              <div className="shift-week-calendar-total-head">Hours</div>
+
+              {staffCalendarRows.map(({ member, byDay, weekMinutes }) => {
+                const roleKey = String(member.staffRole || '').toUpperCase();
+                const roleStyle = roleCalendarStyle[roleKey] || roleCalendarStyle.NURSE;
+                const initials = String(member.staffName || '?')
+                  .split(' ')
+                  .map((part) => part[0])
+                  .join('')
+                  .slice(0, 2)
+                  .toUpperCase();
+
+                return (
+                  <React.Fragment key={member.affiliationId}>
+                    <div className="shift-week-calendar-staff">
                       <div
-                        key={shift.shiftId}
+                        className="shift-week-calendar-avatar"
                         style={{
-                          background: '#ffffff',
-                          border: '1px solid #e2e8f0',
-                          borderRadius: 8,
-                          padding: '8px',
+                          background: roleStyle.bg,
+                          color: roleStyle.accent,
+                          borderColor: roleStyle.border,
                         }}
                       >
-                        <div style={{ fontWeight: 700, fontSize: '0.82rem', color: '#0f172a' }}>
-                          {shift.staffName}
-                        </div>
-                        <div style={{ fontSize: '0.75rem', color: '#475569' }}>
-                          {String(shift.startTime).slice(0, 5)} – {String(shift.endTime).slice(0, 5)}
-                          {shift.boothOrStation ? ` · ${shift.boothOrStation}` : ''}
-                        </div>
-                        <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
-                          {String(shift.shiftDate).slice(0, 10) >= today && (
-                            <button
-                              type="button"
-                              onClick={() => beginEdit(shift)}
-                              disabled={saving || actionId === shift.shiftId}
-                              style={{
-                                background: 'none',
-                                border: 'none',
-                                color: '#19469d',
-                                fontWeight: 600,
-                                fontSize: '0.72rem',
-                                cursor: 'pointer',
-                                padding: 0,
-                              }}
-                            >
-                              {editingShiftId === shift.shiftId ? 'Editing' : 'Edit'}
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(shift.shiftId)}
-                            disabled={actionId === shift.shiftId}
-                            style={{
-                              background: 'none',
-                              border: 'none',
-                              color: '#dc2626',
-                              fontWeight: 600,
-                              fontSize: '0.72rem',
-                              cursor: 'pointer',
-                              padding: 0,
-                            }}
-                          >
-                            {actionId === shift.shiftId ? 'Deleting...' : 'Delete'}
-                          </button>
-                        </div>
+                        {initials}
                       </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+                      <div className="shift-week-calendar-staff-text">
+                        <span className="shift-week-calendar-staff-name">{member.staffName}</span>
+                        <span
+                          className="shift-week-calendar-staff-role"
+                          style={{ color: roleStyle.accent }}
+                        >
+                          {roleStyle.label}
+                        </span>
+                      </div>
+                    </div>
+
+                    {weekDays.map((day) => {
+                      const dayShifts = byDay[day] || [];
+                      const isToday = day === today;
+                      return (
+                        <div
+                          key={`${member.affiliationId}-${day}`}
+                          className={`shift-week-calendar-cell ${isToday ? 'is-today' : ''}`}
+                        >
+                          {dayShifts.length === 0 ? (
+                            <span className="shift-week-calendar-empty">—</span>
+                          ) : (
+                            dayShifts.map((shift) => (
+                              <div
+                                key={shift.shiftId}
+                                className="shift-week-card"
+                                style={{ borderLeftColor: roleStyle.accent }}
+                              >
+                                <div className="shift-week-card-time">{formatShiftTime(shift)}</div>
+                                <div
+                                  className="shift-week-card-role"
+                                  style={{ color: roleStyle.accent }}
+                                >
+                                  {roleStyle.label}
+                                </div>
+                                {shift.boothOrStation ? (
+                                  <div className="shift-week-card-booth">{shift.boothOrStation}</div>
+                                ) : null}
+                                <div className="shift-week-card-actions">
+                                  {String(shift.shiftDate).slice(0, 10) >= today && (
+                                    <button
+                                      type="button"
+                                      onClick={() => beginEdit(shift)}
+                                      disabled={saving || actionId === shift.shiftId}
+                                      className="shift-week-card-action shift-week-card-action-edit"
+                                    >
+                                      {editingShiftId === shift.shiftId ? 'Editing' : 'Edit'}
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDelete(shift.shiftId)}
+                                    disabled={actionId === shift.shiftId}
+                                    className="shift-week-card-action shift-week-card-action-delete"
+                                  >
+                                    {actionId === shift.shiftId ? 'Deleting...' : 'Delete'}
+                                  </button>
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    <div className="shift-week-calendar-total">
+                      <span>{formatHours(weekMinutes)}</span>
+                    </div>
+                  </React.Fragment>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="shift-week-calendar-legend">
+            <span className="shift-week-calendar-legend-item">
+              <span
+                className="shift-week-calendar-legend-swatch"
+                style={{ background: '#6366f1' }}
+              />
+              Doctor shift
+            </span>
+            <span className="shift-week-calendar-legend-item">
+              <span
+                className="shift-week-calendar-legend-swatch"
+                style={{ background: '#059669' }}
+              />
+              Nurse shift
+            </span>
+          </div>
         </div>
       )}
     </div>

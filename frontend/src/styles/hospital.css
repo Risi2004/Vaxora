@@ -3379,3 +3379,283 @@ select.schedule-input-field {
   }
 }
 
+/* Staff week calendar (shifts panel) */
+.shift-week-calendar {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 4px 18px rgba(15, 23, 42, 0.05);
+}
+
+.shift-week-calendar-scroll {
+  overflow-x: auto;
+}
+
+.shift-week-calendar-grid {
+  display: grid;
+  grid-template-columns: 220px repeat(7, minmax(132px, 1fr)) 72px;
+  min-width: 980px;
+}
+
+.shift-week-calendar-corner,
+.shift-week-calendar-day-head,
+.shift-week-calendar-total-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  border-right: 1px solid #e2e8f0;
+  padding: 12px 10px;
+}
+
+.shift-week-calendar-corner {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  justify-content: center;
+}
+
+.shift-week-calendar-corner-label {
+  font-weight: 800;
+  color: #0f172a;
+  font-size: 0.9rem;
+}
+
+.shift-week-calendar-corner-sub {
+  font-size: 0.72rem;
+  color: #64748b;
+}
+
+.shift-week-calendar-day-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: #ffffff;
+}
+
+.shift-week-calendar-day-head.is-today {
+  background: #f8fafc;
+  box-shadow: inset 0 -2px 0 #19469d;
+}
+
+.shift-week-calendar-day-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.shift-week-calendar-weekday {
+  font-weight: 800;
+  color: #0f172a;
+  font-size: 0.88rem;
+}
+
+.shift-week-calendar-date {
+  font-size: 0.78rem;
+  color: #475569;
+}
+
+.shift-week-calendar-today-pill {
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #475569;
+  background: #e2e8f0;
+  border-radius: 999px;
+  padding: 2px 6px;
+}
+
+.shift-week-calendar-total-head {
+  font-weight: 800;
+  color: #64748b;
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+.shift-week-calendar-staff,
+.shift-week-calendar-cell,
+.shift-week-calendar-total {
+  border-bottom: 1px solid #eef2f7;
+  border-right: 1px solid #eef2f7;
+  min-height: 92px;
+}
+
+.shift-week-calendar-staff {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: #ffffff;
+  position: sticky;
+  left: 0;
+  z-index: 1;
+}
+
+.shift-week-calendar-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.shift-week-calendar-staff-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.shift-week-calendar-staff-name {
+  font-weight: 700;
+  color: #0f172a;
+  font-size: 0.82rem;
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.shift-week-calendar-staff-role {
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.shift-week-calendar-cell {
+  padding: 8px;
+  background: #ffffff;
+  vertical-align: top;
+}
+
+.shift-week-calendar-cell.is-today {
+  background: #fafbfc;
+}
+
+.shift-week-calendar-empty {
+  color: #cbd5e1;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 72px;
+}
+
+.shift-week-card {
+  border: 1px solid #e5e7eb;
+  border-left-width: 4px;
+  border-radius: 8px;
+  padding: 8px 10px 8px 8px;
+  margin-bottom: 8px;
+  background: #ffffff;
+  transition: box-shadow 0.15s ease;
+}
+
+.shift-week-card:hover {
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
+}
+
+.shift-week-card:last-child {
+  margin-bottom: 0;
+}
+
+.shift-week-card-time {
+  font-weight: 800;
+  color: #0f172a;
+  font-size: 0.78rem;
+  line-height: 1.2;
+}
+
+.shift-week-card-role {
+  font-size: 0.68rem;
+  font-weight: 700;
+  margin-top: 2px;
+}
+
+.shift-week-card-booth {
+  font-size: 0.68rem;
+  color: #64748b;
+  margin-top: 4px;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.shift-week-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.shift-week-card-action {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.shift-week-card-action-edit {
+  color: #19469d;
+}
+
+.shift-week-card-action-delete {
+  color: #dc2626;
+}
+
+.shift-week-card-action:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.shift-week-calendar-total {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  background: #f8fafc;
+  font-weight: 800;
+  color: #334155;
+  font-size: 0.82rem;
+}
+
+.shift-week-calendar-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 12px 16px;
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.shift-week-calendar-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.shift-week-calendar-legend-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+  .shift-week-calendar-grid {
+    grid-template-columns: 180px repeat(7, minmax(120px, 1fr)) 64px;
+    min-width: 860px;
+  }
+}
+
+
