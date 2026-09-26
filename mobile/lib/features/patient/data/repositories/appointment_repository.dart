@@ -41,4 +41,8 @@ class AppointmentRepository {
 
     throw ApiException('Failed to parse booked appointment from server response.');
   }
+
+  static Future<void> cancelAppointment(String appointmentId) async {
+    await ApiClient.delete('/appointments/$appointmentId/cancel');
+  }
 }

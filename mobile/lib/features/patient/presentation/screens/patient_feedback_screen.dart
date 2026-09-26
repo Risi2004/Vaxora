@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/constants/app_assets.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
+import '../../../auth/data/repositories/auth_repository.dart';
 
 class PatientFeedbackScreen extends StatefulWidget {
   const PatientFeedbackScreen({super.key});
@@ -12,13 +13,32 @@ class PatientFeedbackScreen extends StatefulWidget {
 
 class _PatientFeedbackScreenState extends State<PatientFeedbackScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController(text: 'Kavinda Perera');
-  final _emailController = TextEditingController(text: 'kavinda.perera@example.com');
-  final _phoneController = TextEditingController(text: '+94 77 123 4567');
+  final _nameController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
   final _messageController = TextEditingController();
 
   int _rating = 5;
   bool _submitted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUser();
+  }
+
+  Future<void> _loadUser() async {
+    final user = await AuthRepository.getCurrentUser();
+    if (user != null && mounted) {
+      setState(() {
+        _nameController.text = user.name;
+        _emailController.text = user.email;
+        if (user.phoneNumber != null && user.phoneNumber!.isNotEmpty) {
+          _phoneController.text = user.phoneNumber!;
+        }
+      });
+    }
+  }
 
   @override
   void dispose() {

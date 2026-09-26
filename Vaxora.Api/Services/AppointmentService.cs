@@ -15,6 +15,7 @@ public interface IAppointmentService
     Task<List<AppointmentResponseDto>> GetHospitalAppointmentsAsync(Guid hospitalUserId, DateOnly? date = null, string? status = null);
     Task<List<AppointmentResponseDto>> GetStaffHospitalAppointmentsAsync(Guid staffUserId, Guid hospitalUserId, DateOnly? date = null);
     Task<AppointmentResponseDto> UpdateAppointmentStatusAsync(Guid hospitalUserId, Guid appointmentId, UpdateAppointmentStatusDto dto);
+    Task<bool> CancelAppointmentAsync(Guid userId, string idOrRef, bool isHospital = false);
     Task<bool> CancelAppointmentAsync(Guid userId, Guid appointmentId, bool isHospital = false);
     Task<AppointmentResponseDto> ConfirmPayHerePaymentAsync(Guid appointmentId, string transactionId, string? orderId = null);
 }
@@ -497,11 +498,33 @@ public class AppointmentService : IAppointmentService
         return MapToDto(appointment);
     }
 
-    public async Task<bool> CancelAppointmentAsync(Guid userId, Guid appointmentId, bool isHospital = false)
+    public Task<bool> CancelAppointmentAsync(Guid userId, Guid appointmentId, bool isHospital = false)
+        => CancelAppointmentAsync(userId, appointmentId.ToString(), isHospital);
+
+    public async Task<bool> CancelAppointmentAsync(Guid userId, string idOrRef, bool isHospital = false)
     {
-        var appointment = await _context.Appointments
-            .FirstOrDefaultAsync(a => a.Id == appointmentId &&
-                                      (isHospital ? a.HospitalUserId == userId : a.PatientUserId == userId));
+        Guid.TryParse(idOrRef, out var parsedGuid);
+
+        Appointment? appointment = null;
+        if (parsedGuid != Guid.Empty)
+        {
+            appointment = await _context.Appointments
+                .FirstOrDefaultAsync(a => a.Id == parsedGuid &&
+                                          (isHospital ? a.HospitalUserId == userId : a.PatientUserId == userId));
+        }
+
+        // If not found by Guid directly, search user's appointments matching prefix or short id
+        if (appointment == null && !string.IsNullOrWhiteSpace(idOrRef))
+        {
+            var userAppointments = await _context.Appointments
+                .Where(a => isHospital ? a.HospitalUserId == userId : a.PatientUserId == userId)
+                .ToListAsync();
+
+            appointment = userAppointments.FirstOrDefault(a =>
+                a.Id.ToString().Equals(idOrRef, StringComparison.OrdinalIgnoreCase) ||
+                a.Id.ToString().StartsWith(idOrRef, StringComparison.OrdinalIgnoreCase) ||
+                (!string.IsNullOrEmpty(idOrRef) && idOrRef.Length >= 4 && a.Id.ToString().StartsWith(idOrRef[^4..], StringComparison.OrdinalIgnoreCase)));
+        }
 
         if (appointment == null)
         {
@@ -513,13 +536,13 @@ public class AppointmentService : IAppointmentService
             return true; // Already cancelled
         }
 
-        // Rule: Patients can only cancel appointments at least 1 day (24h) prior to the appointment date
+        // Rule: Patients cannot cancel past appointments (unless unpaid pending)
         if (!isHospital)
         {
             var today = DateOnly.FromDateTime(DateTime.UtcNow);
-            if (appointment.AppointmentDate <= today)
+            if (appointment.AppointmentDate < today && appointment.Status != "PendingPayment")
             {
-                throw new InvalidOperationException("Appointments can only be cancelled at least 1 day prior to the scheduled date. For same-day adjustments, please contact the hospital directly.");
+                throw new InvalidOperationException("Past appointments cannot be cancelled.");
             }
         }
 
@@ -529,7 +552,7 @@ public class AppointmentService : IAppointmentService
         await _context.SaveChangesAsync();
 
         _logger.LogInformation("Cancelled appointment {AppId} by {Actor} {UserId}. Slot {Slot} on {Date} is now released.",
-            appointmentId, isHospital ? "Hospital" : "Patient", userId, appointment.TimeSlot, appointment.AppointmentDate);
+            appointment.Id, isHospital ? "Hospital" : "Patient", userId, appointment.TimeSlot, appointment.AppointmentDate);
 
         // Asynchronously send cancellation email to patient
         if (!string.IsNullOrWhiteSpace(appointment.PatientEmail))

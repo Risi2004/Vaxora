@@ -5,7 +5,10 @@ import '../widgets/appointment_card.dart';
 import '../widgets/book_appointment_sheet.dart';
 import '../widgets/digital_certificate_sheet.dart';
 import '../widgets/agent_booking_sheet.dart';
+import '../widgets/payhere_checkout_sheet.dart';
 import '../../data/repositories/appointment_repository.dart';
+import '../../../auth/data/models/user_model.dart';
+import '../../../auth/data/repositories/auth_repository.dart';
 
 class PatientAppointmentsScreen extends StatefulWidget {
   final List<PatientAppointment>? initialAppointments;
@@ -25,59 +28,29 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen> {
   int _selectedFilter = 0; // 0: Upcoming, 1: Past
 
   late List<PatientAppointment> _appointments;
+  UserModel? _user;
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _appointments = widget.initialAppointments ??
-        [
-          const PatientAppointment(
-            id: 'VX-APT-883492',
-            vaccineName: 'COVID-19 mRNA Booster (Moderna)',
-            hospitalName: 'National Hospital of Sri Lanka',
-            location: 'Unit 4, Vaccination Clinic Wing B, Colombo 10',
-            date: '2026-10-12',
-            time: '10:30 AM',
-            doctorName: 'Dr. N. Wickramasinghe',
-            status: 'Confirmed',
-            fee: 0,
-            isPaid: true,
-          ),
-          const PatientAppointment(
-            id: 'VX-APT-772910',
-            vaccineName: 'Influenza (Quadrivalent Seasonal)',
-            hospitalName: 'Asiri Central Hospital',
-            location: 'Norris Canal Rd, Colombo 10',
-            date: '2026-11-05',
-            time: '02:00 PM',
-            doctorName: 'Dr. S. Jayawardena',
-            status: 'Confirmed',
-            fee: 2500,
-            isPaid: false,
-          ),
-          const PatientAppointment(
-            id: 'VX-APT-441203',
-            vaccineName: 'Hepatitis B Booster Dose 3',
-            hospitalName: 'Colombo South Teaching Hospital',
-            location: 'Kalubowila',
-            date: '2026-01-15',
-            time: '09:00 AM',
-            doctorName: 'Dr. R. Fernando',
-            status: 'Completed',
-            fee: 0,
-            isPaid: true,
-          ),
-        ];
+    _appointments = widget.initialAppointments ?? [];
     _loadBackendAppointments();
   }
 
   Future<void> _loadBackendAppointments() async {
+    setState(() => _isLoading = true);
     try {
-      final backendList = await AppointmentRepository.getMyAppointments();
-      if (backendList.isNotEmpty && mounted) {
+      final userFuture = AuthRepository.getCurrentUser();
+      final apptsFuture = AppointmentRepository.getMyAppointments();
+      final user = await userFuture;
+      final backendList = await apptsFuture;
+      if (mounted) {
         setState(() {
+          _user = user;
           _appointments = backendList.map((b) => PatientAppointment(
             id: b.referenceNumber ?? (b.id.length > 8 ? b.id.substring(0, 8) : b.id),
+            rawId: b.id,
             vaccineName: b.vaccineName,
             hospitalName: b.hospitalName,
             location: 'Assigned Vaccination Center',
@@ -86,11 +59,14 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen> {
             doctorName: 'Medical Officer',
             status: b.status,
             fee: b.fee ?? 0.0,
-            isPaid: b.isPaid,
+            isPaid: b.isPaid || b.status.toLowerCase() == 'confirmed' || b.status.toLowerCase() == 'completed',
           )).toList();
+          _isLoading = false;
         });
       }
-    } catch (_) {}
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   void _openAgentBookingSheet() {
@@ -118,6 +94,7 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen> {
         onAppointmentBooked: (data) {
           final newApt = PatientAppointment(
             id: data['id'] as String,
+            rawId: (data['rawId'] ?? data['id']) as String,
             vaccineName: data['vaccineName'] as String,
             hospitalName: data['hospitalName'] as String,
             location: data['location'] as String,
@@ -135,13 +112,29 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen> {
 
           widget.onAppointmentBooked?.call(data);
 
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              backgroundColor: AppColors.success,
-              content: Text('Appointment confirmed for ${newApt.vaccineName}!'),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
+          if (!newApt.isPaid && newApt.fee > 0) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                backgroundColor: const Color(0xFF003366),
+                content: Text('Reserved! Pay LKR ${newApt.fee.toStringAsFixed(0)} via PayHere.'),
+                action: SnackBarAction(
+                  label: 'Pay Now',
+                  textColor: const Color(0xFFFF9900),
+                  onPressed: () => _payNow(newApt),
+                ),
+                behavior: SnackBarBehavior.floating,
+                duration: const Duration(seconds: 8),
+              ),
+            );
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                backgroundColor: AppColors.success,
+                content: Text('Appointment confirmed for ${newApt.vaccineName}!'),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
         },
       ),
     );
@@ -158,9 +151,9 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen> {
         administeredDate: apt.date,
         administeredBy: apt.doctorName,
         centerName: apt.hospitalName,
-        patientName: 'KAVINDA PERERA',
-        vaxoraId: apt.id,
-        nic: '199824501234',
+        patientName: _user?.name.toUpperCase() ?? 'VALUED CITIZEN',
+        vaxoraId: _user?.registrationNumber ?? apt.id,
+        nic: _user?.nicNumber ?? _user?.registrationNumber ?? 'VAX-P-RECORD',
       ),
     );
   }
@@ -178,34 +171,54 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen> {
             child: const Text('Keep Appointment', style: TextStyle(color: AppColors.textMuted)),
           ),
           ElevatedButton(
-            onPressed: () {
-              setState(() {
-                _appointments = _appointments.map((a) {
-                  if (a.id == apt.id) {
-                    return PatientAppointment(
-                      id: a.id,
-                      vaccineName: a.vaccineName,
-                      hospitalName: a.hospitalName,
-                      location: a.location,
-                      date: a.date,
-                      time: a.time,
-                      doctorName: a.doctorName,
-                      status: 'Cancelled',
-                      fee: a.fee,
-                      isPaid: a.isPaid,
-                    );
-                  }
-                  return a;
-                }).toList();
-              });
+            onPressed: () async {
               Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  backgroundColor: AppColors.error,
-                  content: Text('Appointment cancelled.'),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
+              try {
+                final targetId = apt.rawId.isNotEmpty ? apt.rawId : apt.id;
+                await AppointmentRepository.cancelAppointment(targetId);
+                if (mounted) {
+                  setState(() {
+                    _appointments = _appointments.map((a) {
+                      if ((apt.rawId.isNotEmpty && a.rawId == apt.rawId) || a.id == apt.id) {
+                        return PatientAppointment(
+                          id: a.id,
+                          rawId: a.rawId,
+                          vaccineName: a.vaccineName,
+                          hospitalName: a.hospitalName,
+                          location: a.location,
+                          date: a.date,
+                          time: a.time,
+                          doctorName: a.doctorName,
+                          status: 'Cancelled',
+                          fee: a.fee,
+                          isPaid: a.isPaid,
+                        );
+                      }
+                      return a;
+                    }).toList();
+                  });
+                }
+                _loadBackendAppointments();
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      backgroundColor: AppColors.error,
+                      content: Text('Appointment cancelled successfully.'),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      backgroundColor: AppColors.error,
+                      content: Text('Failed to cancel appointment: $e'),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+              }
             },
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
             child: const Text('Yes, Cancel', style: TextStyle(color: Colors.white)),
@@ -216,86 +229,39 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen> {
   }
 
   void _payNow(PatientAppointment apt) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(
-          children: [
-            Icon(Icons.payment, color: AppColors.brandBlue),
-            SizedBox(width: 8),
-            Text('PayHere Gateway', style: TextStyle(fontWeight: FontWeight.w700)),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Paying: LKR ${apt.fee.toStringAsFixed(2)}'),
-            const SizedBox(height: 4),
-            Text('Hospital: ${apt.hospitalName}'),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceSubtle,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.borderLight),
-              ),
-              child: const Text(
-                'Demo Payment Gateway Mock: Complete payment securely without live charges.',
-                style: TextStyle(fontSize: 12, color: AppColors.textMuted),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              setState(() {
-                _appointments = _appointments.map((a) {
-                  if (a.id == apt.id) {
-                    return PatientAppointment(
-                      id: a.id,
-                      vaccineName: a.vaccineName,
-                      hospitalName: a.hospitalName,
-                      location: a.location,
-                      date: a.date,
-                      time: a.time,
-                      doctorName: a.doctorName,
-                      status: 'Confirmed',
-                      fee: a.fee,
-                      isPaid: true,
-                    );
-                  }
-                  return a;
-                }).toList();
-              });
-              Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  backgroundColor: AppColors.success,
-                  content: Text('Payment confirmed! Receipt sent to your email.'),
-                  behavior: SnackBarBehavior.floating,
-                ),
+    PayHereCheckoutSheet.show(
+      context,
+      appointment: apt,
+      onPaymentSuccess: () {
+        setState(() {
+          _appointments = _appointments.map((a) {
+            if ((apt.rawId.isNotEmpty && a.rawId == apt.rawId) || a.id == apt.id) {
+              return PatientAppointment(
+                id: a.id,
+                rawId: a.rawId,
+                vaccineName: a.vaccineName,
+                hospitalName: a.hospitalName,
+                location: a.location,
+                date: a.date,
+                time: a.time,
+                doctorName: a.doctorName,
+                status: 'Confirmed',
+                fee: a.fee,
+                isPaid: true,
               );
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF16A34A)),
-            child: const Text('Authorize Payment', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-          ),
-        ],
-      ),
+            }
+            return a;
+          }).toList();
+        });
+        _loadBackendAppointments();
+      },
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final filteredAppointments = _selectedFilter == 0
-        ? _appointments.where((a) => a.status.toLowerCase() != 'completed').toList()
+        ? _appointments.where((a) => a.status.toLowerCase() != 'completed' && a.status.toLowerCase() != 'cancelled').toList()
         : _appointments.where((a) => a.status.toLowerCase() == 'completed' || a.status.toLowerCase() == 'cancelled').toList();
 
     return Scaffold(
@@ -401,53 +367,68 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen> {
 
           // Appointment List
           Expanded(
-            child: filteredAppointments.isEmpty
-                ? Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(32),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.event_busy, size: 54, color: AppColors.textMuted),
-                          const SizedBox(height: 16),
-                          Text(
-                            _selectedFilter == 0 ? 'No upcoming appointments' : 'No past appointments on record',
-                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textTitle),
-                          ),
-                          const SizedBox(height: 6),
-                          const Text(
-                            'Schedule your recommended vaccination dosage at an accredited hospital or MOH center.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(fontSize: 13, color: AppColors.textMuted),
-                          ),
-                          const SizedBox(height: 20),
-                          ElevatedButton.icon(
-                            onPressed: _openBookSheet,
-                            icon: const Icon(Icons.add, size: 18),
-                            label: const Text('Book Appointment'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.brandBlue,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+            child: RefreshIndicator(
+              onRefresh: _loadBackendAppointments,
+              color: AppColors.brandBlue,
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator(color: AppColors.brandBlue))
+                  : filteredAppointments.isEmpty
+                      ? ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 80),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(Icons.event_busy, size: 54, color: AppColors.textMuted),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    _selectedFilter == 0 ? 'No upcoming appointments' : 'No past appointments on record',
+                                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textTitle),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  const Text(
+                                    'Schedule your recommended vaccination dosage at an accredited hospital or MOH center.',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(fontSize: 13, color: AppColors.textMuted),
+                                  ),
+                                  const SizedBox(height: 20),
+                                  ElevatedButton.icon(
+                                    onPressed: _openBookSheet,
+                                    icon: const Icon(Icons.add, size: 18),
+                                    label: const Text('Book Appointment'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.brandBlue,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
-                    itemCount: filteredAppointments.length,
-                    itemBuilder: (context, index) {
-                      final apt = filteredAppointments[index];
-                      return AppointmentCard(
-                        appointment: apt,
-                        onViewSlip: () => _showSlipSheet(apt),
-                        onCancel: () => _cancelAppointment(apt),
-                        onPayNow: !apt.isPaid ? () => _payNow(apt) : null,
-                      );
-                    },
-                  ),
+                          ],
+                        )
+                      : ListView.builder(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
+                          itemCount: filteredAppointments.length,
+                          itemBuilder: (context, index) {
+                            final apt = filteredAppointments[index];
+                            return AppointmentCard(
+                              appointment: apt,
+                              onViewSlip: () => _showSlipSheet(apt),
+                              onCancel: () => _cancelAppointment(apt),
+                              onPayNow: (!apt.isPaid &&
+                                      apt.status.toLowerCase() != 'confirmed' &&
+                                      apt.status.toLowerCase() != 'completed' &&
+                                      apt.status.toLowerCase() != 'cancelled')
+                                  ? () => _payNow(apt)
+                                  : null,
+                            );
+                          },
+                        ),
+            ),
           ),
         ],
       ),

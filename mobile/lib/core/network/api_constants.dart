@@ -30,4 +30,15 @@ class ApiConstants {
   // AI Agent endpoints (proxied through ASP.NET Core)
   static const String agentChat = '/agent/chat';
   static const String agentHealth = '/agent/health';
+
+  // Patient Clinical & Vaccination endpoints
+  static const String updateProfile = '/auth/profile';
+  static const String patientVaccinations = '/patient-vaccinations';
+  static const String patientMedicalHistory = '/patient-medical-history';
+  static const String availableSchedules = '/schedule/available';
+  static const String vaccines = '/inventory/vaccines';
+
+  // PayHere Payment endpoints
+  static const String payHereInit = '/payment/payhere-init';
+  static const String confirmPayment = '/payment/confirm';
 }

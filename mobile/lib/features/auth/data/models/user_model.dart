@@ -7,6 +7,8 @@ class UserModel {
   final String? phoneNumber;
   final String? registrationNumber;
   final String? nicNumber;
+  final String? patientProfileId;
+  final String? dateOfBirth;
 
   const UserModel({
     required this.id,
@@ -17,12 +19,20 @@ class UserModel {
     this.phoneNumber,
     this.registrationNumber,
     this.nicNumber,
+    this.patientProfileId,
+    this.dateOfBirth,
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
     String? extractedNic;
+    String? extractedProfileId;
+    String? extractedDob;
+
     if (json['profileDetails'] != null && json['profileDetails'] is Map) {
-      extractedNic = json['profileDetails']['nicNumber']?.toString();
+      final details = json['profileDetails'] as Map;
+      extractedNic = details['nicNumber']?.toString();
+      extractedProfileId = details['id']?.toString();
+      extractedDob = details['dateOfBirth']?.toString();
     }
 
     return UserModel(
@@ -34,6 +44,8 @@ class UserModel {
       phoneNumber: json['phoneNumber']?.toString(),
       registrationNumber: json['registrationNumber']?.toString(),
       nicNumber: extractedNic ?? json['nicNumber']?.toString(),
+      patientProfileId: extractedProfileId,
+      dateOfBirth: extractedDob ?? json['dateOfBirth']?.toString(),
     );
   }
 
@@ -47,6 +59,8 @@ class UserModel {
       'phoneNumber': phoneNumber,
       'registrationNumber': registrationNumber,
       'nicNumber': nicNumber,
+      'patientProfileId': patientProfileId,
+      'dateOfBirth': dateOfBirth,
     };
   }
 }

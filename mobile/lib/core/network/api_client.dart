@@ -59,6 +59,38 @@ class ApiClient {
     }
   }
 
+  static Future<dynamic> put(String endpoint, {dynamic body}) async {
+    final uri = Uri.parse('${ApiConstants.baseUrl}$endpoint');
+    final headers = await _getHeaders();
+
+    try {
+      final response = await http
+          .put(
+            uri,
+            headers: headers,
+            body: body != null ? jsonEncode(body) : null,
+          )
+          .timeout(const Duration(seconds: 45));
+      return _processResponse(response);
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      throw ApiException('Unable to connect to Vaxora server ($e). Please ensure backend is running at ${ApiConstants.baseUrl}');
+    }
+  }
+
+  static Future<dynamic> delete(String endpoint) async {
+    final uri = Uri.parse('${ApiConstants.baseUrl}$endpoint');
+    final headers = await _getHeaders();
+
+    try {
+      final response = await http.delete(uri, headers: headers).timeout(const Duration(seconds: 30));
+      return _processResponse(response);
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      throw ApiException('Unable to connect to Vaxora server ($e). Please ensure backend is running at ${ApiConstants.baseUrl}');
+    }
+  }
+
   static Future<dynamic> postMultipart(
     String endpoint, {
     required Map<String, String> fields,

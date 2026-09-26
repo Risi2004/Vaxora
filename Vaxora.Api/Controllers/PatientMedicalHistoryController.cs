@@ -9,7 +9,7 @@ namespace Vaxora.Api.Controllers;
 
 [ApiController]
 [Route("api/patient-medical-history")]
-[Authorize(Roles = "DOCTOR,NURSE,HOSPITAL,ADMIN")]
+[Authorize(Roles = "DOCTOR,NURSE,HOSPITAL,ADMIN,PATIENT")]
 public class PatientMedicalHistoryController : ControllerBase
 {
     private readonly IPatientMedicalHistoryService _service;
