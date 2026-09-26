@@ -1,11 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { getUser } from '../../auth/services/authService';
 import staffService from '../../hospital/services/staffService';
-import { inventoryService } from '../../hospital/services/inventoryService';
 import staffAppointmentService from '../../staff/services/staffAppointmentService';
 import NurseClinicalAdministerModal from './NurseClinicalAdministerModal';
 import NurseAefiReportModal from './NurseAefiReportModal';
-import { IconCalendar, IconClipboard, IconClock, IconHospital, IconShield, IconSnowflake, IconSyringe, IconUser } from '../../../shared/icons/AppIcons';
+import { IconCalendar, IconClipboard, IconClock, IconHospital, IconShield, IconSyringe, IconUser } from '../../../shared/icons/AppIcons';
 
 const dutyLabel = {
   Off: 'Off duty',
@@ -44,8 +43,6 @@ export default function NurseDashboardOverview() {
   const [affiliations, setAffiliations] = useState([]);
   const [todayAppointments, setTodayAppointments] = useState([]);
   const [statsLoading, setStatsLoading] = useState(true);
-  const [coldBoxStock, setColdBoxStock] = useState([]);
-  const [coldBoxLoading, setColdBoxLoading] = useState(true);
 
   const showToast = (msg) => {
     setToastMessage(msg);
@@ -56,7 +53,6 @@ export default function NurseDashboardOverview() {
     let cancelled = false;
     (async () => {
       setStatsLoading(true);
-      setColdBoxLoading(true);
       try {
         const list = await staffService.getMyAffiliations();
         const active = Array.isArray(list) ? list : [];
@@ -66,37 +62,21 @@ export default function NurseDashboardOverview() {
         const hospitalId = active[0]?.hospitalUserId;
         if (!hospitalId) {
           setTodayAppointments([]);
-          setColdBoxStock([]);
           return;
         }
 
-        const [appts, batches] = await Promise.all([
-          staffAppointmentService.getHospitalAppointments(hospitalId, toDateInputValue()),
-          inventoryService.getInventory().catch(() => []),
-        ]);
+        const appts = await staffAppointmentService.getHospitalAppointments(hospitalId, toDateInputValue());
         if (cancelled) return;
 
         setTodayAppointments(Array.isArray(appts) ? appts : []);
-        const stock = (Array.isArray(batches) ? batches : [])
-          .filter((b) => Number(b.available ?? 0) > 0)
-          .slice(0, 8)
-          .map((b) => ({
-            name: b.name || 'Vaccine',
-            lot: b.lotNumber || '—',
-            count: Number(b.available ?? 0),
-            unit: 'vials',
-          }));
-        setColdBoxStock(stock);
       } catch {
         if (!cancelled) {
           setAffiliations([]);
           setTodayAppointments([]);
-          setColdBoxStock([]);
         }
       } finally {
         if (!cancelled) {
           setStatsLoading(false);
-          setColdBoxLoading(false);
         }
       }
     })();
@@ -729,45 +709,6 @@ export default function NurseDashboardOverview() {
                 ))}
               </div>
             )}
-          </div>
-
-          {/* Booth Cold Box Vaccine Inventory */}
-          <div className="doctor-coldbox-card">
-            <div className="doctor-coldbox-header">
-              <div className="doctor-coldbox-title" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-                <span className="icon-shade icon-shade-teal"><IconSnowflake size={22} /></span>
-                Cold-Box Stock
-              </div>
-            </div>
-
-            <div className="doctor-coldbox-list">
-              {coldBoxLoading ? (
-                <p style={{ margin: 0, color: '#64748b', fontSize: '0.88rem' }}>
-                  Loading stock…
-                </p>
-              ) : !primaryAffiliation ? (
-                <p style={{ margin: 0, color: '#64748b', fontSize: '0.88rem' }}>
-                  Join a hospital to see booth stock.
-                </p>
-              ) : coldBoxStock.length === 0 ? (
-                <p style={{ margin: 0, color: '#64748b', fontSize: '0.88rem' }}>
-                  No vials in stock for this hospital.
-                </p>
-              ) : (
-                coldBoxStock.map((item, idx) => (
-                  <div key={idx} className="doctor-coldbox-item">
-                    <div>
-                      <div className="doctor-coldbox-name">{item.name}</div>
-                      <div className="doctor-coldbox-lot">Lot: {item.lot}</div>
-                    </div>
-                    <div className="doctor-coldbox-count">
-                      <span className="doctor-coldbox-number">{item.count}</span>
-                      <span className="doctor-coldbox-unit">{item.unit}</span>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
           </div>
 
           {/* Today's appointment slots */}

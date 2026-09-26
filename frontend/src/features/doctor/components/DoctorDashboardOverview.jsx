@@ -1,11 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { getUser } from '../../auth/services/authService';
 import staffService from '../../hospital/services/staffService';
-import { inventoryService } from '../../hospital/services/inventoryService';
 import staffAppointmentService from '../../staff/services/staffAppointmentService';
 import ClinicalAdministerModal from './ClinicalAdministerModal';
 import AefiReportModal from './AefiReportModal';
-import { IconCalendar, IconClipboard, IconClock, IconHospital, IconShield, IconSnowflake, IconSyringe, IconUser } from '../../../shared/icons/AppIcons';
+import { IconCalendar, IconClipboard, IconClock, IconHospital, IconRefresh, IconShield, IconSyringe, IconUser } from '../../../shared/icons/AppIcons';
+import doctorHomeHero from '../../../assets/images/doctor-home-hero.jpg';
 
 const dutyLabel = {
   Off: 'Off duty',
@@ -44,66 +44,38 @@ export default function DoctorDashboardOverview() {
   const [affiliations, setAffiliations] = useState([]);
   const [todayAppointments, setTodayAppointments] = useState([]);
   const [statsLoading, setStatsLoading] = useState(true);
-  const [coldBoxStock, setColdBoxStock] = useState([]);
-  const [coldBoxLoading, setColdBoxLoading] = useState(true);
 
   const showToast = (msg) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 4000);
   };
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setStatsLoading(true);
-      setColdBoxLoading(true);
-      try {
-        const list = await staffService.getMyAffiliations();
-        const active = Array.isArray(list) ? list : [];
-        if (cancelled) return;
-        setAffiliations(active);
+  const loadDashboardData = useCallback(async () => {
+    setStatsLoading(true);
+    try {
+      const list = await staffService.getMyAffiliations();
+      const active = Array.isArray(list) ? list : [];
+      setAffiliations(active);
 
-        const hospitalId = active[0]?.hospitalUserId;
-        if (!hospitalId) {
-          setTodayAppointments([]);
-          setColdBoxStock([]);
-          return;
-        }
-
-        const [appts, batches] = await Promise.all([
-          staffAppointmentService.getHospitalAppointments(hospitalId, toDateInputValue()),
-          inventoryService.getInventory().catch(() => []),
-        ]);
-        if (cancelled) return;
-
-        setTodayAppointments(Array.isArray(appts) ? appts : []);
-        const stock = (Array.isArray(batches) ? batches : [])
-          .filter((b) => Number(b.available ?? 0) > 0)
-          .slice(0, 8)
-          .map((b) => ({
-            name: b.name || 'Vaccine',
-            lot: b.lotNumber || '—',
-            count: Number(b.available ?? 0),
-            unit: 'vials',
-          }));
-        setColdBoxStock(stock);
-      } catch {
-        if (!cancelled) {
-          setAffiliations([]);
-          setTodayAppointments([]);
-          setColdBoxStock([]);
-        }
-      } finally {
-        if (!cancelled) {
-          setStatsLoading(false);
-          setColdBoxLoading(false);
-        }
+      const hospitalId = active[0]?.hospitalUserId;
+      if (!hospitalId) {
+        setTodayAppointments([]);
+        return;
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
+
+      const appts = await staffAppointmentService.getHospitalAppointments(hospitalId, toDateInputValue());
+      setTodayAppointments(Array.isArray(appts) ? appts : []);
+    } catch {
+      setAffiliations([]);
+      setTodayAppointments([]);
+    } finally {
+      setStatsLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    loadDashboardData();
+  }, [loadDashboardData]);
 
   const heroDateLabel = useMemo(
     () =>
@@ -277,16 +249,15 @@ export default function DoctorDashboardOverview() {
       )}
 
       {/* 1. Hero Banner with Welcome, Station Status, and Quick Actions */}
-      <section className="doctor-hero-banner">
-        <div className="doctor-hero-info">
-          <h1 className="doctor-hero-title">
-            {greeting}, {doctorTitle}
-          </h1>
-          <p className="doctor-hero-subtitle">
+      <section className="hospital-hero-banner doctor-home-hero">
+        <div className="hospital-hero-content doctor-home-hero-content">
+          <p className="hospital-hero-eyebrow">Clinical session</p>
+          <h1>{greeting}, {doctorTitle}</h1>
+          <p className="hospital-hero-sub">
             {heroDateLabel}
             {primaryAffiliation?.hospitalName
-              ? ` • ${primaryAffiliation.hospitalName}`
-              : ' • No active hospital affiliation yet'}
+              ? ` · ${primaryAffiliation.hospitalName}`
+              : ' · No active hospital affiliation yet'}
           </p>
           <div className="doctor-hero-session-pill">
             {primaryAffiliation ? (
@@ -294,11 +265,11 @@ export default function DoctorDashboardOverview() {
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                   <IconHospital size={14} /> {primaryAffiliation.hospitalName || 'Affiliated hospital'}
                 </span>
-                <span>•</span>
+                <span>·</span>
                 <span>{dutyText}</span>
                 {affiliations.length > 1 && (
                   <>
-                    <span>•</span>
+                    <span>·</span>
                     <span>{affiliations.length} hospitals</span>
                   </>
                 )}
@@ -307,81 +278,77 @@ export default function DoctorDashboardOverview() {
               <span>Accept a hospital invitation on Affiliations to join a roster</span>
             )}
           </div>
+          <div className="doctor-hero-actions">
+            <button
+              type="button"
+              className="doctor-btn-call-next"
+              onClick={handleCallNext}
+            >
+              Call Next Patient
+            </button>
+            <button
+              type="button"
+              className="doctor-btn-report-aefi"
+              onClick={() => setIsAefiModalOpen(true)}
+            >
+              Report AEFI
+            </button>
+          </div>
         </div>
-
-        <div className="doctor-hero-actions">
-          <button
-            type="button"
-            className="doctor-btn-call-next"
-            onClick={handleCallNext}
-          >
-            📢 Call Next Patient
-          </button>
-          <button
-            type="button"
-            className="doctor-btn-report-aefi"
-            onClick={() => setIsAefiModalOpen(true)}
-          >
-            ⚠️ Report AEFI
-          </button>
+        <div className="hospital-hero-media" aria-hidden="true">
+          <img src={doctorHomeHero} alt="" className="hospital-hero-image doctor-home-hero-image" />
         </div>
       </section>
 
       {/* 2. Key Metrics Ribbon (4 Cards) — live hospital appointments for today */}
-      <section className="doctor-stats-grid">
-        <div className="doctor-stat-card">
-          <div className="doctor-stat-content">
-            <span className="doctor-stat-label">Today&apos;s Appointments</span>
-            <span className="doctor-stat-value">{statsLoading ? '—' : todayTotal}</span>
-            <span className="doctor-stat-meta">
-              <span style={{ color: '#059669', fontWeight: 700 }}>
+      <section className="hospital-metrics-grid doctor-stats-grid">
+        <div className="hospital-stat-card">
+          <div className="hospital-stat-icon stat-icon-blue">
+            <IconCalendar size={22} />
+          </div>
+          <div className="hospital-stat-info">
+            <span className="hospital-stat-label">Today&apos;s Appointments</span>
+            <span className="hospital-stat-value">{statsLoading ? '—' : todayTotal}</span>
+            <span className="hospital-stat-meta">
+              <span className="meta-positive">
                 {statsLoading ? '—' : todayCompleted} Completed
               </span>
-              {' • '}
+              {' · '}
               {statsLoading ? '—' : todayUpcoming} Upcoming
             </span>
           </div>
-          <div className="doctor-stat-icon-wrapper doctor-icon-blue">
-            <IconCalendar size={22} />
-          </div>
         </div>
 
-        <div className="doctor-stat-card">
-          <div className="doctor-stat-content">
-            <span className="doctor-stat-label">Upcoming Today</span>
-            <span className="doctor-stat-value" style={{ color: '#d97706' }}>
-              {statsLoading ? '—' : todayUpcoming}
-            </span>
-            <span className="doctor-stat-meta">Confirmed or awaiting payment</span>
-          </div>
-          <div className="doctor-stat-icon-wrapper doctor-icon-amber">
+        <div className="hospital-stat-card">
+          <div className="hospital-stat-icon stat-icon-amber">
             <IconClock size={22} />
           </div>
+          <div className="hospital-stat-info">
+            <span className="hospital-stat-label">Upcoming Today</span>
+            <span className="hospital-stat-value">{statsLoading ? '—' : todayUpcoming}</span>
+            <span className="hospital-stat-meta">Confirmed or awaiting payment</span>
+          </div>
         </div>
 
-        <div className="doctor-stat-card">
-          <div className="doctor-stat-content">
-            <span className="doctor-stat-label">Completed Today</span>
-            <span className="doctor-stat-value" style={{ color: '#059669' }}>
-              {statsLoading ? '—' : todayCompleted}
-            </span>
-            <span className="doctor-stat-meta">Marked completed at this hospital</span>
-          </div>
-          <div className="doctor-stat-icon-wrapper doctor-icon-green">
+        <div className="hospital-stat-card">
+          <div className="hospital-stat-icon stat-icon-green">
             <IconSyringe size={22} />
           </div>
+          <div className="hospital-stat-info">
+            <span className="hospital-stat-label">Completed Today</span>
+            <span className="hospital-stat-value">{statsLoading ? '—' : todayCompleted}</span>
+            <span className="hospital-stat-meta">Marked completed at this hospital</span>
+          </div>
         </div>
 
-        <div className="doctor-stat-card">
-          <div className="doctor-stat-content">
-            <span className="doctor-stat-label">Needs Dosage</span>
-            <span className="doctor-stat-value" style={{ color: '#dc2626' }}>
-              {statsLoading ? '—' : todayNeedsDosage}
-            </span>
-            <span className="doctor-stat-meta">Confirmed visits without prescribed dosage</span>
-          </div>
-          <div className="doctor-stat-icon-wrapper doctor-icon-purple">
+        <div className="hospital-stat-card">
+          <div className="hospital-stat-icon stat-icon-purple">
             <IconShield size={22} />
+          </div>
+          <div className="hospital-stat-info">
+            <span className="hospital-stat-label">Needs Dosage</span>
+            <span className="hospital-stat-value">{statsLoading ? '—' : todayNeedsDosage}</span>
+            <span className="hospital-stat-meta">Confirmed visits without prescribed dosage</span>
           </div>
         </div>
       </section>
@@ -518,55 +485,74 @@ export default function DoctorDashboardOverview() {
       {/* 4. Main Two-Column Layout (Queue + Side Panels) */}
       <div className="doctor-main-grid">
         {/* Left Column: Today's Patient Queue Table */}
-        <div className="doctor-card">
-          <div className="doctor-card-header">
-            <div className="doctor-card-title" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-              <span className="icon-shade icon-shade-blue"><IconClipboard size={22} /></span>
-              Today's Consultation Queue
-            </div>
-
-            <div className="doctor-filter-pills">
-              <button
-                type="button"
-                className={`doctor-filter-btn ${filterStatus === 'all' ? 'active' : ''}`}
-                onClick={() => setFilterStatus('all')}
-              >
-                All ({patients.length})
-              </button>
-              <button
-                type="button"
-                className={`doctor-filter-btn ${filterStatus === 'waiting' ? 'active' : ''}`}
-                onClick={() => setFilterStatus('waiting')}
-              >
-                Waiting ({waitingCount})
-              </button>
-              <button
-                type="button"
-                className={`doctor-filter-btn ${filterStatus === 'observation' ? 'active' : ''}`}
-                onClick={() => setFilterStatus('observation')}
-              >
-                Observation ({observationCount})
-              </button>
-              <button
-                type="button"
-                className={`doctor-filter-btn ${filterStatus === 'completed' ? 'active' : ''}`}
-                onClick={() => setFilterStatus('completed')}
-              >
-                Completed ({completedCount})
-              </button>
+        <div className="doctor-card doctor-queue-card">
+          <div className="section-card-header queue-section-header">
+            <div className="section-title-group">
+              <h2>
+                <span className="section-title-icon icon-shade-purple"><IconClipboard size={22} /></span>
+                Today&apos;s Consultation Queue
+              </h2>
+              <p className="section-title-desc">
+                Live patient flow for today&apos;s session at your affiliated hospital
+              </p>
             </div>
           </div>
 
-          {/* Search Input */}
-          <div className="doctor-search-bar">
-            <span className="doctor-search-icon">🔍</span>
-            <input
-              type="text"
-              className="doctor-search-input"
-              placeholder="Search by patient name, NIC, token, or vaccine..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
+          <div className="queue-controls-bar">
+            <div className="queue-controls-left">
+              <div className="queue-scope-switch">
+                <button
+                  type="button"
+                  className={`queue-scope-btn${filterStatus === 'all' ? ' active' : ''}`}
+                  onClick={() => setFilterStatus('all')}
+                >
+                  All ({patients.length})
+                </button>
+                <button
+                  type="button"
+                  className={`queue-scope-btn${filterStatus === 'waiting' ? ' active' : ''}`}
+                  onClick={() => setFilterStatus('waiting')}
+                >
+                  Waiting ({waitingCount})
+                </button>
+                <button
+                  type="button"
+                  className={`queue-scope-btn${filterStatus === 'observation' ? ' active' : ''}`}
+                  onClick={() => setFilterStatus('observation')}
+                >
+                  Observation ({observationCount})
+                </button>
+                <button
+                  type="button"
+                  className={`queue-scope-btn${filterStatus === 'completed' ? ' active' : ''}`}
+                  onClick={() => setFilterStatus('completed')}
+                >
+                  Completed ({completedCount})
+                </button>
+              </div>
+
+              <input
+                type="text"
+                className="queue-search-input"
+                placeholder="Search patient, phone, token..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+
+              <button
+                type="button"
+                className="btn-inventory-refresh"
+                onClick={() => {
+                  setFilterStatus('all');
+                  setSearchQuery('');
+                  loadDashboardData();
+                }}
+                disabled={statsLoading}
+                title="Refresh consultation queue"
+              >
+                {statsLoading ? '...' : <IconRefresh size={16} />}
+              </button>
+            </div>
           </div>
 
           {/* Queue Table */}
@@ -729,45 +715,6 @@ export default function DoctorDashboardOverview() {
                 ))}
               </div>
             )}
-          </div>
-
-          {/* Booth Cold Box Vaccine Inventory */}
-          <div className="doctor-coldbox-card">
-            <div className="doctor-coldbox-header">
-              <div className="doctor-coldbox-title" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-                <span className="icon-shade icon-shade-teal"><IconSnowflake size={22} /></span>
-                Cold-Box Stock
-              </div>
-            </div>
-
-            <div className="doctor-coldbox-list">
-              {coldBoxLoading ? (
-                <p style={{ margin: 0, color: '#64748b', fontSize: '0.88rem' }}>
-                  Loading stock…
-                </p>
-              ) : !primaryAffiliation ? (
-                <p style={{ margin: 0, color: '#64748b', fontSize: '0.88rem' }}>
-                  Join a hospital to see booth stock.
-                </p>
-              ) : coldBoxStock.length === 0 ? (
-                <p style={{ margin: 0, color: '#64748b', fontSize: '0.88rem' }}>
-                  No vials in stock for this hospital.
-                </p>
-              ) : (
-                coldBoxStock.map((item, idx) => (
-                  <div key={idx} className="doctor-coldbox-item">
-                    <div>
-                      <div className="doctor-coldbox-name">{item.name}</div>
-                      <div className="doctor-coldbox-lot">Lot: {item.lot}</div>
-                    </div>
-                    <div className="doctor-coldbox-count">
-                      <span className="doctor-coldbox-number">{item.count}</span>
-                      <span className="doctor-coldbox-unit">{item.unit}</span>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
           </div>
 
           {/* Today's appointment slots */}
