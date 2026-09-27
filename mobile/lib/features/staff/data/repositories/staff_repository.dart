@@ -25,6 +25,8 @@ class StaffRepository {
     try {
       final response = await ApiClient.get(ApiConstants.staffMyAffiliations);
       return _parseAffiliations(response);
+    } on ApiException {
+      rethrow;
     } catch (_) {
       return [];
     }
@@ -35,6 +37,8 @@ class StaffRepository {
     try {
       final response = await ApiClient.get(ApiConstants.staffInvitations);
       return _parseAffiliations(response);
+    } on ApiException {
+      rethrow;
     } catch (_) {
       return [];
     }
@@ -76,6 +80,8 @@ class StaffRepository {
         queryParams: query.isEmpty ? null : query,
       );
       return _parseShifts(response);
+    } on ApiException {
+      rethrow;
     } catch (_) {
       return [];
     }

@@ -3,6 +3,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/services/storage_service.dart';
 import '../../../auth/presentation/screens/login_screen.dart';
+import '../../../auth/presentation/utils/home_route_utils.dart';
 import '../../../auth/data/repositories/auth_repository.dart';
 
 class StaffProfileScreen extends StatefulWidget {
@@ -43,10 +44,9 @@ class _StaffProfileScreenState extends State<StaffProfileScreen> {
   }
 
   String get _roleLabel {
-    final role = (_user?['role']?.toString() ?? '').toUpperCase();
-    if (role.contains('DOCTOR')) return 'DOCTOR';
-    if (role.contains('NURSE')) return 'NURSE';
-    return role.isEmpty ? 'STAFF' : role;
+    final raw = _user?['role']?.toString() ?? '';
+    final label = staffRoleLabel(raw).toUpperCase();
+    return label == 'STAFF' && raw.isEmpty ? 'STAFF' : label;
   }
 
   @override

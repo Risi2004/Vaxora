@@ -4,10 +4,8 @@ import '../../../../core/theme/app_colors.dart';
 import '../widgets/auth_banner_header.dart';
 import 'signup_screen.dart';
 import 'forgot_password_screen.dart';
-import '../../../patient/presentation/screens/patient_main_screen.dart';
 import '../../data/repositories/auth_repository.dart';
-import '../../../inventory/presentation/screens/hospital_main_screen.dart';
-import '../../../staff/presentation/screens/staff_main_screen.dart';
+import '../utils/home_route_utils.dart';
 
 class LoginScreen extends StatefulWidget {
   final String? noticeMessage;
@@ -49,16 +47,6 @@ class _LoginScreenState extends State<LoginScreen> {
         password: _passwordController.text,
       );
 
-      final role = user.role.toUpperCase().trim();
-      final isHospital = role == 'HOSPITAL' ||
-          role == 'ADMIN' ||
-          role.contains('HOSPITAL') ||
-          role.contains('ADMIN');
-      final isStaff = role == 'DOCTOR' ||
-          role == 'NURSE' ||
-          role.contains('DOCTOR') ||
-          role.contains('NURSE');
-
       if (mounted) {
         setState(() => _isLoading = false);
 
@@ -70,14 +58,8 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         );
 
-        final Widget home = isHospital
-            ? const HospitalMainScreen()
-            : isStaff
-                ? const StaffMainScreen()
-                : const PatientMainScreen();
-
         Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => home),
+          MaterialPageRoute(builder: (context) => homeScreenForRole(user.role)),
           (route) => false,
         );
       }

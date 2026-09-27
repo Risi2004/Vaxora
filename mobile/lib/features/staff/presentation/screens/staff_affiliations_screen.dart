@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
+import '../../../auth/presentation/utils/home_route_utils.dart';
 import '../../data/models/affiliation_model.dart';
 import '../../data/repositories/staff_repository.dart';
 
@@ -405,9 +406,7 @@ class _InvitationCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      item.invitedAt != null
-                          ? 'Invited: ${_shortDate(item.invitedAt!)}'
-                          : 'Pending invitation',
+                      _affiliationMeta(item, pending: true),
                       style: const TextStyle(
                         fontSize: 12,
                         color: AppColors.textMuted,
@@ -487,9 +486,7 @@ class _AffiliationCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  item.respondedAt != null
-                      ? 'Joined: ${_shortDate(item.respondedAt!)}'
-                      : 'Active roster member',
+                  _affiliationMeta(item, pending: false),
                   style: const TextStyle(
                     fontSize: 12,
                     color: AppColors.textMuted,
@@ -530,4 +527,24 @@ String _shortDate(String raw) {
   final m = local.month.toString().padLeft(2, '0');
   final d = local.day.toString().padLeft(2, '0');
   return '$y-$m-$d';
+}
+
+String _affiliationMeta(AffiliationModel item, {required bool pending}) {
+  final parts = <String>[staffRoleLabel(item.staffRole)];
+  final spec = item.specialization?.trim();
+  if (spec != null && spec.isNotEmpty) parts.add(spec);
+  if (pending) {
+    parts.add(
+      item.invitedAt != null
+          ? 'Invited ${_shortDate(item.invitedAt!)}'
+          : 'Pending',
+    );
+  } else {
+    parts.add(
+      item.respondedAt != null
+          ? 'Joined ${_shortDate(item.respondedAt!)}'
+          : 'Active',
+    );
+  }
+  return parts.join(' · ');
 }

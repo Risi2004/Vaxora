@@ -78,8 +78,14 @@ class _StaffShiftsScreenState extends State<StaffShiftsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final grouped = _grouped;
-    final dayKeys = grouped.keys.toList();
+      final grouped = _grouped;
+    final dayKeys = grouped.keys.toList()
+      ..sort((a, b) {
+        final da = DateTime.tryParse(a);
+        final db = DateTime.tryParse(b);
+        if (da != null && db != null) return da.compareTo(db);
+        return a.compareTo(b);
+      });
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
