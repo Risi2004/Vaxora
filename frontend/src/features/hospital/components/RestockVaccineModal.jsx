@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 const DEFAULT_LIST = [
   'Pfizer-BioNTech Bivalent (mRNA)',
@@ -10,15 +10,15 @@ const DEFAULT_LIST = [
   'Rabies Inactivated Vaccine (Verorab)',
 ];
 
-function buildFreshForm(firstVaccine) {
+function emptyForm() {
   return {
-    vaccineName: firstVaccine || 'Pfizer-BioNTech Bivalent (mRNA)',
+    vaccineName: '',
     customVaccineName: '',
-    lotNumber: 'PF-' + Math.floor(1000 + Math.random() * 9000),
-    quantity: '200',
-    expiryDate: '2027-04-30',
-    storageUnit: 'Chiller Unit B (2-8°C)',
-    supplier: 'State Pharmaceuticals Corporation (SPC) / MOH',
+    lotNumber: '',
+    quantity: '',
+    expiryDate: '',
+    storageUnit: '',
+    supplier: '',
   };
 }
 
@@ -29,19 +29,21 @@ export default function RestockVaccineModal({
   registeredVaccines = [],
 }) {
   const vaccineOptions = registeredVaccines.length > 0 ? registeredVaccines : DEFAULT_LIST;
+  const wasOpenRef = useRef(false);
 
-  const [formData, setFormData] = useState(() => buildFreshForm(vaccineOptions[0]));
+  const [formData, setFormData] = useState(emptyForm);
   const [isCustomMode, setIsCustomMode] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  // Reset every time the modal opens so the previous shipment does not stick.
+  // Clear only when opening — never refill with demo defaults.
   useEffect(() => {
-    if (!isOpen) return;
-    const options = registeredVaccines.length > 0 ? registeredVaccines : DEFAULT_LIST;
-    setIsCustomMode(false);
-    setSubmitting(false);
-    setFormData(buildFreshForm(options[0]));
-  }, [isOpen, registeredVaccines]);
+    if (isOpen && !wasOpenRef.current) {
+      setIsCustomMode(false);
+      setSubmitting(false);
+      setFormData(emptyForm());
+    }
+    wasOpenRef.current = isOpen;
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -55,9 +57,9 @@ export default function RestockVaccineModal({
         setIsCustomMode(false);
         setFormData((prev) => ({ ...prev, vaccineName: value, customVaccineName: '' }));
       }
-    } else {
-      setFormData((prev) => ({ ...prev, [name]: value }));
+      return;
     }
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = async (e) => {
@@ -70,28 +72,30 @@ export default function RestockVaccineModal({
       alert('Please select or enter a valid vaccine product name.');
       return;
     }
-
-    if (!formData.lotNumber || !formData.quantity) {
+    if (!formData.lotNumber.trim() || !String(formData.quantity).trim()) {
       alert('Please fill the Lot Number and Quantity.');
+      return;
+    }
+    if (!formData.storageUnit) {
+      alert('Please select a cold vault.');
       return;
     }
 
     setSubmitting(true);
     try {
-      // Restock already adds the product to the hospital formulary — no separate register call.
       await onAddStock({
         vaccineName: finalName,
-        lotNumber: formData.lotNumber,
+        lotNumber: formData.lotNumber.trim(),
         quantity: parseInt(formData.quantity, 10),
         storageUnit: formData.storageUnit,
-        expiryDate: formData.expiryDate,
-        supplier: formData.supplier,
+        expiryDate: formData.expiryDate || undefined,
+        supplier: formData.supplier.trim(),
       });
       setIsCustomMode(false);
-      setFormData(buildFreshForm(vaccineOptions[0]));
+      setFormData(emptyForm());
       onClose();
     } catch {
-      // Parent shows toast; keep form open for correction.
+      // Parent toasts; keep values so the user can fix and retry.
     } finally {
       setSubmitting(false);
     }
@@ -112,7 +116,7 @@ export default function RestockVaccineModal({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} autoComplete="off">
           <div className="modal-body">
             <div className="modal-form-group">
               <label className="modal-label">Vaccine Product Formulation *</label>
@@ -125,7 +129,11 @@ export default function RestockVaccineModal({
                     className="modal-select"
                     style={{ flex: 1 }}
                     disabled={submitting}
+                    required
                   >
+                    <option value="" disabled>
+                      Select a formulation...
+                    </option>
                     {vaccineOptions.map((name) => (
                       <option key={name} value={name}>
                         {name}
@@ -140,7 +148,6 @@ export default function RestockVaccineModal({
                       setIsCustomMode(true);
                       setFormData((prev) => ({ ...prev, vaccineName: '', customVaccineName: '' }));
                     }}
-                    title="Type a new vaccine name"
                     style={{ padding: '0 14px', fontSize: '0.82rem' }}
                     disabled={submitting}
                   >
@@ -161,19 +168,15 @@ export default function RestockVaccineModal({
                       style={{ flex: 1, borderColor: '#19469d' }}
                       autoFocus
                       disabled={submitting}
+                      autoComplete="off"
                     />
                     <button
                       type="button"
                       className="btn-quick-adjust btn-adjust-minus"
                       onClick={() => {
                         setIsCustomMode(false);
-                        setFormData((prev) => ({
-                          ...prev,
-                          vaccineName: vaccineOptions[0] || 'Pfizer-BioNTech Bivalent (mRNA)',
-                          customVaccineName: '',
-                        }));
+                        setFormData((prev) => ({ ...prev, vaccineName: '', customVaccineName: '' }));
                       }}
-                      title="Back to registered list"
                       style={{ padding: '0 12px', fontSize: '0.8rem' }}
                       disabled={submitting}
                     >
@@ -199,9 +202,9 @@ export default function RestockVaccineModal({
                   required
                   className="modal-input"
                   disabled={submitting}
+                  autoComplete="off"
                 />
               </div>
-
               <div className="modal-form-group">
                 <label className="modal-label">Quantity Received (Vials) *</label>
                 <input
@@ -230,16 +233,19 @@ export default function RestockVaccineModal({
                   disabled={submitting}
                 />
               </div>
-
               <div className="modal-form-group">
-                <label className="modal-label">Assigned Cold Vault</label>
+                <label className="modal-label">Assigned Cold Vault *</label>
                 <select
                   name="storageUnit"
                   value={formData.storageUnit}
                   onChange={handleChange}
                   className="modal-select"
                   disabled={submitting}
+                  required
                 >
+                  <option value="" disabled>
+                    Select vault...
+                  </option>
                   <option value="Freezer Unit A (-70°C)">Ultra-Cold Vault A (-70°C)</option>
                   <option value="Chiller Unit B (2-8°C)">Chiller Unit B (2°C - 8°C)</option>
                   <option value="Mobile Chiller C">Mobile Deployment Chiller C</option>
@@ -257,6 +263,7 @@ export default function RestockVaccineModal({
                 placeholder="e.g. State Pharmaceuticals Corporation (SPC) / MOH"
                 className="modal-input"
                 disabled={submitting}
+                autoComplete="off"
               />
             </div>
           </div>

@@ -629,8 +629,12 @@ public class InventoryService : IInventoryService
         var hospital = await GetHospitalAsync(userId);
         if (hospital == null) return new List<ColdVaultDto>();
 
+        await EnsureDefaultColdVaultsAsync(hospital.Id);
+
         return await _context.ColdVaults
+            .AsNoTracking()
             .Where(v => v.HospitalProfileId == hospital.Id)
+            .OrderBy(v => v.Name)
             .Select(v => new ColdVaultDto
             {
                 Id = v.Id,
@@ -644,6 +648,70 @@ public class InventoryService : IInventoryService
                 AssignedLots = v.AssignedLots
             })
             .ToListAsync();
+    }
+
+    /// <summary>
+    /// Ensure the three standard cold-chain units exist (add any that are missing).
+    /// </summary>
+    private async Task EnsureDefaultColdVaultsAsync(Guid hospitalProfileId)
+    {
+        var existingNames = await _context.ColdVaults
+            .Where(v => v.HospitalProfileId == hospitalProfileId)
+            .Select(v => v.Name)
+            .ToListAsync();
+
+        var existingSet = existingNames
+            .Select(n => n.Trim().ToLowerInvariant())
+            .ToHashSet();
+
+        var defaults = new[]
+        {
+            new ColdVault
+            {
+                HospitalProfileId = hospitalProfileId,
+                Name = "Ultra-Cold Vault A",
+                Type = "-70°C Ultra-Cold Freezer",
+                CurrentTemp = "-68.5°C",
+                TargetTemp = "-70°C",
+                Humidity = "N/A",
+                Status = "Optimal",
+                SensorStatus = "Active",
+                AssignedLots = 0
+            },
+            new ColdVault
+            {
+                HospitalProfileId = hospitalProfileId,
+                Name = "Chiller Unit B",
+                Type = "2°C – 8°C Pharmacy Chiller",
+                CurrentTemp = "4.1°C",
+                TargetTemp = "2°C – 8°C",
+                Humidity = "48%",
+                Status = "Optimal",
+                SensorStatus = "Active",
+                AssignedLots = 0
+            },
+            new ColdVault
+            {
+                HospitalProfileId = hospitalProfileId,
+                Name = "Mobile Deployment Chiller C",
+                Type = "Portable cold box (2°C – 8°C)",
+                CurrentTemp = "5.1°C",
+                TargetTemp = "2°C – 8°C",
+                Humidity = "50%",
+                Status = "Optimal",
+                SensorStatus = "Active",
+                AssignedLots = 0
+            }
+        };
+
+        var toAdd = defaults
+            .Where(d => !existingSet.Contains(d.Name.Trim().ToLowerInvariant()))
+            .ToList();
+
+        if (toAdd.Count == 0) return;
+
+        _context.ColdVaults.AddRange(toAdd);
+        await _context.SaveChangesAsync();
     }
 
     // ==================== SUMMARY ====================
