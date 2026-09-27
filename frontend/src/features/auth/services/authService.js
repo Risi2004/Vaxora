@@ -288,7 +288,13 @@ export const authService = {
     }
   },
 
-  // ================= ADMIN VERIFICATION APIS =================
+  // ================= ADMIN VERIFICATION & DASHBOARD APIS =================
+  async getAdminDashboardStats() {
+    return await apiRequest('/admin/verification/dashboard-stats', {
+      method: 'GET',
+    });
+  },
+
   async getPendingVerifications() {
     return await apiRequest('/admin/verification/pending', {
       method: 'GET',

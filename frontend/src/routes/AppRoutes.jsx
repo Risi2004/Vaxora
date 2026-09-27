@@ -49,7 +49,6 @@ import {
   AdminDashboardOverview,
   AdminUsersTab,
   AdminApprovalsTab,
-  AdminHospitalsTab,
   AdminCampaignsTab,
   AdminFeedbackTab,
   AdminAuditLogsTab,
@@ -156,7 +155,7 @@ export default function AppRoutes() {
         <Route path="dashboard" element={<AdminDashboardOverview />} />
         <Route path="users" element={<AdminUsersTab />} />
         <Route path="approvals" element={<AdminApprovalsTab />} />
-        <Route path="hospitals" element={<AdminHospitalsTab />} />
+        <Route path="hospitals" element={<Navigate to="/admin/dashboard" replace />} />
         <Route path="campaigns" element={<AdminCampaignsTab />} />
         <Route path="feedback" element={<AdminFeedbackTab />} />
         <Route path="audit" element={<AdminAuditLogsTab />} />
