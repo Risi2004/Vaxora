@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
-import '../../../../core/services/storage_service.dart';
 import '../../../auth/data/repositories/auth_repository.dart';
 import '../../../auth/presentation/screens/login_screen.dart';
 import '../providers/inventory_provider.dart';
@@ -47,16 +46,7 @@ class _InventoryHomeBody extends StatelessWidget {
         backgroundColor: Colors.white,
         elevation: 0,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.qr_code_scanner, color: AppColors.brandBlue),
-            tooltip: 'Scan QR',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const QrScannerScreen()),
-              ).then((_) => provider.refresh());
-            },
-          ),
+          // Only logout — QR is now only via the floating action button below
           IconButton(
             icon: const Icon(Icons.logout, color: AppColors.textMuted),
             tooltip: 'Logout',
@@ -97,7 +87,7 @@ class _InventoryHomeBody extends StatelessWidget {
                         },
                       ),
                     ),
-                  const SizedBox(height: 60),
+                  const SizedBox(height: 80),
                 ],
               ),
       ),
@@ -234,8 +224,11 @@ class _InventoryHomeBody extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 60, horizontal: 24),
       child: Column(
         children: [
-          Icon(isFiltering ? Icons.search_off : Icons.inventory_2_outlined,
-              size: 56, color: AppColors.textMuted),
+          Icon(
+            isFiltering ? Icons.search_off : Icons.inventory_2_outlined,
+            size: 56,
+            color: AppColors.textMuted,
+          ),
           const SizedBox(height: 16),
           Text(
             isFiltering ? 'No batches match your filter' : 'No inventory yet',
@@ -258,7 +251,12 @@ class _InventoryHomeBody extends StatelessWidget {
 class _KpiCard extends StatelessWidget {
   final String icon, label, value;
   final Color color;
-  const _KpiCard({required this.icon, required this.label, required this.value, required this.color});
+  const _KpiCard({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
