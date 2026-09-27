@@ -118,7 +118,7 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff' }) {
     <div className="doctor-dashboard-tab">
       {toast && (
         <div className="doctor-toast" role="status">
-          ✓ {toast}
+          {toast}
         </div>
       )}
 

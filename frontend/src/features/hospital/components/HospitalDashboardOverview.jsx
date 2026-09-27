@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import WalkInRegistrationModal from './WalkInRegistrationModal';
 import RestockVaccineModal from './RestockVaccineModal';
 import staffService from '../services/staffService';
@@ -93,8 +93,19 @@ function normalizePersonName(value) {
     .toLowerCase();
 }
 
+function parseBoothLabel(label) {
+  const raw = String(label || '').trim();
+  if (!raw) return { code: null, name: 'Unassigned' };
+  if (/^unassigned$/i.test(raw)) return { code: null, name: 'Unassigned' };
+  const parts = raw.split(/\s*·\s*/);
+  if (parts.length >= 2) {
+    return { code: parts[0].trim(), name: parts.slice(1).join(' · ').trim() };
+  }
+  return { code: null, name: raw };
+}
+
 function resolveQueueBooth(appointment, boothCards) {
-  if (appointment.boothLabel) return appointment.boothLabel;
+  if (appointment.boothLabel) return parseBoothLabel(appointment.boothLabel);
 
   const practitioner = normalizePersonName(appointment.doctorName || appointment.nurseName);
   if (practitioner && boothCards.length > 0) {
@@ -102,10 +113,15 @@ function resolveQueueBooth(appointment, boothCards) {
       const staff = normalizePersonName(booth.staffName);
       return staff && (practitioner.includes(staff) || staff.includes(practitioner));
     });
-    if (match?.boothName) return match.boothName;
+    if (match) {
+      return {
+        code: match.code || null,
+        name: match.name || parseBoothLabel(match.boothName).name,
+      };
+    }
   }
 
-  return 'Unassigned';
+  return { code: null, name: 'Unassigned' };
 }
 
 export default function HospitalDashboardOverview() {
@@ -125,7 +141,7 @@ export default function HospitalDashboardOverview() {
       try {
         const fresh = await authService.getMe();
         if (!cancelled && fresh) setHospitalUser(fresh);
-      } catch (_) {
+      } catch {
         /* keep cached user */
       }
     })();
@@ -161,10 +177,15 @@ export default function HospitalDashboardOverview() {
   const [queueLoading, setQueueLoading] = useState(true);
   const [queueError, setQueueError] = useState('');
 
+  const toastTimerRef = useRef(null);
+
   const showToast = (msg) => {
     setToastMessage(msg);
-    setTimeout(() => setToastMessage(''), 3500);
+    clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => setToastMessage(''), 3500);
   };
+
+  useEffect(() => () => clearTimeout(toastTimerRef.current), []);
 
   // ==================== FETCH INVENTORY (BATCHES & FORMULARY) ====================
   const loadInventory = useCallback(async () => {
@@ -321,6 +342,7 @@ export default function HospitalDashboardOverview() {
         return {
           id: booth.boothId,
           code: booth.code || String(index + 1).padStart(2, '0'),
+          name: booth.name || booth.displayLabel || 'Booth',
           boothName: booth.displayLabel || `${booth.code} · ${booth.name}`,
           staffName: primary?.staffName || 'Unassigned',
           role: primary
@@ -525,7 +547,7 @@ export default function HospitalDashboardOverview() {
             animation: 'fadeIn 0.2s ease',
           }}
         >
-          <span>✓ {toastMessage}</span>
+          <span>{toastMessage}</span>
           <button
             type="button"
             onClick={() => setToastMessage('')}
@@ -768,8 +790,12 @@ export default function HospitalDashboardOverview() {
                         <div className="queue-dose-meta" title={patient.dose}>{patient.dose}</div>
                       </td>
                       <td>
-                        <span className={`queue-booth-tag${patient.booth === 'Unassigned' ? ' is-unassigned' : ''}`}>
-                          {patient.booth}
+                        <span
+                          className={`queue-booth-tag${
+                            !patient.booth?.code ? ' is-unassigned' : ''
+                          }`}
+                        >
+                          {patient.booth?.code || 'Unassigned'}
                         </span>
                       </td>
                       <td>
@@ -912,7 +938,7 @@ export default function HospitalDashboardOverview() {
 
                   {item.warning && (
                     <div style={{ color: '#b45309', fontSize: '0.72rem', fontWeight: 700, marginTop: '6px' }}>
-                      ⚠️ {item.warning}
+                      {item.warning}
                     </div>
                   )}
                 </div>

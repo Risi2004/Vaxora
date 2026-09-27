@@ -163,7 +163,7 @@ export default function HospitalBoothsPanel() {
     <div>
       {toast && (
         <div className="appointment-alert-pill" role="status" style={{ marginBottom: '16px' }}>
-          ✓ {toast}
+          {toast}
         </div>
       )}
       {error && (

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AddStaffRequestModal from './AddStaffRequestModal';
 import HospitalShiftsPanel from './HospitalShiftsPanel';
 import staffService from '../services/staffService';
@@ -55,10 +55,15 @@ export default function HospitalStaffTab() {
   const [staffList, setStaffList] = useState([]);
   const [actionId, setActionId] = useState(null);
 
+  const toastTimerRef = useRef(null);
+
   const showToast = (message) => {
     setNotification(message);
-    setTimeout(() => setNotification(''), 4000);
+    clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => setNotification(''), 4000);
   };
+
+  useEffect(() => () => clearTimeout(toastTimerRef.current), []);
 
   const loadStaff = useCallback(async () => {
     setLoading(true);
@@ -159,7 +164,7 @@ export default function HospitalStaffTab() {
           role="alert"
           style={{ maxWidth: '1400px', width: '100%', marginBottom: '20px' }}
         >
-          ✓ {notification}
+          {notification}
         </div>
       )}
 
@@ -244,7 +249,7 @@ export default function HospitalStaffTab() {
         </button>
       </div>
 
-      <div className="hospital-metrics-grid" style={{ marginBottom: '24px' }}>
+      <div className="hospital-metrics-grid hospital-metrics-grid--4" style={{ marginBottom: '24px' }}>
         <div className="hospital-stat-card">
           <div className="hospital-stat-icon stat-icon-blue">
             <IconUsers size={22} />
