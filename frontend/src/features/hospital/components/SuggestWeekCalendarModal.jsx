@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { IconClose } from '../../../shared/icons/AppIcons';
+import { IconClose, IconRefresh } from '../../../shared/icons/AppIcons';
 import { RoleAvatarIcon } from './HospitalIcons';
 
 function formatDayHeader(dateInput) {
@@ -44,6 +44,7 @@ export default function SuggestWeekCalendarModal({
   onClearSelection,
   onApproveSelected,
   onDecline,
+  onReroll,
   onClose,
 }) {
   const [filterRole, setFilterRole] = useState('ALL');
@@ -72,10 +73,14 @@ export default function SuggestWeekCalendarModal({
 
     const list = [];
     for (const [affiliationId, items] of byAffiliation) {
-      const member = staffById.get(affiliationId) || {
+      const fromRoster = staffById.get(affiliationId);
+      const member = {
         affiliationId,
-        staffName: items[0]?.staffName || 'Staff',
-        staffRole: items[0]?.staffRole || 'NURSE',
+        staffName: fromRoster?.staffName || items[0]?.staffName || 'Staff',
+        staffRole: fromRoster?.staffRole || items[0]?.staffRole || 'NURSE',
+        specialization:
+          fromRoster?.specialization || items[0]?.specialization || '',
+        staffProfilePhotoUrl: fromRoster?.staffProfilePhotoUrl || null,
       };
       const roleKey = String(member.staffRole || '').toUpperCase();
       if (filterRole !== 'ALL' && roleKey !== filterRole) continue;
@@ -144,6 +149,16 @@ export default function SuggestWeekCalendarModal({
             </div>
           </div>
           <div className="suggest-week-modal-toolbar-actions">
+            <button
+              type="button"
+              className="suggest-week-btn ghost suggest-week-btn-reroll"
+              onClick={onReroll}
+              disabled={loading || !onReroll}
+              title="Generate a different set of suggestions"
+            >
+              <IconRefresh size={14} />
+              Reroll
+            </button>
             <button type="button" className="suggest-week-btn ghost" onClick={onSelectAll} disabled={loading || pending.length === 0}>
               Select all
             </button>
@@ -168,7 +183,7 @@ export default function SuggestWeekCalendarModal({
                 🤖
               </div>
               <h3>Agent is working…</h3>
-              <p>Suggest Week — planning coverage, matching staff, validating shifts</p>
+              <p>Suggest Week — LLM is analyzing gaps, choosing staff, and building the plan</p>
               <div className="suggest-week-modal-waiting-track">
                 <div className="suggest-week-modal-waiting-bar" />
               </div>
@@ -206,23 +221,33 @@ export default function SuggestWeekCalendarModal({
                 {rows.map(({ member, byDay, roleKey }) => {
                   const roleStyle = roleStyleMap[roleKey] || roleStyleMap.NURSE;
                   const avatarRole = roleKey === 'DOCTOR' ? 'Doctor' : 'Nurse';
+                  const photoUrl = member.staffProfilePhotoUrl || null;
+                  const subtitle = member.specialization || roleStyle.label;
                   return (
                     <React.Fragment key={member.affiliationId}>
                       <div className="suggest-week-calendar-staff">
                         <div
-                          className="suggest-week-calendar-avatar"
+                          className={`suggest-week-calendar-avatar${photoUrl ? ' has-photo' : ''}`}
                           style={{
                             background: roleStyle.bg,
                             color: roleStyle.accent,
                             borderColor: roleStyle.border,
                           }}
                         >
-                          <RoleAvatarIcon role={avatarRole} size={16} />
+                          {photoUrl ? (
+                            <img
+                              src={photoUrl}
+                              alt=""
+                              className="suggest-week-calendar-avatar-img"
+                            />
+                          ) : (
+                            <RoleAvatarIcon role={avatarRole} size={16} />
+                          )}
                         </div>
                         <div className="suggest-week-calendar-staff-text">
                           <span className="suggest-week-calendar-staff-name">{member.staffName}</span>
                           <span className="suggest-week-calendar-staff-role" style={{ color: roleStyle.accent }}>
-                            {roleStyle.label}
+                            {subtitle}
                           </span>
                         </div>
                       </div>

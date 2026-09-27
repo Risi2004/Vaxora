@@ -4623,6 +4623,12 @@ select.schedule-input-field {
   color: #475569;
 }
 
+.suggest-week-btn-reroll {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .suggest-week-btn.primary {
   border: none;
   background: #16a34a;
@@ -4801,6 +4807,19 @@ select.schedule-input-field {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  overflow: hidden;
+}
+
+.suggest-week-calendar-avatar.has-photo {
+  background: #e2e8f0 !important;
+  padding: 0;
+}
+
+.suggest-week-calendar-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .suggest-week-calendar-staff-text {

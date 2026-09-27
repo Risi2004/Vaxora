@@ -160,6 +160,7 @@ export default function HospitalShiftsPanel() {
   const [pendingProposals, setPendingProposals] = useState([]);
   const [proposalWorkflowId, setProposalWorkflowId] = useState(null);
   const [suggestingWeek, setSuggestingWeek] = useState(false);
+  const [suggestRerollSeed, setSuggestRerollSeed] = useState(0);
   const [showSuggestModal, setShowSuggestModal] = useState(false);
   const [suggestModalError, setSuggestModalError] = useState('');
   const [proposalActionId, setProposalActionId] = useState(null);
@@ -399,6 +400,7 @@ export default function HospitalShiftsPanel() {
     setShowSuggestModal(true);
     setPendingProposals([]);
     setSuggestModalError('');
+    setSuggestRerollSeed(0);
     try {
       const res = await agentService.sendMessage(
         [
@@ -426,6 +428,56 @@ export default function HospitalShiftsPanel() {
       });
     } catch (err) {
       setSuggestModalError(err.message || 'Failed to suggest week shifts.');
+    } finally {
+      setSuggestingWeek(false);
+    }
+  };
+
+  const handleRerollSuggestWeek = async () => {
+    const excludeIds = [
+      ...new Set(
+        pendingProposals
+          .filter((p) => p._status !== 'approved' && p._status !== 'declined')
+          .map((p) => String(p.affiliationId || ''))
+          .filter(Boolean)
+      ),
+    ];
+    const nextSeed = suggestRerollSeed + 1;
+    setSuggestRerollSeed(nextSeed);
+    setSuggestingWeek(true);
+    setSuggestModalError('');
+    setPendingProposals([]);
+    try {
+      const excludeClause =
+        excludeIds.length > 0
+          ? ` Reroll exclude affiliation ids: ${excludeIds.join(',')}.`
+          : '';
+      const res = await agentService.sendMessage(
+        [
+          {
+            role: 'user',
+            content: `Suggest shifts for booked appointments from ${weekStart} to ${weekEnd}. Reroll seed: ${nextSeed}.${excludeClause}`,
+          },
+        ],
+        { targetAgent: 'StaffSchedulingAgent' }
+      );
+      const proposals = Array.isArray(res.proposals)
+        ? res.proposals
+        : res.proposal
+          ? [res.proposal]
+          : [];
+      if (proposals.length === 0) {
+        setSuggestModalError(
+          res.content ||
+            'No alternate suggestions available. Try again or post more vaccine schedules.'
+        );
+        return;
+      }
+      applyAgentProposals(proposals, {
+        workflowId: res.workflowId || res.WorkflowId || null,
+      });
+    } catch (err) {
+      setSuggestModalError(err.message || 'Failed to reroll week suggestions.');
     } finally {
       setSuggestingWeek(false);
     }
@@ -1004,6 +1056,7 @@ export default function HospitalShiftsPanel() {
           onClearSelection={handleClearProposalSelection}
           onApproveSelected={handleApproveSelectedProposals}
           onDecline={handleDeclineProposal}
+          onReroll={handleRerollSuggestWeek}
           onClose={handleCloseSuggestModal}
         />
       )}
@@ -1051,21 +1104,23 @@ export default function HospitalShiftsPanel() {
                 const roleKey = String(member.staffRole || '').toUpperCase();
                 const roleStyle = roleCalendarStyle[roleKey] || roleCalendarStyle.NURSE;
                 const avatarRole = roleKey === 'DOCTOR' ? 'Doctor' : 'Nurse';
+                const photoUrl = member.staffProfilePhotoUrl || null;
+                const subtitle = member.specialization || roleStyle.label;
 
                 return (
                   <React.Fragment key={member.affiliationId}>
                     <div className="shift-week-calendar-staff">
                       <div
-                        className={`shift-week-calendar-avatar${member.staffProfilePhotoUrl ? ' has-photo' : ''}`}
+                        className={`shift-week-calendar-avatar${photoUrl ? ' has-photo' : ''}`}
                         style={{
                           background: roleStyle.bg,
                           color: roleStyle.accent,
                           borderColor: roleStyle.border,
                         }}
                       >
-                        {member.staffProfilePhotoUrl ? (
+                        {photoUrl ? (
                           <img
-                            src={member.staffProfilePhotoUrl}
+                            src={photoUrl}
                             alt=""
                             className="shift-week-calendar-avatar-img"
                           />
@@ -1079,7 +1134,7 @@ export default function HospitalShiftsPanel() {
                           className="shift-week-calendar-staff-role"
                           style={{ color: roleStyle.accent }}
                         >
-                          {roleStyle.label}
+                          {subtitle}
                         </span>
                       </div>
                     </div>
