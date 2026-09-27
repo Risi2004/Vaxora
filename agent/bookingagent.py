@@ -106,7 +106,8 @@ class BookingAgent:
         payload = {
             "model": self.model,
             "messages": messages,
-            "temperature": 0.2
+            "temperature": 0.2,
+            "max_tokens": 500,
         }
         if tools:
             payload["tools"] = tools
