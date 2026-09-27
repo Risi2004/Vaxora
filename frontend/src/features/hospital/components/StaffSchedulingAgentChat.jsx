@@ -263,7 +263,14 @@ function buildRosterGrid(proposals) {
 /**
  * Staff Scheduling Agent chat — UI aligned with BookingAgentChat.
  */
-export default function StaffSchedulingAgentChat({ weekStart, weekEnd, initialPrompt, onShiftsChanged, onClose }) {
+export default function StaffSchedulingAgentChat({
+  weekStart,
+  weekEnd,
+  initialPrompt,
+  onShiftsChanged,
+  onProposalsReady,
+  onClose,
+}) {
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
@@ -346,16 +353,35 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, initialPr
         setFollowUpPrompts(nextFollowUps);
       }
 
+      const workflowId = res.workflowId || res.WorkflowId || null;
+      if (proposals.length > 0 && typeof onProposalsReady === 'function') {
+        onProposalsReady(proposals, {
+          workflowId,
+          fairnessSummary: res.fairnessSummary || res.fairness_summary || null,
+          validation: res.validation || null,
+          briefing: res.briefing || null,
+        });
+      }
+
+      const chatContent =
+        proposals.length > 0 && typeof onProposalsReady === 'function'
+          ? `${res.content || 'I prepared shift suggestions.'}\n\n**${proposals.length} suggested shift${proposals.length === 1 ? '' : 's'}** are in the Suggested week window — select which to approve there.`
+          : res.content || 'I processed your scheduling request.';
+
       setMessages((prev) => [
         ...prev,
         {
           role: 'assistant',
-          content: res.content || 'I processed your scheduling request.',
-          briefing: res.briefing || null,
-          fairnessSummary: res.fairnessSummary || res.fairness_summary || null,
-          validation: res.validation || null,
-          proposals,
-          workflowId: res.workflowId || res.WorkflowId || null,
+          content: chatContent,
+          briefing: proposals.length > 0 && onProposalsReady ? null : res.briefing || null,
+          fairnessSummary:
+            proposals.length > 0 && onProposalsReady
+              ? null
+              : res.fairnessSummary || res.fairness_summary || null,
+          validation: proposals.length > 0 && onProposalsReady ? null : res.validation || null,
+          // Proposals render on the week calendar, not in this chat.
+          proposals: proposals.length > 0 && onProposalsReady ? [] : proposals,
+          workflowId,
           createdShifts: res.created_shifts || res.createdShifts || null,
         },
       ]);

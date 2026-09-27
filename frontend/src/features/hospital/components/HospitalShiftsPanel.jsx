@@ -1,6 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import staffService from '../services/staffService';
+import agentService from '../../patient/services/agentService';
 import StaffSchedulingAgentChat from './StaffSchedulingAgentChat';
+import SuggestWeekCalendarModal, {
+  proposalIdentity as modalProposalIdentity,
+} from './SuggestWeekCalendarModal';
 import { hospitalMinutesNow, hospitalToday } from '../utils/hospitalDate';
 import { IconCalendar, RoleAvatarIcon } from './HospitalIcons';
 import { IconBot } from '../../../shared/icons/AppIcons';
@@ -118,6 +122,28 @@ const roleCalendarStyle = {
   NURSE: { accent: '#059669', bg: '#ecfdf5', border: '#a7f3d0', label: 'Nurse' },
 };
 
+function normalizeProposalTime(value) {
+  const s = String(value || '').trim();
+  if (s.length === 5) return `${s}:00`;
+  return s;
+}
+
+function proposalIdentity(p) {
+  return modalProposalIdentity(p);
+}
+
+function shiftPayloadFromProposal(proposal) {
+  return {
+    affiliationId: proposal.affiliationId,
+    shiftDate: String(proposal.shiftDate).slice(0, 10),
+    startTime: normalizeProposalTime(proposal.startTime),
+    endTime: normalizeProposalTime(proposal.endTime),
+    boothId: proposal.boothId || null,
+    boothOrStation: proposal.boothOrStation || null,
+    notes: proposal.notes || 'Approved via Staff Scheduling Agent',
+  };
+}
+
 export default function HospitalShiftsPanel() {
   const [activeStaff, setActiveStaff] = useState([]);
   const [booths, setBooths] = useState([]);
@@ -131,6 +157,12 @@ export default function HospitalShiftsPanel() {
   const [saving, setSaving] = useState(false);
   const [showAgentChat, setShowAgentChat] = useState(false);
   const [agentPrompt, setAgentPrompt] = useState(null);
+  const [pendingProposals, setPendingProposals] = useState([]);
+  const [proposalWorkflowId, setProposalWorkflowId] = useState(null);
+  const [suggestingWeek, setSuggestingWeek] = useState(false);
+  const [showSuggestModal, setShowSuggestModal] = useState(false);
+  const [suggestModalError, setSuggestModalError] = useState('');
+  const [proposalActionId, setProposalActionId] = useState(null);
   const [actionId, setActionId] = useState(null);
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
@@ -255,6 +287,16 @@ export default function HospitalShiftsPanel() {
     });
   }, [activeStaff, shifts, weekDays]);
 
+  const applyAgentProposals = useCallback((proposals, meta = {}) => {
+    const list = Array.isArray(proposals) ? proposals.filter(Boolean) : [];
+    if (list.length === 0) return;
+    setSuggestModalError('');
+    setPendingProposals(list.map((p) => ({ ...p, _status: undefined, _selected: true })));
+    setProposalWorkflowId(meta.workflowId || null);
+    setShowSuggestModal(true);
+    showToast(`${list.length} suggested shift${list.length === 1 ? '' : 's'} — select which to keep in the calendar window.`);
+  }, []);
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
@@ -352,14 +394,175 @@ export default function HospitalShiftsPanel() {
     }
   };
 
-  const handleSuggestWeek = () => {
-    setAgentPrompt(`Suggest shifts for booked appointments from ${weekStart} to ${weekEnd}`);
-    setShowAgentChat(true);
+  const handleSuggestWeek = async () => {
+    setSuggestingWeek(true);
+    setShowSuggestModal(true);
+    setPendingProposals([]);
+    setSuggestModalError('');
+    try {
+      const res = await agentService.sendMessage(
+        [
+          {
+            role: 'user',
+            content: `Suggest shifts for booked appointments from ${weekStart} to ${weekEnd}`,
+          },
+        ],
+        { targetAgent: 'StaffSchedulingAgent' }
+      );
+      const proposals = Array.isArray(res.proposals)
+        ? res.proposals
+        : res.proposal
+          ? [res.proposal]
+          : [];
+      if (proposals.length === 0) {
+        setSuggestModalError(
+          res.content ||
+            'No shift suggestions for this week. Post vaccine schedules or check bookings first.'
+        );
+        return;
+      }
+      applyAgentProposals(proposals, {
+        workflowId: res.workflowId || res.WorkflowId || null,
+      });
+    } catch (err) {
+      setSuggestModalError(err.message || 'Failed to suggest week shifts.');
+    } finally {
+      setSuggestingWeek(false);
+    }
   };
 
   const handleCloseAgentChat = () => {
     setShowAgentChat(false);
     setAgentPrompt(null);
+  };
+
+  const handleToggleProposalSelect = (id) => {
+    setPendingProposals((prev) =>
+      prev.map((p) =>
+        proposalIdentity(p) === id ? { ...p, _selected: !p._selected } : p
+      )
+    );
+  };
+
+  const handleSelectAllProposals = () => {
+    setPendingProposals((prev) =>
+      prev.map((p) =>
+        p._status === 'approved' || p._status === 'declined'
+          ? p
+          : { ...p, _selected: true }
+      )
+    );
+  };
+
+  const handleClearProposalSelection = () => {
+    setPendingProposals((prev) => prev.map((p) => ({ ...p, _selected: false })));
+  };
+
+  const handleApproveSelectedProposals = async () => {
+    const pending = pendingProposals.filter(
+      (p) => p._selected && p._status !== 'approved' && p._status !== 'declined'
+    );
+    if (pending.length === 0) return;
+    setProposalActionId('batch');
+    setError('');
+    const approvedIds = new Set();
+    const failed = [];
+    for (const proposal of pending) {
+      try {
+        await staffService.createShift(shiftPayloadFromProposal(proposal));
+        approvedIds.add(proposalIdentity(proposal));
+      } catch {
+        failed.push(proposal.staffName || 'A shift');
+      }
+    }
+
+    const nextProposals = pendingProposals.map((p) =>
+      approvedIds.has(proposalIdentity(p)) ? { ...p, _status: 'approved', _selected: false } : p
+    );
+    const leftAfter = nextProposals.filter(
+      (p) => p._status !== 'approved' && p._status !== 'declined'
+    ).length;
+    setPendingProposals(nextProposals);
+
+    if (proposalWorkflowId && leftAfter === 0 && failed.length === 0) {
+      try {
+        await agentService.recordDecision(proposalWorkflowId, {
+          approved: true,
+          note: 'Approved selected shifts from suggest-week calendar',
+        });
+      } catch {
+        /* optional */
+      }
+      setProposalWorkflowId(null);
+    }
+    if (failed.length > 0) {
+      setError(`Could not create: ${failed.join(', ')}`);
+    } else {
+      showToast(`${approvedIds.size} shift${approvedIds.size === 1 ? '' : 's'} created.`);
+    }
+    setProposalActionId(null);
+    await refreshRosterQuietly();
+    if (leftAfter === 0 && failed.length === 0) {
+      setShowSuggestModal(false);
+      setPendingProposals([]);
+    }
+  };
+
+  const handleDeclineProposal = async (proposal) => {
+    const id = proposalIdentity(proposal);
+    setProposalActionId(id);
+    setError('');
+    let alternative = null;
+    try {
+      const res = await agentService.sendMessage(
+        [
+          {
+            role: 'user',
+            content: `__shift_declined__ ${JSON.stringify({
+              affiliationId: proposal.affiliationId,
+              gapId: proposal.gapId,
+              shiftDate: String(proposal.shiftDate).slice(0, 10),
+              startTime: normalizeProposalTime(proposal.startTime),
+              endTime: normalizeProposalTime(proposal.endTime),
+              requestAlternative: Boolean(proposal.gapId),
+            })}`,
+          },
+        ],
+        { targetAgent: 'StaffSchedulingAgent' }
+      );
+      if (Array.isArray(res.proposals) && res.proposals.length > 0) {
+        alternative = res.proposals[0];
+      } else if (res.proposal) {
+        alternative = res.proposal;
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to decline suggestion.');
+      setProposalActionId(null);
+      return;
+    }
+
+    setPendingProposals((prev) => {
+      const next = prev.map((p) =>
+        proposalIdentity(p) === id ? { ...p, _status: 'declined', _selected: false } : p
+      );
+      if (alternative) next.push({ ...alternative, _status: undefined, _selected: true });
+      return next;
+    });
+
+    showToast(
+      alternative
+        ? `Declined — alternative: ${alternative.staffName || 'another staff member'}`
+        : 'Suggestion declined.'
+    );
+    setProposalActionId(null);
+  };
+
+  const handleCloseSuggestModal = () => {
+    setShowSuggestModal(false);
+    setSuggestingWeek(false);
+    setSuggestModalError('');
+    setPendingProposals([]);
+    setProposalWorkflowId(null);
   };
 
   return (
@@ -514,20 +717,23 @@ export default function HospitalShiftsPanel() {
           <button
             type="button"
             onClick={handleSuggestWeek}
-            disabled={loading || staffOptions.length === 0}
+            disabled={loading || suggestingWeek || staffOptions.length === 0}
             style={{
               padding: '9px 18px',
               borderRadius: '8px',
               border: '1px solid #19469d',
-              background: loading || staffOptions.length === 0 ? '#e2e8f0' : '#19469d',
-              color: loading || staffOptions.length === 0 ? '#94a3b8' : '#ffffff',
+              background:
+                loading || suggestingWeek || staffOptions.length === 0 ? '#e2e8f0' : '#19469d',
+              color:
+                loading || suggestingWeek || staffOptions.length === 0 ? '#94a3b8' : '#ffffff',
               fontSize: '0.88rem',
               fontWeight: 700,
-              cursor: loading || staffOptions.length === 0 ? 'not-allowed' : 'pointer',
+              cursor:
+                loading || suggestingWeek || staffOptions.length === 0 ? 'not-allowed' : 'pointer',
               flexShrink: 0,
             }}
           >
-            Suggest Week
+            {suggestingWeek ? 'Suggesting…' : 'Suggest Week'}
           </button>
         </div>
 
@@ -772,10 +978,34 @@ export default function HospitalShiftsPanel() {
               weekEnd={weekEnd}
               initialPrompt={agentPrompt}
               onShiftsChanged={refreshRosterQuietly}
+              onProposalsReady={(proposals, meta) => {
+                applyAgentProposals(proposals, meta);
+                handleCloseAgentChat();
+              }}
               onClose={handleCloseAgentChat}
             />
           </div>
         </div>
+      )}
+
+      {showSuggestModal && (
+        <SuggestWeekCalendarModal
+          weekStart={weekStart}
+          weekEnd={weekEnd}
+          weekDays={weekDays}
+          today={today}
+          activeStaff={activeStaff}
+          proposals={pendingProposals}
+          actionId={proposalActionId}
+          loading={suggestingWeek}
+          error={suggestModalError}
+          onToggleSelect={handleToggleProposalSelect}
+          onSelectAll={handleSelectAllProposals}
+          onClearSelection={handleClearProposalSelection}
+          onApproveSelected={handleApproveSelectedProposals}
+          onDecline={handleDeclineProposal}
+          onClose={handleCloseSuggestModal}
+        />
       )}
 
       <h3 style={{ margin: '0 0 12px' }}>Week calendar</h3>
