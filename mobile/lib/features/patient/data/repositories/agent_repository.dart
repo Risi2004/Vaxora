@@ -21,11 +21,19 @@ class AgentRepository {
     final UserModel? user = await AuthRepository.getCurrentUser();
 
     final payloadMessages = conversationHistory
-        .where((m) => (m.role == 'user' || m.role == 'assistant') && m.content.trim().isNotEmpty)
-        .map((m) => {
-              'role': m.role,
-              'content': m.content.length > 4000 ? m.content.substring(0, 4000) : m.content,
-            })
+        .where(
+          (m) =>
+              (m.role == 'user' || m.role == 'assistant') &&
+              m.content.trim().isNotEmpty,
+        )
+        .map(
+          (m) => {
+            'role': m.role,
+            'content': m.content.length > 4000
+                ? m.content.substring(0, 4000)
+                : m.content,
+          },
+        )
         .toList();
 
     final patientInfo = user != null
@@ -47,20 +55,28 @@ class AgentRepository {
     );
 
     if (response is Map<String, dynamic>) {
-      final content = response['content']?.toString() ?? 'I have processed your request.';
+      final content =
+          response['content']?.toString() ?? 'I have processed your request.';
 
       AgentProposal? proposal;
-      if (response['proposal'] != null && response['proposal'] is Map<String, dynamic>) {
-        proposal = AgentProposal.fromJson(response['proposal'] as Map<String, dynamic>);
+      if (response['proposal'] != null &&
+          response['proposal'] is Map<String, dynamic>) {
+        proposal = AgentProposal.fromJson(
+          response['proposal'] as Map<String, dynamic>,
+        );
       }
 
       AgentBooking? booking;
-      if (response['booking'] != null && response['booking'] is Map<String, dynamic>) {
-        booking = AgentBooking.fromJson(response['booking'] as Map<String, dynamic>);
+      if (response['booking'] != null &&
+          response['booking'] is Map<String, dynamic>) {
+        booking = AgentBooking.fromJson(
+          response['booking'] as Map<String, dynamic>,
+        );
       }
 
       Map<String, dynamic>? cancellation;
-      if (response['cancellation'] != null && response['cancellation'] is Map<String, dynamic>) {
+      if (response['cancellation'] != null &&
+          response['cancellation'] is Map<String, dynamic>) {
         cancellation = response['cancellation'] as Map<String, dynamic>;
       }
 
@@ -73,6 +89,27 @@ class AgentRepository {
       );
     }
 
-    throw ApiException('Invalid response format received from AI agent gateway.');
+    throw ApiException(
+      'Invalid response format received from AI agent gateway.',
+    );
+  }
+
+  /// Runs the two-agent patient care workflow via ASP.NET Core.
+  /// The workflow can take 30-90 seconds; we allow up to 4 minutes.
+  static Future<CarePlanResponseModel> generatePatientCarePlan(
+    String patientProfileId,
+  ) async {
+    final response = await ApiClient.post(
+      ApiConstants.patientCarePlan,
+      body: {'patientProfileId': patientProfileId},
+      timeout: const Duration(minutes: 4),
+    );
+
+    if (response is Map<String, dynamic>) {
+      return CarePlanResponseModel.fromJson(response);
+    }
+    throw ApiException(
+      'Invalid response received from the care plan workflow.',
+    );
   }
 }

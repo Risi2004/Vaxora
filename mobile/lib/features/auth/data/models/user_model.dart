@@ -44,7 +44,8 @@ class UserModel {
       phoneNumber: json['phoneNumber']?.toString(),
       registrationNumber: json['registrationNumber']?.toString(),
       nicNumber: extractedNic ?? json['nicNumber']?.toString(),
-      patientProfileId: extractedProfileId,
+      patientProfileId:
+          extractedProfileId ?? json['patientProfileId']?.toString(),
       dateOfBirth: extractedDob ?? json['dateOfBirth']?.toString(),
     );
   }

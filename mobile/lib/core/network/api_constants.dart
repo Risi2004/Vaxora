@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+
 import 'dart:io' show Platform;
 
 class ApiConstants {
@@ -30,6 +31,8 @@ class ApiConstants {
   // AI Agent endpoints (proxied through ASP.NET Core)
   static const String agentChat = '/agent/chat';
   static const String agentHealth = '/agent/health';
+
+  static const String patientCarePlan = '/agent/patient-care-plan';
 
   // Patient Clinical & Vaccination endpoints
   static const String updateProfile = '/auth/profile';

@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+
 import '../../../../core/services/storage_service.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../auth/data/models/user_model.dart';
 import '../../../auth/data/repositories/auth_repository.dart';
 import '../../data/models/appointment_model.dart';
 import '../../data/models/vaccination_record_model.dart';
+import '../../data/repositories/agent_repository.dart';
 import '../../data/repositories/appointment_repository.dart';
 import '../../data/repositories/patient_repository.dart';
 import '../widgets/agent_booking_sheet.dart';
@@ -14,6 +16,8 @@ import '../widgets/immunization_timeline_item.dart';
 import '../widgets/patient_stat_card.dart';
 import '../widgets/appointment_card.dart';
 import '../widgets/payhere_checkout_sheet.dart';
+import '../widgets/care_plan_sheet.dart';
+import '../widgets/care_plan_history_sheet.dart';
 
 class PatientDashboardScreen extends StatefulWidget {
   final Function(int targetTab) onNavigateTab;
@@ -62,7 +66,9 @@ class _PatientDashboardScreenState extends State<PatientDashboardScreen> {
     PatientVaccinationTimelineModel? timeline;
     if (user?.patientProfileId != null && user!.patientProfileId!.isNotEmpty) {
       try {
-        timeline = await PatientRepository.getVaccinationTimeline(user.patientProfileId!);
+        timeline = await PatientRepository.getVaccinationTimeline(
+          user.patientProfileId!,
+        );
       } catch (_) {}
     }
 
@@ -113,12 +119,32 @@ class _PatientDashboardScreenState extends State<PatientDashboardScreen> {
     );
   }
 
+  void _openCarePlanSheet(BuildContext context) {
+    final profileId = _user?.patientProfileId;
+    if (profileId == null || profileId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          backgroundColor: AppColors.error,
+          content: Text('Patient profile ID not found. Please log in again.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    CarePlanSheet.show(
+      context,
+      loader: () => AgentRepository.generatePatientCarePlan(profileId),
+    );
+  }
+
   void _openDigitalPassSheet(BuildContext context, {AppointmentModel? appt}) {
     final userName = _user?.name.toUpperCase() ?? 'VAXORA CITIZEN';
     final regNo = _user?.registrationNumber ?? 'VAX-P-PENDING';
     final nic = _user?.nicNumber ?? 'N/A';
 
-    final vaccineName = appt?.vaccineName ??
+    final vaccineName =
+        appt?.vaccineName ??
         (_timeline?.records.isNotEmpty == true
             ? _timeline!.records.first.vaccineName
             : 'Vaxora Certified Health Pass');
@@ -126,15 +152,17 @@ class _PatientDashboardScreenState extends State<PatientDashboardScreen> {
     final dose = appt != null
         ? (appt.doseNumber ?? 'Scheduled Dose')
         : (_timeline?.records.isNotEmpty == true
-            ? 'Dose ${_timeline!.records.first.doseNumber}'
-            : 'Pass Active');
+              ? 'Dose ${_timeline!.records.first.doseNumber}'
+              : 'Pass Active');
 
-    final date = appt?.appointmentDate ??
+    final date =
+        appt?.appointmentDate ??
         (_timeline?.lastVaccinatedAt != null
             ? '${_timeline!.lastVaccinatedAt!.year}-${_timeline!.lastVaccinatedAt!.month.toString().padLeft(2, '0')}-${_timeline!.lastVaccinatedAt!.day.toString().padLeft(2, '0')}'
             : 'Active 2026');
 
-    final center = appt?.hospitalName ??
+    final center =
+        appt?.hospitalName ??
         (_timeline?.records.isNotEmpty == true
             ? _timeline!.records.first.administeredByName
             : 'National Immunization Network');
@@ -160,13 +188,26 @@ class _PatientDashboardScreenState extends State<PatientDashboardScreen> {
   Widget build(BuildContext context) {
     final userName = _user?.name.isNotEmpty == true ? _user!.name : 'Citizen';
     final upcomingAppointments = _appointments
-        .where((a) => a.status.toLowerCase() != 'cancelled' && a.status.toLowerCase() != 'completed')
+        .where(
+          (a) =>
+              a.status.toLowerCase() != 'cancelled' &&
+              a.status.toLowerCase() != 'completed',
+        )
         .toList();
-    final nextAppointment = upcomingAppointments.isNotEmpty ? upcomingAppointments.first : null;
-    final totalDoses = _timeline?.totalDoses ??
-        _appointments.where((a) => a.status.toLowerCase() == 'completed').length;
+    final nextAppointment = upcomingAppointments.isNotEmpty
+        ? upcomingAppointments.first
+        : null;
+    final totalDoses =
+        _timeline?.totalDoses ??
+        _appointments
+            .where((a) => a.status.toLowerCase() == 'completed')
+            .length;
     final scheduledCount = _appointments
-        .where((a) => a.status.toLowerCase() != 'cancelled' && a.status.toLowerCase() != 'completed')
+        .where(
+          (a) =>
+              a.status.toLowerCase() != 'cancelled' &&
+              a.status.toLowerCase() != 'completed',
+        )
         .length;
 
     return Scaffold(
@@ -193,10 +234,7 @@ class _PatientDashboardScreenState extends State<PatientDashboardScreen> {
                     gradient: const LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: [
-                        Color(0xFF19469D),
-                        Color(0xFF1E1B4B),
-                      ],
+                      colors: [Color(0xFF19469D), Color(0xFF1E1B4B)],
                     ),
                     borderRadius: BorderRadius.circular(22),
                     boxShadow: [
@@ -214,14 +252,21 @@ class _PatientDashboardScreenState extends State<PatientDashboardScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.white.withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(999),
                             ),
                             child: Row(
                               children: [
-                                const Icon(Icons.shield_outlined, color: Colors.white, size: 14),
+                                const Icon(
+                                  Icons.shield_outlined,
+                                  color: Colors.white,
+                                  size: 14,
+                                ),
                                 const SizedBox(width: 5),
                                 Text(
                                   _user?.registrationNumber ?? 'Pass Active',
@@ -235,11 +280,20 @@ class _PatientDashboardScreenState extends State<PatientDashboardScreen> {
                             ),
                           ),
                           IconButton(
-                            onPressed: () => _openDigitalPassSheet(context, appt: nextAppointment),
-                            icon: const Icon(Icons.qr_code, color: Colors.white, size: 22),
+                            onPressed: () => _openDigitalPassSheet(
+                              context,
+                              appt: nextAppointment,
+                            ),
+                            icon: const Icon(
+                              Icons.qr_code,
+                              color: Colors.white,
+                              size: 22,
+                            ),
                             tooltip: 'View QR Health Pass',
                             style: IconButton.styleFrom(
-                              backgroundColor: Colors.white.withValues(alpha: 0.15),
+                              backgroundColor: Colors.white.withValues(
+                                alpha: 0.15,
+                              ),
                             ),
                           ),
                         ],
@@ -272,26 +326,104 @@ class _PatientDashboardScreenState extends State<PatientDashboardScreen> {
                         children: [
                           ElevatedButton.icon(
                             onPressed: () => _openAgentBookingSheet(context),
-                            icon: const Text('🤖', style: TextStyle(fontSize: 14)),
+                            icon: const Text(
+                              '🤖',
+                              style: TextStyle(fontSize: 14),
+                            ),
                             label: const Text('Book with AI Concierge'),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.white,
                               foregroundColor: AppColors.brandBlue,
                               elevation: 0,
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                              textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 10,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              textStyle: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 12,
+                              ),
                             ),
                           ),
                           OutlinedButton.icon(
                             onPressed: () => _openBookSheet(context),
-                            icon: const Icon(Icons.add, size: 16, color: Colors.white),
-                            label: const Text('Manual Form', style: TextStyle(color: Colors.white)),
+                            icon: const Icon(
+                              Icons.add,
+                              size: 16,
+                              color: Colors.white,
+                            ),
+                            label: const Text(
+                              'Manual Form',
+                              style: TextStyle(color: Colors.white),
+                            ),
                             style: OutlinedButton.styleFrom(
                               side: const BorderSide(color: Colors.white70),
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                              textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 10,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              textStyle: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                          // AI Care Plan button
+                          ElevatedButton.icon(
+                            onPressed: () => _openCarePlanSheet(context),
+                            icon: const Text(
+                              '✨',
+                              style: TextStyle(fontSize: 14),
+                            ),
+                            label: const Text('Generate AI Care Plan'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF0EA5E9),
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 10,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              textStyle: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                          // NEW: View Saved Plans button
+                          OutlinedButton.icon(
+                            onPressed: () => CarePlanHistorySheet.show(context),
+                            icon: const Icon(
+                              Icons.history,
+                              size: 16,
+                              color: Colors.white,
+                            ),
+                            label: const Text(
+                              'View Saved Plans',
+                              style: TextStyle(color: Colors.white),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: Colors.white70),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 10,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              textStyle: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 12,
+                              ),
                             ),
                           ),
                         ],
@@ -314,15 +446,20 @@ class _PatientDashboardScreenState extends State<PatientDashboardScreen> {
                       icon: '📅',
                       iconBgColor: AppColors.brandBlue,
                       label: 'Upcoming Dose',
-                      value: nextAppointment != null ? nextAppointment.appointmentDate : 'None',
-                      note: nextAppointment != null ? nextAppointment.vaccineName : 'All clear',
+                      value: nextAppointment != null
+                          ? nextAppointment.appointmentDate
+                          : 'None',
+                      note: nextAppointment != null
+                          ? nextAppointment.vaccineName
+                          : 'All clear',
                     ),
                     PatientStatCard(
                       icon: '💉',
                       iconBgColor: AppColors.success,
                       label: 'Doses Received',
                       value: '$totalDoses Completed',
-                      note: '${_timeline?.distinctVaccines ?? 0} Distinct vaccines',
+                      note:
+                          '${_timeline?.distinctVaccines ?? 0} Distinct vaccines',
                     ),
                     PatientStatCard(
                       icon: '🛡️',
@@ -336,7 +473,9 @@ class _PatientDashboardScreenState extends State<PatientDashboardScreen> {
                       iconBgColor: const Color(0xFFD97706),
                       label: 'Scheduled',
                       value: '$scheduledCount In Queue',
-                      note: scheduledCount > 0 ? 'Upcoming doses' : 'Up to date',
+                      note: scheduledCount > 0
+                          ? 'Upcoming doses'
+                          : 'Up to date',
                     ),
                   ],
                 ),
@@ -348,7 +487,10 @@ class _PatientDashboardScreenState extends State<PatientDashboardScreen> {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: AppColors.borderLight, width: 1.5),
+                    border: Border.all(
+                      color: AppColors.borderLight,
+                      width: 1.5,
+                    ),
                     boxShadow: [
                       BoxShadow(
                         color: AppColors.primaryDark.withValues(alpha: 0.04),
@@ -377,7 +519,8 @@ class _PatientDashboardScreenState extends State<PatientDashboardScreen> {
                                   style: TextButton.styleFrom(
                                     padding: EdgeInsets.zero,
                                     minimumSize: Size.zero,
-                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                    tapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
                                   ),
                                   child: const Text(
                                     'View all →',
@@ -392,7 +535,10 @@ class _PatientDashboardScreenState extends State<PatientDashboardScreen> {
                             ),
                             const SizedBox(height: 14),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
                               decoration: BoxDecoration(
                                 color: const Color(0xFFEFF6FF),
                                 borderRadius: BorderRadius.circular(6),
@@ -418,7 +564,10 @@ class _PatientDashboardScreenState extends State<PatientDashboardScreen> {
                             const SizedBox(height: 4),
                             Text(
                               '📍 Ref: ${nextAppointment.referenceNumber ?? (nextAppointment.id.length > 8 ? nextAppointment.id.substring(0, 8) : nextAppointment.id)}',
-                              style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textMuted,
+                              ),
                             ),
                             const SizedBox(height: 12),
                             Container(
@@ -426,14 +575,20 @@ class _PatientDashboardScreenState extends State<PatientDashboardScreen> {
                               decoration: BoxDecoration(
                                 color: const Color(0xFFF8FAFC),
                                 borderRadius: BorderRadius.circular(10),
-                                border: Border.all(color: AppColors.borderLight),
+                                border: Border.all(
+                                  color: AppColors.borderLight,
+                                ),
                               ),
                               child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text(
                                     '🗓️ ${nextAppointment.appointmentDate} • ${nextAppointment.timeSlot}',
-                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                   ),
                                   Text(
                                     nextAppointment.status,
@@ -451,17 +606,27 @@ class _PatientDashboardScreenState extends State<PatientDashboardScreen> {
                               children: [
                                 if (!nextAppointment.isPaid &&
                                     (nextAppointment.fee ?? 0) > 0 &&
-                                    nextAppointment.status.toLowerCase() != 'confirmed' &&
-                                    nextAppointment.status.toLowerCase() != 'completed' &&
-                                    nextAppointment.status.toLowerCase() != 'cancelled') ...[
+                                    nextAppointment.status.toLowerCase() !=
+                                        'confirmed' &&
+                                    nextAppointment.status.toLowerCase() !=
+                                        'completed' &&
+                                    nextAppointment.status.toLowerCase() !=
+                                        'cancelled') ...[
                                   Expanded(
                                     child: ElevatedButton.icon(
                                       onPressed: () {
                                         final apt = PatientAppointment(
-                                          id: nextAppointment.referenceNumber ?? (nextAppointment.id.length > 8 ? nextAppointment.id.substring(0, 8) : nextAppointment.id),
+                                          id:
+                                              nextAppointment.referenceNumber ??
+                                              (nextAppointment.id.length > 8
+                                                  ? nextAppointment.id
+                                                        .substring(0, 8)
+                                                  : nextAppointment.id),
                                           rawId: nextAppointment.id,
-                                          vaccineName: nextAppointment.vaccineName,
-                                          hospitalName: nextAppointment.hospitalName,
+                                          vaccineName:
+                                              nextAppointment.vaccineName,
+                                          hospitalName:
+                                              nextAppointment.hospitalName,
                                           location: 'Assigned Center',
                                           date: nextAppointment.appointmentDate,
                                           time: nextAppointment.timeSlot,
@@ -477,12 +642,26 @@ class _PatientDashboardScreenState extends State<PatientDashboardScreen> {
                                         );
                                       },
                                       icon: const Icon(Icons.payment, size: 16),
-                                      label: Text('Pay LKR ${(nextAppointment.fee ?? 0).toStringAsFixed(0)}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                                      label: Text(
+                                        'Pay LKR ${(nextAppointment.fee ?? 0).toStringAsFixed(0)}',
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
                                       style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(0xFF16A34A),
+                                        backgroundColor: const Color(
+                                          0xFF16A34A,
+                                        ),
                                         foregroundColor: Colors.white,
-                                        padding: const EdgeInsets.symmetric(vertical: 10),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 10,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                        ),
                                       ),
                                     ),
                                   ),
@@ -492,9 +671,15 @@ class _PatientDashboardScreenState extends State<PatientDashboardScreen> {
                                   child: OutlinedButton(
                                     onPressed: () => widget.onNavigateTab(1),
                                     style: OutlinedButton.styleFrom(
-                                      side: const BorderSide(color: AppColors.borderLight),
-                                      padding: const EdgeInsets.symmetric(vertical: 10),
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                      side: const BorderSide(
+                                        color: AppColors.borderLight,
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 10,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
                                     ),
                                     child: const Text(
                                       'Manage',
@@ -509,14 +694,27 @@ class _PatientDashboardScreenState extends State<PatientDashboardScreen> {
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: ElevatedButton(
-                                    onPressed: () => _openDigitalPassSheet(context, appt: nextAppointment),
+                                    onPressed: () => _openDigitalPassSheet(
+                                      context,
+                                      appt: nextAppointment,
+                                    ),
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: AppColors.brandBlue,
                                       foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(vertical: 10),
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 10,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
                                     ),
-                                    child: const Text('View Slip', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                                    child: const Text(
+                                      'View Slip',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ],
@@ -526,7 +724,11 @@ class _PatientDashboardScreenState extends State<PatientDashboardScreen> {
                       : Column(
                           children: [
                             const SizedBox(height: 10),
-                            const Icon(Icons.event_available, color: AppColors.brandBlue, size: 40),
+                            const Icon(
+                              Icons.event_available,
+                              color: AppColors.brandBlue,
+                              size: 40,
+                            ),
                             const SizedBox(height: 10),
                             const Text(
                               'No Upcoming Appointments',
@@ -540,18 +742,29 @@ class _PatientDashboardScreenState extends State<PatientDashboardScreen> {
                             const Text(
                               'You have no pending vaccination sessions. Schedule one easily using our AI Concierge or manual form.',
                               textAlign: TextAlign.center,
-                              style: TextStyle(fontSize: 13, color: AppColors.textMuted),
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: AppColors.textMuted,
+                              ),
                             ),
                             const SizedBox(height: 14),
                             ElevatedButton.icon(
                               onPressed: () => _openAgentBookingSheet(context),
-                              icon: const Text('🤖', style: TextStyle(fontSize: 14)),
+                              icon: const Text(
+                                '🤖',
+                                style: TextStyle(fontSize: 14),
+                              ),
                               label: const Text('Book Appointment'),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppColors.brandBlue,
                                 foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                  vertical: 10,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
                               ),
                             ),
                             const SizedBox(height: 6),
@@ -566,7 +779,10 @@ class _PatientDashboardScreenState extends State<PatientDashboardScreen> {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: const Color(0xFFCBD5E1), width: 1.5),
+                    border: Border.all(
+                      color: const Color(0xFFCBD5E1),
+                      width: 1.5,
+                    ),
                   ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -595,7 +811,11 @@ class _PatientDashboardScreenState extends State<PatientDashboardScreen> {
                             const SizedBox(height: 4),
                             const Text(
                               'Planning travel? Ensure Yellow Fever and Meningococcal records are renewed 14 days prior to departure.',
-                              style: TextStyle(fontSize: 12, color: AppColors.textBody, height: 1.4),
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textBody,
+                                height: 1.4,
+                              ),
                             ),
                             const SizedBox(height: 6),
                             InkWell(
@@ -623,7 +843,10 @@ class _PatientDashboardScreenState extends State<PatientDashboardScreen> {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: AppColors.borderLight, width: 1.5),
+                    border: Border.all(
+                      color: AppColors.borderLight,
+                      width: 1.5,
+                    ),
                     boxShadow: [
                       BoxShadow(
                         color: AppColors.primaryDark.withValues(alpha: 0.04),
@@ -665,24 +888,44 @@ class _PatientDashboardScreenState extends State<PatientDashboardScreen> {
                         ],
                       ),
                       const SizedBox(height: 12),
-                      if (_timeline != null && _timeline!.records.isNotEmpty) ...[
-                        for (int i = 0; i < _timeline!.records.length && i < 4; i++) ...[
-                          if (i > 0) const Divider(color: AppColors.borderLight, height: 1),
+                      if (_timeline != null &&
+                          _timeline!.records.isNotEmpty) ...[
+                        for (
+                          int i = 0;
+                          i < _timeline!.records.length && i < 4;
+                          i++
+                        ) ...[
+                          if (i > 0)
+                            const Divider(
+                              color: AppColors.borderLight,
+                              height: 1,
+                            ),
                           ImmunizationTimelineItem(
                             icon: '💉',
                             name: _timeline!.records[i].vaccineName,
-                            target: 'Dose ${_timeline!.records[i].doseNumber} • ${_timeline!.records[i].route}',
+                            target:
+                                'Dose ${_timeline!.records[i].doseNumber} • ${_timeline!.records[i].route}',
                             status: 'Completed',
-                            date: '${_timeline!.records[i].administeredAt.year}-${_timeline!.records[i].administeredAt.month.toString().padLeft(2, '0')}-${_timeline!.records[i].administeredAt.day.toString().padLeft(2, '0')}',
+                            date:
+                                '${_timeline!.records[i].administeredAt.year}-${_timeline!.records[i].administeredAt.month.toString().padLeft(2, '0')}-${_timeline!.records[i].administeredAt.day.toString().padLeft(2, '0')}',
                           ),
                         ],
                       ] else if (_appointments.isNotEmpty) ...[
-                        for (int i = 0; i < _appointments.length && i < 3; i++) ...[
-                          if (i > 0) const Divider(color: AppColors.borderLight, height: 1),
+                        for (
+                          int i = 0;
+                          i < _appointments.length && i < 3;
+                          i++
+                        ) ...[
+                          if (i > 0)
+                            const Divider(
+                              color: AppColors.borderLight,
+                              height: 1,
+                            ),
                           ImmunizationTimelineItem(
                             icon: '🗓️',
                             name: _appointments[i].vaccineName,
-                            target: '${_appointments[i].hospitalName} • ${_appointments[i].doseNumber ?? "Dose 1"}',
+                            target:
+                                '${_appointments[i].hospitalName} • ${_appointments[i].doseNumber ?? "Dose 1"}',
                             status: _appointments[i].status,
                             date: _appointments[i].appointmentDate,
                           ),
@@ -707,7 +950,10 @@ class _PatientDashboardScreenState extends State<PatientDashboardScreen> {
                                 Text(
                                   'Completed doses recorded by medical officers will appear here.',
                                   textAlign: TextAlign.center,
-                                  style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.textMuted,
+                                  ),
                                 ),
                               ],
                             ),
