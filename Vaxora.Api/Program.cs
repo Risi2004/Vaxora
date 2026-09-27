@@ -88,11 +88,19 @@ builder.Services.AddScoped<IPatientVisitService, PatientVisitService>();
 builder.Services.AddScoped<IClinicalPatientService, ClinicalPatientService>();
 
 // Internal Agentic AI service gateway. Clients call this API, never the agent directly.
-var rawAgentServiceUrl = builder.Configuration["AgentService:BaseUrl"]
-    ?? Environment.GetEnvironmentVariable("AGENT_SERVICE_URL")
-    ?? "http://localhost:8001";
+var envAgentUrl = Environment.GetEnvironmentVariable("AGENT_SERVICE_URL")
+    ?? Environment.GetEnvironmentVariable("AgentService__BaseUrl");
+
+var rawAgentServiceUrl = !string.IsNullOrWhiteSpace(envAgentUrl)
+    ? envAgentUrl
+    : (builder.Configuration["AgentService:BaseUrl"] ?? "http://localhost:8001");
+
+if (string.IsNullOrWhiteSpace(rawAgentServiceUrl))
+    rawAgentServiceUrl = "http://localhost:8001";
+
 var agentServiceUrl = rawAgentServiceUrl.Trim().Trim('"', '\'').TrimEnd('/');
 if (!agentServiceUrl.EndsWith("/")) agentServiceUrl += "/";
+
 
 var agentTimeoutSeconds = builder.Configuration.GetValue<int?>("AgentService:TimeoutSeconds") ?? 120;
 
