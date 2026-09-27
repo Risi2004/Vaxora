@@ -52,30 +52,6 @@ export default function AdminSidebar({ pendingApprovalsCount = 0 }) {
       ),
     },
     {
-      path: '/admin/hospitals',
-      label: 'Hospitals & Supply',
-      icon: (
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M3 21h18" />
-          <path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16" />
-          <path d="M9 21v-4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4" />
-          <line x1="10" y1="9" x2="14" y2="9" />
-          <line x1="12" y1="7" x2="12" y2="11" />
-        </svg>
-      ),
-    },
-    {
-      path: '/admin/campaigns',
-      label: 'Campaigns & Drives',
-      icon: (
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="10" />
-          <circle cx="12" cy="12" r="6" />
-          <circle cx="12" cy="12" r="2" />
-        </svg>
-      ),
-    },
-    {
       path: '/admin/feedback',
       label: 'Feedback & Inquiries',
       icon: (
