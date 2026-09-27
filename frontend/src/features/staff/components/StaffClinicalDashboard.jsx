@@ -914,47 +914,49 @@ export default function StaffClinicalDashboard({
             )}
           </div>
 
-          <div className="doctor-coldbox-card">
-            <div className="doctor-coldbox-header">
-              <div
-                className="doctor-coldbox-title"
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
-              >
-                <span className="icon-shade icon-shade-amber">
+          <div className="doctor-coldbox-card staff-today-slots">
+            <div className="staff-today-slots-header">
+              <div className="staff-today-slots-title">
+                <span className="icon-shade icon-shade-green">
                   <IconClock size={22} />
                 </span>
-                Today&apos;s Slots
+                <span>Today&apos;s Slots</span>
               </div>
+              <span className="staff-today-slots-count">
+                {todayAppointments.length}{' '}
+                {todayAppointments.length === 1 ? 'slot' : 'slots'}
+              </span>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.85rem' }}>
-              {todayAppointments.length === 0 ? (
-                <p style={{ margin: 0, color: '#64748b' }}>No slots booked for today.</p>
-              ) : (
-                todayAppointments.slice(0, 6).map((a) => (
-                  <div
-                    key={a.id}
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      gap: 8,
-                      padding: '8px 12px',
-                      background: a.status === 'Completed' ? '#f1f5f9' : '#eff6ff',
-                      borderRadius: '8px',
-                      border:
-                        a.status === 'Completed' ? '1px solid #e2e8f0' : '1px solid #bfdbfe',
-                    }}
-                  >
-                    <span style={{ fontWeight: 600, color: '#334155' }}>
-                      {a.timeSlot || a.startTime || '—'}
-                    </span>
-                    <span style={{ color: '#1e40af', fontWeight: 650, textAlign: 'right' }}>
-                      {a.patientName} · {a.status}
-                    </span>
-                  </div>
-                ))
-              )}
-            </div>
+            {todayAppointments.length === 0 ? (
+              <p className="staff-today-slots-empty">No slots booked for today.</p>
+            ) : (
+              <ul className="staff-today-slots-list">
+                {todayAppointments.slice(0, 6).map((a) => {
+                  const done = a.status === 'Completed';
+                  return (
+                    <li
+                      key={a.id}
+                      className={`staff-today-slot-item${done ? ' is-done' : ''}`}
+                    >
+                      <div className="staff-today-slot-time">
+                        {a.timeSlot || a.startTime || '—'}
+                      </div>
+                      <div className="staff-today-slot-meta">
+                        <span className="staff-today-slot-name">
+                          {a.patientName || 'Patient'}
+                        </span>
+                        <span
+                          className={`staff-today-slot-status${done ? ' is-done' : ''}`}
+                        >
+                          {a.status || 'Scheduled'}
+                        </span>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </div>
         </div>
       </div>
