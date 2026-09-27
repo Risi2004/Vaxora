@@ -408,6 +408,7 @@ export default function HospitalDashboardOverview() {
     } catch (err) {
       console.error('Failed to restock batch:', err);
       alert('Failed to log restock shipment: ' + err.message);
+      throw err;
     }
   };
 
@@ -485,17 +486,27 @@ export default function HospitalDashboardOverview() {
     [boothCards]
   );
 
-  const primaryColdVault = useMemo(() => {
+  const coldChainSummary = useMemo(() => {
     if (!coldVaults.length) return null;
-    return coldVaults.find((v) => formatVaultTemp(v.temp)) || coldVaults[0];
-  }, [coldVaults]);
 
-  const coldChainTemp = primaryColdVault ? formatVaultTemp(primaryColdVault.temp) : null;
-  const coldChainLabel = primaryColdVault
-    ? [primaryColdVault.name, primaryColdVault.type].filter(Boolean).join(' · ')
-    : null;
-  const coldChainOk = !primaryColdVault?.status
-    || /optimal|ok|normal|safe/i.test(String(primaryColdVault.status));
+    const isOk = (v) =>
+      !v.status || /optimal|ok|normal|safe|active/i.test(String(v.status));
+
+    const okCount = coldVaults.filter(isOk).length;
+    const total = coldVaults.length;
+    const allOk = okCount === total;
+
+    return {
+      total,
+      okCount,
+      allOk,
+      value: `${okCount}/${total}`,
+      meta: allOk
+        ? `${total} vault${total === 1 ? '' : 's'} optimal`
+        : `${okCount} optimal · ${total - okCount} need attention`,
+      vaults: coldVaults,
+    };
+  }, [coldVaults]);
 
   return (
     <div className="hospital-dashboard-tab">
@@ -587,16 +598,13 @@ export default function HospitalDashboardOverview() {
           <div className="hospital-stat-info">
             <span className="hospital-stat-label">Cold-Chain Storage</span>
             <span className="hospital-stat-value">
-              {inventoryLoading ? '...' : (coldChainTemp || '—')}
+              {inventoryLoading ? '...' : (coldChainSummary?.value || '—')}
             </span>
             <span className="hospital-stat-meta">
-              {primaryColdVault ? (
-                <>
-                  <span className={coldChainOk ? 'meta-positive' : 'meta-warning'}>
-                    {primaryColdVault.status || 'Monitored'}
-                  </span>
-                  {primaryColdVault.target ? ` · Target ${primaryColdVault.target}` : ''}
-                </>
+              {coldChainSummary ? (
+                <span className={coldChainSummary.allOk ? 'meta-positive' : 'meta-warning'}>
+                  {coldChainSummary.meta}
+                </span>
               ) : (
                 'No vault telemetry'
               )}
@@ -878,23 +886,43 @@ export default function HospitalDashboardOverview() {
             </p>
           </div>
 
-          {/* Cold Chain IoT Health Banner */}
-          <div className="cold-chain-monitor-bar">
-            <div className="cold-chain-info">
-              <span className="cold-chain-icon"><IconThermometer size={22} /></span>
-              <div>
-                <div className="cold-chain-temp">{coldChainTemp || '—'}</div>
-                <div className="cold-chain-label">
-                  {coldChainLabel || 'No cold vault registered'}
+          {/* Cold Chain IoT Health — all vaults */}
+          <div className="cold-chain-monitor-bar cold-chain-monitor-bar--multi">
+            {!coldChainSummary ? (
+              <div className="cold-chain-info">
+                <span className="cold-chain-icon"><IconThermometer size={22} /></span>
+                <div>
+                  <div className="cold-chain-temp">—</div>
+                  <div className="cold-chain-label">No cold vault registered</div>
                 </div>
               </div>
-            </div>
-            <div className="cold-chain-status-ok" style={!coldChainOk ? { color: '#b45309' } : undefined}>
-              <span>●</span>{' '}
-              {primaryColdVault
-                ? `${primaryColdVault.status || 'Monitored'}${primaryColdVault.sensorStatus ? ` · ${primaryColdVault.sensorStatus}` : ''}`
-                : 'Vault offline'}
-            </div>
+            ) : (
+              <div
+                className="cold-chain-vault-strip"
+                role="list"
+                aria-label="Cold vault temperatures"
+                style={{
+                  gridTemplateColumns: `repeat(${Math.min(coldChainSummary.vaults.length, 3)}, minmax(0, 1fr))`,
+                }}
+              >
+                {coldChainSummary.vaults.map((vault) => {
+                  const temp = formatVaultTemp(vault.temp) || '—';
+                  const ok =
+                    !vault.status || /optimal|ok|normal|safe|active/i.test(String(vault.status));
+                  return (
+                    <div key={vault.id} className="cold-chain-vault-chip" role="listitem">
+                      <span className="cold-chain-vault-chip-temp">{temp}</span>
+                      <span className="cold-chain-vault-chip-name">{vault.name}</span>
+                      <span
+                        className={`cold-chain-vault-chip-status${ok ? ' is-ok' : ' is-warn'}`}
+                      >
+                        {vault.status || 'Monitored'}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           <div className="inventory-items-list">
