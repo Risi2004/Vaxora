@@ -1,7 +1,16 @@
 """
 PatientDataAgent — compiles a structured summary of a patient's full health record.
-Tools: get_patient_profile, get_vaccination_history, get_medical_history,
-       get_active_conditions, get_visit_history, get_upcoming_follow_ups
+
+Architecture note:
+  Tool invocation is deterministic (controlled orchestration) rather than
+  LLM-driven. This is required because Groq's free-tier tool-calling
+  implementation has documented parsing instability across all currently
+  available models (gpt-oss, llama-3.1, qwen3.8). The LLM still performs
+  all reasoning: it decides what to include in the summary, computes age,
+  and composes the final structured JSON.
+
+Tools invoked: get_patient_profile, get_vaccination_history, get_medical_history,
+               get_active_conditions, get_visit_history, get_upcoming_follow_ups
 Output: a structured PatientSummary dict.
 """
 import json
@@ -13,7 +22,6 @@ from typing import List, Dict, Any, Optional
 try:
     from .config import settings
     from .patient_tools import (
-        PATIENT_TOOLS_SCHEMA,
         tool_get_patient_profile,
         tool_get_vaccination_history,
         tool_get_medical_history,
@@ -24,7 +32,6 @@ try:
 except ImportError:
     from config import settings
     from patient_tools import (
-        PATIENT_TOOLS_SCHEMA,
         tool_get_patient_profile,
         tool_get_vaccination_history,
         tool_get_medical_history,
@@ -37,17 +44,12 @@ logger = logging.getLogger("vaxora-patient-data-agent")
 
 PATIENT_DATA_SYSTEM_PROMPT = """You are the PATIENT DATA AGENT for Vaxora, a national immunization platform.
 
-Your ONLY responsibility is to compile a comprehensive, structured summary of a patient's health data.
-You do NOT give medical advice. You do NOT generate care plans. You ONLY retrieve and summarize.
+You will receive raw JSON results from six data-retrieval tools that have already been called on your behalf.
+Your job is to synthesize these results into ONE structured JSON summary.
 
-Workflow:
-1. Call get_patient_profile to get core demographics.
-2. Call get_medical_history to get ALL medical history (diagnoses, allergies, surgeries).
-3. Call get_active_conditions to identify currently active/chronic conditions.
-4. Call get_vaccination_history to get all administered vaccines.
-5. Call get_visit_history to get recent clinic visits.
-6. Call get_upcoming_follow_ups to get scheduled follow-ups.
-7. Compile a JSON summary in EXACTLY this schema:
+You do NOT give medical advice. You do NOT generate care plans. You ONLY compile the summary.
+
+Output EXACTLY this JSON schema (no prose, no markdown fences, no commentary):
 
 {
   "demographics": {
@@ -71,10 +73,12 @@ Workflow:
 }
 
 Rules:
-- Reply with ONLY the JSON object, no prose, no markdown fences.
+- Reply with ONLY the JSON object. Do NOT wrap in markdown.
 - If a category has no data, use an empty list or null — do NOT invent data.
-- Age: compute from date_of_birth.
-- Include EVERY chronic condition and allergy you find, no filtering.
+- Age: compute from dateOfBirth in the profile.
+- Include EVERY chronic condition and allergy you find. Do not filter.
+- Extract medications from records where recordType == "Medication".
+- A "Chronic" status record is a chronic condition.
 """
 
 
@@ -87,109 +91,133 @@ class PatientDataAgent:
         self.model = settings.model_name
         self.api_key = settings.runpod_api_key
 
-    async def _call_llm(self, messages: List[Dict[str, Any]], tools: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+    async def _call_llm(self, messages: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Single-shot LLM call — no tools, no streaming. Retries on 429."""
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.api_key}",
         }
-        payload = {"model": self.model, "messages": messages, "temperature": 0.1}
-        if tools:
-            payload["tools"] = tools
+        payload = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": 0.1,
+            "reasoning_effort": "none",
+        }
 
         max_retries = 4
         for attempt in range(max_retries):
             async with httpx.AsyncClient(timeout=120.0) as client:
-                resp = await client.post(f"{self.base_url}/chat/completions", headers=headers, json=payload)
+                resp = await client.post(
+                    f"{self.base_url}/chat/completions", headers=headers, json=payload
+                )
                 if resp.status_code == 429:
                     retry_after = int(resp.headers.get("retry-after", "5"))
-                    wait = max(retry_after, 3) + (2 ** attempt)  # exponential backoff
+                    wait = max(retry_after, 3) + (2 ** attempt)
                     logger.warning(
                         f"[{self.name}] Rate limited (429). Waiting {wait}s "
                         f"before retry {attempt + 1}/{max_retries}..."
                     )
                     await asyncio.sleep(wait)
                     continue
+                if resp.status_code >= 400:
+                    logger.warning(
+                        f"[{self.name}] LLM {resp.status_code}: {resp.text[:500]}"
+                    )
                 resp.raise_for_status()
                 return resp.json()["choices"][0]["message"]
 
-        raise RuntimeError(f"Max retries ({max_retries}) exceeded due to Groq rate limiting.")
-
-    async def _execute_tool(self, name: str, args: Dict[str, Any], token: Optional[str]) -> Any:
-        logger.info(f"[{self.name}] tool={name}")
-        pid = args.get("patient_profile_id")
-        if name == "get_patient_profile":
-            return await tool_get_patient_profile(pid, token=token)
-        if name == "get_vaccination_history":
-            return await tool_get_vaccination_history(pid, token=token)
-        if name == "get_medical_history":
-            return await tool_get_medical_history(pid, token=token)
-        if name == "get_active_conditions":
-            return await tool_get_active_conditions(pid, token=token)
-        if name == "get_visit_history":
-            return await tool_get_visit_history(pid, token=token)
-        if name == "get_upcoming_follow_ups":
-            return await tool_get_upcoming_follow_ups(pid, token=token)
-        return {"error": f"Unknown tool: {name}"}
+        raise RuntimeError(
+            f"Max retries ({max_retries}) exceeded due to Groq rate limiting."
+        )
 
     async def run(self, patient_profile_id: str, token: Optional[str] = None) -> Dict[str, Any]:
-        """Run the agent, return { success, summary, raw, steps }."""
+        """Deterministically call all 6 tools, then synthesize with one LLM call."""
+        steps: List[Dict[str, Any]] = []
+
+        # ---- Phase 1: Deterministic tool invocation ----
+        tool_plan = [
+            ("get_patient_profile", tool_get_patient_profile),
+            ("get_medical_history", tool_get_medical_history),
+            ("get_active_conditions", tool_get_active_conditions),
+            ("get_vaccination_history", tool_get_vaccination_history),
+            ("get_visit_history", tool_get_visit_history),
+            ("get_upcoming_follow_ups", tool_get_upcoming_follow_ups),
+        ]
+
+        tool_results: Dict[str, Any] = {}
+        for tool_name, tool_fn in tool_plan:
+            logger.info(f"[{self.name}] tool={tool_name}")
+            try:
+                out = await tool_fn(patient_profile_id, token=token)
+            except Exception as e:
+                out = {"success": False, "error": str(e)}
+            tool_results[tool_name] = out
+            steps.append({
+                "tool": tool_name,
+                "ok": out.get("success", True) if isinstance(out, dict) else True,
+            })
+
+        # ---- Phase 2: LLM synthesis (no tools) ----
+        user_prompt = (
+            "Here are the raw results from all six tools, as JSON:\n\n"
+            + json.dumps(tool_results, indent=2, default=str)
+            + "\n\nNow output ONLY the JSON summary object per the schema."
+        )
+
         conversation = [
             {"role": "system", "content": PATIENT_DATA_SYSTEM_PROMPT},
-            {"role": "user", "content": f"Compile a summary for patient profile ID: {patient_profile_id}. Use all your tools."}
+            {"role": "user", "content": user_prompt},
         ]
-        steps = []
 
-        for iteration in range(8):  # max iterations
-            try:
-                msg = await self._call_llm(conversation, tools=PATIENT_TOOLS_SCHEMA)
-            except Exception as e:
-                return {"success": False, "error": f"LLM error: {e}", "steps": steps}
+        try:
+            msg = await self._call_llm(conversation)
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"LLM synthesis error: {e}",
+                "steps": steps,
+            }
 
-            tool_calls = msg.get("tool_calls") or []
+        content = msg.get("content") or ""
+        summary = self._try_parse_json(content)
 
-            if tool_calls:
-                conversation.append({"role": "assistant", "content": msg.get("content") or "", "tool_calls": tool_calls})
-                for tc in tool_calls:
-                    fn = tc.get("function", {})
-                    fn_name = fn.get("name")
-                    raw_args = fn.get("arguments", "{}")
-                    try:
-                        fn_args = json.loads(raw_args) if isinstance(raw_args, str) else (raw_args or {})
-                    except Exception:
-                        fn_args = {}
-                    # force the profile id in case the LLM hallucinated one
-                    fn_args["patient_profile_id"] = patient_profile_id
-                    out = await self._execute_tool(fn_name, fn_args, token)
-                    steps.append({"tool": fn_name, "ok": out.get("success", True) if isinstance(out, dict) else True})
-                    conversation.append({
-                        "role": "tool",
-                        "tool_call_id": tc.get("id"),
-                        "content": json.dumps(out, default=str),
-                    })
-                continue
+        if isinstance(summary, dict) and "raw_text" in summary and len(summary) == 1:
+            logger.warning(
+                f"[{self.name}] JSON parse failed — raw content (first 500 chars): "
+                f"{content[:500]}"
+            )
 
-            # Final message — try to parse JSON
-            content = msg.get("content") or ""
-            summary = self._try_parse_json(content)
-            return {"success": True, "summary": summary, "raw": content, "steps": steps}
-
-        return {"success": False, "error": "Max iterations reached without final answer", "steps": steps}
+        return {"success": True, "summary": summary, "raw": content, "steps": steps}
 
     @staticmethod
     def _try_parse_json(text: str) -> Any:
-        """Best-effort JSON extraction — strips markdown fences if present."""
+        """Robust JSON extraction — strips fences, finds first {...} block."""
         if not text:
             return None
         t = text.strip()
+
         if t.startswith("```"):
             t = t.strip("`")
             if t.lower().startswith("json"):
                 t = t[4:]
             t = t.strip()
+            if t.endswith("```"):
+                t = t[:-3].strip()
+
         try:
             return json.loads(t)
         except Exception:
-            return {"raw_text": text}
+            pass
+
+        first = t.find("{")
+        last = t.rfind("}")
+        if first != -1 and last > first:
+            try:
+                return json.loads(t[first:last + 1])
+            except Exception:
+                pass
+
+        return {"raw_text": text}
 
 
 patient_data_agent = PatientDataAgent()

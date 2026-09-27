@@ -14,6 +14,7 @@ public interface IPatientVisitService
     Task<PatientVisitDto> CreateAsync(Guid actorUserId, Guid patientProfileId, CreatePatientVisitDto dto);
     Task<PatientVisitDto> UpdateAsync(Guid actorUserId, Guid id, UpdatePatientVisitDto dto);
     Task DeleteAsync(Guid actorUserId, Guid id);
+    Task<bool> IsOwnedByUserAsync(Guid patientProfileId, Guid userId);
 }
 
 public class PatientVisitService : IPatientVisitService
@@ -184,6 +185,13 @@ public class PatientVisitService : IPatientVisitService
         _logger.LogInformation("Created visit {VisitId} for patient {PatientId}", visit.Id, patient.Id);
 
         return MapToDto(visit);
+    }
+
+    public async Task<bool> IsOwnedByUserAsync(Guid patientProfileId, Guid userId)
+    {
+        return await _context.PatientProfiles
+            .AsNoTracking()
+            .AnyAsync(p => p.Id == patientProfileId && p.UserId == userId);
     }
 
     public async Task<PatientVisitDto> UpdateAsync(Guid actorUserId, Guid id, UpdatePatientVisitDto dto)
