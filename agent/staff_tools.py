@@ -553,6 +553,59 @@ def _demand_groups(
     return {slot_key: list(rows.values()) for slot_key, rows in buckets.items()}
 
 
+def _seed_posted_schedule_demand(
+    demand: Dict[tuple, List[Dict[str, Any]]],
+    sessions: List[Dict[str, Any]],
+) -> int:
+    """
+    Ensure every posted clinic window opens at least one booth worth of coverage,
+    even before patients have booked into it.
+    Returns how many schedule seeds were added or raised to baseline.
+    """
+    seeded = 0
+    for session in sessions or []:
+        date = session.get("date")
+        slot_name = session.get("slot")
+        if not date or not slot_name:
+            continue
+        vaccine_id = str(session.get("vaccineId") or "").strip()
+        vaccine_name = str(session.get("vaccineName") or "").strip()
+        vaccine_key = vaccine_id or vaccine_name.lower() or "unknown"
+        label = vaccine_name or "Clinic vaccine"
+        slot_key = (date, slot_name)
+        groups = demand.setdefault(slot_key, [])
+        existing = None
+        for group in groups:
+            if group.get("key") == vaccine_key:
+                existing = group
+                break
+            if vaccine_name and str(group.get("label") or "").strip().lower() == vaccine_name.lower():
+                existing = group
+                break
+        if existing is None:
+            groups.append(
+                {
+                    "key": vaccine_key,
+                    "label": label,
+                    "count": 1,
+                    "slotStart": session["slotStart"],
+                    "slotEnd": session["slotEnd"],
+                    "preferredBoothId": session.get("boothId"),
+                    "fromSchedule": True,
+                }
+            )
+            seeded += 1
+            continue
+        if existing.get("count", 0) < 1:
+            existing["count"] = 1
+            seeded += 1
+        if session.get("boothId") and not existing.get("preferredBoothId"):
+            existing["preferredBoothId"] = session.get("boothId")
+        existing["slotStart"] = session["slotStart"]
+        existing["slotEnd"] = session["slotEnd"]
+    return seeded
+
+
 def _booth_serves(booth: Dict[str, Any], vaccine_key: str, label: str) -> bool:
     ids = {str(item) for item in (booth.get("vaccineIds") or booth.get("VaccineIds") or [])}
     if vaccine_key in ids:
@@ -915,9 +968,13 @@ def _discover_staffing_gaps(state: Dict[str, Any]) -> Tuple[List[str], List[Dict
     now_minutes = state["now_minutes"]
     default_slots = state["slots"]
 
-    if appointments is None:
+    if appointments is None and not sessions:
         findings.append("Appointments could not be loaded, so no booths need to be opened.")
         return findings, openings, gaps
+
+    if appointments is None:
+        findings.append("Appointments could not be loaded; staffing from posted vaccine schedules only.")
+        appointments = []
 
     if state.get("schedules") is None:
         findings.append("Posted vaccine schedules could not be loaded; using morning/afternoon windows.")
@@ -925,6 +982,11 @@ def _discover_staffing_gaps(state: Dict[str, Any]) -> Tuple[List[str], List[Dict
         findings.append(f"Using {len(sessions)} posted vaccine schedule window(s) for staffing.")
 
     demand = _demand_groups(appointments, clean_from, clean_to, sessions=sessions)
+    seeded = _seed_posted_schedule_demand(demand, sessions)
+    if seeded:
+        findings.append(
+            f"Opened coverage for {seeded} posted schedule window(s) even before bookings fill them."
+        )
     cursor_day = datetime.fromisoformat(clean_from).date()
     end_day = datetime.fromisoformat(clean_to).date()
     while cursor_day <= end_day:
@@ -979,6 +1041,7 @@ def _discover_staffing_gaps(state: Dict[str, Any]) -> Tuple[List[str], List[Dict
                         "count": group["count"],
                         "vaccine": label,
                         "booths": [_booth_label(booth) for booth in placed],
+                        "source": "schedule" if group.get("fromSchedule") and group["count"] <= 1 else "bookings",
                     }
                 )
                 if leftover:

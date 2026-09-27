@@ -50,6 +50,8 @@ Staffing workflow (always follow this order):
 2. build_staffing_plan(from_date, to_date) — fair assignments preferring specialization match, with alternatives and validation.
 3. Summarize which vaccines opened which booths, schedule times used, how workload changed, and tell them to press Approve or Decline.
 
+Posted schedules are staffed even when bookings are still empty (one booth baseline). Extra bookings above booth capacity open more booths.
+
 Other tools:
 - get_active_staff — list doctors/nurses
 - get_coverage — Low / Partial / Good per day when they only ask how busy it is
