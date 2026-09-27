@@ -51,8 +51,6 @@ export default function AdminNavbar({ pendingApprovalsCount = 0 }) {
     { path: '/admin/dashboard', label: 'Home' },
     { path: '/admin/users', label: 'Users' },
     { path: '/admin/approvals', label: 'Approvals', badge: pendingApprovalsCount },
-    { path: '/admin/hospitals', label: 'Hospitals' },
-    { path: '/admin/campaigns', label: 'Campaigns' },
     { path: '/admin/feedback', label: 'Feedback' },
     { path: '/admin/audit', label: 'Audit Logs' },
   ];

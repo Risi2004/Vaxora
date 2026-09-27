@@ -33,8 +33,6 @@ export default function AdminLayout() {
   const getPageTitle = (pathname) => {
     if (pathname.includes('/admin/users')) return 'National User Directory';
     if (pathname.includes('/admin/approvals')) return 'Doctor, Nurse & Hospital Approvals';
-    if (pathname.includes('/admin/hospitals')) return 'Hospital Performance & Vaccine Logistics';
-    if (pathname.includes('/admin/campaigns')) return 'National Campaigns & Vaccination Drives';
     if (pathname.includes('/admin/feedback')) return 'Feedback & Inquiries Central';
     if (pathname.includes('/admin/audit')) return 'System Audit & Compliance Logs';
     if (pathname.includes('/admin/profile')) return 'Superadmin Security & Profile';

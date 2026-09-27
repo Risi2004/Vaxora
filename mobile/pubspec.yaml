@@ -39,6 +39,10 @@ dependencies:
   shared_preferences: ^2.5.5
   intl: ^0.20.3
 
+  # Inventory module packages (Vishmika)
+  mobile_scanner: ^5.2.3
+  provider: ^6.1.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -91,3 +95,5 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+

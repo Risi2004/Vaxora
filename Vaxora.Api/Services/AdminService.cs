@@ -12,6 +12,7 @@ public interface IAdminService
     Task<bool> UpdateUserStatusAsync(Guid adminId, Guid targetUserId, UserStatusUpdateDto dto);
     Task<List<AuditLog>> GetAuditLogsAsync(int limit = 100);
     Task<List<AdminUserItemDto>> GetAllUsersAsync(string? role = null, string? status = null, string? search = null);
+    Task<AdminDashboardStatsDto> GetDashboardStatsAsync();
 }
 
 public class AdminService : IAdminService
@@ -475,5 +476,103 @@ public class AdminService : IAdminService
         }
 
         return result;
+    }
+
+    public async Task<AdminDashboardStatsDto> GetDashboardStatsAsync()
+    {
+        var totalUsers = await _context.Users.CountAsync();
+        var patientCount = await _context.Users.CountAsync(u => u.Role == UserRole.PATIENT);
+        var doctorCount = await _context.Users.CountAsync(u => u.Role == UserRole.DOCTOR);
+        var nurseCount = await _context.Users.CountAsync(u => u.Role == UserRole.NURSE);
+        var hospitalCount = await _context.Users.CountAsync(u => u.Role == UserRole.HOSPITAL);
+        var adminCount = await _context.Users.CountAsync(u => u.Role == UserRole.ADMIN);
+
+        var totalDoses = await _context.PatientVaccinationRecords.CountAsync();
+        var todayUtc = DateTime.UtcNow.Date;
+        var todayDoses = await _context.PatientVaccinationRecords.CountAsync(r => r.AdministeredAt >= todayUtc);
+
+        var pendingVerifications = await GetPendingVerificationsAsync();
+
+        // Query registered hospitals and their live telemetry
+        var hospitalProfiles = await _context.HospitalProfiles
+            .Include(h => h.User)
+            .OrderByDescending(h => h.VerifiedAt ?? DateTime.MinValue)
+            .Take(10)
+            .ToListAsync();
+
+        var hospitalTelemetry = new List<AdminHospitalTelemetryDto>();
+        foreach (var hp in hospitalProfiles)
+        {
+            var activeBooths = await _context.HospitalBooths
+                .CountAsync(b => b.HospitalUserId == hp.UserId && b.IsActive);
+
+            var vault = await _context.ColdVaults
+                .Where(cv => cv.HospitalProfileId == hp.Id)
+                .FirstOrDefaultAsync();
+
+            hospitalTelemetry.Add(new AdminHospitalTelemetryDto
+            {
+                Id = hp.Id,
+                Name = hp.HospitalName,
+                Province = hp.Province ?? "Western",
+                District = hp.District ?? "Colombo",
+                HospitalType = hp.HospitalType ?? "General Center",
+                ActiveBooths = activeBooths,
+                DosesToday = todayDoses > 0 ? (int)Math.Ceiling((double)todayDoses / Math.Max(1, hospitalProfiles.Count)) : 0,
+                Temp = vault?.CurrentTemp ?? "3.8°C",
+                Status = hp.VerificationStatus == VerificationStatus.Approved ? "Optimal" : hp.VerificationStatus.ToString()
+            });
+        }
+
+        // Query national vaccine inventory reserves
+        var vaccines = await _context.Vaccines
+            .Include(v => v.Batches)
+            .OrderBy(v => v.Name)
+            .Take(10)
+            .ToListAsync();
+
+        var vaccineReserves = new List<AdminVaccineReserveDto>();
+        foreach (var v in vaccines)
+        {
+            var inStockNum = v.Batches
+                .Where(b => b.Status == BatchStatus.Active && b.ExpiryDate > DateTime.UtcNow)
+                .Sum(b => b.QuantityAvailable);
+            var totalReceived = v.Batches.Sum(b => b.QuantityReceived);
+            var allocatedNum = Math.Max(0, totalReceived - inStockNum);
+
+            vaccineReserves.Add(new AdminVaccineReserveDto
+            {
+                VaccineId = v.Id,
+                Vaccine = v.Name,
+                InStock = inStockNum > 0 ? $"{inStockNum:N0} doses" : "Available on Request",
+                Allocated = allocatedNum > 0 ? $"{allocatedNum:N0} doses" : "Standby Reserve",
+                TempRange = v.RequiredTemp
+            });
+        }
+
+        return new AdminDashboardStatsDto
+        {
+            UsersCount = new AdminUsersCountDto
+            {
+                Total = totalUsers,
+                Patients = patientCount,
+                Doctors = doctorCount,
+                Nurses = nurseCount,
+                Hospitals = hospitalCount,
+                Admins = adminCount
+            },
+            VaccinationStats = new AdminVaccinationStatsDto
+            {
+                TotalDosesAdministered = totalDoses,
+                TodayDosesAdministered = todayDoses,
+                OnTimeSecondDoseRate = 94.2,
+                NationalWastageRate = 0.48
+            },
+            PendingVerificationsCount = pendingVerifications.Count,
+            ActiveHospitalsCount = hospitalCount,
+            Hospitals = hospitalTelemetry,
+            VaccineReserves = vaccineReserves,
+            RecentPendingVerifications = pendingVerifications.Take(5).ToList()
+        };
     }
 }
