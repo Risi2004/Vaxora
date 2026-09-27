@@ -13,8 +13,8 @@ class Settings(BaseModel):
     openrouter_api_key: str = os.getenv("OPENROUTER_API_KEY", "")
     openrouter_model: str = os.getenv("OPENROUTER_MODEL", "qwen/qwen3.8-27b")
     
-    # Vaxora ASP.NET Core API Base URL
-    vaxora_api_base_url: str = os.getenv("VAXORA_API_BASE_URL", "http://localhost:5004/api").rstrip("/")
+    # Vaxora ASP.NET Core API Base URL (normalized to always end with /api)
+    vaxora_api_base_url: str = os.getenv("VAXORA_API_BASE_URL", "http://localhost:5004/api")
     
     # Server port for the Agent FastAPI service
     port: int = int(os.getenv("PORT", "8001"))
@@ -24,4 +24,15 @@ class Settings(BaseModel):
     # Leave empty to disable the check (local development).
     agent_service_key: str = os.getenv("AGENT_SERVICE_KEY", "")
 
+    def __init__(self, **data):
+        super().__init__(**data)
+        # Normalize vaxora_api_base_url: strip trailing slashes and ensure /api path exists
+        url = self.vaxora_api_base_url.rstrip("/")
+        if url and not url.endswith("/api"):
+            self.vaxora_api_base_url = f"{url}/api"
+        else:
+            self.vaxora_api_base_url = url
+        self.openrouter_base_url = self.openrouter_base_url.rstrip("/")
+
 settings = Settings()
+
