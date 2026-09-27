@@ -68,6 +68,7 @@ public class ScheduleService : IScheduleService
         var booth = await _context.HospitalBooths
             .AsNoTracking()
             .Include(b => b.Vaccines)
+                .ThenInclude(v => v.Vaccine)
             .FirstOrDefaultAsync(b =>
                 b.Id == dto.BoothId &&
                 b.HospitalUserId == hospitalUserId &&
@@ -78,11 +79,33 @@ public class ScheduleService : IScheduleService
             throw new ArgumentException("Select an active booth that belongs to this hospital.");
         }
 
-        if (dto.VaccineId.HasValue &&
-            booth.Vaccines.Count > 0 &&
-            !booth.Vaccines.Any(v => v.VaccineId == dto.VaccineId.Value))
+        var resolvedVaccineId = dto.VaccineId;
+        var vaccineName = (dto.VaccineName ?? string.Empty).Trim();
+
+        if (booth.Vaccines.Count > 0)
         {
-            throw new ArgumentException($"Booth {booth.DisplayLabel} is not configured for this vaccine.");
+            var idMatch = resolvedVaccineId.HasValue
+                && booth.Vaccines.Any(v => v.VaccineId == resolvedVaccineId.Value);
+
+            if (!idMatch)
+            {
+                // Formulary sometimes sends the wrong GUID; recover by vaccine name on this booth.
+                var nameMatch = booth.Vaccines.FirstOrDefault(v =>
+                    !string.IsNullOrWhiteSpace(v.Vaccine?.Name) &&
+                    string.Equals(v.Vaccine!.Name.Trim(), vaccineName, StringComparison.OrdinalIgnoreCase));
+
+                if (nameMatch != null)
+                {
+                    resolvedVaccineId = nameMatch.VaccineId;
+                }
+                else
+                {
+                    throw new ArgumentException(
+                        $"Booth {booth.DisplayLabel} does not offer this vaccine. " +
+                        "Open Booths and add the vaccine to that booth, or pick a booth that already lists it."
+                    );
+                }
+            }
         }
 
         var schedule = new VaccineSchedule
@@ -96,8 +119,10 @@ public class ScheduleService : IScheduleService
             NurseName = (dto.NurseName ?? string.Empty).Trim(),
             BoothId = booth.Id,
             BoothLabel = booth.DisplayLabel,
-            VaccineId = dto.VaccineId,
-            VaccineName = dto.VaccineName.Trim(),
+            VaccineId = resolvedVaccineId,
+            VaccineName = string.IsNullOrWhiteSpace(vaccineName)
+                ? (dto.VaccineName ?? string.Empty).Trim()
+                : vaccineName,
             ScheduleType = isWeekly ? "Weekly" : "OneTime",
             SpecificDate = isWeekly ? null : dto.SpecificDate,
             DaysOfWeek = isWeekly ? daysOfWeekJoined : null,
