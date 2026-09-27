@@ -13,7 +13,11 @@ public record AgentGatewayResult(bool Success, string? Json, string? Error)
 
 public interface IAgentGatewayService
 {
-    Task<AgentGatewayResult> ChatAsync(AgentChatRequestDto request, string? bearerToken, CancellationToken ct = default);
+    Task<AgentGatewayResult> ChatAsync(
+        AgentChatRequestDto request,
+        string? bearerToken,
+        IReadOnlyCollection<string>? allowedAgents = null,
+        CancellationToken ct = default);
     Task<AgentGatewayResult> PatientCarePlanAsync(Guid patientProfileId, string? bearerToken, CancellationToken ct = default);
     Task<AgentHealthDto> HealthAsync(CancellationToken ct = default);
 }
@@ -52,6 +56,7 @@ public class AgentGatewayService : IAgentGatewayService
     public async Task<AgentGatewayResult> ChatAsync(
         AgentChatRequestDto request,
         string? bearerToken,
+        IReadOnlyCollection<string>? allowedAgents = null,
         CancellationToken ct = default)
     {
         // Rebuild the payload from validated fields only, so nothing the client attached
@@ -60,7 +65,10 @@ public class AgentGatewayService : IAgentGatewayService
         {
             messages = request.Messages.Select(m => new { role = m.Role, content = m.Content }).ToList(),
             patientInfo = request.PatientInfo,
-            targetAgent = string.IsNullOrWhiteSpace(request.TargetAgent) ? null : request.TargetAgent
+            targetAgent = string.IsNullOrWhiteSpace(request.TargetAgent) ? null : request.TargetAgent,
+            // The caller's role decides which agents may run, so keyword routing inside the
+            // agent service cannot reach an agent this user is not allowed to drive.
+            allowedAgents = allowedAgents
         };
 
         var client = _httpClientFactory.CreateClient(HttpClientName);

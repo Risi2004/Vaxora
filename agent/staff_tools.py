@@ -22,6 +22,9 @@ _declined_slots: Dict[str, set] = {}
 _gap_catalog: Dict[str, Dict[str, Any]] = {}
 MAX_WEEKLY_SHIFTS = 7
 
+# Mirrors the 12-hour single-shift cap enforced by StaffManagementService.
+MAX_SHIFT_MINUTES = 12 * 60
+
 
 def bind_hospital(patient_info: Optional[Dict[str, Any]], token: Optional[str]) -> None:
     email = ""
@@ -149,13 +152,46 @@ async def tool_propose_shift_for_approval(
     """
     Build a suggested shift. The hospital presses Approve or Decline.
     Does NOT create the shift yet.
+
+    The same schedule rules the API enforces are checked here so the agent cannot
+    surface a proposal that is guaranteed to be rejected on approval.
     """
+    clean_date = _clean_date_string(shift_date)
+    clean_start = _normalize_time(start_time)
+    clean_end = _normalize_time(end_time)
+
+    if not str(affiliation_id or "").strip():
+        return {
+            "success": False,
+            "error": "affiliation_id is required. Call get_active_staff to find the roster id.",
+        }
+
+    if clean_date < _hospital_today():
+        return {
+            "success": False,
+            "error": f"{clean_date} is in the past. Propose a date on or after {_hospital_today()}.",
+        }
+
+    start_minutes = _minutes(clean_start)
+    end_minutes = _minutes(clean_end)
+    if end_minutes <= start_minutes:
+        return {
+            "success": False,
+            "error": "End time must be after start time.",
+        }
+
+    if (end_minutes - start_minutes) > MAX_SHIFT_MINUTES:
+        return {
+            "success": False,
+            "error": f"A single shift cannot exceed {MAX_SHIFT_MINUTES // 60} hours.",
+        }
+
     proposal: Dict[str, Any] = {
         "affiliationId": affiliation_id,
         "staffName": staff_name,
-        "shiftDate": _clean_date_string(shift_date),
-        "startTime": _normalize_time(start_time),
-        "endTime": _normalize_time(end_time),
+        "shiftDate": clean_date,
+        "startTime": clean_start,
+        "endTime": clean_end,
         "boothOrStation": booth_or_station,
         "notes": notes,
         "reason": reason or "Suggested by Staff Scheduling Agent",

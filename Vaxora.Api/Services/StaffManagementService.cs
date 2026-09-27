@@ -953,7 +953,9 @@ public class StaffManagementService : IStaffManagementService
         if (shift.ShiftDate < HospitalToday())
             throw new InvalidOperationException("Cannot modify shifts that have already occurred.");
 
-        ValidateShiftSchedule(dto.ShiftDate, dto.StartTime, dto.EndTime);
+        // Updates may keep an already-started today's slot (booth/notes/end changes).
+        // Only reject a past start when the hospital is actually moving the start time.
+        ValidateShiftSchedule(dto.ShiftDate, dto.StartTime, dto.EndTime, existingStart: shift.StartTime, existingDate: shift.ShiftDate);
 
         await EnsureNoShiftOverlapAsync(
             shift.Affiliation.StaffUserId,
@@ -1044,7 +1046,12 @@ public class StaffManagementService : IStaffManagementService
             throw new InvalidOperationException("Staff account must be Active.");
     }
 
-    private static void ValidateShiftSchedule(DateOnly shiftDate, TimeOnly start, TimeOnly end)
+    private static void ValidateShiftSchedule(
+        DateOnly shiftDate,
+        TimeOnly start,
+        TimeOnly end,
+        TimeOnly? existingStart = null,
+        DateOnly? existingDate = null)
     {
         var today = HospitalToday();
         if (shiftDate < today)
@@ -1059,9 +1066,20 @@ public class StaffManagementService : IStaffManagementService
 
         if (shiftDate == today)
         {
-            var now = TimeOnly.FromDateTime(HospitalNow());
-            if (start < now)
-                throw new InvalidOperationException("Shift start time cannot be in the past.");
+            // Compare HH:mm only — DB/JSON seconds can differ without a real schedule change.
+            var startUnchanged =
+                existingDate.HasValue &&
+                existingStart.HasValue &&
+                existingDate.Value == shiftDate &&
+                existingStart.Value.Hour == start.Hour &&
+                existingStart.Value.Minute == start.Minute;
+
+            if (!startUnchanged)
+            {
+                var now = TimeOnly.FromDateTime(HospitalNow());
+                if (start < now)
+                    throw new InvalidOperationException("Shift start time cannot be in the past.");
+            }
         }
     }
 

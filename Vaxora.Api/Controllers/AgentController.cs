@@ -18,6 +18,12 @@ namespace Vaxora.Api.Controllers;
 [Authorize]
 public class AgentController : ControllerBase
 {
+    /// <summary>Every agent the gateway can dispatch to.</summary>
+    private static readonly string[] KnownAgents =
+    {
+        "BookingAgent", "RestockAgent", "ExpiryAgent", "StaffSchedulingAgent"
+    };
+
     /// <summary>Agents that may only be driven by a hospital account.</summary>
     private static readonly Dictionary<string, string[]> AgentRoleRequirements = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -92,7 +98,7 @@ public class AgentController : ControllerBase
         }
 
         var bearerToken = ExtractBearerToken();
-        var result = await _agentGateway.ChatAsync(request, bearerToken, ct);
+        var result = await _agentGateway.ChatAsync(request, bearerToken, GetAllowedAgents(), ct);
 
         AgentWorkflowDto? workflow = null;
         try
@@ -136,6 +142,14 @@ public class AgentController : ControllerBase
 
         return Content(result.Json!, "application/json");
     }
+
+    /// <summary>
+    /// Agents the current caller is permitted to drive. Sent to the agent service so that
+    /// its own keyword routing cannot select a role-restricted agent for this user.
+    /// </summary>
+    private string[] GetAllowedAgents() => KnownAgents
+        .Where(agent => !AgentRoleRequirements.TryGetValue(agent, out var roles) || roles.Any(User.IsInRole))
+        .ToArray();
 
     /// <summary>Injects workflowId into the agent JSON so the UI can approve/reject against the persisted run.</summary>
     private static string AttachWorkflowId(string agentJson, Guid? workflowId)
