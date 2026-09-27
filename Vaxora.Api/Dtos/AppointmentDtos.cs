@@ -79,12 +79,16 @@ public class AppointmentResponseDto
     public string? PrescribedByDoctorName { get; set; }
     public DateTime? DosageUpdatedAt { get; set; }
     public DateTime CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
 }
 
 public class UpdateAppointmentStatusDto
 {
+    /// <summary>
+    /// Confirmed, Administering, Observation, Completed, Cancelled or Rejected.
+    /// </summary>
     [Required]
-    public string Status { get; set; } = "Confirmed"; // "Confirmed", "Rejected", "Completed", "Cancelled"
+    public string Status { get; set; } = "Confirmed";
 
     public string? Remarks { get; set; }
 }

@@ -181,8 +181,6 @@ export default function DoctorPatientsTab() {
 
       {!selectedPatient && (
         <div className="doctor-appointment-inner-card">
-          <h2 className="doctor-inner-facility-name">Find a Patient</h2>
-
           <div className="doctor-appointments-filter-bar">
             <div className="doctor-filter-group" style={{ flex: 1, position: 'relative' }}>
               <label className="doctor-filter-label" htmlFor="ph-search" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
