@@ -53,4 +53,11 @@ class ApiConstants {
   static String batchWastage(String batchId) => '/inventory/batches/$batchId/wastage';
   static String batchAudit(String batchId) => '/inventory/batches/$batchId/audit';
 
+  // Staff management (doctor / nurse)
+  static const String staffMyAffiliations = '/staff/my-affiliations';
+  static const String staffInvitations = '/staff/invitations';
+  static const String staffMyShifts = '/staff/shifts/mine';
+
+  static String staffInvitationRespond(String affiliationId) =>
+      '/staff/invitations/$affiliationId/respond';
 }
