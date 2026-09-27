@@ -21,6 +21,11 @@ public interface IStaffManagementService
     Task DeactivateHospitalBoothAsync(Guid hospitalUserId, Guid boothId);
     Task<StaffShiftDto> CreateShiftAsync(Guid hospitalUserId, CreateStaffShiftDto dto);
     Task<List<StaffShiftDto>> GetHospitalShiftsAsync(Guid hospitalUserId, DateOnly? from = null, DateOnly? to = null);
+    /// <summary>
+    /// Busy blocks for this hospital's active staff across every affiliation (any hospital).
+    /// Used so agents/UI do not propose shifts that CreateShift would reject for overlap.
+    /// </summary>
+    Task<List<StaffBusyBlockDto>> GetAffiliatedStaffBusyBlocksAsync(Guid hospitalUserId, DateOnly? from = null, DateOnly? to = null);
     Task<StaffCoverageReportDto> GetCoverageReportAsync(Guid hospitalUserId, DateOnly from, DateOnly to);
     Task<SuggestWeekCoverageResultDto> SuggestWeekCoverageAsync(Guid hospitalUserId, SuggestWeekCoverageDto dto);
     Task<List<StaffShiftDto>> GetMyShiftsAsync(Guid staffUserId, DateOnly? from = null, DateOnly? to = null);
@@ -596,6 +601,56 @@ public class StaffManagementService : IStaffManagementService
 
         var list = await query.OrderBy(s => s.ShiftDate).ThenBy(s => s.StartTime).ToListAsync();
         return list.Select(s => MapShift(s, s.Affiliation)).ToList();
+    }
+
+    public async Task<List<StaffBusyBlockDto>> GetAffiliatedStaffBusyBlocksAsync(
+        Guid hospitalUserId,
+        DateOnly? from = null,
+        DateOnly? to = null)
+    {
+        await EnsureActiveHospitalAsync(hospitalUserId);
+
+        var localAffiliations = await _context.StaffAffiliations
+            .AsNoTracking()
+            .Where(a => a.HospitalUserId == hospitalUserId && a.Status == AffiliationStatus.Active)
+            .Select(a => new { a.Id, a.StaffUserId })
+            .ToListAsync();
+
+        if (localAffiliations.Count == 0)
+            return new List<StaffBusyBlockDto>();
+
+        var staffUserIds = localAffiliations.Select(a => a.StaffUserId).Distinct().ToList();
+        var localByStaff = localAffiliations
+            .GroupBy(a => a.StaffUserId)
+            .ToDictionary(g => g.Key, g => g.First().Id);
+
+        var query = _context.StaffShifts
+            .AsNoTracking()
+            .Include(s => s.Affiliation)
+            .Where(s =>
+                staffUserIds.Contains(s.Affiliation.StaffUserId) &&
+                s.Affiliation.Status == AffiliationStatus.Active);
+
+        if (from.HasValue) query = query.Where(s => s.ShiftDate >= from.Value);
+        if (to.HasValue) query = query.Where(s => s.ShiftDate <= to.Value);
+
+        var shifts = await query
+            .OrderBy(s => s.ShiftDate)
+            .ThenBy(s => s.StartTime)
+            .ToListAsync();
+
+        return shifts
+            .Where(s => localByStaff.ContainsKey(s.Affiliation.StaffUserId))
+            .Select(s => new StaffBusyBlockDto
+            {
+                StaffUserId = s.Affiliation.StaffUserId,
+                LocalAffiliationId = localByStaff[s.Affiliation.StaffUserId],
+                ShiftDate = s.ShiftDate,
+                StartTime = s.StartTime,
+                EndTime = s.EndTime,
+                IsExternal = s.Affiliation.HospitalUserId != hospitalUserId
+            })
+            .ToList();
     }
 
     public async Task<StaffCoverageReportDto> GetCoverageReportAsync(Guid hospitalUserId, DateOnly from, DateOnly to)

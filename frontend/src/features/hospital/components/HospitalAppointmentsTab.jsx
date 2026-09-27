@@ -68,7 +68,8 @@ export default function HospitalAppointmentsTab() {
       if (formularyData.status === 'fulfilled' && Array.isArray(formularyData.value) && formularyData.value.length > 0) {
         formularyData.value.forEach((f) => {
           const vName = (f.vaccineName || f.name || '').trim();
-          const vId = f.vaccineId || f.VaccineId || f.id;
+          // Prefer catalog VaccineId — never the formulary row Id (that breaks booth matching).
+          const vId = f.vaccineId || f.VaccineId || null;
           if (vName && !vaccineMap.has(vName.toLowerCase())) {
             vaccineMap.set(vName.toLowerCase(), {
               id: vId,
@@ -150,18 +151,16 @@ export default function HospitalAppointmentsTab() {
     const vaccineId = selectedVaccine.id ? String(selectedVaccine.id) : '';
     const vaccineName = (selectedVaccine.name || '').toLowerCase();
 
-    const matched = booths.filter((b) => {
+    return booths.filter((b) => {
       const ids = Array.isArray(b.vaccineIds) ? b.vaccineIds.map(String) : [];
       const names = Array.isArray(b.vaccineNames)
         ? b.vaccineNames.map((n) => String(n).toLowerCase())
         : [];
-      if (ids.length === 0 && names.length === 0) return false;
+      // Only booths that explicitly offer this vaccine (no "show all" fallback —
+      // that let users pick B02 and then get blocked by the API).
       if (vaccineId && ids.includes(vaccineId)) return true;
       return names.includes(vaccineName);
     });
-
-    // If no booth is tagged for this vaccine yet, fall back to all active booths
-    return matched.length > 0 ? matched : booths;
   }, [booths, selectedVaccine]);
 
   useEffect(() => {
@@ -491,7 +490,7 @@ export default function HospitalAppointmentsTab() {
                       : loadingOptions
                       ? 'Loading booths...'
                       : matchingBooths.length === 0
-                      ? '-- No active booths found --'
+                      ? '-- No booth offers this vaccine --'
                       : '-- Select Booth --'}
                   </option>
                   {matchingBooths.map((b) => {
@@ -503,6 +502,11 @@ export default function HospitalAppointmentsTab() {
                     );
                   })}
                 </select>
+                {scheduleForm.vaccineType && !loadingOptions && matchingBooths.length === 0 ? (
+                  <p className="schedule-field-hint" style={{ margin: '6px 0 0', color: '#b45309', fontSize: '0.82rem' }}>
+                    Add this vaccine to a booth under Staff → Booths, then come back to post the schedule.
+                  </p>
+                ) : null}
               </div>
 
               {/* Date Inputs based on Recurrence */}
@@ -601,12 +605,19 @@ export default function HospitalAppointmentsTab() {
               <button
                 type="submit"
                 className="btn-add-schedule"
-                disabled={submitting || vaccines.length === 0 || booths.length === 0}
+                disabled={
+                  submitting ||
+                  vaccines.length === 0 ||
+                  booths.length === 0 ||
+                  (Boolean(scheduleForm.vaccineType) && matchingBooths.length === 0)
+                }
                 title={
                   vaccines.length === 0
                     ? 'Please ensure vaccines are registered in your hospital formulary'
                     : booths.length === 0
                     ? 'Please configure at least one active booth under Booths'
+                    : scheduleForm.vaccineType && matchingBooths.length === 0
+                    ? 'No booth offers this vaccine yet — assign it on a booth first'
                     : 'Save schedule slot to database'
                 }
               >

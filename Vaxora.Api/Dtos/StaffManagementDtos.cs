@@ -165,6 +165,20 @@ public class StaffShiftDto
     public DateTime? UpdatedAt { get; set; }
 }
 
+/// <summary>
+/// A time block when an affiliated clinician is already booked (this hospital or another).
+/// </summary>
+public class StaffBusyBlockDto
+{
+    public Guid StaffUserId { get; set; }
+    /// <summary>This hospital's affiliation id for the same staff member (for agent mapping).</summary>
+    public Guid LocalAffiliationId { get; set; }
+    public DateOnly ShiftDate { get; set; }
+    public TimeOnly StartTime { get; set; }
+    public TimeOnly EndTime { get; set; }
+    public bool IsExternal { get; set; }
+}
+
 public class StaffDayCoverageDto
 {
     public DateOnly Date { get; set; }

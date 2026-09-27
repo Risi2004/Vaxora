@@ -263,7 +263,14 @@ function buildRosterGrid(proposals) {
 /**
  * Staff Scheduling Agent chat — UI aligned with BookingAgentChat.
  */
-export default function StaffSchedulingAgentChat({ weekStart, weekEnd, initialPrompt, onShiftsChanged, onClose }) {
+export default function StaffSchedulingAgentChat({
+  weekStart,
+  weekEnd,
+  initialPrompt,
+  onShiftsChanged,
+  onProposalsReady,
+  onClose,
+}) {
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
@@ -346,16 +353,35 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, initialPr
         setFollowUpPrompts(nextFollowUps);
       }
 
+      const workflowId = res.workflowId || res.WorkflowId || null;
+      if (proposals.length > 0 && typeof onProposalsReady === 'function') {
+        onProposalsReady(proposals, {
+          workflowId,
+          fairnessSummary: res.fairnessSummary || res.fairness_summary || null,
+          validation: res.validation || null,
+          briefing: res.briefing || null,
+        });
+      }
+
+      const chatContent =
+        proposals.length > 0 && typeof onProposalsReady === 'function'
+          ? `${res.content || 'I prepared shift suggestions.'}\n\n**${proposals.length} suggested shift${proposals.length === 1 ? '' : 's'}** are in the Suggested week window — select which to approve there.`
+          : res.content || 'I processed your scheduling request.';
+
       setMessages((prev) => [
         ...prev,
         {
           role: 'assistant',
-          content: res.content || 'I processed your scheduling request.',
-          briefing: res.briefing || null,
-          fairnessSummary: res.fairnessSummary || res.fairness_summary || null,
-          validation: res.validation || null,
-          proposals,
-          workflowId: res.workflowId || res.WorkflowId || null,
+          content: chatContent,
+          briefing: proposals.length > 0 && onProposalsReady ? null : res.briefing || null,
+          fairnessSummary:
+            proposals.length > 0 && onProposalsReady
+              ? null
+              : res.fairnessSummary || res.fairness_summary || null,
+          validation: proposals.length > 0 && onProposalsReady ? null : res.validation || null,
+          // Proposals render on the week calendar, not in this chat.
+          proposals: proposals.length > 0 && onProposalsReady ? [] : proposals,
+          workflowId,
           createdShifts: res.created_shifts || res.createdShifts || null,
         },
       ]);
@@ -807,6 +833,11 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, initialPr
                               <div style={{ fontWeight: 700, color: '#0f172a', lineHeight: 1.3 }}>
                                 {proposal.staffName}
                               </div>
+                              {proposal.specialization ? (
+                                <div style={{ color: '#475569', fontSize: '11px', lineHeight: 1.3 }}>
+                                  {proposal.specialization}
+                                </div>
+                              ) : null}
                               {proposal.vaccineName ? (
                                 <div style={{ color: '#0369a1', fontSize: '11px', fontWeight: 600, lineHeight: 1.3 }}>
                                   {proposal.vaccineName}
@@ -816,6 +847,14 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, initialPr
                                 {proposal.staffRole || 'Staff'} · {String(proposal.startTime).slice(0, 5)}–
                                 {String(proposal.endTime).slice(0, 5)}
                               </div>
+                              {typeof proposal.reason === 'string' &&
+                              proposal.reason.toLowerCase().includes('specialization') ? (
+                                <div style={{ color: '#0f766e', fontSize: '10px', marginTop: '2px', lineHeight: 1.3 }}>
+                                  {proposal.reason.includes('·')
+                                    ? proposal.reason.split('·').slice(1).join('·').trim()
+                                    : proposal.reason}
+                                </div>
+                              ) : null}
                               {Array.isArray(proposal.alternatives) && proposal.alternatives.length > 0 ? (
                                 <div style={{ color: '#64748b', fontSize: '10px', marginTop: '4px' }}>
                                   Alt: {proposal.alternatives.map((alt) => alt.staffName).join(', ')}

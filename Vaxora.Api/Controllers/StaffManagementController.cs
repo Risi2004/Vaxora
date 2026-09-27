@@ -282,6 +282,36 @@ public class StaffManagementController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Busy times for this hospital's active staff across every affiliation (any hospital).
+    /// </summary>
+    [HttpGet("shifts/busy")]
+    [Authorize(Roles = "HOSPITAL")]
+    public async Task<IActionResult> GetAffiliatedStaffBusyBlocks([FromQuery] DateOnly? from, [FromQuery] DateOnly? to)
+    {
+        if (!TryGetUserId(out var hospitalUserId))
+            return Unauthorized(new { message = "Invalid identity claim." });
+
+        try
+        {
+            var result = await _staffService.GetAffiliatedStaffBusyBlocksAsync(hospitalUserId, from, to);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching affiliated staff busy blocks");
+            return StatusCode(500, new { message = "Failed to fetch staff busy blocks." });
+        }
+    }
+
     [HttpGet("coverage")]
     [Authorize(Roles = "HOSPITAL")]
     public async Task<IActionResult> GetCoverage([FromQuery] DateOnly from, [FromQuery] DateOnly to)
