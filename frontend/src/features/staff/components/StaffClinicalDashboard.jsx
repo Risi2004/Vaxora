@@ -735,16 +735,24 @@ export default function StaffClinicalDashboard({
             </div>
           </div>
 
-          <div className="doctor-table-wrapper">
-            <table className="doctor-table">
+          <div className="table-responsive">
+            <table className="hospital-queue-table">
+              <colgroup>
+                <col className="col-token" />
+                <col className="col-patient" />
+                <col className="col-vaccine" />
+                <col className="col-booth" />
+                <col className="col-status" />
+                <col className="col-actions" />
+              </colgroup>
               <thead>
                 <tr>
                   <th>Token</th>
-                  <th>Patient</th>
+                  <th>Patient Details</th>
                   <th>Vaccine &amp; Dose</th>
                   <th>Slot</th>
                   <th>Status</th>
-                  <th>Action</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -762,31 +770,47 @@ export default function StaffClinicalDashboard({
                   filteredPatients.map((p) => {
                     const isCurrent = activePatient?.id === p.id;
                     return (
-                      <tr key={p.id} style={{ background: isCurrent ? '#f0f7ff' : undefined }}>
+                      <tr
+                        key={p.id}
+                        className={isCurrent ? 'is-current-patient' : undefined}
+                      >
                         <td>
-                          <span className="doctor-token-pill">{p.token}</span>
+                          <span className="queue-token-pill">
+                            {String(p.token || '').replace(/-/g, '\u2011')}
+                          </span>
                         </td>
                         <td>
-                          <div className="doctor-patient-cell">
-                            <span
-                              className="doctor-patient-name-link"
-                              onClick={() => handleSelectPatient(p)}
-                            >
-                              {p.name}
-                            </span>
-                            <span className="doctor-patient-sub">
-                              NIC: {p.nic}
-                              {p.phone && p.phone !== '—' ? ` • ${p.phone}` : ''}
-                            </span>
+                          <div
+                            className="queue-patient-name"
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => handleSelectPatient(p)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                handleSelectPatient(p);
+                              }
+                            }}
+                            style={{ cursor: 'pointer' }}
+                          >
+                            {p.name}
+                          </div>
+                          <div className="queue-patient-meta">NIC: {p.nic}</div>
+                          {p.phone && p.phone !== '—' ? (
+                            <div className="queue-patient-meta">{p.phone}</div>
+                          ) : null}
+                        </td>
+                        <td>
+                          <div className="queue-vaccine-badge">{p.vaccine}</div>
+                          <div className="queue-dose-meta" title={p.dose}>
+                            {p.dose}
                           </div>
                         </td>
                         <td>
-                          <span className="doctor-vaccine-badge">{p.vaccine}</span>
-                          <span className="doctor-dose-sub">{p.dose}</span>
+                          <span className="queue-booth-tag">{p.time || '—'}</span>
                         </td>
-                        <td style={{ color: '#475569', fontWeight: 600 }}>{p.time}</td>
                         <td>
-                          <span className={`doctor-status-badge status-${p.status}`}>
+                          <span className={`queue-status-badge status-${p.status}`}>
                             {p.status === 'consulting'
                               ? 'Consulting'
                               : p.status === 'waiting'
@@ -797,38 +821,38 @@ export default function StaffClinicalDashboard({
                           </span>
                         </td>
                         <td>
-                          {p.status === 'waiting' && (
-                            <button
-                              type="button"
-                              className="doctor-table-btn"
-                              onClick={() => handleSelectPatient(p)}
-                            >
-                              Examine
-                            </button>
-                          )}
-                          {p.status === 'consulting' && (
-                            <button
-                              type="button"
-                              className="doctor-table-btn"
-                              style={{ background: '#19469d', color: '#ffffff' }}
-                              onClick={() => setIsAdministerModalOpen(true)}
-                            >
-                              Administer
-                            </button>
-                          )}
-                          {p.status === 'observation' && (
-                            <button
-                              type="button"
-                              className="doctor-table-btn"
-                              style={{ background: '#ecfdf5', color: '#047857' }}
-                              onClick={() => handleDischargeObservation(p.id, p.name)}
-                            >
-                              Discharge
-                            </button>
-                          )}
-                          {p.status === 'completed' && (
-                            <span className="doctor-row-note">Certified</span>
-                          )}
+                          <div className="queue-action-btns">
+                            {p.status === 'waiting' && (
+                              <button
+                                type="button"
+                                className="btn-queue-action"
+                                onClick={() => handleSelectPatient(p)}
+                              >
+                                Examine
+                              </button>
+                            )}
+                            {p.status === 'consulting' && (
+                              <button
+                                type="button"
+                                className="btn-queue-action btn-queue-action--session"
+                                onClick={() => setIsAdministerModalOpen(true)}
+                              >
+                                Administer
+                              </button>
+                            )}
+                            {p.status === 'observation' && (
+                              <button
+                                type="button"
+                                className="btn-queue-action btn-queue-action--release"
+                                onClick={() => handleDischargeObservation(p.id, p.name)}
+                              >
+                                Discharge
+                              </button>
+                            )}
+                            {p.status === 'completed' && (
+                              <span className="queue-pass-note">Certified</span>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -846,7 +870,7 @@ export default function StaffClinicalDashboard({
                 className="doctor-obs-title"
                 style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
               >
-                <span className="icon-shade icon-shade-amber">
+                <span className="icon-shade icon-shade-purple">
                   <IconClock size={22} />
                 </span>
                 15-Min Observation Watch
@@ -857,14 +881,7 @@ export default function StaffClinicalDashboard({
             </div>
 
             {observationPatients.length === 0 ? (
-              <div
-                style={{
-                  textAlign: 'center',
-                  padding: '24px 10px',
-                  color: '#64748b',
-                  fontSize: '0.88rem',
-                }}
-              >
+              <div className="doctor-obs-empty">
                 Observation recovery room is currently clear.
               </div>
             ) : (

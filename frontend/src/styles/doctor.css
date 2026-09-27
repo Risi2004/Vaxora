@@ -33,6 +33,7 @@
   align-items: center;
   position: relative;
   gap: 16px;
+  width: 100%;
 }
 
 .doctor-brand-group {
@@ -106,6 +107,8 @@
   padding: 4px 8px;
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
   justify-self: center;
+  width: fit-content;
+  max-width: 100%;
 }
 
 .doctor-nav-btn {
@@ -944,7 +947,7 @@
 }
 
 .doctor-obs-item-state.is-clear {
-  color: #047857;
+  color: #6d28d9;
 }
 
 .doctor-row-note {
@@ -994,9 +997,9 @@
 }
 
 .doctor-btn-certify {
-  background: linear-gradient(135deg, #19469d 0%, #1e40af 100%);
-  color: #ffffff;
-  border: none;
+  background: #dbeafe;
+  color: #1e40af;
+  border: 1px solid #93c5fd;
   font-size: 0.95rem;
   font-weight: 700;
   padding: 12px 24px;
@@ -1005,13 +1008,16 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  box-shadow: 0 4px 14px rgba(25, 70, 157, 0.3);
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.12);
   transition: all 0.2s ease;
 }
 
 .doctor-btn-certify:hover {
+  background: #bfdbfe;
+  border-color: #60a5fa;
+  color: #1d4ed8;
   transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(25, 70, 157, 0.4);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.18);
 }
 
 .doctor-btn-observe {
@@ -1160,7 +1166,42 @@
   font-size: 0.95rem;
 }
 
-/* Patient Queue Table */
+/* Patient Queue Table — reuse hospital-queue-table classes from hospital.css */
+.doctor-queue-card {
+  --queue-head-height: 2.5rem;
+  --queue-row-height: 5rem;
+}
+
+.doctor-queue-card .table-responsive {
+  overflow-x: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+}
+
+.doctor-queue-card .hospital-queue-table th:nth-child(4),
+.doctor-queue-card .hospital-queue-table td:nth-child(4),
+.doctor-queue-card .hospital-queue-table col.col-booth {
+  width: 10.5rem;
+  min-width: 10.5rem;
+  text-align: center;
+  overflow: visible;
+}
+
+.doctor-queue-card .hospital-queue-table td:nth-child(4) .queue-booth-tag {
+  white-space: nowrap;
+  max-width: none;
+  overflow: visible;
+  display: inline-block;
+}
+
+.doctor-queue-card .hospital-queue-table tbody tr.is-current-patient td {
+  background: #f8fafc;
+}
+
+.doctor-queue-card .hospital-queue-table tbody tr.is-current-patient:hover td {
+  background: #f1f5f9;
+}
+
 .doctor-table-wrapper {
   overflow-x: auto;
   border: 1px solid #f1f5f9;
@@ -1348,12 +1389,23 @@
 }
 
 .doctor-obs-count-badge {
-  background-color: #fef3c7;
-  color: #92400e;
+  background-color: #f5f3ff;
+  color: #6d28d9;
+  border: 1px solid #ddd6fe;
   font-weight: 700;
   font-size: 0.75rem;
-  padding: 2px 8px;
+  padding: 3px 10px;
   border-radius: 9999px;
+}
+
+.doctor-obs-empty {
+  text-align: center;
+  padding: 24px 12px;
+  color: #64748b;
+  font-size: 0.88rem;
+  background: #faf5ff;
+  border: 1px dashed #e9d5ff;
+  border-radius: 12px;
 }
 
 .doctor-obs-list {
@@ -1363,8 +1415,9 @@
 }
 
 .doctor-obs-item {
-  background-color: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background-color: #faf5ff;
+  border: 1px solid #e9d5ff;
+  border-left: 4px solid #7c3aed;
   border-radius: 12px;
   padding: 14px;
   display: flex;
@@ -1402,19 +1455,19 @@
 }
 
 .doctor-obs-timer-pill {
-  background-color: #ecfdf5;
-  color: #065f46;
+  background-color: #f5f3ff;
+  color: #5b21b6;
   font-weight: 700;
   font-size: 0.78rem;
   padding: 3px 8px;
   border-radius: 6px;
-  border: 1px solid #a7f3d0;
+  border: 1px solid #ddd6fe;
 }
 
 .doctor-obs-btn-discharge {
   border: none;
   background: transparent;
-  color: #2563eb;
+  color: #7c3aed;
   font-size: 0.76rem;
   font-weight: 600;
   cursor: pointer;
@@ -1423,6 +1476,7 @@
 
 .doctor-obs-btn-discharge:hover {
   text-decoration: underline;
+  color: #6d28d9;
 }
 
 /* Station Cold Box Stock */

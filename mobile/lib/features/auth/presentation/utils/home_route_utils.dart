@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import '../../inventory/presentation/screens/hospital_main_screen.dart';
-import '../../patient/presentation/screens/patient_main_screen.dart';
-import '../../staff/presentation/screens/staff_main_screen.dart';
+import '../../../inventory/presentation/screens/hospital_main_screen.dart';
+import '../../../patient/presentation/screens/patient_main_screen.dart';
+import '../../../staff/presentation/screens/staff_main_screen.dart';
 
 /// Resolves post-login home from an API role string.
 Widget homeScreenForRole(String rawRole) {
