@@ -6,6 +6,7 @@ import '../../data/models/affiliation_model.dart';
 import '../../data/models/shift_model.dart';
 import '../../data/repositories/staff_repository.dart';
 import '../utils/staff_date_utils.dart';
+import '../widgets/staff_common_widgets.dart';
 
 class StaffShiftsScreen extends StatefulWidget {
   const StaffShiftsScreen({super.key});
@@ -112,7 +113,7 @@ class _StaffShiftsScreenState extends State<StaffShiftsScreen> {
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
                 children: [
                   if (_error != null) ...[
-                    _ErrorBanner(
+                    StaffErrorBanner(
                       message: _error!,
                       onDismiss: () => setState(() => _error = null),
                     ),
@@ -121,7 +122,7 @@ class _StaffShiftsScreenState extends State<StaffShiftsScreen> {
                   _RangeHeader(from: _from, to: _to, count: _shifts.length),
                   const SizedBox(height: 16),
                   if (dayKeys.isEmpty)
-                    const _EmptyCard(
+                    const StaffEmptyCard(
                       message: 'No shifts assigned in the next 14 days.',
                     )
                   else
@@ -224,73 +225,6 @@ class _RangeHeader extends StatelessWidget {
               fontWeight: FontWeight.w800,
               color: AppColors.brandBlue,
             ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _EmptyCard extends StatelessWidget {
-  final String message;
-
-  const _EmptyCard({required this.message});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderLight),
-      ),
-      child: Text(
-        message,
-        style: const TextStyle(
-          fontSize: 13,
-          color: AppColors.textMuted,
-          height: 1.4,
-        ),
-      ),
-    );
-  }
-}
-
-class _ErrorBanner extends StatelessWidget {
-  final String message;
-  final VoidCallback onDismiss;
-
-  const _ErrorBanner({required this.message, required this.onDismiss});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.errorBg,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.error.withValues(alpha: 0.25)),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.error_outline, color: AppColors.error, size: 18),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              message,
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: AppColors.error,
-              ),
-            ),
-          ),
-          IconButton(
-            onPressed: onDismiss,
-            icon: const Icon(Icons.close, size: 18, color: AppColors.error),
-            visualDensity: VisualDensity.compact,
           ),
         ],
       ),

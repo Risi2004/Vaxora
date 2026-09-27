@@ -5,9 +5,12 @@ import '../../../../core/theme/app_text_styles.dart';
 import '../../../auth/presentation/utils/home_route_utils.dart';
 import '../../data/models/affiliation_model.dart';
 import '../../data/repositories/staff_repository.dart';
+import '../widgets/staff_common_widgets.dart';
 
 class StaffAffiliationsScreen extends StatefulWidget {
-  const StaffAffiliationsScreen({super.key});
+  final VoidCallback? onChanged;
+
+  const StaffAffiliationsScreen({super.key, this.onChanged});
 
   @override
   State<StaffAffiliationsScreen> createState() => _StaffAffiliationsScreenState();
@@ -44,6 +47,7 @@ class _StaffAffiliationsScreenState extends State<StaffAffiliationsScreen> {
         _affiliations = results[1];
         _loading = false;
       });
+      widget.onChanged?.call();
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -52,6 +56,33 @@ class _StaffAffiliationsScreenState extends State<StaffAffiliationsScreen> {
         _invitations = [];
         _affiliations = [];
       });
+      widget.onChanged?.call();
+    }
+  }
+
+  Future<void> _confirmReject(AffiliationModel item) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Reject invitation?'),
+        content: Text(
+          'Decline the invitation from ${item.hospitalName}? You can be invited again later.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: const Text('Reject'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await _respond(item, 'Reject');
     }
   }
 
@@ -118,7 +149,10 @@ class _StaffAffiliationsScreenState extends State<StaffAffiliationsScreen> {
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
                 children: [
                   if (_error != null) ...[
-                    _ErrorBanner(message: _error!, onDismiss: () => setState(() => _error = null)),
+                    StaffErrorBanner(
+                      message: _error!,
+                      onDismiss: () => setState(() => _error = null),
+                    ),
                     const SizedBox(height: 12),
                   ],
                   _SummaryRow(
@@ -132,7 +166,7 @@ class _StaffAffiliationsScreenState extends State<StaffAffiliationsScreen> {
                   ),
                   const SizedBox(height: 10),
                   if (_invitations.isEmpty)
-                    const _EmptyCard(
+                    const StaffEmptyCard(
                       message: 'No pending hospital invitations.',
                     )
                   else
@@ -143,7 +177,7 @@ class _StaffAffiliationsScreenState extends State<StaffAffiliationsScreen> {
                           item: item,
                           actionId: _actionId,
                           onAccept: () => _respond(item, 'Accept'),
-                          onReject: () => _respond(item, 'Reject'),
+                          onReject: () => _confirmReject(item),
                         ),
                       ),
                     ),
@@ -154,7 +188,7 @@ class _StaffAffiliationsScreenState extends State<StaffAffiliationsScreen> {
                   ),
                   const SizedBox(height: 10),
                   if (_affiliations.isEmpty)
-                    const _EmptyCard(
+                    const StaffEmptyCard(
                       message:
                           'You are not affiliated with any hospital yet. Accept an invitation to join a roster.',
                     )
@@ -182,13 +216,9 @@ class _SummaryRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Expanded(
-          child: _SummaryPill(label: 'Pending', value: pending),
-        ),
+        Expanded(child: _SummaryPill(label: 'Pending', value: pending)),
         const SizedBox(width: 10),
-        Expanded(
-          child: _SummaryPill(label: 'Active', value: active),
-        ),
+        Expanded(child: _SummaryPill(label: 'Active', value: active)),
       ],
     );
   }
@@ -254,106 +284,6 @@ class _SectionTitle extends StatelessWidget {
   }
 }
 
-class _EmptyCard extends StatelessWidget {
-  final String message;
-
-  const _EmptyCard({required this.message});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderLight),
-      ),
-      child: Text(
-        message,
-        style: const TextStyle(fontSize: 13, color: AppColors.textMuted, height: 1.4),
-      ),
-    );
-  }
-}
-
-class _ErrorBanner extends StatelessWidget {
-  final String message;
-  final VoidCallback onDismiss;
-
-  const _ErrorBanner({required this.message, required this.onDismiss});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.errorBg,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.error.withValues(alpha: 0.25)),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.error_outline, color: AppColors.error, size: 18),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              message,
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: AppColors.error,
-              ),
-            ),
-          ),
-          IconButton(
-            onPressed: onDismiss,
-            icon: const Icon(Icons.close, size: 18, color: AppColors.error),
-            visualDensity: VisualDensity.compact,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _HospitalAvatar extends StatelessWidget {
-  final String name;
-  final String? logoUrl;
-
-  const _HospitalAvatar({required this.name, this.logoUrl});
-
-  @override
-  Widget build(BuildContext context) {
-    final url = logoUrl?.trim();
-    if (url != null && url.isNotEmpty) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(10),
-        child: Image.network(
-          url,
-          width: 44,
-          height: 44,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _fallback(),
-        ),
-      );
-    }
-    return _fallback();
-  }
-
-  Widget _fallback() {
-    return Container(
-      width: 44,
-      height: 44,
-      decoration: BoxDecoration(
-        color: AppColors.brandBlue.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: const Icon(Icons.local_hospital, color: AppColors.brandBlue, size: 22),
-    );
-  }
-}
-
 class _InvitationCard extends StatelessWidget {
   final AffiliationModel item;
   final String? actionId;
@@ -387,10 +317,7 @@ class _InvitationCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              _HospitalAvatar(
-                name: item.hospitalName,
-                logoUrl: item.hospitalLogoUrl,
-              ),
+              StaffHospitalAvatar(logoUrl: item.hospitalLogoUrl),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -467,10 +394,7 @@ class _AffiliationCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          _HospitalAvatar(
-            name: item.hospitalName,
-            logoUrl: item.hospitalLogoUrl,
-          ),
+          StaffHospitalAvatar(logoUrl: item.hospitalLogoUrl),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
