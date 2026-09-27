@@ -103,9 +103,13 @@ public class AppointmentService : IAppointmentService
                     {
                         Date = date.ToString("yyyy-MM-dd"),
                         DayOfWeek = dayName,
-                        DisplayText = $"{date:yyyy-MM-dd} ({dayName}) - {formattedTime} (Dr. {schedule.DoctorName})",
+                        DisplayText = string.IsNullOrWhiteSpace(schedule.DoctorName)
+                            ? $"{date:yyyy-MM-dd} ({dayName}) - {formattedTime}"
+                            : $"{date:yyyy-MM-dd} ({dayName}) - {formattedTime} (Dr. {schedule.DoctorName})",
                         DoctorName = schedule.DoctorName,
                         NurseName = schedule.NurseName,
+                        BoothId = schedule.BoothId,
+                        BoothLabel = schedule.BoothLabel,
                         StartTime = schedule.StartTime,
                         EndTime = schedule.EndTime,
                         ScheduleId = schedule.Id,
@@ -148,9 +152,13 @@ public class AppointmentService : IAppointmentService
                         {
                             Date = cur.ToString("yyyy-MM-dd"),
                             DayOfWeek = dayName,
-                            DisplayText = $"{cur:yyyy-MM-dd} ({dayName}) - {formattedTime} (Dr. {schedule.DoctorName})",
+                            DisplayText = string.IsNullOrWhiteSpace(schedule.DoctorName)
+                                ? $"{cur:yyyy-MM-dd} ({dayName}) - {formattedTime}"
+                                : $"{cur:yyyy-MM-dd} ({dayName}) - {formattedTime} (Dr. {schedule.DoctorName})",
                             DoctorName = schedule.DoctorName,
                             NurseName = schedule.NurseName,
+                            BoothId = schedule.BoothId,
+                            BoothLabel = schedule.BoothLabel,
                             StartTime = schedule.StartTime,
                             EndTime = schedule.EndTime,
                             ScheduleId = schedule.Id,
@@ -382,7 +390,7 @@ public class AppointmentService : IAppointmentService
             Fee = isFree ? 0.00m : scheduleFee,
             PaymentMethod = paymentMethod,
             PaymentStatus = paymentStatus,
-            Notes = dto.Notes?.Trim(),
+            Notes = BuildBookingNotes(dto.Notes, schedule?.BoothLabel),
             CreatedAt = DateTime.UtcNow
         };
 
@@ -911,6 +919,16 @@ public class AppointmentService : IAppointmentService
         return timeStr;
     }
 
+    private static string? BuildBookingNotes(string? notes, string? boothLabel)
+    {
+        var parts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(notes))
+            parts.Add(notes.Trim());
+        if (!string.IsNullOrWhiteSpace(boothLabel))
+            parts.Add($"Booth: {boothLabel.Trim()}");
+        return parts.Count == 0 ? null : string.Join("\n", parts);
+    }
+
     private static string? ExtractBoothFromNotes(string? notes)
     {
         if (string.IsNullOrWhiteSpace(notes)) return null;
@@ -918,8 +936,9 @@ public class AppointmentService : IAppointmentService
         var idx = notes.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
         if (idx < 0) return null;
         var rest = notes[(idx + marker.Length)..].Trim();
-        var end = rest.IndexOf(" · ", StringComparison.Ordinal);
-        return (end >= 0 ? rest[..end] : rest).Trim();
+        var endLine = rest.IndexOfAny(['\r', '\n']);
+        if (endLine >= 0) rest = rest[..endLine].Trim();
+        return rest;
     }
 
     private static AppointmentResponseDto MapToDto(Appointment a)
