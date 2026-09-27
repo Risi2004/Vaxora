@@ -4,7 +4,6 @@ export {
   AdminDashboardOverview,
   AdminUsersTab,
   AdminApprovalsTab,
-  AdminCampaignsTab,
   AdminFeedbackTab,
   AdminAuditLogsTab,
   AdminProfileTab,
