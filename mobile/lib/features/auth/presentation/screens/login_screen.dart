@@ -6,6 +6,7 @@ import 'signup_screen.dart';
 import 'forgot_password_screen.dart';
 import '../../../patient/presentation/screens/patient_main_screen.dart';
 import '../../data/repositories/auth_repository.dart';
+import '../../../inventory/presentation/screens/inventory_home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   final String? noticeMessage;
@@ -47,8 +48,15 @@ class _LoginScreenState extends State<LoginScreen> {
         password: _passwordController.text,
       );
 
+      final role = user.role.toUpperCase().trim();
+      final isHospital = role == 'HOSPITAL' ||
+          role == 'ADMIN' ||
+          role.contains('HOSPITAL') ||
+          role.contains('ADMIN');
+
       if (mounted) {
         setState(() => _isLoading = false);
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Welcome back, ${user.name}!'),
@@ -56,8 +64,13 @@ class _LoginScreenState extends State<LoginScreen> {
             behavior: SnackBarBehavior.floating,
           ),
         );
+
+        final Widget home = isHospital
+            ? const InventoryHomeScreen()
+            : const PatientMainScreen();
+
         Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => const PatientMainScreen()),
+          MaterialPageRoute(builder: (context) => home),
           (route) => false,
         );
       }
@@ -78,15 +91,12 @@ class _LoginScreenState extends State<LoginScreen> {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // Top Curved Blue Header
             AuthBannerHeader(
               title: 'Welcome back',
               subtext:
                   'Log into your Vaxora immunization portal to manage appointments, clinical records, and health analytics.',
               onBackToHome: () => Navigator.of(context).pop(),
             ),
-
-            // Form Card
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
               child: Container(
@@ -109,7 +119,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // Logo
                       Center(
                         child: Image.asset(
                           AppAssets.logo,
@@ -118,8 +127,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                       const SizedBox(height: 20),
-
-                      // Notice Banner (if any)
                       if (widget.noticeMessage != null) ...[
                         Container(
                           padding: const EdgeInsets.all(12),
@@ -147,8 +154,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         const SizedBox(height: 14),
                       ],
-
-                      // Error message banner
                       if (_errorMessage != null) ...[
                         Container(
                           padding: const EdgeInsets.all(12),
@@ -168,8 +173,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         const SizedBox(height: 14),
                       ],
-
-                      // Email input
                       TextFormField(
                         controller: _emailController,
                         keyboardType: TextInputType.emailAddress,
@@ -183,8 +186,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         },
                       ),
                       const SizedBox(height: 14),
-
-                      // Password input
                       TextFormField(
                         controller: _passwordController,
                         obscureText: !_showPassword,
@@ -205,8 +206,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         },
                       ),
                       const SizedBox(height: 10),
-
-                      // Forgot password link
                       Align(
                         alignment: Alignment.centerRight,
                         child: TextButton(
@@ -231,8 +230,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                       const SizedBox(height: 18),
-
-                      // Sign In Button
                       Container(
                         decoration: BoxDecoration(
                           gradient: AppColors.authButtonGradient,
@@ -275,8 +272,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                       const SizedBox(height: 20),
-
-                      // Switch to Signup Link
                       Center(
                         child: TextButton(
                           onPressed: () {
