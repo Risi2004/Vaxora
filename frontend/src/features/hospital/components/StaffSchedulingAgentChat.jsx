@@ -807,6 +807,11 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, initialPr
                               <div style={{ fontWeight: 700, color: '#0f172a', lineHeight: 1.3 }}>
                                 {proposal.staffName}
                               </div>
+                              {proposal.specialization ? (
+                                <div style={{ color: '#475569', fontSize: '11px', lineHeight: 1.3 }}>
+                                  {proposal.specialization}
+                                </div>
+                              ) : null}
                               {proposal.vaccineName ? (
                                 <div style={{ color: '#0369a1', fontSize: '11px', fontWeight: 600, lineHeight: 1.3 }}>
                                   {proposal.vaccineName}
@@ -816,6 +821,14 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, initialPr
                                 {proposal.staffRole || 'Staff'} · {String(proposal.startTime).slice(0, 5)}–
                                 {String(proposal.endTime).slice(0, 5)}
                               </div>
+                              {typeof proposal.reason === 'string' &&
+                              proposal.reason.toLowerCase().includes('specialization') ? (
+                                <div style={{ color: '#0f766e', fontSize: '10px', marginTop: '2px', lineHeight: 1.3 }}>
+                                  {proposal.reason.includes('·')
+                                    ? proposal.reason.split('·').slice(1).join('·').trim()
+                                    : proposal.reason}
+                                </div>
+                              ) : null}
                               {Array.isArray(proposal.alternatives) && proposal.alternatives.length > 0 ? (
                                 <div style={{ color: '#64748b', fontSize: '10px', marginTop: '4px' }}>
                                   Alt: {proposal.alternatives.map((alt) => alt.staffName).join(', ')}
