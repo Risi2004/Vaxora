@@ -1,18 +1,31 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
-export default function AefiReportModal({ isOpen, onClose, onSubmitReport }) {
+const emptyReport = {
+  patientToken: '',
+  patientName: '',
+  vaccineName: '',
+  reactionType: '',
+  severity: 'Mild',
+  timeElapsed: '',
+  treatmentGiven: '',
+  notifyMOH: true,
+};
+
+export default function AefiReportModal({ isOpen, onClose, onSubmitReport, patient }) {
+  const [aefiData, setAefiData] = useState(emptyReport);
+
+  // Prefill identifiers from the patient in the chair; the clinician describes the event.
+  useEffect(() => {
+    if (!isOpen) return;
+    setAefiData({
+      ...emptyReport,
+      patientToken: patient?.token || '',
+      patientName: patient?.name || '',
+      vaccineName: patient?.vaccine && patient.vaccine !== '—' ? patient.vaccine : '',
+    });
+  }, [isOpen, patient?.id, patient?.token, patient?.name, patient?.vaccine]);
+
   if (!isOpen) return null;
-
-  const [aefiData, setAefiData] = useState({
-    patientToken: 'T-102',
-    patientName: 'Nadeeka Priyadarshani',
-    vaccineName: 'Influenza (Quadrivalent)',
-    reactionType: 'Mild Urticaria & Localized Erythema',
-    severity: 'Mild',
-    timeElapsed: '8 minutes post-vaccination',
-    treatmentGiven: 'Oral Cetirizine 10mg administered. Patient resting comfortably in observation unit.',
-    notifyMOH: true,
-  });
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -25,7 +38,7 @@ export default function AefiReportModal({ isOpen, onClose, onSubmitReport }) {
       <div className="doctor-modal-card" onClick={(e) => e.stopPropagation()}>
         <div className="doctor-modal-header" style={{ background: 'linear-gradient(135deg, #dc2626 0%, #991b1b 100%)' }}>
           <div>
-            <h3 className="doctor-modal-title">⚠️ Report Adverse Event (AEFI)</h3>
+            <h3 className="doctor-modal-title">Report Adverse Event (AEFI)</h3>
             <p style={{ margin: '4px 0 0 0', fontSize: '0.82rem', color: 'rgba(255,255,255,0.9)' }}>
               National Immunization Safety &amp; Epidemiological Surveillance
             </p>
@@ -126,7 +139,7 @@ export default function AefiReportModal({ isOpen, onClose, onSubmitReport }) {
               Cancel
             </button>
             <button type="submit" className="doctor-btn-submit danger">
-              ⚠️ Log AEFI &amp; Dispatch Alert
+              Log AEFI &amp; Dispatch Alert
             </button>
           </div>
         </form>

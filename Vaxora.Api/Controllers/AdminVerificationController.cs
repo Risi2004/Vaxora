@@ -20,6 +20,22 @@ public class AdminVerificationController : ControllerBase
         _logger = logger;
     }
 
+    [HttpGet("dashboard-stats")]
+    [HttpGet("dashboard")]
+    public async Task<IActionResult> GetDashboardStats()
+    {
+        try
+        {
+            var stats = await _adminService.GetDashboardStatsAsync();
+            return Ok(stats);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving admin dashboard stats");
+            return StatusCode(500, new { message = "Failed to fetch admin dashboard telemetry." });
+        }
+    }
+
     [HttpGet("pending")]
     public async Task<IActionResult> GetPendingVerifications()
     {

@@ -37,6 +37,117 @@
   transition: transform 0.2s ease, border-color 0.2s ease;
 }
 
+.navbar-avatar-fallback {
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
+  border-radius: 50%;
+  background: #e2e8f0;
+  color: #1e4a9e;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #94a3b8;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+  flex-shrink: 0;
+}
+
+/* Soft rounded shade behind standalone icons — match metric card icon boxes (48×48) */
+.icon-shade,
+.section-title-icon,
+.cold-chain-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
+.icon-shade-sm {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+}
+
+.icon-shade-blue,
+.section-title-icon {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.icon-shade-teal,
+.section-title-icon--teal,
+.cold-chain-icon {
+  background: #f0fdfa;
+  color: #0d9488;
+}
+
+.icon-shade-amber {
+  background: #fffbeb;
+  color: #d97706;
+}
+
+.icon-shade-purple {
+  background: #f5f3ff;
+  color: #7c3aed;
+}
+
+.icon-shade-green {
+  background: #ecfdf5;
+  color: #059669;
+}
+
+.icon-shade-slate {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.section-title-icon {
+  margin-right: 8px;
+}
+
 .navbar-avatar-img:hover {
   transform: scale(1.06);
+}
+
+.navbar-user-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  margin-right: 10px;
+  min-width: 0;
+  text-align: right;
+}
+
+.navbar-user-name {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #0f172a;
+  line-height: 1.2;
+  max-width: 170px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.navbar-user-sub {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: #64748b;
+  line-height: 1.2;
+  max-width: 170px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 768px) {
+  .navbar-user-meta {
+    display: none;
+  }
 }

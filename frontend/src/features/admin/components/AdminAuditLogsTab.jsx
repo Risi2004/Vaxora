@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { authService } from '../../auth';
+import { IconClipboard, IconClock, IconClose, IconRefresh, IconSearch, IconShield, IconUsers } from '../../../shared/icons/AppIcons';
 
 export default function AdminAuditLogsTab() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -189,7 +190,7 @@ export default function AdminAuditLogsTab() {
       {/* Toast Notification */}
       {toastMessage && (
         <div className="doctor-toast">
-          <span style={{ fontSize: '1.1rem' }}>🛡️</span>
+          <span style={{ display: 'inline-flex' }}><IconShield size={18} /></span>
           <span>{toastMessage}</span>
         </div>
       )}
@@ -278,8 +279,10 @@ export default function AdminAuditLogsTab() {
             style={{ fontWeight: 700 }}
             title="Fetch latest audit logs immediately"
           >
-            🔄 Refresh
-          </button>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                <IconRefresh size={14} /> Refresh
+              </span>
+            </button>
 
           <button
             type="button"
@@ -296,7 +299,7 @@ export default function AdminAuditLogsTab() {
       <div className="doctor-stats-grid" style={{ marginBottom: '28px' }}>
         <div className="doctor-stat-card">
           <div className="doctor-stat-icon-wrapper" style={{ background: 'rgba(2, 132, 199, 0.15)', color: '#38bdf8' }}>
-            📋
+            <IconClipboard size={22} />
           </div>
           <div className="doctor-stat-content">
             <span className="doctor-stat-label">Total Logged Events</span>
@@ -322,7 +325,7 @@ export default function AdminAuditLogsTab() {
 
         <div className="doctor-stat-card">
           <div className="doctor-stat-icon-wrapper" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#34d399' }}>
-            👥
+            <IconUsers size={22} />
           </div>
           <div className="doctor-stat-content">
             <span className="doctor-stat-label">Registrations &amp; Approvals</span>
@@ -335,7 +338,7 @@ export default function AdminAuditLogsTab() {
 
         <div className="doctor-stat-card">
           <div className="doctor-stat-icon-wrapper" style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#f87171' }}>
-            ⚠️
+            <IconShield size={22} />
           </div>
           <div className="doctor-stat-content">
             <span className="doctor-stat-label">Critical Actions</span>
@@ -376,7 +379,7 @@ export default function AdminAuditLogsTab() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px', marginBottom: '20px' }}>
           {/* Search */}
           <div className="doctor-search-bar" style={{ margin: 0 }}>
-            <span className="doctor-search-icon">🔍</span>
+            <span className="doctor-search-icon" style={{ display: 'inline-flex' }}><IconSearch size={16} /></span>
             <input
               type="text"
               className="doctor-search-input"
@@ -390,7 +393,7 @@ export default function AdminAuditLogsTab() {
                 onClick={() => setSearchQuery('')}
                 style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '0 8px' }}
               >
-                ✕
+                <IconClose size={14} />
               </button>
             )}
           </div>
@@ -412,7 +415,7 @@ export default function AdminAuditLogsTab() {
         {/* Error State */}
         {error && (
           <div style={{ padding: '16px', background: 'rgba(239,68,68,0.1)', color: '#ef4444', borderRadius: '8px', marginBottom: '16px', fontSize: '0.9rem' }}>
-            ⚠️ {error}
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><IconShield size={14} /> {error}</span>
           </div>
         )}
 
@@ -434,7 +437,7 @@ export default function AdminAuditLogsTab() {
               {loading ? (
                 <tr>
                   <td colSpan={7} style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
-                    <div style={{ display: 'inline-block', animation: 'spin 1s linear infinite', fontSize: '1.5rem', marginBottom: '8px' }}>⏳</div>
+                    <div style={{ display: 'inline-flex', animation: 'spin 1s linear infinite', marginBottom: '8px' }}><IconClock size={24} /></div>
                     <div>Loading live audit records from database...</div>
                   </td>
                 </tr>

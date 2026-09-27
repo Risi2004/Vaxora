@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { authService } from '../services/authService';
+import { IconShield } from '../../../shared/icons/AppIcons';
 
 export default function DeleteAccountModal({ isOpen, onClose, userName, roleName }) {
   const navigate = useNavigate();
@@ -79,7 +80,7 @@ export default function DeleteAccountModal({ isOpen, onClose, userName, roleName
               flexShrink: 0,
             }}
           >
-            ⚠️
+            <IconShield size={22} />
           </div>
           <div>
             <h3

@@ -231,6 +231,43 @@ public class AuthController : ControllerBase
         }
     }
 
+    [Authorize]
+    [HttpPost("profile/photo")]
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> UpdateProfilePhoto([FromForm] IFormFile photo)
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+            ?? User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)?.Value;
+
+        if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+        {
+            return Unauthorized(new { message = "Invalid user token claims." });
+        }
+
+        try
+        {
+            var updatedUser = await _authService.UpdateProfilePhotoAsync(userId, photo);
+            return Ok(updatedUser);
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound(new { message = "User record not found." });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating profile photo");
+            return StatusCode(500, new { message = "Failed to update profile photo." });
+        }
+    }
+
     [HttpPost("refresh-token")]
     public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequestDto dto)
     {

@@ -6,13 +6,14 @@ public class CreateVaccineScheduleDto
 {
     public Guid? DoctorUserId { get; set; }
 
-    [Required]
-    public string DoctorName { get; set; } = string.Empty;
+    public string? DoctorName { get; set; }
 
     public Guid? NurseUserId { get; set; }
 
+    public string? NurseName { get; set; }
+
     [Required]
-    public string NurseName { get; set; } = string.Empty;
+    public Guid BoothId { get; set; }
 
     public Guid? VaccineId { get; set; }
 
@@ -49,6 +50,8 @@ public class VaccineScheduleDto
     public string DoctorName { get; set; } = string.Empty;
     public Guid? NurseUserId { get; set; }
     public string NurseName { get; set; } = string.Empty;
+    public Guid? BoothId { get; set; }
+    public string? BoothLabel { get; set; }
     public Guid? VaccineId { get; set; }
     public string VaccineName { get; set; } = string.Empty;
     public string ScheduleType { get; set; } = "OneTime";

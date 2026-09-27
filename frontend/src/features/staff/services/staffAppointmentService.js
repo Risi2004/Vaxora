@@ -69,6 +69,16 @@ export const staffAppointmentService = {
       })}`
     );
   },
+
+  updateAppointmentStatus(id, status, remarks) {
+    return apiRequest(`/appointments/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        status,
+        ...(remarks ? { remarks } : {}),
+      }),
+    });
+  },
 };
 
 export default staffAppointmentService;

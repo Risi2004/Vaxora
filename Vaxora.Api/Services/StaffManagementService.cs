@@ -21,6 +21,11 @@ public interface IStaffManagementService
     Task DeactivateHospitalBoothAsync(Guid hospitalUserId, Guid boothId);
     Task<StaffShiftDto> CreateShiftAsync(Guid hospitalUserId, CreateStaffShiftDto dto);
     Task<List<StaffShiftDto>> GetHospitalShiftsAsync(Guid hospitalUserId, DateOnly? from = null, DateOnly? to = null);
+    /// <summary>
+    /// Busy blocks for this hospital's active staff across every affiliation (any hospital).
+    /// Used so agents/UI do not propose shifts that CreateShift would reject for overlap.
+    /// </summary>
+    Task<List<StaffBusyBlockDto>> GetAffiliatedStaffBusyBlocksAsync(Guid hospitalUserId, DateOnly? from = null, DateOnly? to = null);
     Task<StaffCoverageReportDto> GetCoverageReportAsync(Guid hospitalUserId, DateOnly from, DateOnly to);
     Task<SuggestWeekCoverageResultDto> SuggestWeekCoverageAsync(Guid hospitalUserId, SuggestWeekCoverageDto dto);
     Task<List<StaffShiftDto>> GetMyShiftsAsync(Guid staffUserId, DateOnly? from = null, DateOnly? to = null);
@@ -268,7 +273,9 @@ public class StaffManagementService : IStaffManagementService
         {
             if (!Enum.TryParse<DutyStatus>(dutyStatus.Trim(), true, out var parsedDuty))
                 throw new InvalidOperationException("Invalid duty status filter.");
-            query = query.Where(a => a.DutyStatus == parsedDuty);
+            // Live presence is attached after load. Sticky OnBreak is the only DB filter left.
+            if (parsedDuty == DutyStatus.OnBreak)
+                query = query.Where(a => a.DutyStatus == DutyStatus.OnBreak);
         }
 
         var list = await query.OrderByDescending(a => a.InvitedAt).ToListAsync();
@@ -285,7 +292,21 @@ public class StaffManagementService : IStaffManagementService
             }).ToList();
         }
 
-        return list.Select(a => MapAffiliation(a, a.HospitalUser, a.StaffUser)).ToList();
+        var dtos = list.Select(a => MapAffiliation(a, a.HospitalUser, a.StaffUser)).ToList();
+        await AttachLiveDutyAsync(dtos);
+
+        if (!string.IsNullOrWhiteSpace(dutyStatus) &&
+            Enum.TryParse<DutyStatus>(dutyStatus.Trim(), true, out var liveDutyFilter))
+        {
+            dtos = liveDutyFilter switch
+            {
+                DutyStatus.OnDuty => dtos.Where(d => d.IsOnDutyNow).ToList(),
+                DutyStatus.Off => dtos.Where(d => !d.IsOnDutyNow).ToList(),
+                _ => dtos
+            };
+        }
+
+        return dtos;
     }
 
     public async Task<List<StaffAffiliationDto>> GetMyInvitationsAsync(Guid staffUserId)
@@ -315,7 +336,9 @@ public class StaffManagementService : IStaffManagementService
             .OrderByDescending(a => a.RespondedAt)
             .ToListAsync();
 
-        return list.Select(a => MapAffiliation(a, a.HospitalUser, a.StaffUser)).ToList();
+        var dtos = list.Select(a => MapAffiliation(a, a.HospitalUser, a.StaffUser)).ToList();
+        await AttachLiveDutyAsync(dtos);
+        return dtos;
     }
 
     public async Task RemoveAffiliationAsync(Guid hospitalUserId, Guid affiliationId)
@@ -580,6 +603,56 @@ public class StaffManagementService : IStaffManagementService
         return list.Select(s => MapShift(s, s.Affiliation)).ToList();
     }
 
+    public async Task<List<StaffBusyBlockDto>> GetAffiliatedStaffBusyBlocksAsync(
+        Guid hospitalUserId,
+        DateOnly? from = null,
+        DateOnly? to = null)
+    {
+        await EnsureActiveHospitalAsync(hospitalUserId);
+
+        var localAffiliations = await _context.StaffAffiliations
+            .AsNoTracking()
+            .Where(a => a.HospitalUserId == hospitalUserId && a.Status == AffiliationStatus.Active)
+            .Select(a => new { a.Id, a.StaffUserId })
+            .ToListAsync();
+
+        if (localAffiliations.Count == 0)
+            return new List<StaffBusyBlockDto>();
+
+        var staffUserIds = localAffiliations.Select(a => a.StaffUserId).Distinct().ToList();
+        var localByStaff = localAffiliations
+            .GroupBy(a => a.StaffUserId)
+            .ToDictionary(g => g.Key, g => g.First().Id);
+
+        var query = _context.StaffShifts
+            .AsNoTracking()
+            .Include(s => s.Affiliation)
+            .Where(s =>
+                staffUserIds.Contains(s.Affiliation.StaffUserId) &&
+                s.Affiliation.Status == AffiliationStatus.Active);
+
+        if (from.HasValue) query = query.Where(s => s.ShiftDate >= from.Value);
+        if (to.HasValue) query = query.Where(s => s.ShiftDate <= to.Value);
+
+        var shifts = await query
+            .OrderBy(s => s.ShiftDate)
+            .ThenBy(s => s.StartTime)
+            .ToListAsync();
+
+        return shifts
+            .Where(s => localByStaff.ContainsKey(s.Affiliation.StaffUserId))
+            .Select(s => new StaffBusyBlockDto
+            {
+                StaffUserId = s.Affiliation.StaffUserId,
+                LocalAffiliationId = localByStaff[s.Affiliation.StaffUserId],
+                ShiftDate = s.ShiftDate,
+                StartTime = s.StartTime,
+                EndTime = s.EndTime,
+                IsExternal = s.Affiliation.HospitalUserId != hospitalUserId
+            })
+            .ToList();
+    }
+
     public async Task<StaffCoverageReportDto> GetCoverageReportAsync(Guid hospitalUserId, DateOnly from, DateOnly to)
     {
         await EnsureActiveHospitalAsync(hospitalUserId);
@@ -597,7 +670,20 @@ public class StaffManagementService : IStaffManagementService
 
         var activeDoctors = activeAffiliations.Count(a => a.StaffRole == UserRole.DOCTOR);
         var activeNurses = activeAffiliations.Count(a => a.StaffRole == UserRole.NURSE);
-        var onDutyStaff = activeAffiliations.Count(a => a.DutyStatus == DutyStatus.OnDuty);
+
+        var today = HospitalToday();
+        var nowTime = TimeOnly.FromDateTime(HospitalNow());
+        var onDutyStaff = await _context.StaffShifts
+            .AsNoTracking()
+            .Where(s =>
+                s.Affiliation.HospitalUserId == hospitalUserId &&
+                s.Affiliation.Status == AffiliationStatus.Active &&
+                s.ShiftDate == today &&
+                s.StartTime <= nowTime &&
+                s.EndTime > nowTime)
+            .Select(s => s.Affiliation.StaffUserId)
+            .Distinct()
+            .CountAsync();
 
         var shifts = await _context.StaffShifts
             .AsNoTracking()
@@ -953,7 +1039,9 @@ public class StaffManagementService : IStaffManagementService
         if (shift.ShiftDate < HospitalToday())
             throw new InvalidOperationException("Cannot modify shifts that have already occurred.");
 
-        ValidateShiftSchedule(dto.ShiftDate, dto.StartTime, dto.EndTime);
+        // Updates may keep an already-started today's slot (booth/notes/end changes).
+        // Only reject a past start when the hospital is actually moving the start time.
+        ValidateShiftSchedule(dto.ShiftDate, dto.StartTime, dto.EndTime, existingStart: shift.StartTime, existingDate: shift.ShiftDate);
 
         await EnsureNoShiftOverlapAsync(
             shift.Affiliation.StaffUserId,
@@ -1044,7 +1132,12 @@ public class StaffManagementService : IStaffManagementService
             throw new InvalidOperationException("Staff account must be Active.");
     }
 
-    private static void ValidateShiftSchedule(DateOnly shiftDate, TimeOnly start, TimeOnly end)
+    private static void ValidateShiftSchedule(
+        DateOnly shiftDate,
+        TimeOnly start,
+        TimeOnly end,
+        TimeOnly? existingStart = null,
+        DateOnly? existingDate = null)
     {
         var today = HospitalToday();
         if (shiftDate < today)
@@ -1059,9 +1152,20 @@ public class StaffManagementService : IStaffManagementService
 
         if (shiftDate == today)
         {
-            var now = TimeOnly.FromDateTime(HospitalNow());
-            if (start < now)
-                throw new InvalidOperationException("Shift start time cannot be in the past.");
+            // Compare HH:mm only — DB/JSON seconds can differ without a real schedule change.
+            var startUnchanged =
+                existingDate.HasValue &&
+                existingStart.HasValue &&
+                existingDate.Value == shiftDate &&
+                existingStart.Value.Hour == start.Hour &&
+                existingStart.Value.Minute == start.Minute;
+
+            if (!startUnchanged)
+            {
+                var now = TimeOnly.FromDateTime(HospitalNow());
+                if (start < now)
+                    throw new InvalidOperationException("Shift start time cannot be in the past.");
+            }
         }
     }
 
@@ -1090,6 +1194,33 @@ public class StaffManagementService : IStaffManagementService
             throw new InvalidOperationException(
                 "This staff member is already unavailable during that time slot.");
         }
+    }
+
+    /// <summary>
+    /// Marks affiliations that have a shift covering hospital-local now.
+    /// </summary>
+    private async Task AttachLiveDutyAsync(List<StaffAffiliationDto> dtos)
+    {
+        if (dtos.Count == 0) return;
+
+        var today = HospitalToday();
+        var now = TimeOnly.FromDateTime(HospitalNow());
+        var affiliationIds = dtos.Select(d => d.AffiliationId).ToList();
+
+        var liveIds = await _context.StaffShifts
+            .AsNoTracking()
+            .Where(s =>
+                affiliationIds.Contains(s.AffiliationId) &&
+                s.ShiftDate == today &&
+                s.StartTime <= now &&
+                s.EndTime > now)
+            .Select(s => s.AffiliationId)
+            .Distinct()
+            .ToListAsync();
+
+        var liveSet = liveIds.ToHashSet();
+        foreach (var dto in dtos)
+            dto.IsOnDutyNow = liveSet.Contains(dto.AffiliationId);
     }
 
     private async Task<(Guid? BoothId, string? Label)> ResolveBoothAssignmentAsync(
@@ -1234,9 +1365,12 @@ public class StaffManagementService : IStaffManagementService
             AffiliationId = affiliation.Id,
             HospitalUserId = affiliation.HospitalUserId,
             HospitalName = hospitalUser.HospitalProfile?.HospitalName,
+            HospitalLogoUrl = hospitalUser.HospitalProfile?.LogoUrl,
             StaffUserId = affiliation.StaffUserId,
             StaffRegistrationNumber = staffUser.RegistrationNumber ?? string.Empty,
             StaffName = GetStaffName(staffUser),
+            StaffProfilePhotoUrl = staffUser.DoctorProfile?.ProfilePhotoUrl
+                ?? staffUser.NurseProfile?.ProfilePhotoUrl,
             StaffRole = affiliation.StaffRole.ToString(),
             Specialization = staffUser.DoctorProfile?.Specialization,
             PhoneNumber = staffUser.DoctorProfile?.PhoneNumber ?? staffUser.NurseProfile?.PhoneNumber ?? staffUser.PhoneNumber,

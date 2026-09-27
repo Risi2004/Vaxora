@@ -88,14 +88,27 @@ export const appointmentService = {
     });
   },
 
-  // 5. Get appointments for hospital
+  // 5. Get appointments for hospital (cache-bust so refresh shows latest statuses)
   getHospitalAppointments(params = {}) {
     const query = new URLSearchParams();
     if (params.date) query.set('date', params.date);
     if (params.status) query.set('status', params.status);
+    query.set('_t', String(Date.now()));
     const qs = query.toString();
-    return apiRequest(`/appointments/hospital${qs ? `?${qs}` : ''}`, {
+    return apiRequest(`/appointments/hospital?${qs}`, {
       method: 'GET',
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        Pragma: 'no-cache',
+      },
+    });
+  },
+
+  // 5b. Hospital walk-in registration (patient must already exist by NIC)
+  createWalkIn(payload) {
+    return apiRequest('/appointments/hospital/walk-in', {
+      method: 'POST',
+      body: JSON.stringify(payload),
     });
   },
 

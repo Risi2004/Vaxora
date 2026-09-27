@@ -129,16 +129,21 @@ public class StaffAffiliationDto
     public Guid AffiliationId { get; set; }
     public Guid HospitalUserId { get; set; }
     public string? HospitalName { get; set; }
+    public string? HospitalLogoUrl { get; set; }
     public Guid StaffUserId { get; set; }
     public string StaffRegistrationNumber { get; set; } = string.Empty;
     public string StaffName { get; set; } = string.Empty;
+    public string? StaffProfilePhotoUrl { get; set; }
     public string StaffRole { get; set; } = string.Empty;
     public string? Specialization { get; set; }
     public string? PhoneNumber { get; set; }
     public string? Email { get; set; }
     public string Status { get; set; } = string.Empty;
+    /// <summary>Legacy sticky flag. Prefer <see cref="IsOnDutyNow"/> for live presence.</summary>
     public string DutyStatus { get; set; } = string.Empty;
     public DateTime? DutyUpdatedAt { get; set; }
+    /// <summary>True when this affiliation has a shift covering hospital-local now.</summary>
+    public bool IsOnDutyNow { get; set; }
     public DateTime InvitedAt { get; set; }
     public DateTime? RespondedAt { get; set; }
 }
@@ -160,6 +165,20 @@ public class StaffShiftDto
     public DateTime? UpdatedAt { get; set; }
 }
 
+/// <summary>
+/// A time block when an affiliated clinician is already booked (this hospital or another).
+/// </summary>
+public class StaffBusyBlockDto
+{
+    public Guid StaffUserId { get; set; }
+    /// <summary>This hospital's affiliation id for the same staff member (for agent mapping).</summary>
+    public Guid LocalAffiliationId { get; set; }
+    public DateOnly ShiftDate { get; set; }
+    public TimeOnly StartTime { get; set; }
+    public TimeOnly EndTime { get; set; }
+    public bool IsExternal { get; set; }
+}
+
 public class StaffDayCoverageDto
 {
     public DateOnly Date { get; set; }
@@ -179,7 +198,7 @@ public class StaffCoverageReportDto
     public int ActiveDoctors { get; set; }
     public int ActiveNurses { get; set; }
 
-    /// <summary>Live snapshot of staff currently marked OnDuty — not tied to any single day.</summary>
+    /// <summary>Staff with a shift covering hospital-local now at this hospital.</summary>
     public int CurrentlyOnDutyStaff { get; set; }
 
     public int DaysWithLowCoverage { get; set; }
