@@ -2,7 +2,7 @@
 Smart Restock Advisor Agent — Agent 1 of 2.
 Multi-step workflow:
   Plan → Fetch data → Analyze → Validate → Propose + Draft PO (pause for approval)
-Uses Groq LLM.
+Uses OpenRouter LLM.
 """
 import json
 import logging
@@ -57,9 +57,9 @@ class RestockAdvisorAgent:
     )
 
     def __init__(self):
-        self.base_url = settings.groq_base_url.rstrip("/")
-        self.model = settings.groq_model
-        self.api_key = settings.groq_api_key
+        self.base_url = settings.openrouter_base_url.rstrip("/")
+        self.model = settings.openrouter_model
+        self.api_key = settings.openrouter_api_key
 
     # ---------------- LLM call ----------------
 
@@ -80,7 +80,7 @@ class RestockAdvisorAgent:
                 f"{self.base_url}/chat/completions", headers=headers, json=payload
             )
             if resp.status_code >= 400:
-                logger.error(f"[{self.name}] Groq error {resp.status_code}: {resp.text[:1000]}")
+                logger.error(f"[{self.name}] OpenRouter error {resp.status_code}: {resp.text[:1000]}")
             resp.raise_for_status()
             return resp.json()["choices"][0]["message"]
 

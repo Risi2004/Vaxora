@@ -116,21 +116,14 @@ async def _run_agent(agent, messages, token, patient_info, user_id):
 
 @app.get("/api/agent/health")
 async def health():
-    result = {
+    return {
         "status": "healthy",
         "service": "Vaxora Multi-Agent Orchestrator",
         "registered_agents": list(orchestrator.agents.keys()),
-        "model": settings.model_name,
-        "runpod_endpoint": settings.runpod_base_url,
+        "model": settings.openrouter_model,
+        "openrouter_endpoint": settings.openrouter_base_url,
         "vaxora_api": settings.vaxora_api_base_url,
     }
-    # Surface Groq settings if the merged config exposes them
-    try:
-        result["groq_endpoint"] = settings.groq_base_url
-        result["groq_model"] = settings.groq_model
-    except AttributeError:
-        pass
-    return result
 
 
 @app.post("/api/agent/chat")

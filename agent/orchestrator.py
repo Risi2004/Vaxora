@@ -53,11 +53,11 @@ class MultiAgentOrchestrator:
 
     def __init__(self):
         self.client = AsyncOpenAI(
-            base_url=settings.runpod_base_url,
-            api_key=settings.runpod_api_key,
+            base_url=settings.openrouter_base_url,
+            api_key=settings.openrouter_api_key,
             timeout=60.0,
         )
-        self.model = settings.model_name
+        self.model = settings.openrouter_model
         self.agents: Dict[str, Any] = {
             "BookingAgent": booking_agent,
         }
