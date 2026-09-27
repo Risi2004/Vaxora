@@ -27,11 +27,12 @@ app = FastAPI(title="Vaxora Google ADK Multi-Agent API", version="1.0.0")
 # authenticates the caller first. No browser origin is allowed to call this directly.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[],
+    allow_origins=["*"],
     allow_credentials=False,
-    allow_methods=["POST", "GET"],
-    allow_headers=["Authorization", "Content-Type", "X-Agent-Key"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
+
 
 # HTTPBearer security scheme — gives Swagger the Authorize button
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -114,6 +115,8 @@ async def _run_agent(agent, messages, token, patient_info, user_id):
         return await agent.run(messages=messages, token=token)
 
 
+@app.get("/")
+@app.get("/health")
 @app.get("/api/agent/health")
 async def health():
     return {
@@ -124,6 +127,7 @@ async def health():
         "openrouter_endpoint": settings.openrouter_base_url,
         "vaxora_api": settings.vaxora_api_base_url,
     }
+
 
 
 @app.post("/api/agent/chat")

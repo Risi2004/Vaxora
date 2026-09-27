@@ -1,15 +1,31 @@
 // Vaxora AI Agent + Draft Execution Service
 
+const getApiBase = () => {
+  const envUrl = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL;
+  if (envUrl && typeof envUrl === 'string' && envUrl.trim()) {
+    const trimmed = envUrl.trim().replace(/\/+$/, '');
+    return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`;
+  }
+  return '/api';
+};
+
+const API_BASE = getApiBase();
+
 const getAgentBase = () => {
   const envUrl = import.meta.env.VITE_AGENT_URL;
   if (envUrl && typeof envUrl === 'string' && envUrl.trim()) {
     return envUrl.trim().replace(/\/+$/, '');
+  }
+  // When running against deployed backend, proxy through ASP.NET Core gateway
+  if (API_BASE && API_BASE !== '/api') {
+    return API_BASE.replace(/\/api$/, '');
   }
   return 'http://localhost:8001';
 };
 
 const AGENT_BASE = getAgentBase();
 const getToken = () => localStorage.getItem('vaxora_token');
+
 
 async function agentRequest(endpoint, options = {}) {
   const token = getToken();
@@ -55,7 +71,7 @@ export const inventoryDraftService = {
    */
   async execute(workflowId, draftType, payload) {
     const token = getToken();
-    const res = await fetch(`/api/Inventory/agent/execute-draft`, {
+    const res = await fetch(`${API_BASE}/Inventory/agent/execute-draft`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -70,13 +86,14 @@ export const inventoryDraftService = {
 
   async getWorkflows(limit = 20) {
     const token = getToken();
-    const res = await fetch(`/api/Inventory/agent/workflows?limit=${limit}`, {
+    const res = await fetch(`${API_BASE}/Inventory/agent/workflows?limit=${limit}`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
     const data = await res.json().catch(() => []);
     if (!res.ok) throw new Error('Failed to fetch workflows');
     return data;
   },
+
 };
 
 export default aiAgentService;
