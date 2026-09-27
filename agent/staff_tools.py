@@ -92,6 +92,7 @@ async def tool_get_active_staff(token: Optional[str] = None, role: Optional[str]
             "staff": [
                 {
                     "affiliationId": s.get("affiliationId") or s.get("AffiliationId"),
+                    "staffUserId": s.get("staffUserId") or s.get("StaffUserId"),
                     "staffName": s.get("staffName") or s.get("StaffName"),
                     "staffRole": s.get("staffRole") or s.get("StaffRole"),
                     "specialization": s.get("specialization") or s.get("Specialization") or "",
@@ -135,6 +136,26 @@ async def tool_get_hospital_shifts(
         )
         shifts = data if isinstance(data, list) else []
         return {"success": True, "count": len(shifts), "shifts": shifts}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+async def tool_get_staff_busy_blocks(
+    from_date: str,
+    to_date: str,
+    token: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Busy times for affiliated staff across every hospital (matches CreateShift overlap rules)."""
+    try:
+        clean_from = _clean_date_string(from_date)
+        clean_to = _clean_date_string(to_date)
+        data = await api_get(
+            "/staff/shifts/busy",
+            token=token,
+            params={"from": clean_from, "to": clean_to},
+        )
+        blocks = data if isinstance(data, list) else []
+        return {"success": True, "count": len(blocks), "blocks": blocks}
     except Exception as e:
         return {"success": False, "error": str(e)}
 
@@ -913,6 +934,43 @@ async def _prepare_roster_state(
                 "boothId": shift.get("boothId") or shift.get("BoothId"),
             }
         )
+
+    # Include other-hospital shifts for the same people so we don't propose conflicts.
+    busy_result = await tool_get_staff_busy_blocks(week_from, week_to, token=token)
+    external_busy = 0
+    if busy_result.get("success"):
+        seen = {
+            (
+                str(item.get("affiliationId")),
+                item.get("date"),
+                item.get("start"),
+                item.get("end"),
+            )
+            for item in planned
+        }
+        for block in busy_result.get("blocks") or []:
+            affiliation_id = block.get("localAffiliationId") or block.get("LocalAffiliationId")
+            date = _day_key(block.get("shiftDate") or block.get("ShiftDate"))
+            start = _minutes(block.get("startTime") or block.get("StartTime"))
+            end = _minutes(block.get("endTime") or block.get("EndTime"))
+            key = (str(affiliation_id), date, start, end)
+            if not affiliation_id or key in seen:
+                continue
+            seen.add(key)
+            is_external = bool(block.get("isExternal") if block.get("isExternal") is not None else block.get("IsExternal"))
+            if is_external:
+                external_busy += 1
+            planned.append(
+                {
+                    "affiliationId": affiliation_id,
+                    "date": date,
+                    "start": start,
+                    "end": end,
+                    "role": "",
+                    "boothId": None,
+                }
+            )
+
     for affiliation_id, day, start, end in _remembered_declines():
         planned.append(
             {
@@ -945,6 +1003,7 @@ async def _prepare_roster_state(
         "schedules": schedules,
         "sessions": sessions,
         "planned": planned,
+        "externalBusyCount": external_busy,
         "workload": workload,
         "workloadBefore": _workload_summary(workload, staff),
         "today": _hospital_today(),
@@ -980,6 +1039,12 @@ def _discover_staffing_gaps(state: Dict[str, Any]) -> Tuple[List[str], List[Dict
         findings.append("Posted vaccine schedules could not be loaded; using morning/afternoon windows.")
     elif sessions:
         findings.append(f"Using {len(sessions)} posted vaccine schedule window(s) for staffing.")
+
+    external_busy = int(state.get("externalBusyCount") or 0)
+    if external_busy:
+        findings.append(
+            f"Respecting {external_busy} existing shift(s) at other hospitals so proposals won't clash on approve."
+        )
 
     demand = _demand_groups(appointments, clean_from, clean_to, sessions=sessions)
     seeded = _seed_posted_schedule_demand(demand, sessions)

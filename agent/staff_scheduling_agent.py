@@ -51,6 +51,7 @@ Staffing workflow (always follow this order):
 3. Summarize which vaccines opened which booths, schedule times used, how workload changed, and tell them to press Approve or Decline.
 
 Posted schedules are staffed even when bookings are still empty (one booth baseline). Extra bookings above booth capacity open more booths.
+Avoid proposing anyone who already has an overlapping shift (including at another hospital).
 
 Other tools:
 - get_active_staff — list doctors/nurses
