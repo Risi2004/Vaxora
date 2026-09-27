@@ -61,9 +61,9 @@ class CarePlanningAgent:
     description = "Generates a personalized, guideline-grounded care plan from a patient summary."
 
     def __init__(self):
-        self.base_url = settings.runpod_base_url.rstrip("/")
-        self.model = settings.model_name
-        self.api_key = settings.runpod_api_key
+        self.base_url = settings.openrouter_base_url.rstrip("/")
+        self.model = settings.openrouter_model
+        self.api_key = settings.openrouter_api_key
 
     async def _call_llm(self, messages: List[Dict[str, Any]], tools: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
         headers = {
@@ -90,7 +90,7 @@ class CarePlanningAgent:
                 resp.raise_for_status()
                 return resp.json()["choices"][0]["message"]
 
-        raise RuntimeError(f"Max retries ({max_retries}) exceeded due to Groq rate limiting.")
+        raise RuntimeError(f"Max retries ({max_retries}) exceeded due to OpenRouter rate limiting.")
 
     async def _execute_tool(self, name: str, args: Dict[str, Any]) -> Any:
         logger.info(f"[{self.name}] tool={name}")
