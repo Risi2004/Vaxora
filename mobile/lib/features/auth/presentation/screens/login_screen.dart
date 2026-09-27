@@ -6,7 +6,7 @@ import 'signup_screen.dart';
 import 'forgot_password_screen.dart';
 import '../../../patient/presentation/screens/patient_main_screen.dart';
 import '../../data/repositories/auth_repository.dart';
-import '../../../inventory/presentation/screens/inventory_home_screen.dart';
+import '../../../inventory/presentation/screens/hospital_main_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   final String? noticeMessage;
@@ -66,7 +66,7 @@ class _LoginScreenState extends State<LoginScreen> {
         );
 
         final Widget home = isHospital
-            ? const InventoryHomeScreen()
+            ? const HospitalMainScreen()
             : const PatientMainScreen();
 
         Navigator.of(context).pushAndRemoveUntil(
