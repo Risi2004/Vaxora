@@ -7,6 +7,7 @@ import 'forgot_password_screen.dart';
 import '../../../patient/presentation/screens/patient_main_screen.dart';
 import '../../data/repositories/auth_repository.dart';
 import '../../../inventory/presentation/screens/hospital_main_screen.dart';
+import '../../../staff/presentation/screens/staff_main_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   final String? noticeMessage;
@@ -53,6 +54,10 @@ class _LoginScreenState extends State<LoginScreen> {
           role == 'ADMIN' ||
           role.contains('HOSPITAL') ||
           role.contains('ADMIN');
+      final isStaff = role == 'DOCTOR' ||
+          role == 'NURSE' ||
+          role.contains('DOCTOR') ||
+          role.contains('NURSE');
 
       if (mounted) {
         setState(() => _isLoading = false);
@@ -67,7 +72,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
         final Widget home = isHospital
             ? const HospitalMainScreen()
-            : const PatientMainScreen();
+            : isStaff
+                ? const StaffMainScreen()
+                : const PatientMainScreen();
 
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (context) => home),
