@@ -94,6 +94,7 @@ async def tool_get_active_staff(token: Optional[str] = None, role: Optional[str]
                     "affiliationId": s.get("affiliationId") or s.get("AffiliationId"),
                     "staffName": s.get("staffName") or s.get("StaffName"),
                     "staffRole": s.get("staffRole") or s.get("StaffRole"),
+                    "specialization": s.get("specialization") or s.get("Specialization") or "",
                     "registrationNumber": s.get("staffRegistrationNumber") or s.get("StaffRegistrationNumber"),
                 }
                 for s in staff
@@ -313,6 +314,100 @@ async def _load_hospital_appointments(token: Optional[str]) -> Optional[List[Dic
     return data if isinstance(data, list) else None
 
 
+async def _load_hospital_schedules(token: Optional[str]) -> Optional[List[Dict[str, Any]]]:
+    """Active posted immunization sessions for this hospital. None = API failure."""
+    try:
+        data = await api_get("/schedule/hospital", token=token)
+    except Exception:
+        return None
+    return data if isinstance(data, list) else []
+
+
+def _hm_label(minutes: int) -> str:
+    return f"{minutes // 60:02d}:{minutes % 60:02d}"
+
+
+def _day_matches_schedule(day_name: str, days_of_week: Any) -> bool:
+    if not days_of_week:
+        return False
+    items = days_of_week if isinstance(days_of_week, list) else str(days_of_week).split(",")
+    day_short = day_name[:3]
+    for item in items:
+        token = str(item or "").strip()
+        if not token:
+            continue
+        if token.lower() in (day_name.lower(), day_short.lower()):
+            return True
+    return False
+
+
+def _expand_schedule_sessions(
+    schedules: List[Dict[str, Any]],
+    range_from: str,
+    range_to: str,
+) -> List[Dict[str, Any]]:
+    """Turn OneTime/Weekly VaccineSchedules into concrete date+time clinic windows."""
+    sessions: List[Dict[str, Any]] = []
+    start_day = datetime.fromisoformat(range_from).date()
+    end_day = datetime.fromisoformat(range_to).date()
+
+    for sch in schedules or []:
+        status = str(sch.get("status") or sch.get("Status") or "Active")
+        if status.lower() == "cancelled":
+            continue
+        start_m = _minutes(sch.get("startTime") or sch.get("StartTime"))
+        end_m = _minutes(sch.get("endTime") or sch.get("EndTime"))
+        if end_m <= start_m:
+            continue
+        vaccine_name = str(sch.get("vaccineName") or sch.get("VaccineName") or "").strip()
+        vaccine_id = sch.get("vaccineId") or sch.get("VaccineId")
+        booth_id = sch.get("boothId") or sch.get("BoothId")
+        booth_label = sch.get("boothLabel") or sch.get("BoothLabel") or ""
+        schedule_id = sch.get("id") or sch.get("Id")
+        slot_name = f"{_hm_label(start_m)}-{_hm_label(end_m)}"
+        schedule_type = str(sch.get("scheduleType") or sch.get("ScheduleType") or "OneTime")
+
+        dates: List[str] = []
+        if schedule_type.lower() == "weekly":
+            window_start = sch.get("startDate") or sch.get("StartDate") or range_from
+            window_end = sch.get("endDate") or sch.get("EndDate") or range_to
+            try:
+                ws = datetime.fromisoformat(str(window_start)[:10]).date()
+                we = datetime.fromisoformat(str(window_end)[:10]).date()
+            except ValueError:
+                continue
+            cursor = max(start_day, ws)
+            last = min(end_day, we)
+            days = sch.get("daysOfWeek") or sch.get("DaysOfWeek") or []
+            while cursor <= last:
+                if _day_matches_schedule(cursor.strftime("%A"), days):
+                    dates.append(cursor.isoformat())
+                cursor += timedelta(days=1)
+        else:
+            specific = sch.get("specificDate") or sch.get("SpecificDate")
+            if not specific:
+                continue
+            day = str(specific)[:10]
+            if range_from <= day <= range_to:
+                dates.append(day)
+
+        for day in dates:
+            sessions.append(
+                {
+                    "date": day,
+                    "slot": slot_name,
+                    "slotStart": start_m,
+                    "slotEnd": end_m,
+                    "vaccineName": vaccine_name,
+                    "vaccineId": str(vaccine_id) if vaccine_id else "",
+                    "boothId": booth_id,
+                    "boothLabel": booth_label,
+                    "scheduleId": schedule_id,
+                }
+            )
+    return sessions
+
+
 def _clock_to_minutes(text: str) -> Optional[int]:
     raw = str(text or "").strip().upper()
     if not raw:
@@ -383,7 +478,17 @@ def _vaccine_label(appt: Dict[str, Any]) -> str:
     return name or "Unknown vaccine"
 
 
-def _demand_groups(appointments: List[Dict[str, Any]], start: str, end: str) -> Dict[tuple, List[Dict[str, Any]]]:
+def _demand_groups(
+    appointments: List[Dict[str, Any]],
+    start: str,
+    end: str,
+    sessions: Optional[List[Dict[str, Any]]] = None,
+) -> Dict[tuple, List[Dict[str, Any]]]:
+    """Bucket bookings into posted clinic windows when possible; else Morning/Afternoon."""
+    sessions_by_date: Dict[str, List[Dict[str, Any]]] = {}
+    for session in sessions or []:
+        sessions_by_date.setdefault(session["date"], []).append(session)
+
     buckets: Dict[tuple, Dict[str, Dict[str, Any]]] = {}
     for appt in appointments:
         if not _is_active_booking(appt):
@@ -394,14 +499,57 @@ def _demand_groups(appointments: List[Dict[str, Any]], start: str, end: str) -> 
         minutes = _appt_start_minutes(appt)
         if minutes is None:
             continue
-        slot_key = (date, _slot_for_minutes(minutes))
+
         vaccine_key = _vaccine_key(appt)
+        vaccine_label = _vaccine_label(appt)
+        slot_name = _slot_for_minutes(minutes)
+        preferred_booth_id = None
+        slot_start = 8 * 60 if slot_name == "Morning" else 13 * 60
+        slot_end = 12 * 60 if slot_name == "Morning" else 17 * 60
+
+        day_sessions = sessions_by_date.get(date) or []
+        matched = None
+        for session in day_sessions:
+            if not (session["slotStart"] <= minutes < session["slotEnd"]):
+                continue
+            session_vid = str(session.get("vaccineId") or "")
+            session_name = str(session.get("vaccineName") or "").strip().lower()
+            appt_name = vaccine_label.strip().lower()
+            vaccine_ok = False
+            if session_vid and vaccine_key == session_vid:
+                vaccine_ok = True
+            elif session_name and (session_name in appt_name or appt_name in session_name):
+                vaccine_ok = True
+            if not vaccine_ok:
+                continue
+            matched = session
+            break
+
+        if matched:
+            slot_name = matched["slot"]
+            slot_start = matched["slotStart"]
+            slot_end = matched["slotEnd"]
+            preferred_booth_id = matched.get("boothId")
+
+        slot_key = (date, slot_name)
         slot_bucket = buckets.setdefault(slot_key, {})
         row = slot_bucket.setdefault(
             vaccine_key,
-            {"key": vaccine_key, "label": _vaccine_label(appt), "count": 0},
+            {
+                "key": vaccine_key,
+                "label": vaccine_label,
+                "count": 0,
+                "slotStart": slot_start,
+                "slotEnd": slot_end,
+                "preferredBoothId": preferred_booth_id,
+            },
         )
         row["count"] += 1
+        # Keep the tightest / first schedule window for this vaccine bucket.
+        if preferred_booth_id and not row.get("preferredBoothId"):
+            row["preferredBoothId"] = preferred_booth_id
+        row["slotStart"] = slot_start
+        row["slotEnd"] = slot_end
     return {slot_key: list(rows.values()) for slot_key, rows in buckets.items()}
 
 
@@ -416,9 +564,22 @@ def _booth_serves(booth: Dict[str, Any], vaccine_key: str, label: str) -> bool:
     return bool(label) and label.strip().lower() in names
 
 
-def _place_vaccine_demand(booths, group, open_booths, booth_room):
+def _place_vaccine_demand(booths, group, open_booths, booth_room, preferred_booth_id=None):
     """Fill booths that list this vaccine. Each booth holds 12 patients in the slot."""
     capable = [booth for booth in booths if _booth_serves(booth, group["key"], group["label"])]
+    if preferred_booth_id:
+        preferred = [
+            booth
+            for booth in booths
+            if str(_booth_id(booth) or "") == str(preferred_booth_id)
+        ]
+        # Schedule booth wins even if vaccine tags are incomplete — hospital assigned it.
+        for booth in preferred:
+            if booth not in capable:
+                capable.insert(0, booth)
+            else:
+                capable.remove(booth)
+                capable.insert(0, booth)
     if not capable:
         return [], group["count"]
     remaining = group["count"]
@@ -451,8 +612,47 @@ def _booth_has_role(planned, booth, date, slot_start, slot_end, role) -> bool:
     )
 
 
-def _pick_lightest_free(pool, planned, workload, date: str, slot_start: int, slot_end: int):
-    """Prefer whoever has the fewest shifts this week and is free for this half-day."""
+def _specialization_tokens(text: str) -> set:
+    return {part for part in "".join(ch if ch.isalnum() else " " for ch in (text or "").lower()).split() if len(part) >= 3}
+
+
+def _specialization_score(person: Dict[str, Any], vaccine_label: Optional[str] = None) -> int:
+    """Higher = better fit for this vaccine. 0 when unknown or no match."""
+    spec = str(person.get("specialization") or "").strip().lower()
+    vaccine = str(vaccine_label or "").strip().lower()
+    if not spec or not vaccine:
+        return 0
+    if vaccine in spec or spec in vaccine:
+        return 3
+    overlap = _specialization_tokens(spec) & _specialization_tokens(vaccine)
+    if overlap:
+        return 2
+    # Light family hints so common hospital labels still help.
+    families = (
+        ("pediatric", "paediatric", "child", "infant"),
+        ("mmr", "measles", "mumps", "rubella"),
+        ("influenza", "flu", "seasonal"),
+        ("hepatitis", "hepb", "hbv"),
+        ("covid", "mrna", "pfizer", "moderna", "spikevax"),
+        ("bcg", "tuberculosis", "tb"),
+        ("immunolog", "vaccin"),
+    )
+    for family in families:
+        if any(token in spec for token in family) and any(token in vaccine for token in family):
+            return 1
+    return 0
+
+
+def _pick_lightest_free(
+    pool,
+    planned,
+    workload,
+    date: str,
+    slot_start: int,
+    slot_end: int,
+    vaccine_label: Optional[str] = None,
+):
+    """Prefer specialization fit, then whoever has the fewest shifts this week and is free."""
     if not pool:
         return None
     ranked = sorted(pool, key=lambda person: str(person.get("staffName") or "").lower())
@@ -476,7 +676,13 @@ def _pick_lightest_free(pool, planned, workload, date: str, slot_start: int, slo
             free.append(person)
     if not free:
         return None
-    free.sort(key=lambda person: (workload.get(person["affiliationId"], 0), tie_break(person)))
+    free.sort(
+        key=lambda person: (
+            -_specialization_score(person, vaccine_label),
+            workload.get(person["affiliationId"], 0),
+            tie_break(person),
+        )
+    )
     return free[0]
 
 
@@ -503,6 +709,7 @@ def _pick_alternatives(
     slot_end: int,
     exclude_ids: Optional[set] = None,
     limit: int = 3,
+    vaccine_label: Optional[str] = None,
 ):
     exclude_ids = exclude_ids or set()
     ranked = sorted(pool, key=lambda person: str(person.get("staffName") or "").lower())
@@ -526,7 +733,13 @@ def _pick_alternatives(
         )
         if not busy:
             free.append(person)
-    free.sort(key=lambda person: (workload.get(person["affiliationId"], 0), tie_break(person)))
+    free.sort(
+        key=lambda person: (
+            -_specialization_score(person, vaccine_label),
+            workload.get(person["affiliationId"], 0),
+            tie_break(person),
+        )
+    )
     return free[:limit]
 
 
@@ -660,6 +873,12 @@ async def _prepare_roster_state(
         )
 
     appointments = await _load_hospital_appointments(token)
+    schedules = await _load_hospital_schedules(token)
+    sessions = (
+        _expand_schedule_sessions(schedules or [], clean_from, clean_to)
+        if schedules is not None
+        else []
+    )
     return {
         "success": True,
         "from": clean_from,
@@ -670,6 +889,8 @@ async def _prepare_roster_state(
         "booths": booths,
         "ordered_booths": _sorted_booths(booths),
         "appointments": appointments,
+        "schedules": schedules,
+        "sessions": sessions,
         "planned": planned,
         "workload": workload,
         "workloadBefore": _workload_summary(workload, staff),
@@ -687,17 +908,23 @@ def _discover_staffing_gaps(state: Dict[str, Any]) -> Tuple[List[str], List[Dict
     booths = state.get("booths")
     ordered_booths = state.get("ordered_booths") or []
     planned = state.get("planned") or []
+    sessions = state.get("sessions") or []
     clean_from = state["from"]
     clean_to = state["to"]
     today = state["today"]
     now_minutes = state["now_minutes"]
-    slots = state["slots"]
+    default_slots = state["slots"]
 
     if appointments is None:
         findings.append("Appointments could not be loaded, so no booths need to be opened.")
         return findings, openings, gaps
 
-    demand = _demand_groups(appointments, clean_from, clean_to)
+    if state.get("schedules") is None:
+        findings.append("Posted vaccine schedules could not be loaded; using morning/afternoon windows.")
+    elif sessions:
+        findings.append(f"Using {len(sessions)} posted vaccine schedule window(s) for staffing.")
+
+    demand = _demand_groups(appointments, clean_from, clean_to, sessions=sessions)
     cursor_day = datetime.fromisoformat(clean_from).date()
     end_day = datetime.fromisoformat(clean_to).date()
     while cursor_day <= end_day:
@@ -705,7 +932,19 @@ def _discover_staffing_gaps(state: Dict[str, Any]) -> Tuple[List[str], List[Dict
         cursor_day += timedelta(days=1)
         if date < today:
             continue
-        for slot_name, slot_start, slot_end in slots:
+
+        # Windows for this day: from demand keys + defaults if any fallback bookings exist.
+        day_windows: Dict[str, Tuple[int, int]] = {}
+        for (demand_date, slot_name), groups in demand.items():
+            if demand_date != date:
+                continue
+            for group in groups:
+                day_windows[slot_name] = (group.get("slotStart", 8 * 60), group.get("slotEnd", 12 * 60))
+        # Always keep classic half-days available when demand used them.
+        for slot_name, slot_start, slot_end in default_slots:
+            day_windows.setdefault(slot_name, (slot_start, slot_end))
+
+        for slot_name, (slot_start, slot_end) in day_windows.items():
             if date == today and slot_start <= now_minutes:
                 continue
             groups = demand.get((date, slot_name), [])
@@ -715,7 +954,13 @@ def _discover_staffing_gaps(state: Dict[str, Any]) -> Tuple[List[str], List[Dict
             booth_room = {}
             booth_vaccines: Dict[str, List[str]] = {}
             for group in groups:
-                placed, leftover = _place_vaccine_demand(ordered_booths, group, open_booths, booth_room)
+                placed, leftover = _place_vaccine_demand(
+                    ordered_booths,
+                    group,
+                    open_booths,
+                    booth_room,
+                    preferred_booth_id=group.get("preferredBoothId"),
+                )
                 label = group["label"]
                 for booth in placed:
                     key = str(_booth_id(booth) or id(booth))
@@ -724,7 +969,7 @@ def _discover_staffing_gaps(state: Dict[str, Any]) -> Tuple[List[str], List[Dict
                         names.append(label)
                 if not placed and leftover:
                     findings.append(
-                        f"{date} {slot_name.lower()}: {leftover} {label} bookings, no booth gives that vaccine."
+                        f"{date} {slot_name}: {leftover} {label} bookings, no booth gives that vaccine."
                     )
                     continue
                 openings.append(
@@ -738,7 +983,7 @@ def _discover_staffing_gaps(state: Dict[str, Any]) -> Tuple[List[str], List[Dict
                 )
                 if leftover:
                     findings.append(
-                        f"{date} {slot_name.lower()}: {leftover} {label} bookings do not fit. "
+                        f"{date} {slot_name}: {leftover} {label} bookings do not fit. "
                         "Add another booth for that vaccine."
                     )
             if not open_booths:
@@ -807,10 +1052,21 @@ def _assign_gap_proposals(
         pool = doctors if gap["role"] == "DOCTOR" else nurses
         slot_start = gap["slotStart"]
         slot_end = gap["slotEnd"]
-        chosen = _pick_lightest_free(pool, planned, workload, gap["date"], slot_start, slot_end)
+        vaccine_label = gap.get("vaccineName") or ""
+        chosen = _pick_lightest_free(
+            pool, planned, workload, gap["date"], slot_start, slot_end, vaccine_label
+        )
         if chosen and chosen["affiliationId"] in exclude:
             alts = _pick_alternatives(
-                pool, planned, workload, gap["date"], slot_start, slot_end, exclude, limit=4
+                pool,
+                planned,
+                workload,
+                gap["date"],
+                slot_start,
+                slot_end,
+                exclude,
+                limit=4,
+                vaccine_label=vaccine_label,
             )
             chosen = alts[0] if alts else None
         if chosen is None:
@@ -824,6 +1080,7 @@ def _assign_gap_proposals(
             slot_end,
             {chosen["affiliationId"], *exclude},
             limit=3,
+            vaccine_label=vaccine_label,
         )
         proposal = _make_gap_proposal(gap, chosen, alts)
         proposals.append(proposal)
@@ -841,27 +1098,39 @@ def _assign_gap_proposals(
     return proposals, planned, workload
 
 
+def _minutes_to_time(minutes: int) -> str:
+    minutes = max(0, min(24 * 60 - 1, int(minutes)))
+    return f"{minutes // 60:02d}:{minutes % 60:02d}:00"
+
+
 def _make_gap_proposal(gap: Dict[str, Any], chosen: Dict[str, Any], alternatives: List[Dict[str, Any]]) -> Dict[str, Any]:
     slot_name = gap["slot"]
     booth = gap.get("booth")
+    vaccine_label = gap.get("vaccineName") or ""
+    spec_score = _specialization_score(chosen, vaccine_label)
+    reason = gap.get("reason") or "Suggested by Staff Scheduling Agent"
+    if spec_score > 0 and chosen.get("specialization"):
+        reason = f"{reason} · specialization match ({chosen.get('specialization')})"
     return {
         "gapId": gap["gapId"],
         "affiliationId": chosen["affiliationId"],
         "staffName": chosen["staffName"],
         "staffRole": chosen["staffRole"],
+        "specialization": chosen.get("specialization") or "",
         "shiftDate": gap["date"],
-        "startTime": "08:00:00" if slot_name == "Morning" else "13:00:00",
-        "endTime": "12:00:00" if slot_name == "Morning" else "17:00:00",
+        "startTime": _minutes_to_time(gap["slotStart"]),
+        "endTime": _minutes_to_time(gap["slotEnd"]),
         "boothId": gap.get("boothId"),
         "boothOrStation": _station_label(booth, slot_name),
-        "vaccineName": gap.get("vaccineName") or "",
-        "notes": gap.get("vaccineName") or "Morning and afternoon clinic cover",
-        "reason": gap.get("reason") or "Suggested by Staff Scheduling Agent",
+        "vaccineName": vaccine_label,
+        "notes": vaccine_label or "Clinic coverage",
+        "reason": reason,
         "alternatives": [
             {
                 "affiliationId": alt["affiliationId"],
                 "staffName": alt["staffName"],
                 "staffRole": alt["staffRole"],
+                "specialization": alt.get("specialization") or "",
             }
             for alt in alternatives
         ],
@@ -1013,13 +1282,14 @@ def _append_gap_proposal(
         "affiliationId": chosen["affiliationId"],
         "staffName": chosen["staffName"],
         "staffRole": chosen["staffRole"],
+        "specialization": chosen.get("specialization") or "",
         "shiftDate": date,
-        "startTime": "08:00:00" if slot_name == "Morning" else "13:00:00",
-        "endTime": "12:00:00" if slot_name == "Morning" else "17:00:00",
+        "startTime": _minutes_to_time(slot_start),
+        "endTime": _minutes_to_time(slot_end),
         "boothId": booth_id,
         "boothOrStation": _station_label(booth, slot_name),
         "vaccineName": vaccine_name,
-        "notes": vaccine_name or "Morning and afternoon clinic cover",
+        "notes": vaccine_name or "Clinic coverage",
         "reason": reason,
         "alternatives": alts,
     }
