@@ -686,37 +686,6 @@ def _booth_has_role(planned, booth, date, slot_start, slot_end, role) -> bool:
     )
 
 
-def _specialization_tokens(text: str) -> set:
-    return {part for part in "".join(ch if ch.isalnum() else " " for ch in (text or "").lower()).split() if len(part) >= 3}
-
-
-def _specialization_score(person: Dict[str, Any], vaccine_label: Optional[str] = None) -> int:
-    """Higher = better fit for this vaccine. 0 when unknown or no match."""
-    spec = str(person.get("specialization") or "").strip().lower()
-    vaccine = str(vaccine_label or "").strip().lower()
-    if not spec or not vaccine:
-        return 0
-    if vaccine in spec or spec in vaccine:
-        return 3
-    overlap = _specialization_tokens(spec) & _specialization_tokens(vaccine)
-    if overlap:
-        return 2
-    # Light family hints so common hospital labels still help.
-    families = (
-        ("pediatric", "paediatric", "child", "infant"),
-        ("mmr", "measles", "mumps", "rubella"),
-        ("influenza", "flu", "seasonal"),
-        ("hepatitis", "hepb", "hbv"),
-        ("covid", "mrna", "pfizer", "moderna", "spikevax"),
-        ("bcg", "tuberculosis", "tb"),
-        ("immunolog", "vaccin"),
-    )
-    for family in families:
-        if any(token in spec for token in family) and any(token in vaccine for token in family):
-            return 1
-    return 0
-
-
 def _pick_lightest_free(
     pool,
     planned,
@@ -726,7 +695,8 @@ def _pick_lightest_free(
     slot_end: int,
     vaccine_label: Optional[str] = None,
 ):
-    """Prefer specialization fit, then whoever has the fewest shifts this week and is free."""
+    """Pick the free person with the lightest weekly load. Specialization is chosen by the LLM."""
+    del vaccine_label  # kept for call-site compatibility; matching is LLM-driven
     if not pool:
         return None
     ranked = sorted(pool, key=lambda person: str(person.get("staffName") or "").lower())
@@ -752,7 +722,6 @@ def _pick_lightest_free(
         return None
     free.sort(
         key=lambda person: (
-            -_specialization_score(person, vaccine_label),
             workload.get(person["affiliationId"], 0),
             tie_break(person),
         )
@@ -785,6 +754,7 @@ def _pick_alternatives(
     limit: int = 3,
     vaccine_label: Optional[str] = None,
 ):
+    del vaccine_label
     exclude_ids = exclude_ids or set()
     ranked = sorted(pool, key=lambda person: str(person.get("staffName") or "").lower())
     order = {person["affiliationId"]: index for index, person in enumerate(ranked)}
@@ -809,12 +779,43 @@ def _pick_alternatives(
             free.append(person)
     free.sort(
         key=lambda person: (
-            -_specialization_score(person, vaccine_label),
             workload.get(person["affiliationId"], 0),
             tie_break(person),
         )
     )
     return free[:limit]
+
+
+def _free_candidates_for_gap(
+    state: Dict[str, Any],
+    gap: Dict[str, Any],
+    limit: int = 6,
+) -> List[Dict[str, Any]]:
+    """Free roster people for a gap, with specialization text for the LLM to judge."""
+    pool = state.get("doctors") if gap.get("role") == "DOCTOR" else state.get("nurses")
+    pool = pool or []
+    planned = state.get("planned") or []
+    workload = state.get("workload") or {}
+    free = _pick_alternatives(
+        pool,
+        planned,
+        workload,
+        gap["date"],
+        gap["slotStart"],
+        gap["slotEnd"],
+        exclude_ids=set(),
+        limit=limit,
+    )
+    return [
+        {
+            "affiliationId": person["affiliationId"],
+            "staffName": person.get("staffName") or "",
+            "staffRole": person.get("staffRole") or "",
+            "specialization": person.get("specialization") or "",
+            "shiftCount": workload.get(person["affiliationId"], 0),
+        }
+        for person in free
+    ]
 
 
 def _gap_id(date: str, slot_name: str, booth_id: Optional[str], role: str) -> str:
@@ -1165,13 +1166,22 @@ def _assign_gap_proposals(
     gaps: List[Dict[str, Any]],
     exclude_affiliation_ids: Optional[List[str]] = None,
     gap_ids: Optional[List[str]] = None,
+    preferred_assignments: Optional[List[Dict[str, Any]]] = None,
 ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, int]]:
     exclude = {str(item) for item in (exclude_affiliation_ids or []) if item}
     allowed = {str(item) for item in (gap_ids or [])} if gap_ids else None
+    preferred_by_gap: Dict[str, str] = {}
+    for item in preferred_assignments or []:
+        gap_id = str(item.get("gap_id") or item.get("gapId") or "").strip()
+        affiliation_id = str(item.get("affiliation_id") or item.get("affiliationId") or "").strip()
+        if gap_id and affiliation_id:
+            preferred_by_gap[gap_id] = affiliation_id
+
     planned = [dict(item) for item in state.get("planned") or []]
     workload = dict(state.get("workload") or {})
     doctors = state.get("doctors") or []
     nurses = state.get("nurses") or []
+    staff_by_id = {str(s["affiliationId"]): s for s in (state.get("staff") or [])}
     proposals: List[Dict[str, Any]] = []
 
     for gap in gaps:
@@ -1181,9 +1191,29 @@ def _assign_gap_proposals(
         slot_start = gap["slotStart"]
         slot_end = gap["slotEnd"]
         vaccine_label = gap.get("vaccineName") or ""
-        chosen = _pick_lightest_free(
-            pool, planned, workload, gap["date"], slot_start, slot_end, vaccine_label
-        )
+        preferred_id = preferred_by_gap.get(str(gap["gapId"]))
+        chosen = None
+        ai_picked = False
+        if preferred_id and preferred_id not in exclude:
+            preferred_person = staff_by_id.get(preferred_id)
+            role_ok = preferred_person and any(
+                str(person.get("affiliationId")) == preferred_id for person in pool
+            )
+            if preferred_person and role_ok:
+                busy = any(
+                    str(item["affiliationId"]) == preferred_id
+                    and item["date"] == gap["date"]
+                    and slot_start < item["end"]
+                    and item["start"] < slot_end
+                    for item in planned
+                )
+                if not busy:
+                    chosen = preferred_person
+                    ai_picked = True
+        if chosen is None:
+            chosen = _pick_lightest_free(
+                pool, planned, workload, gap["date"], slot_start, slot_end, vaccine_label
+            )
         if chosen and chosen["affiliationId"] in exclude:
             alts = _pick_alternatives(
                 pool,
@@ -1197,6 +1227,7 @@ def _assign_gap_proposals(
                 vaccine_label=vaccine_label,
             )
             chosen = alts[0] if alts else None
+            ai_picked = False
         if chosen is None:
             continue
         alts = _pick_alternatives(
@@ -1210,7 +1241,7 @@ def _assign_gap_proposals(
             limit=3,
             vaccine_label=vaccine_label,
         )
-        proposal = _make_gap_proposal(gap, chosen, alts)
+        proposal = _make_gap_proposal(gap, chosen, alts, specialization_reason=ai_picked)
         proposals.append(proposal)
         workload[chosen["affiliationId"]] = workload.get(chosen["affiliationId"], 0) + 1
         planned.append(
@@ -1231,14 +1262,23 @@ def _minutes_to_time(minutes: int) -> str:
     return f"{minutes // 60:02d}:{minutes % 60:02d}:00"
 
 
-def _make_gap_proposal(gap: Dict[str, Any], chosen: Dict[str, Any], alternatives: List[Dict[str, Any]]) -> Dict[str, Any]:
+def _make_gap_proposal(
+    gap: Dict[str, Any],
+    chosen: Dict[str, Any],
+    alternatives: List[Dict[str, Any]],
+    specialization_reason: bool = False,
+) -> Dict[str, Any]:
     slot_name = gap["slot"]
     booth = gap.get("booth")
     vaccine_label = gap.get("vaccineName") or ""
-    spec_score = _specialization_score(chosen, vaccine_label)
     reason = gap.get("reason") or "Suggested by Staff Scheduling Agent"
-    if spec_score > 0 and chosen.get("specialization"):
-        reason = f"{reason} · specialization match ({chosen.get('specialization')})"
+    if specialization_reason and chosen.get("specialization"):
+        reason = (
+            f"{reason} · specialization fit for {vaccine_label or 'clinic'} "
+            f"({chosen.get('specialization')})"
+        )
+    elif specialization_reason:
+        reason = f"{reason} · chosen for vaccine/clinic fit"
     return {
         "gapId": gap["gapId"],
         "affiliationId": chosen["affiliationId"],
@@ -1308,6 +1348,7 @@ async def tool_analyze_staffing_needs(
                 "role": gap["role"],
                 "boothLabel": gap["boothLabel"],
                 "vaccineName": gap.get("vaccineName") or "",
+                "candidates": _free_candidates_for_gap(state, gap),
             }
             for gap in gaps
         ],
@@ -1315,7 +1356,8 @@ async def tool_analyze_staffing_needs(
         "workloadBefore": state["workloadBefore"],
         "message": (
             f"Found {len(gaps)} staffing gap(s) across {state['from']} to {state['to']}. "
-            "Call build_staffing_plan to propose fair assignments."
+            "Read each gap's vaccineName and candidates[].specialization, choose the best text fit, "
+            "then call build_staffing_plan with preferred_assignments."
         ),
     }
 
@@ -1325,9 +1367,10 @@ async def tool_build_staffing_plan(
     to_date: str,
     exclude_affiliation_ids: Optional[List[str]] = None,
     gap_ids: Optional[List[str]] = None,
+    preferred_assignments: Optional[List[Dict[str, Any]]] = None,
     token: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Assign the lightest free staff to each gap and validate the plan."""
+    """Assign staff to gaps (honoring LLM preferred_assignments when free) and validate."""
     state = await _prepare_roster_state(from_date, to_date, token)
     if not state.get("success"):
         return state
@@ -1338,6 +1381,7 @@ async def tool_build_staffing_plan(
         gaps,
         exclude_affiliation_ids=exclude_affiliation_ids,
         gap_ids=gap_ids,
+        preferred_assignments=preferred_assignments,
     )
     validation = _validate_proposals(proposals, state.get("staff") or [], planned)
     workload_after = _workload_summary(workload, state.get("staff") or [])
@@ -1498,8 +1542,9 @@ STAFF_TOOLS_SCHEMA = [
         "function": {
             "name": "analyze_staffing_needs",
             "description": (
-                "Step 1 for staffing. Reads booked appointments, booths, and existing shifts. "
-                "Returns staffing gaps and workloadBefore without assigning anyone."
+                "Step 1 for staffing. Reads bookings, posted schedules, booths, and shifts. "
+                "Returns gaps with vaccineName and free candidates (including specialization text). "
+                "Does not assign anyone."
             ),
             "parameters": {
                 "type": "object",
@@ -1516,8 +1561,9 @@ STAFF_TOOLS_SCHEMA = [
         "function": {
             "name": "build_staffing_plan",
             "description": (
-                "Step 2 for staffing. Assigns the lightest free nurse and doctor to each gap "
-                "with alternatives and validation. Does not save shifts."
+                "Step 2 for staffing. Assigns staff to gaps. Pass preferred_assignments after you "
+                "read vaccine vs specialization text and choose the best free candidate per gap. "
+                "Falls back to fairest free person when a preference is missing or busy. Does not save."
             ),
             "parameters": {
                 "type": "object",
@@ -1528,6 +1574,21 @@ STAFF_TOOLS_SCHEMA = [
                         "type": "array",
                         "items": {"type": "string"},
                         "description": "Optional staff to skip when building the plan",
+                    },
+                    "preferred_assignments": {
+                        "type": "array",
+                        "description": (
+                            "Your specialization picks: one {gap_id, affiliation_id} per gap "
+                            "after matching vaccineName to candidates[].specialization from text."
+                        ),
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "gap_id": {"type": "string"},
+                                "affiliation_id": {"type": "string"},
+                            },
+                            "required": ["gap_id", "affiliation_id"],
+                        },
                     },
                 },
                 "required": ["from_date", "to_date"],
