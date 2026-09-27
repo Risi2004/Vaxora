@@ -579,9 +579,9 @@ def _seed_posted_schedule_demand(
     sessions: List[Dict[str, Any]],
 ) -> int:
     """
-    Ensure every posted clinic window opens at least one booth worth of coverage,
-    even before patients have booked into it.
-    Returns how many schedule seeds were added or raised to baseline.
+    Ensure every hospital-posted vaccine routine (full start–end window) gets
+    booth coverage so staff can be scheduled for that entire clinic time —
+    even before patients book. Bookings only increase demand beyond this baseline.
     """
     seeded = 0
     for session in sessions or []:
@@ -619,9 +619,11 @@ def _seed_posted_schedule_demand(
             continue
         if existing.get("count", 0) < 1:
             existing["count"] = 1
+            existing["fromSchedule"] = True
             seeded += 1
         if session.get("boothId") and not existing.get("preferredBoothId"):
             existing["preferredBoothId"] = session.get("boothId")
+        # Always cover the hospital's declared full vaccine window.
         existing["slotStart"] = session["slotStart"]
         existing["slotEnd"] = session["slotEnd"]
     return seeded
@@ -1051,7 +1053,7 @@ def _discover_staffing_gaps(state: Dict[str, Any]) -> Tuple[List[str], List[Dict
     seeded = _seed_posted_schedule_demand(demand, sessions)
     if seeded:
         findings.append(
-            f"Opened coverage for {seeded} posted schedule window(s) even before bookings fill them."
+            f"Covering {seeded} hospital-posted vaccine routine(s) for their full declared clinic times."
         )
     cursor_day = datetime.fromisoformat(clean_from).date()
     end_day = datetime.fromisoformat(clean_to).date()
@@ -1107,12 +1109,12 @@ def _discover_staffing_gaps(state: Dict[str, Any]) -> Tuple[List[str], List[Dict
                         "count": group["count"],
                         "vaccine": label,
                         "booths": [_booth_label(booth) for booth in placed],
-                        "source": "schedule" if group.get("fromSchedule") and group["count"] <= 1 else "bookings",
+                        "source": "schedule" if group.get("fromSchedule") else "bookings",
                     }
                 )
                 if leftover:
                     findings.append(
-                        f"{date} {slot_name}: {leftover} {label} bookings do not fit. "
+                        f"{date} {slot_name}: {leftover} {label} patients do not fit booth capacity. "
                         "Add another booth for that vaccine."
                     )
             if not open_booths:

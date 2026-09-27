@@ -51,7 +51,7 @@ Staffing workflow (always follow this order):
 3. build_staffing_plan(from_date, to_date, preferred_assignments=[{gap_id, affiliation_id}, ...]) — pass your picks. The tool still enforces free/busy and fairness fallback.
 4. Summarize vaccine, booth, schedule window, who you picked and why (specialization in plain language), and tell them to press Approve or Decline.
 
-Posted schedules are staffed even when bookings are still empty (one booth baseline). Extra bookings above booth capacity open more booths.
+Posted vaccine routines from the hospital schedule define the full clinic window staff must cover (not patient 20-minute booking slices). Extra bookings above booth capacity open more booths.
 Avoid proposing anyone who already has an overlapping shift (including at another hospital).
 
 Other tools:
