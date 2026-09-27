@@ -3,6 +3,7 @@ import staffService from '../services/staffService';
 import StaffSchedulingAgentChat from './StaffSchedulingAgentChat';
 import { hospitalMinutesNow, hospitalToday } from '../utils/hospitalDate';
 import { IconCalendar, RoleAvatarIcon } from './HospitalIcons';
+import { IconBot } from '../../../shared/icons/AppIcons';
 
 function toDateInputValue(date = new Date()) {
   const y = date.getFullYear();
@@ -57,7 +58,7 @@ function formatShiftTime(shift) {
   return `${String(shift.startTime).slice(0, 5)} – ${String(shift.endTime).slice(0, 5)}`;
 }
 
-function validateShiftForm({ shiftDate, startTime, endTime }) {
+function validateShiftForm({ shiftDate, startTime, endTime }, { isEdit = false, originalDate = '', originalStart = '' } = {}) {
   const today = hospitalToday();
   if (shiftDate < today) {
     return 'Shifts cannot be scheduled on past dates.';
@@ -75,9 +76,17 @@ function validateShiftForm({ shiftDate, startTime, endTime }) {
   }
 
   if (shiftDate === today) {
-    const startMinutes = startH * 60 + startM;
-    if (startMinutes < hospitalMinutesNow()) {
-      return 'Shift start time cannot be in the past.';
+    const startUnchanged =
+      isEdit &&
+      originalDate === shiftDate &&
+      String(originalStart).slice(0, 5) === String(startTime).slice(0, 5);
+
+    // Editing an already-started today shift (booth/notes/end) must still be allowed.
+    if (!startUnchanged) {
+      const startMinutes = startH * 60 + startM;
+      if (startMinutes < hospitalMinutesNow()) {
+        return 'Shift start time cannot be in the past.';
+      }
     }
   }
 
@@ -116,6 +125,8 @@ export default function HospitalShiftsPanel() {
   const [coverage, setCoverage] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [editingShiftId, setEditingShiftId] = useState(null);
+  /** Original date/start of the shift being edited — allows saving booth/notes on an already-started today slot. */
+  const [editingOriginal, setEditingOriginal] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showAgentChat, setShowAgentChat] = useState(false);
@@ -251,19 +262,23 @@ export default function HospitalShiftsPanel() {
 
   const resetForm = (keepDate = true) => {
     setEditingShiftId(null);
+    setEditingOriginal(null);
     setStaffQuery('');
     setStaffMenuOpen(false);
     setForm((prev) => ({ ...emptyForm, shiftDate: keepDate ? prev.shiftDate : emptyForm.shiftDate }));
   };
 
   const beginEdit = (shift) => {
+    const date = String(shift.shiftDate).slice(0, 10);
+    const startTime = String(shift.startTime).slice(0, 5);
     setEditingShiftId(shift.shiftId);
+    setEditingOriginal({ date, startTime });
     setStaffQuery(`${shift.staffName || 'Staff'} · ${shift.staffRole === 'DOCTOR' ? 'Doctor' : 'Nurse'}`);
     setStaffMenuOpen(false);
     setForm({
       affiliationId: shift.affiliationId,
-      shiftDate: String(shift.shiftDate).slice(0, 10),
-      startTime: String(shift.startTime).slice(0, 5),
+      shiftDate: date,
+      startTime,
       endTime: String(shift.endTime).slice(0, 5),
       boothId: shift.boothId || '',
       notes: shift.notes || '',
@@ -278,7 +293,11 @@ export default function HospitalShiftsPanel() {
       return;
     }
 
-    const formError = validateShiftForm(form);
+    const formError = validateShiftForm(form, {
+      isEdit: Boolean(editingShiftId),
+      originalDate: editingOriginal?.date || '',
+      originalStart: editingOriginal?.startTime || '',
+    });
     if (formError) {
       setError(formError);
       return;
@@ -347,7 +366,7 @@ export default function HospitalShiftsPanel() {
     <div>
       {toast && (
         <div className="appointment-alert-pill" role="status" style={{ marginBottom: '16px' }}>
-          ✓ {toast}
+          {toast}
         </div>
       )}
       {error && (
@@ -409,7 +428,7 @@ export default function HospitalShiftsPanel() {
               e.currentTarget.style.transform = 'translateY(0)';
             }}
           >
-            <span style={{ fontSize: '18px' }}>🤖</span>
+            <IconBot size={18} />
             <span>Open Scheduling Agent</span>
             <span
               style={{
@@ -512,7 +531,7 @@ export default function HospitalShiftsPanel() {
           </button>
         </div>
 
-        <div className="hospital-metrics-grid" style={{ marginBottom: '16px' }}>
+        <div className="hospital-metrics-grid hospital-metrics-grid--4" style={{ marginBottom: '16px' }}>
           <div className="hospital-stat-card">
             <div className="hospital-stat-info">
               <span className="hospital-stat-label">Active Doctors</span>
@@ -695,7 +714,7 @@ export default function HospitalShiftsPanel() {
             />
           </div>
 
-          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
             <button type="submit" className="btn-hospital-primary" disabled={saving || staffOptions.length === 0}>
               {saving ? 'Saving...' : editingShiftId ? 'Save Changes' : 'Create Shift'}
             </button>
@@ -705,6 +724,11 @@ export default function HospitalShiftsPanel() {
               </button>
             )}
           </div>
+          {error && (
+            <p role="alert" style={{ margin: 0, color: '#b91c1c', fontSize: '0.85rem' }}>
+              {error}
+            </p>
+          )}
 
           {staffOptions.length === 0 && !loading && (
             <p style={{ color: '#64748b', margin: 0 }}>

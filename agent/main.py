@@ -51,6 +51,9 @@ class ChatRequest(BaseModel):
     messages: List[Dict[str, Any]]
     patientInfo: Optional[Dict[str, Any]] = None
     targetAgent: Optional[str] = None  # e.g. "BookingAgent" | "RestockAgent" | "ExpiryAgent" | "StaffSchedulingAgent"
+    # Set by the ASP.NET gateway from the caller's role. None means "no restriction",
+    # which only happens for direct internal calls that bypass the gateway.
+    allowedAgents: Optional[List[str]] = None
 
 
 class PatientCarePlanRequest(BaseModel):
@@ -153,6 +156,12 @@ async def chat_endpoint(
 
     user_id = _extract_user_id_from_token(token)
 
+    allowed = req.allowedAgents
+
+    if req.targetAgent and allowed is not None and req.targetAgent not in allowed:
+        logger.warning("Rejected %s: caller is not permitted to use it.", req.targetAgent)
+        raise HTTPException(status_code=403, detail="You are not allowed to use that agent.")
+
     try:
         if req.targetAgent and req.targetAgent in orchestrator.agents:
             agent = orchestrator.agents[req.targetAgent]
@@ -169,6 +178,7 @@ async def chat_endpoint(
                 token=token,
                 patient_info=req.patientInfo,
                 user_id=user_id,
+                allowed_agents=allowed,
             )
         return result
     except Exception as e:

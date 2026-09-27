@@ -75,8 +75,21 @@ class MultiAgentOrchestrator:
         self.agents[agent_instance.name] = agent_instance
         logger.info(f"Registered agent: {agent_instance.name}")
 
-    async def route_intent(self, messages: List[Dict[str, Any]]) -> str:
-        """Determines which specialized agent should handle the incoming conversation."""
+    async def route_intent(
+        self,
+        messages: List[Dict[str, Any]],
+        allowed_agents: Optional[List[str]] = None,
+    ) -> str:
+        """
+        Determines which specialized agent should handle the incoming conversation.
+
+        `allowed_agents` comes from the ASP.NET gateway and reflects the caller's role.
+        Keyword matches for agents outside that list are ignored, so a non-hospital
+        user cannot reach the staff roster agent by wording their message a certain way.
+        """
+        def permitted(name: str) -> bool:
+            return allowed_agents is None or name in allowed_agents
+
         if not messages:
             return "BookingAgent"
 
@@ -93,7 +106,7 @@ class MultiAgentOrchestrator:
             "expired batch", "wastage", "dispose", "disposal",
             "near expiry", "expiration",
         ]
-        if any(kw in msg_lower for kw in inventory_expiry_keywords):
+        if any(kw in msg_lower for kw in inventory_expiry_keywords) and permitted("ExpiryAgent"):
             return "ExpiryAgent"
 
         inventory_restock_keywords = [
@@ -101,7 +114,7 @@ class MultiAgentOrchestrator:
             "purchase order", "restock order", "what should we order",
             "need to order", "stock level",
         ]
-        if any(kw in msg_lower for kw in inventory_restock_keywords):
+        if any(kw in msg_lower for kw in inventory_restock_keywords) and permitted("RestockAgent"):
             return "RestockAgent"
 
         # === STAFF ROUTING ===
@@ -110,10 +123,11 @@ class MultiAgentOrchestrator:
             "shift", "roster", "coverage", "schedule staff",
             "assign nurse", "assign doctor", "on duty", "duty",
         ]
-        if any(kw in msg_lower for kw in staff_keywords) and STAFF_AGENT_AVAILABLE:
-            return "StaffSchedulingAgent"
-        if any(kw in msg_lower for kw in ["staff", "doctor", "nurse"]) and STAFF_AGENT_AVAILABLE:
-            return "StaffSchedulingAgent"
+        if STAFF_AGENT_AVAILABLE and permitted("StaffSchedulingAgent"):
+            if any(kw in msg_lower for kw in staff_keywords):
+                return "StaffSchedulingAgent"
+            if any(kw in msg_lower for kw in ["staff", "doctor", "nurse"]):
+                return "StaffSchedulingAgent"
 
         # === BOOKING ROUTING ===
         booking_keywords = [
@@ -136,7 +150,7 @@ class MultiAgentOrchestrator:
             )
             content = res.choices[0].message.content or ""
             for agent_name in ("RestockAgent", "ExpiryAgent", "StaffSchedulingAgent", "BookingAgent"):
-                if agent_name in content:
+                if agent_name in content and permitted(agent_name):
                     return agent_name
         except Exception as e:
             logger.warning(f"Orchestrator routing fallback to BookingAgent: {e}")
@@ -149,11 +163,12 @@ class MultiAgentOrchestrator:
         token: Optional[str] = None,
         patient_info: Optional[Dict[str, Any]] = None,
         user_id: Optional[str] = None,
+        allowed_agents: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """
         Orchestrates request: routes to the target agent and returns the agent's output.
         """
-        target_agent_name = await self.route_intent(messages)
+        target_agent_name = await self.route_intent(messages, allowed_agents=allowed_agents)
         target_agent = self.agents.get(target_agent_name, booking_agent)
 
         logger.info(f"Orchestrator routed request to: {target_agent.name}")

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AddStaffRequestModal from './AddStaffRequestModal';
 import HospitalShiftsPanel from './HospitalShiftsPanel';
 import staffService from '../services/staffService';
@@ -11,21 +11,10 @@ import {
   RoleAvatarIcon,
 } from './HospitalIcons';
 
-const dutyLabel = {
-  Off: 'Off',
-  OnDuty: 'On Duty',
-  OnBreak: 'On Break',
-};
-
-const nextDutyStatus = {
-  Off: 'OnDuty',
-  OnDuty: 'OnBreak',
-  OnBreak: 'Off',
-};
-
 function mapAffiliationToCard(item) {
   const isPending = item.status === 'Pending';
   const roleLabel = item.staffRole === 'DOCTOR' ? 'Doctor' : 'Nurse';
+  const liveDuty = item.isOnDutyNow ? 'On duty' : 'Off duty';
 
   return {
     id: item.affiliationId,
@@ -36,8 +25,8 @@ function mapAffiliationToCard(item) {
     email: item.email || '—',
     phone: item.phoneNumber || '—',
     affiliationStatus: item.status,
-    dutyStatus: item.dutyStatus,
-    status: isPending ? 'Pending Request' : dutyLabel[item.dutyStatus] || item.dutyStatus,
+    isOnDutyNow: Boolean(item.isOnDutyNow),
+    status: isPending ? 'Pending Request' : liveDuty,
     photoUrl: item.staffProfilePhotoUrl || null,
     invitedAt: item.invitedAt,
   };
@@ -55,10 +44,15 @@ export default function HospitalStaffTab() {
   const [staffList, setStaffList] = useState([]);
   const [actionId, setActionId] = useState(null);
 
+  const toastTimerRef = useRef(null);
+
   const showToast = (message) => {
     setNotification(message);
-    setTimeout(() => setNotification(''), 4000);
+    clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => setNotification(''), 4000);
   };
+
+  useEffect(() => () => clearTimeout(toastTimerRef.current), []);
 
   const loadStaff = useCallback(async () => {
     setLoading(true);
@@ -118,21 +112,6 @@ export default function HospitalStaffTab() {
     }
   };
 
-  const handleCycleDuty = async (staff) => {
-    if (staff.affiliationStatus !== 'Active') return;
-    const next = nextDutyStatus[staff.dutyStatus] || 'Off';
-    setActionId(staff.id);
-    try {
-      await staffService.updateDutyStatus(staff.id, next);
-      showToast(`Duty status updated to ${dutyLabel[next] || next}.`);
-      await loadStaff();
-    } catch (err) {
-      setError(err.message || 'Failed to update duty status.');
-    } finally {
-      setActionId(null);
-    }
-  };
-
   const filteredStaff = useMemo(() => {
     return staffList.filter((staff) => {
       const haystack = `${staff.name} ${staff.vaxoraId} ${staff.specialty} ${staff.email}`.toLowerCase();
@@ -159,7 +138,7 @@ export default function HospitalStaffTab() {
           role="alert"
           style={{ maxWidth: '1400px', width: '100%', marginBottom: '20px' }}
         >
-          ✓ {notification}
+          {notification}
         </div>
       )}
 
@@ -244,7 +223,7 @@ export default function HospitalStaffTab() {
         </button>
       </div>
 
-      <div className="hospital-metrics-grid" style={{ marginBottom: '24px' }}>
+      <div className="hospital-metrics-grid hospital-metrics-grid--4" style={{ marginBottom: '24px' }}>
         <div className="hospital-stat-card">
           <div className="hospital-stat-icon stat-icon-blue">
             <IconUsers size={22} />
@@ -423,7 +402,7 @@ export default function HospitalStaffTab() {
                       width: '6px',
                       height: '6px',
                       background:
-                        staff.status === 'On Duty'
+                        staff.status === 'On duty'
                           ? '#22c55e'
                           : staff.affiliationStatus === 'Pending'
                             ? '#f59e0b'
@@ -433,7 +412,7 @@ export default function HospitalStaffTab() {
                   <span
                     style={{
                       color:
-                        staff.status === 'On Duty'
+                        staff.status === 'On duty'
                           ? '#15803d'
                           : staff.affiliationStatus === 'Pending'
                             ? '#b45309'
@@ -493,40 +472,21 @@ export default function HospitalStaffTab() {
                     {actionId === staff.id ? 'Cancelling...' : 'Cancel Request'}
                   </button>
                 ) : (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => handleCycleDuty(staff)}
-                      disabled={actionId === staff.id}
-                      style={{
-                        background: '#eff6ff',
-                        border: '1px solid #bfdbfe',
-                        color: '#1d4ed8',
-                        fontWeight: 600,
-                        fontSize: '0.78rem',
-                        cursor: 'pointer',
-                        borderRadius: '6px',
-                        padding: '4px 10px',
-                      }}
-                    >
-                      {actionId === staff.id ? 'Updating...' : 'Cycle Duty'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveStaff(staff.id)}
-                      disabled={actionId === staff.id}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: '#dc2626',
-                        fontWeight: 600,
-                        fontSize: '0.78rem',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Remove
-                    </button>
-                  </>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveStaff(staff.id)}
+                    disabled={actionId === staff.id}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#dc2626',
+                      fontWeight: 600,
+                      fontSize: '0.78rem',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {actionId === staff.id ? 'Removing...' : 'Remove'}
+                  </button>
                 )}
               </div>
             </div>

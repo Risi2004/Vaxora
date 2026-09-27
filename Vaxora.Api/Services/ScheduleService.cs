@@ -65,15 +65,37 @@ public class ScheduleService : IScheduleService
             ? string.Join(",", dto.DaysOfWeek.Select(d => d.Trim()))
             : null;
 
+        var booth = await _context.HospitalBooths
+            .AsNoTracking()
+            .Include(b => b.Vaccines)
+            .FirstOrDefaultAsync(b =>
+                b.Id == dto.BoothId &&
+                b.HospitalUserId == hospitalUserId &&
+                b.IsActive);
+
+        if (booth == null)
+        {
+            throw new ArgumentException("Select an active booth that belongs to this hospital.");
+        }
+
+        if (dto.VaccineId.HasValue &&
+            booth.Vaccines.Count > 0 &&
+            !booth.Vaccines.Any(v => v.VaccineId == dto.VaccineId.Value))
+        {
+            throw new ArgumentException($"Booth {booth.DisplayLabel} is not configured for this vaccine.");
+        }
+
         var schedule = new VaccineSchedule
         {
             Id = Guid.NewGuid(),
             HospitalUserId = hospitalUserId,
             HospitalProfileId = hospital.HospitalProfile?.Id,
             DoctorUserId = dto.DoctorUserId,
-            DoctorName = dto.DoctorName.Trim(),
+            DoctorName = (dto.DoctorName ?? string.Empty).Trim(),
             NurseUserId = dto.NurseUserId,
-            NurseName = dto.NurseName.Trim(),
+            NurseName = (dto.NurseName ?? string.Empty).Trim(),
+            BoothId = booth.Id,
+            BoothLabel = booth.DisplayLabel,
             VaccineId = dto.VaccineId,
             VaccineName = dto.VaccineName.Trim(),
             ScheduleType = isWeekly ? "Weekly" : "OneTime",
@@ -192,6 +214,8 @@ public class ScheduleService : IScheduleService
             DoctorName = s.DoctorName,
             NurseUserId = s.NurseUserId,
             NurseName = s.NurseName,
+            BoothId = s.BoothId,
+            BoothLabel = s.BoothLabel,
             VaccineId = s.VaccineId,
             VaccineName = s.VaccineName,
             ScheduleType = s.ScheduleType,

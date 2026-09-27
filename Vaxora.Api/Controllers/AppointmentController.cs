@@ -246,26 +246,34 @@ public class AppointmentsController : ControllerBase
     }
 
     /// <summary>
-    /// Update status of an appointment (e.g. Accept/Decline by Hospital).
+    /// Update status of an appointment (hospital owner, or affiliated doctor/nurse).
     /// </summary>
     [HttpPatch("{id}/status")]
     [Authorize]
     public async Task<IActionResult> UpdateStatus(Guid id, [FromBody] UpdateAppointmentStatusDto dto)
     {
         var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (!Guid.TryParse(userIdStr, out var hospitalUserId))
+        if (!Guid.TryParse(userIdStr, out var actorUserId))
         {
             return Unauthorized(new { message = "Invalid user token." });
         }
 
         try
         {
-            var updated = await _appointmentService.UpdateAppointmentStatusAsync(hospitalUserId, id, dto);
+            var updated = await _appointmentService.UpdateAppointmentStatusAsync(actorUserId, id, dto);
             return Ok(updated);
         }
         catch (KeyNotFoundException ex)
         {
             return NotFound(new { message = ex.Message });
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
         }
         catch (Exception ex)
         {

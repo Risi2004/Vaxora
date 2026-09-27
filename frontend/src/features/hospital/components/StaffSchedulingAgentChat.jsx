@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import agentService from '../../patient/services/agentService';
 import staffService from '../services/staffService';
+import { IconBot, IconClose } from '../../../shared/icons/AppIcons';
 
 function speakDate(iso) {
   const [year, month, day] = String(iso || '').slice(0, 10).split('-').map(Number);
@@ -449,6 +450,8 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, initialPr
     setApprovingId('batch');
     const approvedIds = new Set();
     const failed = [];
+    // Created one at a time on purpose: the API checks for overlapping shifts per
+    // request, so concurrent creates could both pass the check and double-book staff.
     for (const proposal of pending) {
       try {
         await staffService.createShift(shiftPayload(proposal));
@@ -634,10 +637,9 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, initialPr
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: '20px',
             }}
           >
-            🤖
+            <IconBot size={20} />
           </div>
           <div>
             <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>Vaxora Staff Scheduling Agent</h3>
@@ -699,8 +701,9 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, initialPr
               onMouseLeave={(e) => {
                 e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';
               }}
+              aria-label="Close scheduling agent"
             >
-              ✕
+              <IconClose size={16} />
             </button>
           )}
         </div>
@@ -1138,7 +1141,6 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, initialPr
           }}
         >
           <span>Send</span>
-          <span>🚀</span>
         </button>
       </div>
     </div>

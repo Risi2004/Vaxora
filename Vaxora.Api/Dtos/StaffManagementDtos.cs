@@ -139,8 +139,11 @@ public class StaffAffiliationDto
     public string? PhoneNumber { get; set; }
     public string? Email { get; set; }
     public string Status { get; set; } = string.Empty;
+    /// <summary>Legacy sticky flag. Prefer <see cref="IsOnDutyNow"/> for live presence.</summary>
     public string DutyStatus { get; set; } = string.Empty;
     public DateTime? DutyUpdatedAt { get; set; }
+    /// <summary>True when this affiliation has a shift covering hospital-local now.</summary>
+    public bool IsOnDutyNow { get; set; }
     public DateTime InvitedAt { get; set; }
     public DateTime? RespondedAt { get; set; }
 }
@@ -181,7 +184,7 @@ public class StaffCoverageReportDto
     public int ActiveDoctors { get; set; }
     public int ActiveNurses { get; set; }
 
-    /// <summary>Live snapshot of staff currently marked OnDuty — not tied to any single day.</summary>
+    /// <summary>Staff with a shift covering hospital-local now at this hospital.</summary>
     public int CurrentlyOnDutyStaff { get; set; }
 
     public int DaysWithLowCoverage { get; set; }

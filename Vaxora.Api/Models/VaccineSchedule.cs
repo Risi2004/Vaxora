@@ -25,6 +25,11 @@ public class VaccineSchedule
     [MaxLength(200)]
     public string NurseName { get; set; } = string.Empty;
 
+    public Guid? BoothId { get; set; }
+
+    [MaxLength(120)]
+    public string? BoothLabel { get; set; }
+
     public Guid? VaccineId { get; set; }
 
     [Required]
@@ -68,6 +73,9 @@ public class VaccineSchedule
 
     [ForeignKey(nameof(NurseUserId))]
     public User? NurseUser { get; set; }
+
+    [ForeignKey(nameof(BoothId))]
+    public HospitalBooth? Booth { get; set; }
 
     [ForeignKey(nameof(VaccineId))]
     public Vaccine? Vaccine { get; set; }

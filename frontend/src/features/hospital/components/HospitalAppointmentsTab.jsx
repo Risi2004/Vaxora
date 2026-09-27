@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { staffService } from '../services/staffService';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { inventoryService } from '../services/inventoryService';
 import { scheduleService } from '../services/scheduleService';
+import { staffService } from '../services/staffService';
 import { appointmentService } from '../../patient/services/appointmentService';
 
 const DAYS_OF_WEEK = [
@@ -15,9 +15,8 @@ const DAYS_OF_WEEK = [
 ];
 
 export default function HospitalAppointmentsTab() {
-  const [doctors, setDoctors] = useState([]);
-  const [nurses, setNurses] = useState([]);
   const [vaccines, setVaccines] = useState([]);
+  const [booths, setBooths] = useState([]);
   const [schedules, setSchedules] = useState([]);
   const [loadingOptions, setLoadingOptions] = useState(true);
   const [loadingSchedules, setLoadingSchedules] = useState(true);
@@ -32,9 +31,8 @@ export default function HospitalAppointmentsTab() {
   // 1. Create a new schedule form state
   const [scheduleForm, setScheduleForm] = useState({
     scheduleType: 'OneTime', // 'OneTime' | 'Weekly'
-    doctor: '',
-    nurse: '',
     vaccineType: '',
+    boothId: '',
     specificDate: todayStr,
     daysOfWeek: ['Monday', 'Wednesday', 'Friday'],
     startDate: todayStr,
@@ -56,55 +54,24 @@ export default function HospitalAppointmentsTab() {
     setTimeout(() => setNotification(''), 3500);
   };
 
-  // Fetch hospital staff (doctors and nurses) & formulary vaccines from database
+  // Fetch formulary vaccines and active booths
   const loadOptions = useCallback(async () => {
     try {
       setLoadingOptions(true);
-      const [staffData, formularyData, globalVaccinesData] = await Promise.allSettled([
-        staffService.getHospitalStaff({ status: 'All' }),
+      const [formularyData, globalVaccinesData, boothData] = await Promise.allSettled([
         inventoryService.getFormulary(),
         inventoryService.getGlobalVaccines(),
+        staffService.getHospitalBooths({ activeOnly: true }),
       ]);
 
-      // Process Database Staff (Doctors & Nurses)
-      if (staffData.status === 'fulfilled' && Array.isArray(staffData.value)) {
-        const staffList = staffData.value;
-        const docs = staffList.filter(
-          (s) => String(s.staffRole).toUpperCase() === 'DOCTOR' || s.role === 'DOCTOR'
-        );
-        const nrs = staffList.filter(
-          (s) => String(s.staffRole).toUpperCase() === 'NURSE' || s.role === 'NURSE'
-        );
-
-        setDoctors(
-          docs.map((d) => ({
-            id: d.staffUserId || d.id,
-            name: d.staffName || d.fullName || `Dr. ${d.registrationNumber}`,
-            specialization: d.specialization || 'Physician',
-            registrationNumber: d.registrationNumber,
-          }))
-        );
-
-        setNurses(
-          nrs.map((n) => ({
-            id: n.staffUserId || n.id,
-            name: n.staffName || n.fullName || `Nurse ${n.registrationNumber}`,
-            registrationNumber: n.registrationNumber,
-          }))
-        );
-      } else {
-        setDoctors([]);
-        setNurses([]);
-      }
-
-      // Process Database Vaccines (Hospital Formulary or Global Catalog)
       const vaccineMap = new Map();
       if (formularyData.status === 'fulfilled' && Array.isArray(formularyData.value) && formularyData.value.length > 0) {
         formularyData.value.forEach((f) => {
           const vName = (f.vaccineName || f.name || '').trim();
+          const vId = f.vaccineId || f.VaccineId || f.id;
           if (vName && !vaccineMap.has(vName.toLowerCase())) {
             vaccineMap.set(vName.toLowerCase(), {
-              id: f.id || f.vaccineId,
+              id: vId,
               name: vName,
               manufacturer: f.manufacturer || '',
             });
@@ -124,6 +91,11 @@ export default function HospitalAppointmentsTab() {
       }
 
       setVaccines(Array.from(vaccineMap.values()));
+      setBooths(
+        boothData.status === 'fulfilled' && Array.isArray(boothData.value)
+          ? boothData.value.filter((b) => b.isActive !== false)
+          : []
+      );
     } catch (err) {
       console.error('Failed to load appointment schedule options:', err);
     } finally {
@@ -168,9 +140,57 @@ export default function HospitalAppointmentsTab() {
     loadHospitalAppointments();
   }, [loadOptions, loadSchedules, loadHospitalAppointments]);
 
+  const selectedVaccine = useMemo(
+    () => vaccines.find((v) => v.name === scheduleForm.vaccineType) || null,
+    [vaccines, scheduleForm.vaccineType]
+  );
+
+  const matchingBooths = useMemo(() => {
+    if (!selectedVaccine) return [];
+    const vaccineId = selectedVaccine.id ? String(selectedVaccine.id) : '';
+    const vaccineName = (selectedVaccine.name || '').toLowerCase();
+
+    const matched = booths.filter((b) => {
+      const ids = Array.isArray(b.vaccineIds) ? b.vaccineIds.map(String) : [];
+      const names = Array.isArray(b.vaccineNames)
+        ? b.vaccineNames.map((n) => String(n).toLowerCase())
+        : [];
+      if (ids.length === 0 && names.length === 0) return false;
+      if (vaccineId && ids.includes(vaccineId)) return true;
+      return names.includes(vaccineName);
+    });
+
+    // If no booth is tagged for this vaccine yet, fall back to all active booths
+    return matched.length > 0 ? matched : booths;
+  }, [booths, selectedVaccine]);
+
+  useEffect(() => {
+    if (!scheduleForm.vaccineType) {
+      if (scheduleForm.boothId) {
+        setScheduleForm((prev) => ({ ...prev, boothId: '' }));
+      }
+      return;
+    }
+
+    const stillValid = matchingBooths.some(
+      (b) => String(b.boothId || b.id) === String(scheduleForm.boothId)
+    );
+    if (stillValid) return;
+
+    const autoId =
+      matchingBooths.length === 1
+        ? String(matchingBooths[0].boothId || matchingBooths[0].id)
+        : '';
+    setScheduleForm((prev) => ({ ...prev, boothId: autoId }));
+  }, [scheduleForm.vaccineType, scheduleForm.boothId, matchingBooths]);
+
   const handleScheduleChange = (e) => {
     const { name, value } = e.target;
-    setScheduleForm((prev) => ({ ...prev, [name]: value }));
+    setScheduleForm((prev) => ({
+      ...prev,
+      [name]: value,
+      ...(name === 'vaccineType' ? { boothId: '' } : {}),
+    }));
   };
 
   const handleToggleDay = (dayKey) => {
@@ -201,16 +221,12 @@ export default function HospitalAppointmentsTab() {
   const handleAddSchedule = async (e) => {
     e.preventDefault();
 
-    if (!scheduleForm.doctor) {
-      alert('Please select a Doctor for this schedule.');
-      return;
-    }
-    if (!scheduleForm.nurse) {
-      alert('Please select a Nurse for this schedule.');
-      return;
-    }
     if (!scheduleForm.vaccineType) {
       alert('Please select a Vaccine Type.');
+      return;
+    }
+    if (!scheduleForm.boothId) {
+      alert('Please select a Booth for this schedule.');
       return;
     }
     if (!scheduleForm.startTime || !scheduleForm.endTime) {
@@ -246,16 +262,14 @@ export default function HospitalAppointmentsTab() {
       return;
     }
 
-    // Resolve IDs
-    const selectedDoc = doctors.find((d) => d.name === scheduleForm.doctor);
-    const selectedNurse = nurses.find((n) => n.name === scheduleForm.nurse);
     const selectedVac = vaccines.find((v) => v.name === scheduleForm.vaccineType);
 
     const payload = {
-      doctorUserId: selectedDoc?.id || null,
-      doctorName: scheduleForm.doctor,
-      nurseUserId: selectedNurse?.id || null,
-      nurseName: scheduleForm.nurse,
+      doctorUserId: null,
+      doctorName: '',
+      nurseUserId: null,
+      nurseName: '',
+      boothId: scheduleForm.boothId,
       vaccineId: selectedVac?.id || null,
       vaccineName: scheduleForm.vaccineType,
       scheduleType: scheduleForm.scheduleType,
@@ -276,9 +290,8 @@ export default function HospitalAppointmentsTab() {
       // Reset form
       setScheduleForm({
         scheduleType: 'OneTime',
-        doctor: '',
-        nurse: '',
         vaccineType: '',
+        boothId: '',
         specificDate: todayStr,
         daysOfWeek: ['Monday', 'Wednesday', 'Friday'],
         startDate: todayStr,
@@ -436,56 +449,6 @@ export default function HospitalAppointmentsTab() {
             )}
 
             <div className="schedule-inputs-row">
-              {/* Doctor Dropdown */}
-              <div className="schedule-input-group">
-                <label className="schedule-input-label">Doctor</label>
-                <select
-                  name="doctor"
-                  value={scheduleForm.doctor}
-                  onChange={handleScheduleChange}
-                  className="schedule-input-field schedule-select-field"
-                  required
-                >
-                  <option value="">
-                    {loadingOptions
-                      ? 'Loading doctors...'
-                      : doctors.length === 0
-                      ? '-- No affiliated doctors found --'
-                      : '-- Select Doctor --'}
-                  </option>
-                  {doctors.map((doc) => (
-                    <option key={doc.id} value={doc.name}>
-                      {doc.name} {doc.specialization ? `(${doc.specialization})` : ''}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Nurse Dropdown */}
-              <div className="schedule-input-group">
-                <label className="schedule-input-label">Nurse</label>
-                <select
-                  name="nurse"
-                  value={scheduleForm.nurse}
-                  onChange={handleScheduleChange}
-                  className="schedule-input-field schedule-select-field"
-                  required
-                >
-                  <option value="">
-                    {loadingOptions
-                      ? 'Loading nurses...'
-                      : nurses.length === 0
-                      ? '-- No affiliated nurses found --'
-                      : '-- Select Nurse --'}
-                  </option>
-                  {nurses.map((nurse) => (
-                    <option key={nurse.id} value={nurse.name}>
-                      {nurse.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
               {/* Vaccine Type Dropdown */}
               <div className="schedule-input-group">
                 <label className="schedule-input-label">Vaccine Type</label>
@@ -508,6 +471,37 @@ export default function HospitalAppointmentsTab() {
                       {v.name} {v.manufacturer ? `(${v.manufacturer})` : ''}
                     </option>
                   ))}
+                </select>
+              </div>
+
+              {/* Booth Dropdown — filtered to booths that offer the selected vaccine */}
+              <div className="schedule-input-group">
+                <label className="schedule-input-label">Booth</label>
+                <select
+                  name="boothId"
+                  value={scheduleForm.boothId}
+                  onChange={handleScheduleChange}
+                  className="schedule-input-field schedule-select-field"
+                  required
+                  disabled={!scheduleForm.vaccineType}
+                >
+                  <option value="">
+                    {!scheduleForm.vaccineType
+                      ? '-- Select vaccine first --'
+                      : loadingOptions
+                      ? 'Loading booths...'
+                      : matchingBooths.length === 0
+                      ? '-- No active booths found --'
+                      : '-- Select Booth --'}
+                  </option>
+                  {matchingBooths.map((b) => {
+                    const id = b.boothId || b.id;
+                    return (
+                      <option key={id} value={id}>
+                        {b.displayLabel || `${b.code} · ${b.name}`}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
 
@@ -607,10 +601,12 @@ export default function HospitalAppointmentsTab() {
               <button
                 type="submit"
                 className="btn-add-schedule"
-                disabled={submitting || doctors.length === 0 || nurses.length === 0 || vaccines.length === 0}
+                disabled={submitting || vaccines.length === 0 || booths.length === 0}
                 title={
-                  doctors.length === 0 || nurses.length === 0 || vaccines.length === 0
-                    ? 'Please ensure doctors, nurses, and vaccines are registered in your hospital'
+                  vaccines.length === 0
+                    ? 'Please ensure vaccines are registered in your hospital formulary'
+                    : booths.length === 0
+                    ? 'Please configure at least one active booth under Booths'
                     : 'Save schedule slot to database'
                 }
               >
@@ -641,34 +637,32 @@ export default function HospitalAppointmentsTab() {
             <table className="hospital-appointments-mockup-table">
               <thead>
                 <tr>
-                  <th style={{ width: '18%' }}>Doctor</th>
-                  <th style={{ width: '16%' }}>Nurse</th>
-                  <th style={{ width: '16%' }}>Vaccine</th>
-                  <th style={{ width: '20%' }}>Schedule / Recurrence</th>
-                  <th style={{ width: '12%' }}>Time Slot</th>
-                  <th style={{ width: '11%' }}>Fee (Per Person)</th>
-                  <th style={{ width: '7%', borderRight: 'none' }}>Action</th>
+                  <th style={{ width: '20%' }}>Vaccine</th>
+                  <th style={{ width: '18%' }}>Booth</th>
+                  <th style={{ width: '28%' }}>Schedule / Recurrence</th>
+                  <th style={{ width: '14%' }}>Time Slot</th>
+                  <th style={{ width: '12%' }}>Fee (Per Person)</th>
+                  <th style={{ width: '8%', borderRight: 'none' }}>Action</th>
                 </tr>
               </thead>
               <tbody>
                 {loadingSchedules ? (
                   <tr>
-                    <td colSpan={7} className="empty-table-cell">
+                    <td colSpan={6} className="empty-table-cell">
                       Loading saved schedules from database...
                     </td>
                   </tr>
                 ) : schedules.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="empty-table-cell">
+                    <td colSpan={6} className="empty-table-cell">
                       No active schedules created yet. Use the form above to add one-time or weekly recurring slots.
                     </td>
                   </tr>
                 ) : (
                   schedules.map((item) => (
                     <tr key={item.id}>
-                      <td>{item.doctorName}</td>
-                      <td>{item.nurseName}</td>
                       <td>{item.vaccineName}</td>
+                      <td>{item.boothLabel || '—'}</td>
                       <td style={{ fontSize: '0.92rem' }}>
                         {item.scheduleType === 'Weekly' ? (
                           <div>
@@ -808,14 +802,7 @@ export default function HospitalAppointmentsTab() {
                           {item.timeSlot || item.time}
                         </span>
                       </td>
-                      <td>
-                        <div>{item.vaccineName || item.vaccine}</div>
-                        {item.doctorName && (
-                          <div style={{ fontSize: '0.78rem', color: '#64748b' }}>
-                            Dr. {item.doctorName}
-                          </div>
-                        )}
-                      </td>
+                      <td>{item.vaccineName || item.vaccine}</td>
                       <td style={{ borderRight: 'none', textAlign: 'center' }}>
                         {(item.status || '').toLowerCase() === 'pending' ? (
                           <div className="hospital-action-buttons-wrapper">

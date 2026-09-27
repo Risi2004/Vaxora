@@ -15,7 +15,11 @@ public interface IAppointmentService
     Task<List<AppointmentResponseDto>> GetPatientAppointmentsAsync(Guid patientUserId);
     Task<List<AppointmentResponseDto>> GetHospitalAppointmentsAsync(Guid hospitalUserId, DateOnly? date = null, string? status = null);
     Task<List<AppointmentResponseDto>> GetStaffHospitalAppointmentsAsync(Guid staffUserId, Guid hospitalUserId, DateOnly? date = null);
-    Task<AppointmentResponseDto> UpdateAppointmentStatusAsync(Guid hospitalUserId, Guid appointmentId, UpdateAppointmentStatusDto dto);
+    /// <summary>
+    /// Update appointment status. Actor may be the owning hospital, or an active
+    /// doctor/nurse affiliated with that hospital.
+    /// </summary>
+    Task<AppointmentResponseDto> UpdateAppointmentStatusAsync(Guid actorUserId, Guid appointmentId, UpdateAppointmentStatusDto dto);
     Task<bool> CancelAppointmentAsync(Guid userId, string idOrRef, bool isHospital = false);
     Task<bool> CancelAppointmentAsync(Guid userId, Guid appointmentId, bool isHospital = false);
     Task<AppointmentResponseDto> ConfirmPayHerePaymentAsync(Guid appointmentId, string transactionId, string? orderId = null);
@@ -23,6 +27,22 @@ public interface IAppointmentService
 
 public class AppointmentService : IAppointmentService
 {
+    /// <summary>
+    /// Statuses a client may set through the status endpoint, mapped to their canonical
+    /// casing. Status is stored as free text, so callers are matched case-insensitively
+    /// and the stored value is normalised to keep equality checks elsewhere reliable.
+    /// </summary>
+    private static readonly Dictionary<string, string> AllowedStatusTransitions =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Confirmed"] = "Confirmed",
+            ["Administering"] = "Administering",
+            ["Observation"] = "Observation",
+            ["Completed"] = "Completed",
+            ["Cancelled"] = "Cancelled",
+            ["Rejected"] = "Rejected",
+        };
+
     private readonly ApplicationDbContext _context;
     private readonly IEmailService _emailService;
     private readonly ILogger<AppointmentService> _logger;
@@ -83,9 +103,13 @@ public class AppointmentService : IAppointmentService
                     {
                         Date = date.ToString("yyyy-MM-dd"),
                         DayOfWeek = dayName,
-                        DisplayText = $"{date:yyyy-MM-dd} ({dayName}) - {formattedTime} (Dr. {schedule.DoctorName})",
+                        DisplayText = string.IsNullOrWhiteSpace(schedule.DoctorName)
+                            ? $"{date:yyyy-MM-dd} ({dayName}) - {formattedTime}"
+                            : $"{date:yyyy-MM-dd} ({dayName}) - {formattedTime} (Dr. {schedule.DoctorName})",
                         DoctorName = schedule.DoctorName,
                         NurseName = schedule.NurseName,
+                        BoothId = schedule.BoothId,
+                        BoothLabel = schedule.BoothLabel,
                         StartTime = schedule.StartTime,
                         EndTime = schedule.EndTime,
                         ScheduleId = schedule.Id,
@@ -128,9 +152,13 @@ public class AppointmentService : IAppointmentService
                         {
                             Date = cur.ToString("yyyy-MM-dd"),
                             DayOfWeek = dayName,
-                            DisplayText = $"{cur:yyyy-MM-dd} ({dayName}) - {formattedTime} (Dr. {schedule.DoctorName})",
+                            DisplayText = string.IsNullOrWhiteSpace(schedule.DoctorName)
+                                ? $"{cur:yyyy-MM-dd} ({dayName}) - {formattedTime}"
+                                : $"{cur:yyyy-MM-dd} ({dayName}) - {formattedTime} (Dr. {schedule.DoctorName})",
                             DoctorName = schedule.DoctorName,
                             NurseName = schedule.NurseName,
+                            BoothId = schedule.BoothId,
+                            BoothLabel = schedule.BoothLabel,
                             StartTime = schedule.StartTime,
                             EndTime = schedule.EndTime,
                             ScheduleId = schedule.Id,
@@ -362,7 +390,7 @@ public class AppointmentService : IAppointmentService
             Fee = isFree ? 0.00m : scheduleFee,
             PaymentMethod = paymentMethod,
             PaymentStatus = paymentStatus,
-            Notes = dto.Notes?.Trim(),
+            Notes = BuildBookingNotes(dto.Notes, schedule?.BoothLabel),
             CreatedAt = DateTime.UtcNow
         };
 
@@ -583,22 +611,57 @@ public class AppointmentService : IAppointmentService
         return appointments.Select(MapToDto).ToList();
     }
 
-    public async Task<AppointmentResponseDto> UpdateAppointmentStatusAsync(Guid hospitalUserId, Guid appointmentId, UpdateAppointmentStatusDto dto)
+    public async Task<AppointmentResponseDto> UpdateAppointmentStatusAsync(Guid actorUserId, Guid appointmentId, UpdateAppointmentStatusDto dto)
     {
         var appointment = await _context.Appointments
-            .FirstOrDefaultAsync(a => a.Id == appointmentId && a.HospitalUserId == hospitalUserId);
+            .FirstOrDefaultAsync(a => a.Id == appointmentId);
 
         if (appointment == null)
-        {
             throw new KeyNotFoundException("Appointment record not found.");
+
+        var isHospitalOwner = appointment.HospitalUserId == actorUserId;
+        if (!isHospitalOwner)
+        {
+            var actor = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == actorUserId);
+            if (actor == null || actor.Role is not (UserRole.DOCTOR or UserRole.NURSE))
+                throw new UnauthorizedAccessException("Only the hospital or affiliated clinical staff can update this appointment.");
+
+            if (actor.Status != UserStatus.Active)
+                throw new InvalidOperationException("Staff account must be Active.");
+
+            var isAffiliated = await _context.StaffAffiliations.AsNoTracking().AnyAsync(a =>
+                a.StaffUserId == actorUserId &&
+                a.HospitalUserId == appointment.HospitalUserId &&
+                a.Status == AffiliationStatus.Active);
+
+            if (!isAffiliated)
+                throw new UnauthorizedAccessException("You are not affiliated with this hospital.");
         }
 
-        appointment.Status = dto.Status.Trim();
+        var requestedStatus = (dto.Status ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(requestedStatus))
+            throw new InvalidOperationException("Status is required.");
+
+        if (!AllowedStatusTransitions.TryGetValue(requestedStatus, out var nextStatus))
+        {
+            throw new InvalidOperationException(
+                $"Unsupported status '{requestedStatus}'. Allowed values: {string.Join(", ", AllowedStatusTransitions.Values.Distinct())}.");
+        }
+
+        if (string.Equals(appointment.Status, "Cancelled", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(appointment.Status, "Rejected", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Cannot update status for cancelled or rejected appointments.");
+        }
+
+        appointment.Status = nextStatus;
         appointment.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
 
-        _logger.LogInformation("Updated appointment {AppId} status to {Status}", appointmentId, appointment.Status);
+        _logger.LogInformation(
+            "User {ActorId} updated appointment {AppId} status to {Status}",
+            actorUserId, appointmentId, appointment.Status);
 
         return MapToDto(appointment);
     }
@@ -856,6 +919,16 @@ public class AppointmentService : IAppointmentService
         return timeStr;
     }
 
+    private static string? BuildBookingNotes(string? notes, string? boothLabel)
+    {
+        var parts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(notes))
+            parts.Add(notes.Trim());
+        if (!string.IsNullOrWhiteSpace(boothLabel))
+            parts.Add($"Booth: {boothLabel.Trim()}");
+        return parts.Count == 0 ? null : string.Join("\n", parts);
+    }
+
     private static string? ExtractBoothFromNotes(string? notes)
     {
         if (string.IsNullOrWhiteSpace(notes)) return null;
@@ -863,8 +936,9 @@ public class AppointmentService : IAppointmentService
         var idx = notes.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
         if (idx < 0) return null;
         var rest = notes[(idx + marker.Length)..].Trim();
-        var end = rest.IndexOf(" · ", StringComparison.Ordinal);
-        return (end >= 0 ? rest[..end] : rest).Trim();
+        var endLine = rest.IndexOfAny(['\r', '\n']);
+        if (endLine >= 0) rest = rest[..endLine].Trim();
+        return rest;
     }
 
     private static AppointmentResponseDto MapToDto(Appointment a)
@@ -899,7 +973,8 @@ public class AppointmentService : IAppointmentService
             PrescribedByDoctorUserId = a.PrescribedByDoctorUserId,
             PrescribedByDoctorName = a.PrescribedByDoctorName,
             DosageUpdatedAt = a.DosageUpdatedAt,
-            CreatedAt = a.CreatedAt
+            CreatedAt = a.CreatedAt,
+            UpdatedAt = a.UpdatedAt
         };
     }
 }

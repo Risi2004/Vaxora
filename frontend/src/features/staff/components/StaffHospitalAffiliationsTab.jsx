@@ -4,12 +4,6 @@ import { addHospitalDays, hospitalToday } from '../../hospital/utils/hospitalDat
 import { IconHospital } from '../../../shared/icons/AppIcons';
 import affilHeroImage from '../../../assets/images/staff-affiliations-hero.png';
 
-const dutyLabel = {
-  Off: 'Off',
-  OnDuty: 'On Duty',
-  OnBreak: 'On Break',
-};
-
 function HospitalAvatar({ name, logoUrl }) {
   if (logoUrl) {
     return (
@@ -90,35 +84,11 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff' }) {
     }
   };
 
-  const handleSetDuty = async (item, next) => {
-    if (item.dutyStatus === next) return;
-    const previous = item.dutyStatus;
-    setActionId(`${item.affiliationId}-duty`);
-    setAffiliations((list) =>
-      list.map((a) =>
-        a.affiliationId === item.affiliationId ? { ...a, dutyStatus: next } : a
-      )
-    );
-    try {
-      await staffService.updateDutyStatus(item.affiliationId, next);
-      showToast(`Duty status set to ${dutyLabel[next] || next}.`);
-    } catch (err) {
-      setAffiliations((list) =>
-        list.map((a) =>
-          a.affiliationId === item.affiliationId ? { ...a, dutyStatus: previous } : a
-        )
-      );
-      setError(err.message || 'Failed to update duty status.');
-    } finally {
-      setActionId(null);
-    }
-  };
-
   return (
     <div className="doctor-dashboard-tab">
       {toast && (
         <div className="doctor-toast" role="status">
-          ✓ {toast}
+          {toast}
         </div>
       )}
 
@@ -189,30 +159,14 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff' }) {
                   </div>
                 </div>
                 <div
-                  className="staff-affil-duty-group"
-                  role="group"
-                  aria-label="Duty status"
+                  className={`staff-affil-presence${item.isOnDutyNow ? ' is-live' : ''}`}
+                  title={
+                    item.isOnDutyNow
+                      ? 'You have a shift covering now at this hospital'
+                      : 'No shift covering now at this hospital'
+                  }
                 >
-                  {[
-                    { value: 'Off', label: 'Off' },
-                    { value: 'OnDuty', label: 'On Duty' },
-                    { value: 'OnBreak', label: 'On Break' },
-                  ].map((opt) => {
-                    const active = item.dutyStatus === opt.value;
-                    const busy = actionId === `${item.affiliationId}-duty`;
-                    return (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        className={`staff-affil-duty-btn${active ? ' is-active' : ''}${opt.value === 'OnDuty' ? ' is-on' : ''}${opt.value === 'OnBreak' ? ' is-break' : ''}`}
-                        disabled={busy}
-                        aria-pressed={active}
-                        onClick={() => handleSetDuty(item, opt.value)}
-                      >
-                        {busy && active ? '…' : opt.label}
-                      </button>
-                    );
-                  })}
+                  {item.isOnDutyNow ? 'On duty now' : 'No active shift'}
                 </div>
               </div>
             ))}

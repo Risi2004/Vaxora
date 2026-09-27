@@ -707,6 +707,11 @@
   margin-bottom: 28px;
 }
 
+/* Staff / booths pages use four metrics — keep them full-bleed like home. */
+.hospital-metrics-grid.hospital-metrics-grid--4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
 .hospital-stat-card {
   background: #ffffff;
   border: 1px solid var(--color-border-card);
@@ -822,13 +827,22 @@
   .hospital-metrics-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+
+  .hospital-metrics-grid.hospital-metrics-grid--4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 /* ==========================================================================
    5. Dashboard Main 2-Column Section (Queue + Inventory/Booths)
    ========================================================================== */
 .hospital-dashboard-columns {
-  --pane-body-height: calc(3 * 5.35rem + 2 * 0.5rem + 2 * 0.65rem);
+  --inv-card: 5.35rem;
+  --inv-gap: 0.5rem;
+  --inv-pad: 0.65rem;
+  --queue-head-height: 2.5rem;
+  --pane-body-height: calc(3 * var(--inv-card) + 2 * var(--inv-gap) + 2 * var(--inv-pad));
+  --queue-row-height: 5rem;
   display: grid;
   grid-template-columns: 1.6fr 1fr;
   gap: 24px;
@@ -839,6 +853,18 @@
 @media (max-width: 1080px) {
   .hospital-dashboard-columns {
     grid-template-columns: 1fr;
+  }
+
+  #queue.hospital-section-card {
+    height: auto;
+    min-height: 0;
+  }
+
+  #queue .table-responsive {
+    flex: 0 0 auto;
+    height: var(--pane-body-height);
+    min-height: var(--pane-body-height);
+    max-height: var(--pane-body-height);
   }
 }
 
@@ -854,10 +880,19 @@
 #inventory.hospital-section-card {
   display: flex;
   flex-direction: column;
-  height: 100%;
-  min-height: 0;
-  max-height: none;
   overflow: hidden;
+}
+
+/* Stock card sets the row height; queue matches it and scrolls inside. */
+#inventory.hospital-section-card {
+  height: auto;
+  min-height: 0;
+}
+
+#queue.hospital-section-card {
+  height: 0;
+  min-height: 100%;
+  min-width: 0;
 }
 
 #queue .section-card-header,
@@ -1107,23 +1142,36 @@
 }
 
 #queue .table-responsive {
-  flex: 1 1 auto;
+  flex: 1 1 0;
   width: 100%;
-  min-height: var(--pane-body-height);
+  min-height: 0;
   height: auto;
   max-height: none;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: auto;
+  overscroll-behavior: contain;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
+  scrollbar-gutter: stable;
 }
 
 #queue .table-responsive::-webkit-scrollbar {
-  width: 6px;
+  width: 8px;
+  height: 8px;
+}
+
+#queue .table-responsive::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 999px;
 }
 
 #queue .table-responsive::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: #94a3b8;
   border-radius: 999px;
+}
+
+#queue .table-responsive::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
 }
 
 .hospital-queue-table {
@@ -1141,12 +1189,15 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  padding: 10px 12px;
+  height: var(--queue-head-height);
+  padding: 8px 12px;
   border-bottom: 1px solid #e2e8f0;
   position: sticky;
   top: 0;
   z-index: 1;
   white-space: nowrap;
+  box-sizing: border-box;
+  vertical-align: middle;
 }
 
 .hospital-queue-table th:nth-child(1),
@@ -1171,6 +1222,7 @@
 .hospital-queue-table td:nth-child(4),
 .hospital-queue-table col.col-booth {
   width: 7.5rem;
+  text-align: center;
 }
 
 .hospital-queue-table th:nth-child(5),
@@ -1183,8 +1235,10 @@
 .hospital-queue-table th:nth-child(6),
 .hospital-queue-table td:nth-child(6),
 .hospital-queue-table col.col-actions {
-  width: 7rem;
-  text-align: left;
+  width: 1%;
+  min-width: 8.25rem;
+  white-space: nowrap;
+  text-align: center;
 }
 
 .hospital-queue-table th:first-child {
@@ -1196,11 +1250,17 @@
 }
 
 .hospital-queue-table td {
+  height: var(--queue-row-height);
   padding: 10px;
   border-bottom: 1px solid #f1f5f9;
   font-size: 0.86rem;
   vertical-align: middle;
   overflow: hidden;
+  box-sizing: border-box;
+}
+
+.hospital-queue-table tbody tr {
+  height: var(--queue-row-height);
 }
 
 .hospital-queue-table tbody tr:last-child td {
@@ -1276,7 +1336,7 @@
 .queue-booth-tag {
   display: inline-flex;
   align-items: center;
-  max-width: 100%;
+  justify-content: center;
   background: #f1f5f9;
   padding: 4px 8px;
   border-radius: 6px;
@@ -1285,8 +1345,6 @@
   color: #475569;
   border: 1px solid #e2e8f0;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .queue-booth-tag.is-unassigned {
@@ -1331,6 +1389,7 @@
 .queue-action-btns {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   min-height: 28px;
 }
@@ -1355,32 +1414,38 @@
 }
 
 .btn-queue-action--session {
-  background: #eff6ff;
-  color: #1e40af;
-  border-color: #bfdbfe;
+  background: #fff7ed;
+  color: #c2410c;
+  border-color: #fed7aa;
 }
 
 .btn-queue-action--session:hover {
-  background: #dbeafe;
-  border-color: #93c5fd;
-  color: #1d4ed8;
+  background: #ffedd5;
+  border-color: #fdba74;
+  color: #9a3412;
 }
 
 .btn-queue-action--release {
-  background: #eff6ff;
-  color: #1e40af;
-  border-color: #bfdbfe;
+  background: #ecfdf5;
+  color: #047857;
+  border-color: #a7f3d0;
 }
 
 .btn-queue-action--release:hover {
-  background: #dbeafe;
-  border-color: #93c5fd;
-  color: #1d4ed8;
+  background: #d1fae5;
+  border-color: #6ee7b7;
+  color: #065f46;
 }
 
 .queue-pass-note {
-  font-size: 0.74rem;
+  display: inline-flex;
+  align-items: center;
+  background: #f0fdf4;
   color: #15803d;
+  border: 1px solid #bbf7d0;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 0.74rem;
   font-weight: 600;
   white-space: nowrap;
 }
@@ -1447,14 +1512,65 @@
   color: #166534;
   font-size: 0.75rem;
   font-weight: 700;
-  padding: 4px 10px;
-  border-radius: var(--radius-pill);
+  padding: 6px 12px;
+  border-radius: 999px;
+}
+
+.cold-chain-monitor-bar--multi {
+  justify-content: flex-start;
+}
+
+.cold-chain-vault-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  width: 100%;
+}
+
+.cold-chain-vault-chip {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #ffffff;
+  border: 1px solid #bbf7d0;
+}
+
+.cold-chain-vault-chip-temp {
+  font-family: var(--font-heading);
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #065f46;
+  line-height: 1.2;
+}
+
+.cold-chain-vault-chip-name {
+  font-size: 0.72rem;
+  font-weight: 650;
+  color: #047857;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cold-chain-vault-chip-status {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #b45309;
+}
+
+.cold-chain-vault-chip-status.is-ok {
+  color: #166534;
+}
+
+@media (max-width: 720px) {
+  .cold-chain-vault-strip {
+    grid-template-columns: 1fr;
+  }
 }
 
 .inventory-items-list {
-  --inv-card: 5.35rem;
-  --inv-gap: 0.5rem;
-  --inv-pad: 0.65rem;
   display: flex;
   flex-direction: column;
   gap: var(--inv-gap);
@@ -1464,6 +1580,7 @@
   max-height: var(--pane-body-height);
   overflow-y: auto;
   overflow-x: hidden;
+  overscroll-behavior: contain;
   padding: var(--inv-pad);
   box-sizing: border-box;
   scrollbar-gutter: stable;
@@ -1473,20 +1590,21 @@
 }
 
 .inventory-items-list::-webkit-scrollbar {
-  width: 6px;
+  width: 8px;
 }
 
 .inventory-items-list::-webkit-scrollbar-track {
-  background: transparent;
+  background: #f1f5f9;
+  border-radius: 999px;
 }
 
 .inventory-items-list::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: #94a3b8;
   border-radius: 999px;
 }
 
 .inventory-items-list::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #64748b;
 }
 
 .inventory-item-card {

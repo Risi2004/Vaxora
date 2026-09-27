@@ -1260,6 +1260,13 @@ namespace Vaxora.Api.Migrations
                     b.Property<Guid?>("NurseUserId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("BoothId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("BoothLabel")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
                     b.Property<decimal>("Price")
                         .ValueGeneratedOnAdd()
                         .HasPrecision(18, 2)
@@ -1296,6 +1303,8 @@ namespace Vaxora.Api.Migrations
                         .HasColumnType("character varying(200)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("BoothId");
 
                     b.HasIndex("DoctorUserId");
 
@@ -1606,6 +1615,11 @@ namespace Vaxora.Api.Migrations
 
             modelBuilder.Entity("Vaxora.Api.Models.VaccineSchedule", b =>
                 {
+                    b.HasOne("Vaxora.Api.Models.HospitalBooth", "Booth")
+                        .WithMany()
+                        .HasForeignKey("BoothId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("Vaxora.Api.Models.User", "DoctorUser")
                         .WithMany()
                         .HasForeignKey("DoctorUserId");
@@ -1623,6 +1637,8 @@ namespace Vaxora.Api.Migrations
                     b.HasOne("Vaxora.Api.Models.Vaccine", "Vaccine")
                         .WithMany()
                         .HasForeignKey("VaccineId");
+
+                    b.Navigation("Booth");
 
                     b.Navigation("DoctorUser");
 

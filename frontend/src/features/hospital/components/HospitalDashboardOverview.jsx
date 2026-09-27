@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import WalkInRegistrationModal from './WalkInRegistrationModal';
 import RestockVaccineModal from './RestockVaccineModal';
 import staffService from '../services/staffService';
@@ -93,8 +93,19 @@ function normalizePersonName(value) {
     .toLowerCase();
 }
 
+function parseBoothLabel(label) {
+  const raw = String(label || '').trim();
+  if (!raw) return { code: null, name: 'Unassigned' };
+  if (/^unassigned$/i.test(raw)) return { code: null, name: 'Unassigned' };
+  const parts = raw.split(/\s*·\s*/);
+  if (parts.length >= 2) {
+    return { code: parts[0].trim(), name: parts.slice(1).join(' · ').trim() };
+  }
+  return { code: null, name: raw };
+}
+
 function resolveQueueBooth(appointment, boothCards) {
-  if (appointment.boothLabel) return appointment.boothLabel;
+  if (appointment.boothLabel) return parseBoothLabel(appointment.boothLabel);
 
   const practitioner = normalizePersonName(appointment.doctorName || appointment.nurseName);
   if (practitioner && boothCards.length > 0) {
@@ -102,10 +113,15 @@ function resolveQueueBooth(appointment, boothCards) {
       const staff = normalizePersonName(booth.staffName);
       return staff && (practitioner.includes(staff) || staff.includes(practitioner));
     });
-    if (match?.boothName) return match.boothName;
+    if (match) {
+      return {
+        code: match.code || null,
+        name: match.name || parseBoothLabel(match.boothName).name,
+      };
+    }
   }
 
-  return 'Unassigned';
+  return { code: null, name: 'Unassigned' };
 }
 
 export default function HospitalDashboardOverview() {
@@ -125,7 +141,7 @@ export default function HospitalDashboardOverview() {
       try {
         const fresh = await authService.getMe();
         if (!cancelled && fresh) setHospitalUser(fresh);
-      } catch (_) {
+      } catch {
         /* keep cached user */
       }
     })();
@@ -161,10 +177,15 @@ export default function HospitalDashboardOverview() {
   const [queueLoading, setQueueLoading] = useState(true);
   const [queueError, setQueueError] = useState('');
 
+  const toastTimerRef = useRef(null);
+
   const showToast = (msg) => {
     setToastMessage(msg);
-    setTimeout(() => setToastMessage(''), 3500);
+    clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => setToastMessage(''), 3500);
   };
+
+  useEffect(() => () => clearTimeout(toastTimerRef.current), []);
 
   // ==================== FETCH INVENTORY (BATCHES & FORMULARY) ====================
   const loadInventory = useCallback(async () => {
@@ -294,11 +315,8 @@ export default function HospitalDashboardOverview() {
       const shifts = Array.isArray(shiftList) ? shiftList : [];
       const staff = Array.isArray(staffList) ? staffList : [];
 
-      setOnDutyCount(staff.filter((s) => s.dutyStatus === 'OnDuty').length);
+      setOnDutyCount(staff.filter((s) => s.isOnDutyNow).length);
 
-      const dutyByAffiliation = new Map(
-        staff.map((s) => [s.affiliationId, s.dutyStatus || 'Off'])
-      );
       const photoByAffiliation = new Map(
         staff.map((s) => [s.affiliationId, s.staffProfilePhotoUrl || null])
       );
@@ -315,12 +333,12 @@ export default function HospitalDashboardOverview() {
         });
 
         const primary = liveShift || boothShifts[0] || null;
-        const duty = primary ? dutyByAffiliation.get(primary.affiliationId) : null;
         const isLive = Boolean(liveShift);
 
         return {
           id: booth.boothId,
           code: booth.code || String(index + 1).padStart(2, '0'),
+          name: booth.name || booth.displayLabel || 'Booth',
           boothName: booth.displayLabel || `${booth.code} · ${booth.name}`,
           staffName: primary?.staffName || 'Unassigned',
           role: primary
@@ -333,7 +351,7 @@ export default function HospitalDashboardOverview() {
                 .map((s) => `${s.staffName} (${formatShiftWindow(s)})`)
                 .join(' · ')
             : '',
-          status: !primary ? 'Unstaffed' : isLive ? (duty === 'OnDuty' ? 'On duty' : 'In session') : 'Scheduled',
+          status: !primary ? 'Unstaffed' : isLive ? 'On duty' : 'Scheduled',
           shiftCount: boothShifts.length,
         };
       });
@@ -390,6 +408,7 @@ export default function HospitalDashboardOverview() {
     } catch (err) {
       console.error('Failed to restock batch:', err);
       alert('Failed to log restock shipment: ' + err.message);
+      throw err;
     }
   };
 
@@ -467,17 +486,27 @@ export default function HospitalDashboardOverview() {
     [boothCards]
   );
 
-  const primaryColdVault = useMemo(() => {
+  const coldChainSummary = useMemo(() => {
     if (!coldVaults.length) return null;
-    return coldVaults.find((v) => formatVaultTemp(v.temp)) || coldVaults[0];
-  }, [coldVaults]);
 
-  const coldChainTemp = primaryColdVault ? formatVaultTemp(primaryColdVault.temp) : null;
-  const coldChainLabel = primaryColdVault
-    ? [primaryColdVault.name, primaryColdVault.type].filter(Boolean).join(' · ')
-    : null;
-  const coldChainOk = !primaryColdVault?.status
-    || /optimal|ok|normal|safe/i.test(String(primaryColdVault.status));
+    const isOk = (v) =>
+      !v.status || /optimal|ok|normal|safe|active/i.test(String(v.status));
+
+    const okCount = coldVaults.filter(isOk).length;
+    const total = coldVaults.length;
+    const allOk = okCount === total;
+
+    return {
+      total,
+      okCount,
+      allOk,
+      value: `${okCount}/${total}`,
+      meta: allOk
+        ? `${total} vault${total === 1 ? '' : 's'} optimal`
+        : `${okCount} optimal · ${total - okCount} need attention`,
+      vaults: coldVaults,
+    };
+  }, [coldVaults]);
 
   return (
     <div className="hospital-dashboard-tab">
@@ -525,7 +554,7 @@ export default function HospitalDashboardOverview() {
             animation: 'fadeIn 0.2s ease',
           }}
         >
-          <span>✓ {toastMessage}</span>
+          <span>{toastMessage}</span>
           <button
             type="button"
             onClick={() => setToastMessage('')}
@@ -569,16 +598,13 @@ export default function HospitalDashboardOverview() {
           <div className="hospital-stat-info">
             <span className="hospital-stat-label">Cold-Chain Storage</span>
             <span className="hospital-stat-value">
-              {inventoryLoading ? '...' : (coldChainTemp || '—')}
+              {inventoryLoading ? '...' : (coldChainSummary?.value || '—')}
             </span>
             <span className="hospital-stat-meta">
-              {primaryColdVault ? (
-                <>
-                  <span className={coldChainOk ? 'meta-positive' : 'meta-warning'}>
-                    {primaryColdVault.status || 'Monitored'}
-                  </span>
-                  {primaryColdVault.target ? ` · Target ${primaryColdVault.target}` : ''}
-                </>
+              {coldChainSummary ? (
+                <span className={coldChainSummary.allOk ? 'meta-positive' : 'meta-warning'}>
+                  {coldChainSummary.meta}
+                </span>
               ) : (
                 'No vault telemetry'
               )}
@@ -768,8 +794,12 @@ export default function HospitalDashboardOverview() {
                         <div className="queue-dose-meta" title={patient.dose}>{patient.dose}</div>
                       </td>
                       <td>
-                        <span className={`queue-booth-tag${patient.booth === 'Unassigned' ? ' is-unassigned' : ''}`}>
-                          {patient.booth}
+                        <span
+                          className={`queue-booth-tag${
+                            !patient.booth?.code ? ' is-unassigned' : ''
+                          }`}
+                        >
+                          {patient.booth?.code || 'Unassigned'}
                         </span>
                       </td>
                       <td>
@@ -856,23 +886,43 @@ export default function HospitalDashboardOverview() {
             </p>
           </div>
 
-          {/* Cold Chain IoT Health Banner */}
-          <div className="cold-chain-monitor-bar">
-            <div className="cold-chain-info">
-              <span className="cold-chain-icon"><IconThermometer size={22} /></span>
-              <div>
-                <div className="cold-chain-temp">{coldChainTemp || '—'}</div>
-                <div className="cold-chain-label">
-                  {coldChainLabel || 'No cold vault registered'}
+          {/* Cold Chain IoT Health — all vaults */}
+          <div className="cold-chain-monitor-bar cold-chain-monitor-bar--multi">
+            {!coldChainSummary ? (
+              <div className="cold-chain-info">
+                <span className="cold-chain-icon"><IconThermometer size={22} /></span>
+                <div>
+                  <div className="cold-chain-temp">—</div>
+                  <div className="cold-chain-label">No cold vault registered</div>
                 </div>
               </div>
-            </div>
-            <div className="cold-chain-status-ok" style={!coldChainOk ? { color: '#b45309' } : undefined}>
-              <span>●</span>{' '}
-              {primaryColdVault
-                ? `${primaryColdVault.status || 'Monitored'}${primaryColdVault.sensorStatus ? ` · ${primaryColdVault.sensorStatus}` : ''}`
-                : 'Vault offline'}
-            </div>
+            ) : (
+              <div
+                className="cold-chain-vault-strip"
+                role="list"
+                aria-label="Cold vault temperatures"
+                style={{
+                  gridTemplateColumns: `repeat(${Math.min(coldChainSummary.vaults.length, 3)}, minmax(0, 1fr))`,
+                }}
+              >
+                {coldChainSummary.vaults.map((vault) => {
+                  const temp = formatVaultTemp(vault.temp) || '—';
+                  const ok =
+                    !vault.status || /optimal|ok|normal|safe|active/i.test(String(vault.status));
+                  return (
+                    <div key={vault.id} className="cold-chain-vault-chip" role="listitem">
+                      <span className="cold-chain-vault-chip-temp">{temp}</span>
+                      <span className="cold-chain-vault-chip-name">{vault.name}</span>
+                      <span
+                        className={`cold-chain-vault-chip-status${ok ? ' is-ok' : ' is-warn'}`}
+                      >
+                        {vault.status || 'Monitored'}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           <div className="inventory-items-list">
@@ -912,7 +962,7 @@ export default function HospitalDashboardOverview() {
 
                   {item.warning && (
                     <div style={{ color: '#b45309', fontSize: '0.72rem', fontWeight: 700, marginTop: '6px' }}>
-                      ⚠️ {item.warning}
+                      {item.warning}
                     </div>
                   )}
                 </div>
@@ -943,7 +993,7 @@ export default function HospitalDashboardOverview() {
             </span>
             <span
               className={`booth-stat-pill ${onDutyCount > 0 ? 'is-live' : 'is-idle'}`}
-              title={onDutyCount > 0 ? 'Staff marked on duty now' : 'No staff currently on duty'}
+              title={onDutyCount > 0 ? 'Staff with a live shift right now' : 'No staff currently in a live shift'}
             >
               {onDutyCount} on duty now
             </span>
