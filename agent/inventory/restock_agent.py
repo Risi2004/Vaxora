@@ -4,6 +4,7 @@ Multi-step workflow:
   Plan → Fetch data → Analyze → Validate → Propose + Draft PO (pause for approval)
 Uses Groq LLM.
 """
+import asyncio
 import json
 import logging
 import httpx
@@ -75,14 +76,38 @@ class RestockAdvisorAgent:
             payload["tools"] = tools
             payload["tool_choice"] = "auto"
 
-        async with httpx.AsyncClient(timeout=90.0) as client:
-            resp = await client.post(
-                f"{self.base_url}/chat/completions", headers=headers, json=payload
-            )
-            if resp.status_code >= 400:
-                logger.error(f"[{self.name}] Groq error {resp.status_code}: {resp.text[:1000]}")
-            resp.raise_for_status()
-            return resp.json()["choices"][0]["message"]
+        max_retries = 3
+        for attempt in range(max_retries + 1):
+            async with httpx.AsyncClient(timeout=90.0) as client:
+                resp = await client.post(
+                    f"{self.base_url}/chat/completions", headers=headers, json=payload
+                )
+
+                # Handle 429 rate limit with exponential backoff
+                if resp.status_code == 429:
+                    wait_seconds = 15 * (attempt + 1)  # 15s, 30s, 45s
+                    if attempt < max_retries:
+                        logger.warning(
+                            f"[{self.name}] Rate limited (429). "
+                            f"Retry {attempt + 1}/{max_retries} in {wait_seconds}s..."
+                        )
+                        await asyncio.sleep(wait_seconds)
+                        continue
+                    else:
+                        logger.error(
+                            f"[{self.name}] Rate limit exceeded after {max_retries} retries"
+                        )
+                        resp.raise_for_status()
+
+                if resp.status_code >= 400:
+                    logger.error(
+                        f"[{self.name}] Groq error {resp.status_code}: {resp.text[:1000]}"
+                    )
+                resp.raise_for_status()
+                return resp.json()["choices"][0]["message"]
+
+        # Should never reach here
+        raise RuntimeError("Unexpected: retry loop exited without result")
 
     # ---------------- Tool dispatch ----------------
 
@@ -116,7 +141,9 @@ class RestockAdvisorAgent:
                 token=token,
             )
             state_store.set_approval(workflow_id, "pending_admin_approval")
-            state_store.set_validation(workflow_id, [{"rule": "restock_proposal", "passed": True}])
+            state_store.set_validation(
+                workflow_id, [{"rule": "restock_proposal", "passed": True}]
+            )
         else:
             result = {"error": f"Unknown tool: {name}"}
 
@@ -142,18 +169,22 @@ class RestockAdvisorAgent:
         hospital_name = "Unknown Hospital"
         if user_info:
             hospital_name = user_info.get("name", hospital_name)
-            conversation.append({
-                "role": "system",
-                "content": f"Hospital context: {hospital_name}",
-            })
+            conversation.append(
+                {
+                    "role": "system",
+                    "content": f"Hospital context: {hospital_name}",
+                }
+            )
         conversation.extend(messages)
 
         # Planning — deterministic
         plan: List[Dict[str, Any]] = [dict(s) for s in RESTOCK_DEFAULT_PLAN]
         state_store.set_plan(workflow_id, plan)
-        state_store.append_step(workflow_id, {"step": "planning", "status": "completed", "plan": plan})
+        state_store.append_step(
+            workflow_id, {"step": "planning", "status": "completed", "plan": plan}
+        )
 
-        max_iter = 8
+        max_iter = 4
         iteration = 0
         restock_proposals: List[Dict[str, Any]] = []
         final_content = ""
@@ -178,37 +209,49 @@ class RestockAdvisorAgent:
             tool_calls = msg.get("tool_calls") or []
 
             if tool_calls:
-                conversation.append({
-                    "role": "assistant",
-                    "content": msg.get("content") or "",
-                    "tool_calls": tool_calls,
-                })
+                conversation.append(
+                    {
+                        "role": "assistant",
+                        "content": msg.get("content") or "",
+                        "tool_calls": tool_calls,
+                    }
+                )
                 for tc in tool_calls:
                     fn = tc.get("function", {})
                     fn_name = fn.get("name")
                     raw_args = fn.get("arguments", {})
                     try:
-                        fn_args = json.loads(raw_args) if isinstance(raw_args, str) else (raw_args or {})
+                        fn_args = (
+                            json.loads(raw_args)
+                            if isinstance(raw_args, str)
+                            else (raw_args or {})
+                        )
                     except Exception:
                         fn_args = {}
 
-                    tool_result = await self._execute_tool(fn_name, fn_args, token, workflow_id)
+                    tool_result = await self._execute_tool(
+                        fn_name, fn_args, token, workflow_id
+                    )
 
                     # Collect restock proposals
                     if fn_name == "propose_restock_order" and tool_result.get("success"):
                         restock_proposals.append(tool_result.get("proposal", {}))
 
-                    conversation.append({
-                        "role": "tool",
-                        "tool_call_id": tc.get("id"),
-                        "content": json.dumps(tool_result),
-                    })
+                    conversation.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": tc.get("id"),
+                            "content": json.dumps(tool_result),
+                        }
+                    )
             else:
                 final_content = msg.get("content") or "Analysis complete."
                 break
 
         if not final_content:
-            final_content = "Restock analysis complete. Please review the draft purchase order."
+            final_content = (
+                "Restock analysis complete. Please review the draft purchase order."
+            )
 
         # Build the draft PO if we have any proposals
         draft = None
