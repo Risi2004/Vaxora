@@ -41,4 +41,16 @@ class ApiConstants {
   // PayHere Payment endpoints
   static const String payHereInit = '/payment/payhere-init';
   static const String confirmPayment = '/payment/confirm';
+
+  // Inventory endpoints
+  static const String inventoryBatches = '/inventory/batches';
+  static const String inventoryExpiring = '/inventory/batches/expiring';
+  static const String inventorySummary = '/inventory/summary';
+  static const String inventoryVaults = '/inventory/vaults';
+
+
+  static String batchIssue(String batchId) => '/inventory/batches/$batchId/issue';
+  static String batchWastage(String batchId) => '/inventory/batches/$batchId/wastage';
+  static String batchAudit(String batchId) => '/inventory/batches/$batchId/audit';
+
 }
