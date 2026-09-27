@@ -11,21 +11,10 @@ import {
   RoleAvatarIcon,
 } from './HospitalIcons';
 
-const dutyLabel = {
-  Off: 'Off',
-  OnDuty: 'On Duty',
-  OnBreak: 'On Break',
-};
-
-const nextDutyStatus = {
-  Off: 'OnDuty',
-  OnDuty: 'OnBreak',
-  OnBreak: 'Off',
-};
-
 function mapAffiliationToCard(item) {
   const isPending = item.status === 'Pending';
   const roleLabel = item.staffRole === 'DOCTOR' ? 'Doctor' : 'Nurse';
+  const liveDuty = item.isOnDutyNow ? 'On duty' : 'Off duty';
 
   return {
     id: item.affiliationId,
@@ -36,8 +25,8 @@ function mapAffiliationToCard(item) {
     email: item.email || '—',
     phone: item.phoneNumber || '—',
     affiliationStatus: item.status,
-    dutyStatus: item.dutyStatus,
-    status: isPending ? 'Pending Request' : dutyLabel[item.dutyStatus] || item.dutyStatus,
+    isOnDutyNow: Boolean(item.isOnDutyNow),
+    status: isPending ? 'Pending Request' : liveDuty,
     photoUrl: item.staffProfilePhotoUrl || null,
     invitedAt: item.invitedAt,
   };
@@ -118,21 +107,6 @@ export default function HospitalStaffTab() {
       await loadStaff();
     } catch (err) {
       setError(err.message || 'Failed to remove staff.');
-    } finally {
-      setActionId(null);
-    }
-  };
-
-  const handleCycleDuty = async (staff) => {
-    if (staff.affiliationStatus !== 'Active') return;
-    const next = nextDutyStatus[staff.dutyStatus] || 'Off';
-    setActionId(staff.id);
-    try {
-      await staffService.updateDutyStatus(staff.id, next);
-      showToast(`Duty status updated to ${dutyLabel[next] || next}.`);
-      await loadStaff();
-    } catch (err) {
-      setError(err.message || 'Failed to update duty status.');
     } finally {
       setActionId(null);
     }
@@ -428,7 +402,7 @@ export default function HospitalStaffTab() {
                       width: '6px',
                       height: '6px',
                       background:
-                        staff.status === 'On Duty'
+                        staff.status === 'On duty'
                           ? '#22c55e'
                           : staff.affiliationStatus === 'Pending'
                             ? '#f59e0b'
@@ -438,7 +412,7 @@ export default function HospitalStaffTab() {
                   <span
                     style={{
                       color:
-                        staff.status === 'On Duty'
+                        staff.status === 'On duty'
                           ? '#15803d'
                           : staff.affiliationStatus === 'Pending'
                             ? '#b45309'
@@ -498,40 +472,21 @@ export default function HospitalStaffTab() {
                     {actionId === staff.id ? 'Cancelling...' : 'Cancel Request'}
                   </button>
                 ) : (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => handleCycleDuty(staff)}
-                      disabled={actionId === staff.id}
-                      style={{
-                        background: '#eff6ff',
-                        border: '1px solid #bfdbfe',
-                        color: '#1d4ed8',
-                        fontWeight: 600,
-                        fontSize: '0.78rem',
-                        cursor: 'pointer',
-                        borderRadius: '6px',
-                        padding: '4px 10px',
-                      }}
-                    >
-                      {actionId === staff.id ? 'Updating...' : 'Cycle Duty'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveStaff(staff.id)}
-                      disabled={actionId === staff.id}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: '#dc2626',
-                        fontWeight: 600,
-                        fontSize: '0.78rem',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Remove
-                    </button>
-                  </>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveStaff(staff.id)}
+                    disabled={actionId === staff.id}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#dc2626',
+                      fontWeight: 600,
+                      fontSize: '0.78rem',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {actionId === staff.id ? 'Removing...' : 'Remove'}
+                  </button>
                 )}
               </div>
             </div>

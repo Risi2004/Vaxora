@@ -13,13 +13,6 @@ import {
   IconUser,
 } from '../../../shared/icons/AppIcons';
 
-const dutyLabel = {
-  Off: 'Off duty',
-  OnDuty: 'On duty',
-  OnBreak: 'On break',
-};
-
-/** Post-vaccination observation window mandated before a patient may be discharged. */
 const OBSERVATION_WINDOW_MINUTES = 15;
 
 /** Minutes still remaining in the observation window, or null when the start time is unknown. */
@@ -55,11 +48,17 @@ function mapDbStatusToUi(status) {
 }
 
 function pickDefaultHospitalId(active, preferredId) {
+  const live = active.find((a) => a.isOnDutyNow);
+  if (live) return live.hospitalUserId;
   if (preferredId && active.some((a) => a.hospitalUserId === preferredId)) {
     return preferredId;
   }
-  const onDuty = active.find((a) => a.dutyStatus === 'OnDuty');
-  return onDuty?.hospitalUserId || active[0]?.hospitalUserId || '';
+  return active[0]?.hospitalUserId || '';
+}
+
+function presenceLabel(affiliation) {
+  if (!affiliation) return null;
+  return affiliation.isOnDutyNow ? 'On duty' : 'No active shift';
 }
 
 /**
@@ -203,9 +202,7 @@ export default function StaffClinicalDashboard({
     affiliations.find((a) => a.hospitalUserId === selectedHospitalUserId) || affiliations[0];
   const displayTitle = formatTitle(user);
   const greeting = greetingForNow();
-  const dutyText = primaryAffiliation
-    ? dutyLabel[primaryAffiliation.dutyStatus] || primaryAffiliation.dutyStatus
-    : null;
+  const dutyText = presenceLabel(primaryAffiliation);
 
   const todayTotal = todayAppointments.length;
   const todayCompleted = todayAppointments.filter((a) => a.status === 'Completed').length;
@@ -431,7 +428,7 @@ export default function StaffClinicalDashboard({
                 <ul className="doctor-hero-session-menu" role="listbox" aria-label="Working hospital">
                   {affiliations.map((h) => {
                     const selected = h.hospitalUserId === selectedHospitalUserId;
-                    const label = dutyLabel[h.dutyStatus] || h.dutyStatus || 'Off duty';
+                    const label = presenceLabel(h);
                     return (
                       <li key={h.affiliationId || h.hospitalUserId} role="presentation">
                         <button

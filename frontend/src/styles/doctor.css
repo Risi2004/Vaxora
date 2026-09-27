@@ -2892,52 +2892,21 @@
   flex-wrap: wrap;
 }
 
-.staff-affil-duty-group {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px;
-  border-radius: 10px;
-  background: #ffffff;
-  border: 1px solid #bfdbfe;
+.staff-affil-presence {
   flex-shrink: 0;
-}
-
-.staff-affil-duty-btn {
-  border: none;
-  background: transparent;
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
   color: #64748b;
-  font-weight: 650;
   font-size: 0.78rem;
-  padding: 7px 12px;
-  border-radius: 7px;
-  cursor: pointer;
-  transition: background-color 0.15s ease, color 0.15s ease;
+  font-weight: 700;
 }
 
-.staff-affil-duty-btn:hover:not(:disabled):not(.is-active) {
-  background: #f1f5f9;
-  color: #334155;
-}
-
-.staff-affil-duty-btn.is-active {
-  background: #e2e8f0;
-  color: #334155;
-}
-
-.staff-affil-duty-btn.is-active.is-on {
-  background: #dcfce7;
+.staff-affil-presence.is-live {
+  border-color: #86efac;
+  background: #ecfdf5;
   color: #15803d;
-}
-
-.staff-affil-duty-btn.is-active.is-break {
-  background: #ffedd5;
-  color: #c2410c;
-}
-
-.staff-affil-duty-btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
 }
 
 .staff-affil-hospital-avatar {

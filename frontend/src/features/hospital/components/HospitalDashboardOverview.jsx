@@ -315,11 +315,8 @@ export default function HospitalDashboardOverview() {
       const shifts = Array.isArray(shiftList) ? shiftList : [];
       const staff = Array.isArray(staffList) ? staffList : [];
 
-      setOnDutyCount(staff.filter((s) => s.dutyStatus === 'OnDuty').length);
+      setOnDutyCount(staff.filter((s) => s.isOnDutyNow).length);
 
-      const dutyByAffiliation = new Map(
-        staff.map((s) => [s.affiliationId, s.dutyStatus || 'Off'])
-      );
       const photoByAffiliation = new Map(
         staff.map((s) => [s.affiliationId, s.staffProfilePhotoUrl || null])
       );
@@ -336,7 +333,6 @@ export default function HospitalDashboardOverview() {
         });
 
         const primary = liveShift || boothShifts[0] || null;
-        const duty = primary ? dutyByAffiliation.get(primary.affiliationId) : null;
         const isLive = Boolean(liveShift);
 
         return {
@@ -355,7 +351,7 @@ export default function HospitalDashboardOverview() {
                 .map((s) => `${s.staffName} (${formatShiftWindow(s)})`)
                 .join(' · ')
             : '',
-          status: !primary ? 'Unstaffed' : isLive ? (duty === 'OnDuty' ? 'On duty' : 'In session') : 'Scheduled',
+          status: !primary ? 'Unstaffed' : isLive ? 'On duty' : 'Scheduled',
           shiftCount: boothShifts.length,
         };
       });
@@ -969,7 +965,7 @@ export default function HospitalDashboardOverview() {
             </span>
             <span
               className={`booth-stat-pill ${onDutyCount > 0 ? 'is-live' : 'is-idle'}`}
-              title={onDutyCount > 0 ? 'Staff marked on duty now' : 'No staff currently on duty'}
+              title={onDutyCount > 0 ? 'Staff with a live shift right now' : 'No staff currently in a live shift'}
             >
               {onDutyCount} on duty now
             </span>
