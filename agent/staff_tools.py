@@ -5,7 +5,10 @@ These call Vaxora hospital staff APIs using the caller's Bearer token.
 Read and propose only: creating or deleting a shift is done by the hospital user
 through the Vaxora UI, so the agent has no tool that can write to the roster.
 """
+import asyncio
 import json
+import re
+import time
 from contextvars import ContextVar
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
@@ -20,6 +23,9 @@ _DECLINE_PREFIX = "__shift_declined__"
 _hospital_key: ContextVar[str] = ContextVar("vaxora_hospital_key", default="")
 _declined_slots: Dict[str, set] = {}
 _gap_catalog: Dict[str, Dict[str, Any]] = {}
+# Short-lived roster state cache so analyze + build in one Suggest Week share loaded data.
+_ROSTER_CACHE_TTL_SEC = 30.0
+_roster_cache: Dict[Tuple[str, str, str], Tuple[float, Dict[str, Any]]] = {}
 MAX_WEEKLY_SHIFTS = 7
 
 # Mirrors the 12-hour single-shift cap enforced by StaffManagementService.
@@ -257,32 +263,6 @@ def _minutes(value: Any) -> int:
     raw = str(value or "00:00")[:5]
     hour, minute = raw.split(":")
     return int(hour) * 60 + int(minute)
-
-
-async def tool_review_roster(from_date: str, to_date: str, token: Optional[str] = None) -> Dict[str, Any]:
-    """Legacy single-call helper. Prefer analyze_staffing_needs then build_staffing_plan."""
-    analyzed = await tool_analyze_staffing_needs(from_date, to_date, token=token)
-    if not analyzed.get("success"):
-        return analyzed
-    built = await tool_build_staffing_plan(from_date, to_date, token=token)
-    if not built.get("success"):
-        return built
-    findings = analyzed.get("findings") or []
-    proposals = built.get("proposals") or []
-    return {
-        "success": True,
-        "from": analyzed.get("from"),
-        "to": analyzed.get("to"),
-        "findings": findings,
-        "openings": analyzed.get("openings") or [],
-        "workload": built.get("workloadAfter") or analyzed.get("workloadBefore") or [],
-        "workloadBefore": analyzed.get("workloadBefore") or [],
-        "workloadAfter": built.get("workloadAfter") or [],
-        "validation": built.get("validation") or {"valid": True, "issues": []},
-        "proposalCount": len(proposals),
-        "proposals": proposals,
-        "message": _review_message(analyzed.get("from"), analyzed.get("to"), findings, proposals),
-    }
 
 
 async def _load_active_booths(token: Optional[str]) -> Optional[List[Dict[str, Any]]]:
@@ -688,6 +668,48 @@ def _booth_has_role(planned, booth, date, slot_start, slot_end, role) -> bool:
     )
 
 
+def _specialty_fit_score(vaccine_label: Optional[str], specialization: Optional[str]) -> int:
+    """Lower is better: 0 = text match, 1 = neutral / empty."""
+    vac = str(vaccine_label or "").lower()
+    spec = str(specialization or "").lower()
+    if not vac or not spec:
+        return 1
+    vac_tokens = set(re.findall(r"[a-z]{4,}", vac))
+    spec_tokens = set(re.findall(r"[a-z]{4,}", spec))
+    if vac_tokens & spec_tokens:
+        return 0
+    pairs = (
+        ("pedia", "pedia"),
+        ("child", "pedia"),
+        ("infant", "pedia"),
+        ("immuno", "immuno"),
+        ("travel", "travel"),
+        ("yellow", "travel"),
+        ("pregnant", "obste"),
+        ("maternal", "obste"),
+        ("gyn", "gyn"),
+        ("adult", "general"),
+        ("general", "general"),
+        ("family", "family"),
+    )
+    for left, right in pairs:
+        if left in vac and right in spec:
+            return 0
+        if right in vac and left in spec:
+            return 0
+    return 1
+
+
+def _day_session_count(planned, affiliation_id: str, date: str) -> int:
+    """How many shifts this person already has on this calendar day (roster + in-progress plan)."""
+    aid = str(affiliation_id)
+    return sum(
+        1
+        for item in planned
+        if str(item.get("affiliationId")) == aid and item.get("date") == date
+    )
+
+
 def _pick_lightest_free(
     pool,
     planned,
@@ -696,9 +718,11 @@ def _pick_lightest_free(
     slot_start: int,
     slot_end: int,
     vaccine_label: Optional[str] = None,
+    exclude_ids: Optional[set] = None,
+    pick_offset: int = 0,
+    soft_exclude: bool = False,
 ):
-    """Pick the free person with the lightest weekly load. Specialization is chosen by the LLM."""
-    del vaccine_label  # kept for call-site compatibility; matching is LLM-driven
+    """Pick free person: prefer unused that day before stacking, then specialty, then weekly load."""
     if not pool:
         return None
     ranked = sorted(pool, key=lambda person: str(person.get("staffName") or "").lower())
@@ -724,11 +748,25 @@ def _pick_lightest_free(
         return None
     free.sort(
         key=lambda person: (
+            # Prefer someone with no shift that day before stacking a 2nd/3rd session.
+            _day_session_count(planned, person["affiliationId"], date),
+            _specialty_fit_score(vaccine_label, person.get("specialization")),
             workload.get(person["affiliationId"], 0),
             tie_break(person),
         )
     )
-    return free[0]
+    blocked = exclude_ids or set()
+    preferred = [person for person in free if person["affiliationId"] not in blocked]
+    if preferred:
+        candidates = preferred
+    elif soft_exclude:
+        candidates = free
+    elif blocked:
+        return None
+    else:
+        candidates = free
+    offset = max(0, int(pick_offset or 0)) % len(candidates)
+    return candidates[offset]
 
 
 def _station_label(booth, slot_name: str) -> str:
@@ -781,6 +819,7 @@ def _pick_alternatives(
             free.append(person)
     free.sort(
         key=lambda person: (
+            _day_session_count(planned, person["affiliationId"], date),
             workload.get(person["affiliationId"], 0),
             tie_break(person),
         )
@@ -791,9 +830,9 @@ def _pick_alternatives(
 def _free_candidates_for_gap(
     state: Dict[str, Any],
     gap: Dict[str, Any],
-    limit: int = 6,
+    limit: int = 2,
 ) -> List[Dict[str, Any]]:
-    """Free roster people for a gap, with specialization text for the LLM to judge."""
+    """Free roster people for a gap — compact fields for small LLM context windows."""
     pool = state.get("doctors") if gap.get("role") == "DOCTOR" else state.get("nurses")
     pool = pool or []
     planned = state.get("planned") or []
@@ -810,14 +849,46 @@ def _free_candidates_for_gap(
     )
     return [
         {
-            "affiliationId": person["affiliationId"],
-            "staffName": person.get("staffName") or "",
-            "staffRole": person.get("staffRole") or "",
-            "specialization": person.get("specialization") or "",
-            "shiftCount": workload.get(person["affiliationId"], 0),
+            "id": person["affiliationId"],
+            "spec": (person.get("specialization") or "")[:28],
+            "day": _day_session_count(planned, person["affiliationId"], gap["date"]),
         }
         for person in free
     ]
+
+
+def _compact_analyze_for_llm(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Shrink analyze_staffing_needs output so week plans fit ~8k-token RunPod contexts."""
+    aliases: Dict[str, str] = {}
+    gaps = []
+    for index, gap in enumerate(payload.get("gaps") or []):
+        short_id = str(index)
+        full_id = str(gap.get("gapId") or "")
+        if full_id:
+            aliases[short_id] = full_id
+        gaps.append(
+            {
+                "g": short_id,
+                "d": gap.get("date"),
+                "s": gap.get("slot"),
+                "r": gap.get("role"),
+                "b": str(gap.get("boothLabel") or "")[:18],
+                "v": str(gap.get("vaccineName") or "")[:36],
+                "c": gap.get("candidates") or [],
+            }
+        )
+    return {
+        "ok": True,
+        "from": payload.get("from"),
+        "to": payload.get("to"),
+        "n": payload.get("gapCount") or len(gaps),
+        "gaps": gaps,
+        "note": (
+            "gap_id in preferred_assignments = gaps[].g (short id). "
+            "affiliation_id = gaps[].c[].id. Prefer day=0 before stacking."
+        ),
+        "_aliases": aliases,
+    }
 
 
 def _gap_id(date: str, slot_name: str, booth_id: Optional[str], role: str) -> str:
@@ -898,6 +969,32 @@ def _validate_proposals(
     return {"valid": len(issues) == 0, "issues": issues}
 
 
+def _roster_cache_key(from_date: str, to_date: str) -> Tuple[str, str, str]:
+    return (_hospital_key.get() or "", from_date, to_date)
+
+
+def _roster_cache_get(from_date: str, to_date: str) -> Optional[Dict[str, Any]]:
+    key = _roster_cache_key(from_date, to_date)
+    entry = _roster_cache.get(key)
+    if not entry:
+        return None
+    ts, state = entry
+    if time.monotonic() - ts > _ROSTER_CACHE_TTL_SEC:
+        _roster_cache.pop(key, None)
+        return None
+    return state
+
+
+def _roster_cache_put(from_date: str, to_date: str, state: Dict[str, Any]) -> None:
+    _roster_cache[_roster_cache_key(from_date, to_date)] = (time.monotonic(), state)
+
+
+def _roster_cache_clear() -> None:
+    key_prefix = _hospital_key.get() or ""
+    for key in [k for k in _roster_cache if k[0] == key_prefix]:
+        _roster_cache.pop(key, None)
+
+
 async def _prepare_roster_state(
     from_date: str,
     to_date: str,
@@ -905,18 +1002,36 @@ async def _prepare_roster_state(
 ) -> Dict[str, Any]:
     clean_from = _clean_date_string(from_date)
     clean_to = _clean_date_string(to_date)
-    staff_result = await tool_get_active_staff(token=token)
-    if not staff_result.get("success"):
-        return staff_result
+
+    cached = _roster_cache_get(clean_from, clean_to)
+    if cached is not None:
+        return cached
 
     week_from, week_to = _week_bounds(clean_from, clean_to)
-    shift_result = await tool_get_hospital_shifts(week_from, week_to, token=token)
+
+    # Kick off all read-only API fetches in parallel — saves ~4–5s per Suggest Week.
+    staff_task = asyncio.create_task(tool_get_active_staff(token=token))
+    shift_task = asyncio.create_task(tool_get_hospital_shifts(week_from, week_to, token=token))
+    booth_task = asyncio.create_task(_load_active_booths(token))
+    busy_task = asyncio.create_task(tool_get_staff_busy_blocks(week_from, week_to, token=token))
+    appt_task = asyncio.create_task(_load_hospital_appointments(token))
+    sched_task = asyncio.create_task(_load_hospital_schedules(token))
+
+    staff_result = await staff_task
+    if not staff_result.get("success"):
+        for task in (shift_task, booth_task, busy_task, appt_task, sched_task):
+            task.cancel()
+        return staff_result
+
+    shift_result = await shift_task
     if not shift_result.get("success") and (week_from != clean_from or week_to != clean_to):
         shift_result = await tool_get_hospital_shifts(clean_from, clean_to, token=token)
     if not shift_result.get("success"):
+        for task in (booth_task, busy_task, appt_task, sched_task):
+            task.cancel()
         return shift_result
 
-    booths = await _load_active_booths(token)
+    booths = await booth_task
     staff = staff_result.get("staff") or []
     shifts = shift_result.get("shifts") or []
     workload = {s["affiliationId"]: 0 for s in staff}
@@ -939,7 +1054,7 @@ async def _prepare_roster_state(
         )
 
     # Include other-hospital shifts for the same people so we don't propose conflicts.
-    busy_result = await tool_get_staff_busy_blocks(week_from, week_to, token=token)
+    busy_result = await busy_task
     external_busy = 0
     if busy_result.get("success"):
         seen = {
@@ -986,14 +1101,14 @@ async def _prepare_roster_state(
             }
         )
 
-    appointments = await _load_hospital_appointments(token)
-    schedules = await _load_hospital_schedules(token)
+    appointments = await appt_task
+    schedules = await sched_task
     sessions = (
         _expand_schedule_sessions(schedules or [], clean_from, clean_to)
         if schedules is not None
         else []
     )
-    return {
+    state = {
         "success": True,
         "from": clean_from,
         "to": clean_to,
@@ -1013,6 +1128,8 @@ async def _prepare_roster_state(
         "now_minutes": _hospital_now_minutes(),
         "slots": (("Morning", 8 * 60, 12 * 60), ("Afternoon", 13 * 60, 17 * 60)),
     }
+    _roster_cache_put(clean_from, clean_to, state)
+    return state
 
 
 def _discover_staffing_gaps(state: Dict[str, Any]) -> Tuple[List[str], List[Dict[str, Any]], List[Dict[str, Any]]]:
@@ -1169,13 +1286,17 @@ def _assign_gap_proposals(
     exclude_affiliation_ids: Optional[List[str]] = None,
     gap_ids: Optional[List[str]] = None,
     preferred_assignments: Optional[List[Dict[str, Any]]] = None,
+    soft_exclude: bool = False,
+    pick_offset: int = 0,
 ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, int]]:
     exclude = {str(item) for item in (exclude_affiliation_ids or []) if item}
     allowed = {str(item) for item in (gap_ids or [])} if gap_ids else None
     preferred_by_gap: Dict[str, str] = {}
     for item in preferred_assignments or []:
-        gap_id = str(item.get("gap_id") or item.get("gapId") or "").strip()
-        affiliation_id = str(item.get("affiliation_id") or item.get("affiliationId") or "").strip()
+        gap_id = _resolve_gap_id(str(item.get("gap_id") or item.get("gapId") or item.get("g") or "").strip())
+        affiliation_id = str(
+            item.get("affiliation_id") or item.get("affiliationId") or item.get("id") or ""
+        ).strip()
         if gap_id and affiliation_id:
             preferred_by_gap[gap_id] = affiliation_id
 
@@ -1185,6 +1306,7 @@ def _assign_gap_proposals(
     nurses = state.get("nurses") or []
     staff_by_id = {str(s["affiliationId"]): s for s in (state.get("staff") or [])}
     proposals: List[Dict[str, Any]] = []
+    offset = max(0, int(pick_offset or 0))
 
     for gap in gaps:
         if allowed is not None and gap["gapId"] not in allowed:
@@ -1210,11 +1332,45 @@ def _assign_gap_proposals(
                     for item in planned
                 )
                 if not busy:
-                    chosen = preferred_person
-                    ai_picked = True
+                    # Override the LLM's pick if they already have a shift that day
+                    # and another candidate is completely free that day.
+                    preferred_day_count = _day_session_count(
+                        planned, preferred_id, gap["date"]
+                    )
+                    if preferred_day_count > 0:
+                        day_free = _pick_lightest_free(
+                            pool,
+                            planned,
+                            workload,
+                            gap["date"],
+                            slot_start,
+                            slot_end,
+                            vaccine_label,
+                            exclude_ids={preferred_id, *exclude},
+                            pick_offset=offset,
+                            soft_exclude=False,
+                        )
+                        if (
+                            day_free
+                            and _day_session_count(planned, day_free["affiliationId"], gap["date"]) == 0
+                        ):
+                            chosen = day_free
+                            ai_picked = False
+                    if chosen is None:
+                        chosen = preferred_person
+                        ai_picked = True
         if chosen is None:
             chosen = _pick_lightest_free(
-                pool, planned, workload, gap["date"], slot_start, slot_end, vaccine_label
+                pool,
+                planned,
+                workload,
+                gap["date"],
+                slot_start,
+                slot_end,
+                vaccine_label,
+                exclude_ids=exclude,
+                pick_offset=offset,
+                soft_exclude=soft_exclude,
             )
         if chosen and chosen["affiliationId"] in exclude:
             alts = _pick_alternatives(
@@ -1228,8 +1384,14 @@ def _assign_gap_proposals(
                 limit=4,
                 vaccine_label=vaccine_label,
             )
-            chosen = alts[0] if alts else None
-            ai_picked = False
+            if alts:
+                chosen = alts[offset % len(alts)]
+                ai_picked = False
+            elif soft_exclude:
+                pass
+            else:
+                chosen = None
+                ai_picked = False
         if chosen is None:
             continue
         alts = _pick_alternatives(
@@ -1307,14 +1469,25 @@ def _make_gap_proposal(
     }
 
 
-def _store_gap_catalog(state: Dict[str, Any], gaps: List[Dict[str, Any]]) -> None:
+def _store_gap_catalog(
+    state: Dict[str, Any],
+    gaps: List[Dict[str, Any]],
+    gap_id_aliases: Optional[Dict[str, str]] = None,
+) -> None:
     key = _hospital_key.get()
     if not key:
         return
+    existing = _gap_catalog.get(key) or {}
+    aliases = (
+        dict(gap_id_aliases)
+        if gap_id_aliases is not None
+        else dict(existing.get("gapIdAliases") or {})
+    )
     _gap_catalog[key] = {
         "from": state["from"],
         "to": state["to"],
         "gaps": {gap["gapId"]: gap for gap in gaps},
+        "gapIdAliases": aliases,
         "state": {
             "staff": state.get("staff") or [],
             "doctors": state.get("doctors") or [],
@@ -1323,6 +1496,15 @@ def _store_gap_catalog(state: Dict[str, Any], gaps: List[Dict[str, Any]]) -> Non
             "workload": state.get("workload") or {},
         },
     }
+
+
+def _resolve_gap_id(gap_id: str) -> str:
+    raw = str(gap_id or "").strip()
+    if not raw:
+        return raw
+    catalog = _gap_catalog.get(_hospital_key.get(), {}) or {}
+    aliases = catalog.get("gapIdAliases") or {}
+    return str(aliases.get(raw) or raw)
 
 
 async def tool_analyze_staffing_needs(
@@ -1335,33 +1517,38 @@ async def tool_analyze_staffing_needs(
     if not state.get("success"):
         return state
     findings, openings, gaps = _discover_staffing_gaps(state)
-    _store_gap_catalog(state, gaps)
-    return {
+    gap_rows = [
+        {
+            "gapId": gap["gapId"],
+            "date": gap["date"],
+            "slot": gap["slot"],
+            "role": gap["role"],
+            "boothLabel": gap["boothLabel"],
+            "vaccineName": gap.get("vaccineName") or "",
+            "candidates": _free_candidates_for_gap(state, gap),
+        }
+        for gap in gaps
+    ]
+    message = (
+        f"Found {len(gaps)} staffing gap(s) across {state['from']} to {state['to']}. "
+        "Use short gap ids gaps[].g with candidates[].id in preferred_assignments."
+    )
+    full = {
         "success": True,
         "from": state["from"],
         "to": state["to"],
         "findings": findings,
         "openings": openings,
-        "gaps": [
-            {
-                "gapId": gap["gapId"],
-                "date": gap["date"],
-                "slot": gap["slot"],
-                "role": gap["role"],
-                "boothLabel": gap["boothLabel"],
-                "vaccineName": gap.get("vaccineName") or "",
-                "candidates": _free_candidates_for_gap(state, gap),
-            }
-            for gap in gaps
-        ],
+        "gaps": gap_rows,
         "gapCount": len(gaps),
         "workloadBefore": state["workloadBefore"],
-        "message": (
-            f"Found {len(gaps)} staffing gap(s) across {state['from']} to {state['to']}. "
-            "Read each gap's vaccineName and candidates[].specialization, choose the best text fit, "
-            "then call build_staffing_plan with preferred_assignments."
-        ),
+        "message": message,
     }
+    llm_payload = _compact_analyze_for_llm(full)
+    aliases = llm_payload.pop("_aliases", {}) or {}
+    _store_gap_catalog(state, gaps, gap_id_aliases=aliases)
+    full["llm"] = llm_payload
+    return full
 
 
 async def tool_build_staffing_plan(
@@ -1370,6 +1557,8 @@ async def tool_build_staffing_plan(
     exclude_affiliation_ids: Optional[List[str]] = None,
     gap_ids: Optional[List[str]] = None,
     preferred_assignments: Optional[List[Dict[str, Any]]] = None,
+    soft_exclude: bool = False,
+    pick_offset: int = 0,
     token: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Assign staff to gaps (honoring LLM preferred_assignments when free) and validate."""
@@ -1384,6 +1573,8 @@ async def tool_build_staffing_plan(
         exclude_affiliation_ids=exclude_affiliation_ids,
         gap_ids=gap_ids,
         preferred_assignments=preferred_assignments,
+        soft_exclude=soft_exclude,
+        pick_offset=pick_offset,
     )
     validation = _validate_proposals(proposals, state.get("staff") or [], planned)
     workload_after = _workload_summary(workload, state.get("staff") or [])
@@ -1563,26 +1754,20 @@ STAFF_TOOLS_SCHEMA = [
         "function": {
             "name": "build_staffing_plan",
             "description": (
-                "Step 2 for staffing. Assigns staff to gaps. Pass preferred_assignments after you "
-                "read vaccine vs specialization text and choose the best free candidate per gap. "
-                "Falls back to fairest free person when a preference is missing or busy. Does not save."
+                "Step 2. Pass preferred_assignments using short gap_id from analyze gaps[].g "
+                "and affiliation_id from gaps[].c[].id. Prefer day=0. Does not save."
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "from_date": {"type": "string", "description": "Start date YYYY-MM-DD"},
-                    "to_date": {"type": "string", "description": "End date YYYY-MM-DD"},
+                    "from_date": {"type": "string"},
+                    "to_date": {"type": "string"},
                     "exclude_affiliation_ids": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "description": "Optional staff to skip when building the plan",
                     },
                     "preferred_assignments": {
                         "type": "array",
-                        "description": (
-                            "Your specialization picks: one {gap_id, affiliation_id} per gap "
-                            "after matching vaccineName to candidates[].specialization from text."
-                        ),
                         "items": {
                             "type": "object",
                             "properties": {
@@ -1607,31 +1792,13 @@ STAFF_TOOLS_SCHEMA = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "gap_id": {"type": "string", "description": "Gap id from analyze_staffing_needs"},
+                    "gap_id": {"type": "string"},
                     "exclude_affiliation_ids": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "description": "Declined or unavailable staff affiliation ids",
                     },
                 },
                 "required": ["gap_id"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "review_roster",
-            "description": (
-                "Legacy one-call staffing. Prefer analyze_staffing_needs then build_staffing_plan."
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "from_date": {"type": "string", "description": "Start date YYYY-MM-DD"},
-                    "to_date": {"type": "string", "description": "End date YYYY-MM-DD"},
-                },
-                "required": ["from_date", "to_date"],
             },
         },
     },
@@ -1646,19 +1813,13 @@ STAFF_TOOLS_SCHEMA = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "affiliation_id": {"type": "string", "description": "From get_active_staff"},
+                    "affiliation_id": {"type": "string"},
                     "staff_name": {"type": "string"},
-                    "shift_date": {"type": "string", "description": "YYYY-MM-DD"},
-                    "start_time": {"type": "string", "description": "HH:mm e.g. 08:00 or 13:00"},
-                    "end_time": {"type": "string", "description": "HH:mm e.g. 12:00 or 17:00"},
-                    "booth_or_station": {
-                        "type": "string",
-                        "description": "Optional free-text label if no booth_id",
-                    },
-                    "booth_id": {
-                        "type": "string",
-                        "description": "Optional hospital booth GUID from configured booths",
-                    },
+                    "shift_date": {"type": "string"},
+                    "start_time": {"type": "string"},
+                    "end_time": {"type": "string"},
+                    "booth_or_station": {"type": "string"},
+                    "booth_id": {"type": "string"},
                     "notes": {"type": "string"},
                     "reason": {"type": "string"},
                 },
@@ -1666,4 +1827,11 @@ STAFF_TOOLS_SCHEMA = [
             },
         },
     },
+]
+
+# After analyze, only expose build — keeps 8k-context Suggest Week under the limit.
+STAFF_WEEK_BUILD_TOOLS = [
+    tool
+    for tool in STAFF_TOOLS_SCHEMA
+    if tool.get("function", {}).get("name") == "build_staffing_plan"
 ]

@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 from datetime import date, timedelta
 from typing import List, Dict, Any, Optional, Tuple
 
@@ -9,13 +10,13 @@ try:
     from .config import settings
     from .staff_tools import (
         STAFF_TOOLS_SCHEMA,
+        STAFF_WEEK_BUILD_TOOLS,
         tool_get_active_staff,
         tool_get_coverage,
         tool_get_hospital_shifts,
         tool_analyze_staffing_needs,
         tool_build_staffing_plan,
         tool_propose_alternative_for_gap,
-        tool_review_roster,
         tool_propose_shift_for_approval,
         parse_decline_payload,
         _hospital_today,
@@ -26,13 +27,13 @@ except ImportError:
     from config import settings
     from staff_tools import (
         STAFF_TOOLS_SCHEMA,
+        STAFF_WEEK_BUILD_TOOLS,
         tool_get_active_staff,
         tool_get_coverage,
         tool_get_hospital_shifts,
         tool_analyze_staffing_needs,
         tool_build_staffing_plan,
         tool_propose_alternative_for_gap,
-        tool_review_roster,
         tool_propose_shift_for_approval,
         parse_decline_payload,
         _hospital_today,
@@ -45,14 +46,17 @@ logger = logging.getLogger("vaxora-staff-scheduling-agent")
 STAFF_SCHEDULING_SYSTEM_PROMPT = """You are the official Vaxora Staff Scheduling Agent for hospital users.
 You help with coverage and shift proposals. You only suggest shifts. The hospital presses Approve or Decline on each one. Never say "UI".
 
-Staffing workflow (always follow this order):
-1. analyze_staffing_needs(from_date, to_date) — gaps include vaccineName and free candidates with specialization text.
-2. For each gap, read the vaccine/clinic text and each candidate's specialization. Decide who fits best from meaning (e.g. pediatrician for childhood vaccines, immunologist for specialty clinics). If specializations are empty or equally suitable, prefer the person with fewer shifts this week.
-3. build_staffing_plan(from_date, to_date, preferred_assignments=[{gap_id, affiliation_id}, ...]) — pass your picks. The tool still enforces free/busy and fairness fallback.
-4. Summarize vaccine, booth, schedule window, who you picked and why (specialization in plain language), and tell them to press Approve or Decline.
+Staffing workflow (always agentic — you must use tools and decide):
+1. analyze_staffing_needs(from_date, to_date) — read gaps and each gap's free candidates (names + specialization).
+2. Think: match vaccine/booth work to specialization, prefer people with no shift that day before stacking a second session, then balance weekly load.
+3. build_staffing_plan(from_date, to_date, preferred_assignments=[...]) — pass your picks as compact
+   {gap_id, affiliation_id} entries for every gap you want filled. Do not omit preferred_assignments for a full week;
+   that is your job. If a preferred person is busy, the tool falls back fairly.
+4. On "reroll", exclude the named affiliation ids (or prior picks) and choose different candidates where possible.
+5. Summarize briefly who covers which booth/window and tell them to Approve or Decline.
 
-Posted vaccine routines from the hospital schedule define the full clinic window staff must cover (not patient 20-minute booking slices). Extra bookings above booth capacity open more booths.
-Avoid proposing anyone who already has an overlapping shift (including at another hospital).
+Posted vaccine routines define the full clinic window (not 20-minute booking slices). Extra bookings above booth capacity open more booths.
+Avoid proposing anyone with an overlapping shift (including at another hospital).
 
 Other tools:
 - get_active_staff — list doctors/nurses
@@ -63,11 +67,9 @@ Other tools:
 
 Rules:
 - Never invent staff or dates. Never claim shifts were saved.
-- You match specialization to vaccine from text — do not invent a specialty catalog; use the candidate strings and vaccine names you were given.
-- Explain briefly why a specialization fits (or that you used fair load when none fit).
-- Mention alternatives exist when build_staffing_plan returns them.
-- liveClockStatus Off does NOT mean unavailable. Only mention clock-in if they ask who is in the building now.
 - Be concise. Never mention tool names or JSON field names.
+- preferred_assignments must stay compact: only gap_id and affiliation_id per entry (no names, no essays).
+- liveClockStatus Off does NOT mean unavailable. Only mention clock-in if they ask who is in the building now.
 """
 
 
@@ -77,6 +79,26 @@ def _rest_of_week(today: date) -> Tuple[str, str]:
     if tomorrow > sunday:
         sunday = tomorrow + timedelta(days=6)
     return tomorrow.isoformat(), sunday.isoformat()
+
+
+def _parse_suggest_dates_from_messages(
+    messages: List[Dict[str, Any]],
+    fallback_from: str,
+    fallback_to: str,
+) -> Tuple[str, str]:
+    """Pull from/to dates out of the latest user Suggest Week prompt."""
+    for m in reversed(messages):
+        if m.get("role") != "user":
+            continue
+        text = str(m.get("content") or "")
+        match = re.search(
+            r"from\s+(\d{4}-\d{2}-\d{2})\s+to\s+(\d{4}-\d{2}-\d{2})",
+            text,
+            re.I,
+        )
+        if match:
+            return match.group(1), match.group(2)
+    return fallback_from, fallback_to
 
 
 def _build_follow_ups(
@@ -145,21 +167,35 @@ class StaffSchedulingAgent:
         self,
         messages: List[Dict[str, Any]],
         tools: Optional[List[Dict[str, Any]]] = None,
+        max_tokens: Optional[int] = None,
+        force_tool: Optional[str] = None,
     ) -> Dict[str, Any]:
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.api_key}",
         }
+        # Rough char→token estimate so input+output stays under RunPod --max-model-len 8128.
+        approx_input = max(1, sum(len(json.dumps(m, default=str)) for m in messages) // 4)
+        if tools:
+            approx_input += max(1, len(json.dumps(tools)) // 4)
+        budget = 8000
+        auto_max = max(384, min(1200, budget - approx_input - 64))
         payload: Dict[str, Any] = {
             "model": self.model,
             "messages": messages,
             "temperature": 0.2,
-            "max_tokens": 220,
+            "max_tokens": int(max_tokens if max_tokens is not None else auto_max),
             "chat_template_kwargs": {"enable_thinking": False},
         }
         if tools:
             payload["tools"] = tools
-            payload["tool_choice"] = "auto"
+            if force_tool:
+                payload["tool_choice"] = {
+                    "type": "function",
+                    "function": {"name": force_tool},
+                }
+            else:
+                payload["tool_choice"] = "auto"
 
         async with httpx.AsyncClient(timeout=120.0) as client:
             resp = await client.post(
@@ -177,6 +213,37 @@ class StaffSchedulingAgent:
                 )
             data = resp.json()
             return data["choices"][0]["message"]
+
+    @staticmethod
+    def _tool_message_content(tool_name: str, tool_output: Any) -> str:
+        """Send compact tool payloads to the model (RunPod 8k context)."""
+        if (
+            tool_name == "analyze_staffing_needs"
+            and isinstance(tool_output, dict)
+            and isinstance(tool_output.get("llm"), dict)
+        ):
+            return json.dumps(tool_output["llm"])
+        if tool_name == "build_staffing_plan" and isinstance(tool_output, dict):
+            return json.dumps(
+                {
+                    "success": tool_output.get("success"),
+                    "proposalCount": tool_output.get("proposalCount"),
+                    "message": tool_output.get("message"),
+                    "validation": tool_output.get("validation"),
+                    "proposals": [
+                        {
+                            "affiliationId": p.get("affiliationId"),
+                            "staffName": p.get("staffName"),
+                            "shiftDate": p.get("shiftDate"),
+                            "startTime": p.get("startTime"),
+                            "endTime": p.get("endTime"),
+                            "boothLabel": p.get("boothLabel") or p.get("station"),
+                        }
+                        for p in (tool_output.get("proposals") or [])[:40]
+                    ],
+                }
+            )
+        return json.dumps(tool_output)
 
     @staticmethod
     def _last_user_text(messages: List[Dict[str, Any]]) -> str:
@@ -289,12 +356,6 @@ class StaffSchedulingAgent:
                 exclude_affiliation_ids=arguments.get("exclude_affiliation_ids"),
                 token=token,
             )
-        if tool_name == "review_roster":
-            return await tool_review_roster(
-                from_date=arguments.get("from_date"),
-                to_date=arguments.get("to_date"),
-                token=token,
-            )
         if tool_name == "propose_shift_for_approval":
             return await tool_propose_shift_for_approval(
                 affiliation_id=arguments.get("affiliation_id"),
@@ -311,7 +372,7 @@ class StaffSchedulingAgent:
             logger.warning(f"[{self.name}] Blocked tool attempt: {tool_name}")
             return {
                 "success": False,
-                "error": "Not permitted. Use analyze_staffing_needs and build_staffing_plan.",
+                "error": "Not permitted. Use analyze_staffing_needs then build_staffing_plan with preferred_assignments.",
             }
         return {"error": f"Unknown tool: {tool_name}"}
 
@@ -340,6 +401,7 @@ class StaffSchedulingAgent:
         today = date.fromisoformat(_hospital_today())
         tomorrow = today + timedelta(days=1)
         week_start, week_end = _rest_of_week(today)
+
         conversation = [
             {"role": "system", "content": STAFF_SCHEDULING_SYSTEM_PROMPT},
             {
@@ -348,7 +410,9 @@ class StaffSchedulingAgent:
                     f"Today is {today.isoformat()} ({today.strftime('%A')}). "
                     f"Tomorrow is {tomorrow.isoformat()}. "
                     f"The rest of this week is {week_start} through {week_end}. "
-                    "For staffing requests, call analyze_staffing_needs then build_staffing_plan."
+                    "For Suggest Week / full-range staffing: analyze_staffing_needs, "
+                    "choose staff from each gap's candidates, then build_staffing_plan "
+                    "with preferred_assignments. Do not skip the model judgment step."
                 ),
             },
         ]
@@ -371,19 +435,111 @@ class StaffSchedulingAgent:
         validation: Optional[Dict[str, Any]] = None
         last_plan: Optional[Dict[str, Any]] = None
         msg: Dict[str, Any] = {}
+        analyze_done = False
 
-        for _ in range(8):
+        for _ in range(10):
+            tools = STAFF_WEEK_BUILD_TOOLS if analyze_done else STAFF_TOOLS_SCHEMA
+            force_tool = "build_staffing_plan" if analyze_done else None
             try:
-                msg = await self._call_llm(conversation, tools=STAFF_TOOLS_SCHEMA)
+                msg = await self._call_llm(
+                    conversation, tools=tools, force_tool=force_tool
+                )
             except Exception as e:
                 logger.error("LLM call failed: %s", e)
-                return self._reply(
-                    messages,
-                    "The model could not be reached, so no shifts were suggested.",
-                )
+                detail = str(e)
+                if "maximum context length" in detail or "input_tokens" in detail:
+                    # One retry with a hard-capped output budget.
+                    try:
+                        msg = await self._call_llm(
+                            conversation,
+                            tools=tools,
+                            max_tokens=384,
+                            force_tool=force_tool,
+                        )
+                    except Exception as retry_err:
+                        logger.error("LLM retry failed: %s", retry_err)
+                        # Still try deterministic build so Suggest Week isn't empty.
+                        if analyze_done and not proposals:
+                            suggest_range = _parse_suggest_dates_from_messages(
+                                messages, week_start, week_end
+                            )
+                            from_date, to_date = suggest_range
+                            try:
+                                tool_output = await tool_build_staffing_plan(
+                                    from_date=from_date,
+                                    to_date=to_date,
+                                    token=token,
+                                )
+                            except Exception as build_err:
+                                logger.error("Fallback build failed: %s", build_err)
+                                tool_output = {"success": False}
+                            if tool_output.get("success"):
+                                proposals = list(tool_output.get("proposals") or [])
+                                return self._reply(
+                                    messages,
+                                    tool_output.get("message")
+                                    or f"Prepared {len(proposals)} suggested shift(s).",
+                                    proposals,
+                                    _briefing(tool_output, proposals),
+                                    {
+                                        "before": tool_output.get("workloadBefore"),
+                                        "after": tool_output.get("workloadAfter"),
+                                    },
+                                    tool_output.get("validation"),
+                                )
+                        return self._reply(
+                            messages,
+                            "The staffing plan is too large for the model context window. "
+                            "Try a shorter date range, or raise --max-model-len on the pod.",
+                        )
+                else:
+                    return self._reply(
+                        messages,
+                        "The model could not be reached, so no shifts were suggested.",
+                    )
 
             tool_calls = msg.get("tool_calls") or []
             if not tool_calls:
+                # After analyze, the model sometimes writes a chat essay instead of
+                # calling build_staffing_plan — build in code so the calendar still gets cards.
+                if analyze_done and not proposals:
+                    suggest_range = _parse_suggest_dates_from_messages(messages, week_start, week_end)
+                    from_date, to_date = suggest_range
+                    logger.info(
+                        "[%s] Model skipped build_staffing_plan; auto-building %s → %s",
+                        self.name,
+                        from_date,
+                        to_date,
+                    )
+                    try:
+                        tool_output = await tool_build_staffing_plan(
+                            from_date=from_date,
+                            to_date=to_date,
+                            token=token,
+                        )
+                    except Exception as build_err:
+                        logger.error("Auto build failed: %s", build_err)
+                        tool_output = {"success": False}
+                    if tool_output.get("success"):
+                        proposals = list(tool_output.get("proposals") or [])
+                        fairness_summary = {
+                            "before": tool_output.get("workloadBefore"),
+                            "after": tool_output.get("workloadAfter"),
+                        }
+                        validation = tool_output.get("validation")
+                        briefing = _briefing(tool_output, proposals)
+                        content = (
+                            tool_output.get("message")
+                            or f"Prepared {len(proposals)} suggested shift(s). Approve or Decline on each card."
+                        )
+                        return self._reply(
+                            messages,
+                            content,
+                            proposals,
+                            briefing,
+                            fairness_summary,
+                            validation,
+                        )
                 content = _strip_thinking(
                     msg.get("content")
                     or msg.get("reasoning")
@@ -408,6 +564,7 @@ class StaffSchedulingAgent:
                 }
             )
 
+            build_success_this_round = False
             for tc in tool_calls:
                 fn = tc.get("function", {})
                 fn_name = fn.get("name")
@@ -422,6 +579,8 @@ class StaffSchedulingAgent:
 
                 tool_output = await self.execute_tool(fn_name, fn_args, token)
 
+                if fn_name == "analyze_staffing_needs" and tool_output.get("success"):
+                    analyze_done = True
                 if fn_name == "propose_shift_for_approval" and tool_output.get("success"):
                     prop = tool_output.get("proposal")
                     if prop:
@@ -435,15 +594,7 @@ class StaffSchedulingAgent:
                     }
                     validation = tool_output.get("validation")
                     briefing = _briefing(tool_output, proposals)
-                elif fn_name == "review_roster" and tool_output.get("success"):
-                    last_plan = tool_output
-                    proposals = list(tool_output.get("proposals") or [])
-                    fairness_summary = {
-                        "before": tool_output.get("workloadBefore"),
-                        "after": tool_output.get("workloadAfter"),
-                    }
-                    validation = tool_output.get("validation")
-                    briefing = _briefing(tool_output, proposals)
+                    build_success_this_round = True
                 elif fn_name == "propose_alternative_for_gap" and tool_output.get("success"):
                     prop = tool_output.get("proposal")
                     if prop:
@@ -458,8 +609,26 @@ class StaffSchedulingAgent:
                     {
                         "role": "tool",
                         "tool_call_id": tc.get("id"),
-                        "content": json.dumps(tool_output),
+                        "content": self._tool_message_content(fn_name, tool_output),
                     }
+                )
+
+            # Short-circuit: once the plan is built, skip the LLM summary round.
+            # Conversation is already ~7k tokens on 8k-context pods; another call would 400.
+            if build_success_this_round and proposals:
+                content = (
+                    (last_plan or {}).get("message")
+                    or f"Prepared {len(proposals)} suggested shift(s). Approve or Decline on each card."
+                )
+                if validation and not validation.get("valid"):
+                    content += " Some proposals need review before approval."
+                return self._reply(
+                    messages,
+                    content,
+                    proposals,
+                    briefing,
+                    fairness_summary,
+                    validation,
                 )
 
         content = _strip_thinking(
