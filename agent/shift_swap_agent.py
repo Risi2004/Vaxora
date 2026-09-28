@@ -11,12 +11,11 @@ cannot make. The agent's job is to be a friendly intake worker:
 
 We deliberately do NOT expose hospital coverage tools here — a staff member
 should not be able to browse the full hospital roster. The hospital sees the
-request in their Agent workflow inbox and does the actual reassignment.
+request in their Staff-tab cover inbox and does the actual reassignment.
 """
 
 from __future__ import annotations
 
-import json
 import logging
 import re
 from typing import Any, Dict, List, Optional
@@ -31,23 +30,51 @@ except ImportError:  # pragma: no cover - package/script dual import
 logger = logging.getLogger("vaxora-shift-swap-agent")
 
 SHIFT_SWAP_SYSTEM_PROMPT = """You are the Vaxora Shift Swap Assistant for doctors and nurses.
-Your only job: help a staff member log a request for someone else to cover their shift.
+Reply to the staff member only. Never describe your reasoning, rules, or a thinking process.
+
+Your only job: help them log a cover request.
 
 Rules:
-- Be short (2–3 sentences max) and empathetic.
-- If the user's first message already contains a shift id, date and reason, acknowledge and confirm you have logged a swap request. Do not ask redundant questions.
-- If key info is missing, ask ONE targeted follow-up (which shift, or a brief reason).
-- Never promise a specific replacement — the hospital chooses. You only forward the request.
-- Never suggest cancelling the appointment altogether. Always frame it as "your hospital will find cover".
-- Refuse anything not related to shift cover. If asked, politely redirect: "I can only help with shift swap requests."
+- 1–2 short sentences. Empathetic. No bullet lists. No analysis.
+- A reason is optional. Shift id, date, and time window are enough to confirm the request is logged.
+- Do not mention shift IDs, UUIDs, or internal fields in your reply.
+- Never promise a named replacement — the hospital chooses.
+- Never suggest cancelling the clinic. Frame it as "your hospital will find cover".
+- If the message is not about shift cover, say: "I can only help with shift swap requests."
 """
+
+_THINKING_PREFIXES = (
+    "here's a thinking process",
+    "here is a thinking process",
+    "thinking process:",
+    "<think>",
+)
+
+
+def _strip_thinking(content: Any) -> str:
+    text = content if isinstance(content, str) else ""
+    if "</think>" in text:
+        text = text.split("</think>", 1)[-1]
+    stripped = text.strip()
+    lower = stripped.lower()
+    if any(lower.startswith(prefix) or prefix in lower[:80] for prefix in _THINKING_PREFIXES):
+        return ""
+    return stripped
+
+
+def _logged_confirmation(patient_info: Optional[Dict[str, Any]]) -> str:
+    hospital = (patient_info or {}).get("hospitalName") or "your hospital"
+    return (
+        f"Got it — I've logged a cover request for that shift. "
+        f"{hospital} will review it and find someone to cover."
+    )
 
 
 class ShiftSwapAgent:
     """
     Very small stateless agent. Persistence is handled by the .NET
-    AgentWorkflowService which stores the response's `proposals` JSON so
-    the hospital can see the swap request in their workflow inbox.
+    ShiftSwapService, which stores a hospital-scoped cover request so
+    the hospital Staff tab can approve or decline it.
     """
 
     name = "ShiftSwapAgent"
@@ -73,6 +100,22 @@ class ShiftSwapAgent:
             if m.get("role") in ("user", "assistant") and str(m.get("content", "")).strip()
         ]
 
+        proposal = _build_swap_proposal(clean_messages, patient_info)
+        user_turns = [m for m in clean_messages if m.get("role") == "user"]
+        # Seeded first message already has the shift — confirm and log without
+        # asking the model, which otherwise dumps its chain-of-thought.
+        if proposal and proposal.get("shiftId") and len(user_turns) == 1:
+            return {
+                "agent": self.name,
+                "role": "assistant",
+                "content": _logged_confirmation(patient_info),
+                "proposals": [proposal],
+                "suggestedFollowUps": [
+                    "Anything the hospital should know?",
+                    "Send a preferred replacement's name",
+                ],
+            }
+
         conversation: List[Dict[str, Any]] = [
             {"role": "system", "content": SHIFT_SWAP_SYSTEM_PROMPT}
         ]
@@ -95,17 +138,22 @@ class ShiftSwapAgent:
                 model=self.model,
                 messages=conversation,
                 temperature=0.2,
-                max_tokens=280,
+                max_tokens=160,
+                extra_body={"chat_template_kwargs": {"enable_thinking": False}},
             )
-            reply = (completion.choices[0].message.content or "").strip()
+            message = completion.choices[0].message
+            reply = _strip_thinking(getattr(message, "content", None))
         except Exception as exc:  # pragma: no cover - remote LLM
             logger.error("ShiftSwapAgent LLM call failed: %s", exc)
+            reply = ""
+
+        if not reply:
             reply = (
-                "I could not reach the assistant just now. Your request has "
-                "still been logged for your hospital to review."
+                _logged_confirmation(patient_info)
+                if proposal and proposal.get("shiftId")
+                else "Tell me which shift you need covered and I’ll log it for the hospital."
             )
 
-        proposal = _build_swap_proposal(clean_messages, patient_info)
         proposals = [proposal] if proposal else None
 
         return {
@@ -176,6 +224,3 @@ def _first_match(pattern: re.Pattern[str], text: str) -> Optional[str]:
 shift_swap_agent = ShiftSwapAgent()
 
 __all__ = ["shift_swap_agent", "ShiftSwapAgent"]
-
-# Re-exported so `import json` above stays used even if the module trims later.
-_ = json
