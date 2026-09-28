@@ -156,7 +156,7 @@ class _CoverRequestsSheetState extends State<CoverRequestsSheet> {
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 28),
               child: StaffEmptyCard(
-                message: 'No cover requests waiting. Staff swap chats land here.',
+                message: 'No cover requests waiting.',
                 icon: Icons.swap_horiz,
               ),
             )

@@ -327,18 +327,25 @@ class _HospitalShiftCard extends StatelessWidget {
           Container(
             width: 44,
             height: 44,
-            alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: StaffSurfaces.softPanelDeep,
               shape: BoxShape.circle,
               border: Border.all(color: StaffSurfaces.cardBorder),
             ),
-            child: Text(
-              _initials,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: StaffSurfaces.brandSoft,
+            clipBehavior: Clip.antiAlias,
+            child: NetworkAvatar(
+              url: shift.staffPhotoUrl,
+              size: 44,
+              fallback: Container(
+                color: StaffSurfaces.softPanelDeep,
+                alignment: Alignment.center,
+                child: Text(
+                  _initials,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: StaffSurfaces.brandSoft,
+                  ),
+                ),
               ),
             ),
           ),
@@ -367,6 +374,21 @@ class _HospitalShiftCard extends StatelessWidget {
                     ),
                   ],
                 ),
+                Builder(
+                  builder: (_) {
+                    final chip = ShiftCoverStatusChip.maybe(
+                      status: shift.coverStatus,
+                    );
+                    if (chip == null) return const SizedBox.shrink();
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: chip,
+                      ),
+                    );
+                  },
+                ),
                 const SizedBox(height: 4),
                 Row(
                   children: [
@@ -394,6 +416,18 @@ class _HospitalShiftCard extends StatelessWidget {
                     color: StaffSurfaces.textSecondary,
                   ),
                 ),
+                if (shift.isCovering &&
+                    (shift.coverForName?.trim().isNotEmpty ?? false)) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'Covering for ${shift.coverForName!.trim()}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: StaffSurfaces.brandSoft,
+                    ),
+                  ),
+                ],
                 if (shift.notes != null &&
                     shift.notes!.trim().isNotEmpty) ...[
                   const SizedBox(height: 6),

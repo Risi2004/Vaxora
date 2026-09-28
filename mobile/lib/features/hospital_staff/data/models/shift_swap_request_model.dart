@@ -15,6 +15,10 @@ class ShiftSwapRequestModel {
   final String createdAt;
   final String? decidedAt;
   final String? reviewSummary;
+  final String? hospitalName;
+  final String? direction;
+  final String? replacementUserId;
+  final String? replacementName;
   final List<ShiftSwapReplacementModel> suggestions;
 
   const ShiftSwapRequestModel({
@@ -34,12 +38,32 @@ class ShiftSwapRequestModel {
     required this.createdAt,
     this.decidedAt,
     this.reviewSummary,
+    this.hospitalName,
+    this.direction,
+    this.replacementUserId,
+    this.replacementName,
     this.suggestions = const [],
   });
 
   bool get isPending => status.toUpperCase() == 'PENDING';
   bool get isApproved => status.toUpperCase() == 'APPROVED';
   bool get isDeclined => status.toUpperCase() == 'DECLINED';
+  bool get isIncoming => (direction ?? '').toUpperCase() == 'INCOMING';
+  bool get isOutgoing => !isIncoming;
+
+  DateTime? get shiftDay {
+    final raw = shiftDate.trim();
+    if (raw.length < 10) return DateTime.tryParse(raw);
+    return DateTime.tryParse(raw.substring(0, 10));
+  }
+
+  bool get isUpcoming {
+    final day = shiftDay;
+    if (day == null) return true;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    return !DateTime(day.year, day.month, day.day).isBefore(today);
+  }
 
   String get dateLabel {
     final raw = shiftDate.trim();
@@ -90,6 +114,10 @@ class ShiftSwapRequestModel {
       createdAt: json['createdAt']?.toString() ?? '',
       decidedAt: json['decidedAt']?.toString(),
       reviewSummary: json['reviewSummary']?.toString(),
+      hospitalName: json['hospitalName']?.toString(),
+      direction: json['direction']?.toString(),
+      replacementUserId: json['replacementUserId']?.toString(),
+      replacementName: json['replacementName']?.toString(),
       suggestions: _parseSuggestions(json['suggestions']),
     );
   }

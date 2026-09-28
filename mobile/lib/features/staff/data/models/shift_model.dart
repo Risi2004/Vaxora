@@ -4,6 +4,7 @@ class ShiftModel {
   final String staffUserId;
   final String staffName;
   final String staffRole;
+  final String? staffPhotoUrl;
   final String shiftDate;
   final String startTime;
   final String endTime;
@@ -12,6 +13,9 @@ class ShiftModel {
   final String? notes;
   final String? createdAt;
   final String? updatedAt;
+  final String? coverStatus;
+  final String? coverLabel;
+  final String? coverForName;
 
   const ShiftModel({
     required this.shiftId,
@@ -19,6 +23,7 @@ class ShiftModel {
     required this.staffUserId,
     required this.staffName,
     required this.staffRole,
+    this.staffPhotoUrl,
     required this.shiftDate,
     required this.startTime,
     required this.endTime,
@@ -27,7 +32,14 @@ class ShiftModel {
     this.notes,
     this.createdAt,
     this.updatedAt,
+    this.coverStatus,
+    this.coverLabel,
+    this.coverForName,
   });
+
+  bool get isCoverRequested => coverStatus?.toLowerCase() == 'requested';
+  bool get isCovering => coverStatus?.toLowerCase() == 'covering';
+  bool get isCoverDeclined => coverStatus?.toLowerCase() == 'declined';
 
   /// Short display like "09:00–13:00" from API TimeOnly strings.
   String get timeRangeLabel {
@@ -47,6 +59,7 @@ class ShiftModel {
       staffUserId: json['staffUserId']?.toString() ?? '',
       staffName: json['staffName']?.toString() ?? 'Staff',
       staffRole: json['staffRole']?.toString() ?? '',
+      staffPhotoUrl: json['staffPhotoUrl']?.toString(),
       shiftDate: json['shiftDate']?.toString() ?? '',
       startTime: json['startTime']?.toString() ?? '',
       endTime: json['endTime']?.toString() ?? '',
@@ -55,6 +68,9 @@ class ShiftModel {
       notes: json['notes']?.toString(),
       createdAt: json['createdAt']?.toString(),
       updatedAt: json['updatedAt']?.toString(),
+      coverStatus: json['coverStatus']?.toString(),
+      coverLabel: json['coverLabel']?.toString(),
+      coverForName: json['coverForName']?.toString(),
     );
   }
 }

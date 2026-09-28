@@ -85,6 +85,8 @@ class ApiConstants {
   static const String hospitalStaffShifts = '/staff/shifts/hospital';
   static const String hospitalShiftSwaps = '/staff/shift-swaps/hospital';
   static const String staffShiftSwaps = '/staff/shift-swaps';
+  static const String staffMyShiftSwaps = '/staff/shift-swaps/mine';
+  static const String staffShiftSwapQuota = '/staff/shift-swaps/quota';
 
   static String hospitalShiftSwapDecision(String requestId) =>
       '/staff/shift-swaps/$requestId/decision';

@@ -90,7 +90,7 @@ class _CoverRequestCardState extends State<CoverRequestCard> {
   @override
   Widget build(BuildContext context) {
     final note = _note;
-    final suggestions = request.suggestions;
+    final suggestions = request.suggestions.where((s) => s.available).toList();
     final hasCover = suggestions.any((s) => s.available);
     final canApprove = request.isPending &&
         hasCover &&

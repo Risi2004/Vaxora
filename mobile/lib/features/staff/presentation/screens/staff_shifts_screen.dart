@@ -5,12 +5,15 @@ import '../../../../core/services/storage_service.dart';
 import '../../../auth/presentation/utils/home_route_utils.dart';
 import '../../data/models/affiliation_model.dart';
 import '../../data/models/shift_model.dart';
+import '../../data/repositories/shift_swap_repository.dart';
 import '../../data/repositories/staff_repository.dart';
+import '../../../hospital_staff/data/models/shift_swap_request_model.dart';
 import '../utils/staff_calendar_sync.dart';
 import '../utils/staff_date_utils.dart';
 import '../widgets/network_avatar.dart';
 import '../widgets/shift_swap_sheet.dart';
 import '../widgets/staff_common_widgets.dart';
+import '../widgets/staff_cover_sheet.dart';
 
 class StaffShiftsScreen extends StatefulWidget {
   const StaffShiftsScreen({super.key});
@@ -21,6 +24,8 @@ class StaffShiftsScreen extends StatefulWidget {
 
 class _StaffShiftsScreenState extends State<StaffShiftsScreen> {
   List<ShiftModel> _shifts = [];
+  List<ShiftSwapRequestModel> _covers = [];
+  Set<String> _seenIncoming = {};
   Map<String, AffiliationModel> _affiliationsById = {};
   Set<String> _syncedIds = {};
   Set<String> _selectedIds = {};
@@ -92,18 +97,24 @@ class _StaffShiftsScreenState extends State<StaffShiftsScreen> {
       final results = await Future.wait([
         StaffRepository.getMyShifts(from: _from, to: _to),
         StaffRepository.getMyAffiliations(),
+        ShiftSwapRepository.listMine(),
+        ShiftSwapRepository.seenIncomingIds(),
       ]);
 
       if (!mounted) return;
 
       final shifts = results[0] as List<ShiftModel>;
       final affiliations = results[1] as List<AffiliationModel>;
+      final covers = results[2] as List<ShiftSwapRequestModel>;
+      final seen = results[3] as Set<String>;
       final byId = <String, AffiliationModel>{
         for (final a in affiliations) a.affiliationId: a,
       };
 
       setState(() {
         _shifts = shifts;
+        _covers = covers;
+        _seenIncoming = seen;
         _affiliationsById = byId;
         _loading = false;
         _selectedIds.removeWhere(
@@ -116,6 +127,8 @@ class _StaffShiftsScreenState extends State<StaffShiftsScreen> {
         _loading = false;
         _error = e is ApiException ? e.message : 'Failed to load shifts.';
         _shifts = [];
+        _covers = [];
+        _seenIncoming = {};
       });
     }
   }
@@ -141,6 +154,20 @@ class _StaffShiftsScreenState extends State<StaffShiftsScreen> {
 
   int get _syncedCount =>
       _shifts.where((s) => _syncedIds.contains(s.shiftId)).length;
+
+  int get _coverBadgeCount {
+    return _covers
+        .where((r) =>
+            r.isIncoming &&
+            r.isUpcoming &&
+            !_seenIncoming.contains(r.id))
+        .length;
+  }
+
+  Future<void> _openCoverSheet() async {
+    await StaffCoverSheet.show(context);
+    if (mounted) await _load();
+  }
 
   void _toast(String message) {
     if (!mounted) return;
@@ -305,6 +332,12 @@ class _StaffShiftsScreenState extends State<StaffShiftsScreen> {
         photoUrl: _photoUrl,
         actions: [
           StaffHeaderAction(
+            icon: Icons.swap_horiz,
+            tooltip: 'Cover',
+            badgeCount: _coverBadgeCount,
+            onPressed: _loading || _syncing ? null : _openCoverSheet,
+          ),
+          StaffHeaderAction(
             icon: Icons.refresh,
             tooltip: 'Refresh',
             onPressed: _loading || _syncing ? null : _load,
@@ -440,6 +473,7 @@ class _StaffShiftsScreenState extends State<StaffShiftsScreen> {
                         selectMode: _selectMode,
                         selected: _selectedIds.contains(shift.shiftId),
                         onToggleSelect: () => _toggleSelected(shift.shiftId),
+                        onCoverChanged: _load,
                       ),
                     ),
                   ),
@@ -666,6 +700,7 @@ class _ShiftCard extends StatelessWidget {
   final bool selectMode;
   final bool selected;
   final VoidCallback onToggleSelect;
+  final Future<void> Function()? onCoverChanged;
 
   const _ShiftCard({
     required this.shift,
@@ -674,6 +709,7 @@ class _ShiftCard extends StatelessWidget {
     required this.selectMode,
     required this.selected,
     required this.onToggleSelect,
+    this.onCoverChanged,
   });
 
   Future<void> _openMenu(BuildContext context) async {
@@ -686,11 +722,12 @@ class _ShiftCard extends StatelessWidget {
       ),
     );
     if (action == 'swap' && context.mounted) {
-      await ShiftSwapSheet.show(
+      final sent = await ShiftSwapSheet.show(
         context,
         shift: shift,
         hospitalName: hospitalName,
       );
+      if (sent == true) await onCoverChanged?.call();
     }
   }
 
@@ -754,12 +791,14 @@ class _ShiftCard extends StatelessWidget {
                             ),
                           ),
                         ),
-                        if (synced)
-                          const StaffStatusChip(
-                            label: 'In calendar',
-                            tone: StaffChipTone.brand,
-                            icon: Icons.event_available,
-                          ),
+                        ShiftCoverStatusChip.maybe(status: shift.coverStatus) ??
+                            (synced
+                                ? const StaffStatusChip(
+                                    label: 'In calendar',
+                                    tone: StaffChipTone.brand,
+                                    icon: Icons.event_available,
+                                  )
+                                : const SizedBox.shrink()),
                       ],
                     ),
                     const SizedBox(height: 4),
@@ -779,6 +818,26 @@ class _ShiftCard extends StatelessWidget {
                         color: StaffSurfaces.textSecondary,
                       ),
                     ),
+                    if (shift.isCovering &&
+                        (shift.coverForName?.trim().isNotEmpty ?? false)) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        'Covering for ${shift.coverForName!.trim()}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: StaffSurfaces.brandSoft,
+                        ),
+                      ),
+                    ],
+                    if (synced && shift.coverStatus != null) ...[
+                      const SizedBox(height: 4),
+                      const StaffStatusChip(
+                        label: 'In calendar',
+                        tone: StaffChipTone.brand,
+                        icon: Icons.event_available,
+                      ),
+                    ],
                     if (shift.notes != null &&
                         shift.notes!.trim().isNotEmpty) ...[
                       const SizedBox(height: 6),
@@ -881,12 +940,20 @@ class _ShiftActionSheet extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             const Divider(color: StaffSurfaces.divider, height: 1),
-            _MenuTile(
-              icon: Icons.swap_horiz,
-              label: 'Request cover',
-              subtitle: 'Ask the assistant to arrange a swap',
-              onTap: () => Navigator.of(context).pop('swap'),
-            ),
+            if (shift.isCoverRequested)
+              _MenuTile(
+                icon: Icons.hourglass_top_outlined,
+                label: 'Cover requested',
+                subtitle: 'Hospital is reviewing this shift',
+                onTap: () => Navigator.of(context).pop(),
+              )
+            else
+              _MenuTile(
+                icon: Icons.swap_horiz,
+                label: 'Request cover',
+                subtitle: 'Ask the hospital to find someone for this shift',
+                onTap: () => Navigator.of(context).pop('swap'),
+              ),
             const SizedBox(height: 4),
           ],
         ),

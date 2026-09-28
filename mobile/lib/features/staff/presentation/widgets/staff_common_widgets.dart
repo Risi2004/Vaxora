@@ -759,3 +759,50 @@ class StaffStatusChip extends StatelessWidget {
     );
   }
 }
+
+/// Chip for a shift that has a pending, assigned, or declined cover request.
+class ShiftCoverStatusChip extends StatelessWidget {
+  final String status;
+  final String? label;
+
+  const ShiftCoverStatusChip({
+    super.key,
+    required this.status,
+    this.label,
+  });
+
+  static Widget? maybe({String? status, String? label}) {
+    final raw = status?.trim();
+    if (raw == null || raw.isEmpty) return null;
+    return ShiftCoverStatusChip(status: raw, label: label);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final key = status.toLowerCase();
+    final (chipLabel, tone, icon) = switch (key) {
+      'requested' => (
+          label?.trim().isNotEmpty == true ? label!.trim() : 'Cover requested',
+          StaffChipTone.warning,
+          Icons.hourglass_top_outlined,
+        ),
+      'covering' => (
+          label?.trim().isNotEmpty == true ? label!.trim() : 'Covering',
+          StaffChipTone.success,
+          Icons.swap_horiz,
+        ),
+      'declined' => (
+          label?.trim().isNotEmpty == true ? label!.trim() : 'Cover declined',
+          StaffChipTone.danger,
+          Icons.highlight_off,
+        ),
+      _ => (
+          label?.trim().isNotEmpty == true ? label!.trim() : 'Cover',
+          StaffChipTone.neutral,
+          Icons.swap_horiz,
+        ),
+    };
+
+    return StaffStatusChip(label: chipLabel, tone: tone, icon: icon);
+  }
+}
