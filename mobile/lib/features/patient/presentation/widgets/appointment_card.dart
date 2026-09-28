@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../staff/presentation/widgets/staff_common_widgets.dart';
 
 class PatientAppointment {
   final String id;
@@ -43,192 +44,110 @@ class AppointmentCard extends StatelessWidget {
     this.onPayNow,
   });
 
-  Color _getStatusColor() {
+  StaffChipTone get _tone {
     switch (appointment.status.toLowerCase()) {
       case 'confirmed':
-        return AppColors.brandBlue;
       case 'completed':
-        return AppColors.success;
+        return StaffChipTone.success;
       case 'cancelled':
-        return AppColors.error;
+        return StaffChipTone.danger;
       default:
-        return const Color(0xFFD97706);
-    }
-  }
-
-  Color _getStatusBg() {
-    switch (appointment.status.toLowerCase()) {
-      case 'confirmed':
-        return const Color(0xFFEFF6FF);
-      case 'completed':
-        return const Color(0xFFDCFCE7);
-      case 'cancelled':
-        return const Color(0xFFFEE2E2);
-      default:
-        return const Color(0xFFFEF3C7);
+        return StaffChipTone.warning;
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final statusColor = _getStatusColor();
-    final statusBg = _getStatusBg();
     final isCancelled = appointment.status.toLowerCase() == 'cancelled';
     final isPaymentComplete = appointment.isPaid ||
         appointment.status.toLowerCase() == 'confirmed' ||
         appointment.status.toLowerCase() == 'completed';
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.borderLight, width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.primaryDark.withValues(alpha: 0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: StaffSurfaces.card(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Top row: Vaccine pill badge & Status badge
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceSubtle,
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: AppColors.borderLight),
-                  ),
-                  child: Text(
-                    appointment.vaccineName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.primaryDark,
-                    ),
+                child: Text(
+                  appointment.hospitalName,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: StaffSurfaces.textPrimary,
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: statusBg,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 6,
-                      height: 6,
-                      decoration: BoxDecoration(
-                        color: statusColor,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 5),
-                    Text(
-                      appointment.status,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: statusColor,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              StaffStatusChip(label: appointment.status, tone: _tone),
             ],
           ),
-          const SizedBox(height: 12),
-
-          // Hospital Name & Location
+          const SizedBox(height: 4),
           Text(
-            appointment.hospitalName,
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textTitle,
+            appointment.vaccineName,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: StaffSurfaces.brandSoft,
             ),
           ),
           const SizedBox(height: 4),
-          Row(
-            children: [
-              const Icon(Icons.location_on_outlined, size: 14, color: AppColors.textMuted),
-              const SizedBox(width: 4),
-              Expanded(
-                child: Text(
-                  appointment.location,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textMuted,
-                  ),
-                ),
-              ),
-            ],
+          Text(
+            appointment.location,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 12,
+              color: StaffSurfaces.textSecondary,
+            ),
           ),
           const SizedBox(height: 10),
-
-          // Date, Time & Doctor Line
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF8FAFC),
-              borderRadius: BorderRadius.circular(8),
-            ),
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: StaffSurfaces.softWell(),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    const Icon(Icons.calendar_today_outlined, size: 13, color: AppColors.brandBlue),
-                    const SizedBox(width: 5),
-                    Text(
-                      '${appointment.date} • ${appointment.time}',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textTitle,
-                      ),
+                Icon(
+                  Icons.schedule_outlined,
+                  size: 14,
+                  color: StaffSurfaces.brandSoft,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    '${appointment.date}  ·  ${appointment.time}',
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: StaffSurfaces.textPrimary,
                     ),
-                  ],
+                  ),
                 ),
                 Text(
                   appointment.doctorName,
                   style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.textMuted,
+                    fontSize: 11.5,
+                    color: StaffSurfaces.textSecondary,
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 14),
-
-          // Action buttons row (Hidden if appointment is cancelled)
-          if (isCancelled) ...[
+          const SizedBox(height: 12),
+          if (isCancelled)
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 12),
+              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
               decoration: BoxDecoration(
-                color: const Color(0xFFFEF2F2),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0xFFFEE2E2)),
+                color: AppColors.errorBg,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: AppColors.error.withValues(alpha: 0.25),
+                ),
               ),
               child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -236,29 +155,35 @@ class AppointmentCard extends StatelessWidget {
                   Icon(Icons.cancel_outlined, size: 16, color: AppColors.error),
                   SizedBox(width: 8),
                   Text(
-                    'Appointment Cancelled',
+                    'Appointment cancelled',
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: 12.5,
                       fontWeight: FontWeight.w700,
                       color: AppColors.error,
                     ),
                   ),
                 ],
               ),
-            ),
-          ] else ...[
+            )
+          else
             Row(
               children: [
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed: onViewSlip,
-                    icon: const Icon(Icons.qr_code, size: 16),
-                    label: const Text('QR Slip', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                    icon: const Icon(Icons.qr_code_2, size: 16),
+                    label: const Text('QR slip'),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.brandBlue,
-                      side: const BorderSide(color: AppColors.brandBlue),
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      foregroundColor: StaffSurfaces.textPrimary,
+                      side: const BorderSide(color: StaffSurfaces.cardBorder),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      textStyle: const TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ),
@@ -267,37 +192,45 @@ class AppointmentCard extends StatelessWidget {
                     onPayNow != null) ...[
                   const SizedBox(width: 8),
                   Expanded(
-                    child: ElevatedButton(
+                    child: FilledButton(
                       onPressed: onPayNow,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF16A34A),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.success,
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        textStyle: const TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                       child: Text(
                         'Pay LKR ${appointment.fee.toStringAsFixed(0)}',
-                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
                       ),
                     ),
                   ),
                 ],
-                if (appointment.status.toLowerCase() != 'completed' && onCancel != null) ...[
+                if (appointment.status.toLowerCase() != 'completed' &&
+                    onCancel != null) ...[
                   const SizedBox(width: 8),
                   IconButton(
                     onPressed: onCancel,
+                    tooltip: 'Cancel appointment',
                     icon: const Icon(Icons.close, size: 18, color: AppColors.error),
                     style: IconButton.styleFrom(
                       backgroundColor: AppColors.errorBg,
                       padding: const EdgeInsets.all(8),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
-                    tooltip: 'Cancel Appointment',
                   ),
                 ],
               ],
             ),
-          ],
         ],
       ),
     );

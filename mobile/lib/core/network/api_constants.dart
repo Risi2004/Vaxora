@@ -69,4 +69,32 @@ class ApiConstants {
   static String batchWastage(String batchId) => '/inventory/batches/$batchId/wastage';
   static String batchAudit(String batchId) => '/inventory/batches/$batchId/audit';
 
+  // Staff management (doctor / nurse)
+  static const String staffMyAffiliations = '/staff/my-affiliations';
+  static const String staffInvitations = '/staff/invitations';
+  static const String staffMyShifts = '/staff/shifts/mine';
+  static const String staffAppointments = '/appointments/staff';
+
+  static String staffInvitationRespond(String affiliationId) =>
+      '/staff/invitations/$affiliationId/respond';
+
+  // Staff management (hospital side)
+  static const String hospitalStaffRoster = '/staff/hospital';
+  static const String hospitalStaffCandidates = '/staff/candidates';
+  static const String hospitalStaffInvite = '/staff/invite';
+  static const String hospitalStaffShifts = '/staff/shifts/hospital';
+  static const String hospitalShiftSwaps = '/staff/shift-swaps/hospital';
+  static const String staffShiftSwaps = '/staff/shift-swaps';
+  static const String staffMyShiftSwaps = '/staff/shift-swaps/mine';
+  static const String staffShiftSwapQuota = '/staff/shift-swaps/quota';
+
+  static String hospitalShiftSwapDecision(String requestId) =>
+      '/staff/shift-swaps/$requestId/decision';
+
+  static String hospitalAffiliationDuty(String affiliationId) =>
+      '/staff/affiliations/$affiliationId/duty';
+  static String hospitalAffiliation(String affiliationId) =>
+      '/staff/affiliations/$affiliationId';
+
+  static String appointmentStatus(String id) => '/appointments/$id/status';
 }

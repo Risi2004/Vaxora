@@ -1676,9 +1676,16 @@ def _review_message(from_date: str, to_date: str, findings: List[str], proposals
     lines = [f"Roster review {from_date} to {to_date}."]
     lines.extend(f"- {item}" for item in findings[:12])
     if proposals:
-        lines.append(f"{len(proposals)} suggested shift(s). Press Approve or Decline on each one. Nothing is saved yet.")
+        lines.append(
+            f"{len(proposals)} suggested shift(s). Press Approve or Decline on each one. Nothing is saved yet."
+        )
     else:
-        lines.append("No new shifts to propose.")
+        lines.append(
+            "No new shifts to propose — every posted clinic window already has doctor/nurse coverage "
+            "for this range. Approval is only needed when there are suggestion cards. "
+            "Pick a week with open gaps, add more vaccine schedules/booths, or delete existing "
+            "shifts if you want the agent to suggest replacements."
+        )
     return "\n".join(lines)
 
 

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../../../core/services/storage_service.dart';
-import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_text_styles.dart';
 import '../../../auth/data/models/user_model.dart';
 import '../../../auth/data/repositories/auth_repository.dart';
+import '../../../staff/presentation/widgets/network_avatar.dart';
+import '../../../staff/presentation/widgets/staff_common_widgets.dart';
 import '../../data/models/vaccination_record_model.dart';
 import '../../data/repositories/patient_repository.dart';
 import '../widgets/agent_booking_sheet.dart';
@@ -81,287 +81,164 @@ class _PatientHistoryScreenState extends State<PatientHistoryScreen> {
     );
   }
 
-  Widget _buildSummaryBox(String val, String label, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.borderLight, width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: color.withValues(alpha: 0.08),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            val,
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: color),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 3),
-          Text(
-            label,
-            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textMuted),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    final patientName = _user?.name.toUpperCase() ?? 'VAXORA CITIZEN';
-    final regNo = _user?.registrationNumber ?? 'VAX-P-PENDING';
-    final nic = _user?.nicNumber ?? 'Not Provided';
+    final displayName = _user?.name.isNotEmpty == true ? _user!.name : 'Citizen';
     final totalDoses = _timeline?.totalDoses ?? 0;
     final distinctVaccines = _timeline?.distinctVaccines ?? 0;
     final lastVaccinated = _timeline?.lastVaccinatedAt != null
         ? '${_timeline!.lastVaccinatedAt!.year}-${_timeline!.lastVaccinatedAt!.month.toString().padLeft(2, '0')}-${_timeline!.lastVaccinatedAt!.day.toString().padLeft(2, '0')}'
-        : 'None';
+        : '—';
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        title: const Text('Vaccination History', style: AppTextStyles.h3),
-        backgroundColor: Colors.white,
-        elevation: 0,
+      backgroundColor: StaffSurfaces.pageBg,
+      appBar: StaffScreenHeader.appBar(
+        displayName: displayName,
+        subtitle: 'Patient · History',
+        photoUrl: resolveMediaUrl(_user?.profilePhotoUrl),
+        actions: [
+          StaffHeaderAction(
+            icon: Icons.auto_awesome,
+            tooltip: 'Book with AI',
+            onPressed: () => _openAgentBookingSheet(context),
+          ),
+          StaffHeaderAction(
+            icon: Icons.refresh,
+            tooltip: 'Refresh',
+            onPressed: _isLoading ? null : _loadHistoryData,
+          ),
+        ],
       ),
       body: RefreshIndicator(
         onRefresh: _loadHistoryData,
-        color: AppColors.brandBlue,
-        child: SingleChildScrollView(
+        color: StaffSurfaces.brandSoft,
+        child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // 1. Citizen Profile Card
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: AppColors.borderLight, width: 1.5),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.primaryDark.withValues(alpha: 0.04),
-                      blurRadius: 10,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 28),
+          children: [
+            StaffPageIntro(
+              eyebrow: 'Immunization record',
+              title: 'Vaccination history',
+              subtitle:
+                  '${_user?.registrationNumber ?? 'VAX-P-PENDING'} · ${_user?.nicNumber ?? 'NIC pending'}',
+              stats: [
+                StaffIntroStat(
+                  label: 'Doses',
+                  value: '$totalDoses',
+                  icon: Icons.vaccines_outlined,
                 ),
-                child: Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 30,
-                      backgroundColor: AppColors.brandBlue.withValues(alpha: 0.12),
-                      child: const Icon(Icons.person, size: 36, color: AppColors.brandBlue),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                StaffIntroStat(
+                  label: 'Vaccines',
+                  value: '$distinctVaccines',
+                  icon: Icons.health_and_safety_outlined,
+                ),
+                StaffIntroStat(
+                  label: 'Last dose',
+                  value: lastVaccinated,
+                  icon: Icons.event_available_outlined,
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            StaffSectionHeader(
+              title: 'Administered doses',
+              count: _timeline?.records.length,
+            ),
+            if (_isLoading)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 48),
+                child: Center(
+                  child: CircularProgressIndicator(
+                    color: StaffSurfaces.brandSoft,
+                  ),
+                ),
+              )
+            else if (_timeline != null && _timeline!.records.isNotEmpty)
+              ..._timeline!.records.map((rec) {
+                final adminDateStr =
+                    '${rec.administeredAt.year}-${rec.administeredAt.month.toString().padLeft(2, '0')}-${rec.administeredAt.day.toString().padLeft(2, '0')}';
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.all(14),
+                  decoration: StaffSurfaces.card(),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
                         children: [
-                          Text(
-                            patientName,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.textTitle,
+                          Expanded(
+                            child: Text(
+                              rec.vaccineName,
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: StaffSurfaces.textPrimary,
+                              ),
                             ),
                           ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'ID: $regNo • NIC: $nic',
-                            style: const TextStyle(fontSize: 12, color: AppColors.textMuted, fontWeight: FontWeight.w500),
-                          ),
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              const Icon(Icons.check_circle, size: 14, color: AppColors.success),
-                              const SizedBox(width: 4),
-                              Text(
-                                _user?.status == 'Active' ? 'Verified Citizen Record' : (_user?.status ?? 'Citizen Record'),
-                                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.success),
-                              ),
-                            ],
+                          const StaffStatusChip(
+                            label: 'Completed',
+                            tone: StaffChipTone.success,
                           ),
                         ],
                       ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // 2. Summary Metric Boxes
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildSummaryBox('$totalDoses Doses', 'Total Received', AppColors.brandBlue),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _buildSummaryBox('$distinctVaccines Types', 'Distinct Vaccines', const Color(0xFF8B5CF6)),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _buildSummaryBox(lastVaccinated, 'Last Vaccinated', AppColors.success),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-
-              // 3. Records Heading
-              const Text(
-                'Administered Doses',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textTitle),
-              ),
-              const SizedBox(height: 12),
-
-              // 4. Records List
-              if (_isLoading) ...[
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 40),
-                  child: Center(
-                    child: CircularProgressIndicator(color: AppColors.brandBlue),
-                  ),
-                ),
-              ] else if (_timeline != null && _timeline!.records.isNotEmpty) ...[
-                ..._timeline!.records.map((rec) {
-                  final adminDateStr =
-                      '${rec.administeredAt.year}-${rec.administeredAt.month.toString().padLeft(2, '0')}-${rec.administeredAt.day.toString().padLeft(2, '0')}';
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppColors.borderLight, width: 1.5),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.primaryDark.withValues(alpha: 0.03),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFDCFCE7),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: const Text(
-                                'COMPLETED ✅',
-                                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: AppColors.success),
-                              ),
-                            ),
-                            Text(
-                              adminDateStr,
-                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textMuted),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          rec.vaccineName,
-                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textTitle),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Dose ${rec.doseNumber} • Route: ${rec.route}${rec.lotNumber != null ? " • Lot: ${rec.lotNumber}" : ""}',
-                          style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          'Administered by ${rec.administeredByName}',
-                          style: const TextStyle(fontSize: 12, color: AppColors.textBody),
-                        ),
-                        const SizedBox(height: 12),
-                        InkWell(
-                          onTap: () => _openCertificate(context, rec),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                            decoration: BoxDecoration(
-                              color: AppColors.surfaceSubtle,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: AppColors.borderLight),
-                            ),
-                            child: const Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.qr_code, size: 16, color: AppColors.brandBlue),
-                                SizedBox(width: 6),
-                                Text(
-                                  'View Verified Certificate',
-                                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.brandBlue),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }),
-              ] else ...[
-                Container(
-                  padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 20),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.borderLight),
-                  ),
-                  child: Column(
-                    children: [
-                      const Icon(Icons.verified_user_outlined, size: 48, color: AppColors.brandBlue),
-                      const SizedBox(height: 12),
-                      const Text(
-                        'No Vaccination Records Yet',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.textTitle,
-                        ),
-                      ),
                       const SizedBox(height: 6),
-                      const Text(
-                        'When you receive vaccines at registered hospitals and clinics, your official digital immunization credentials will appear here automatically.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 13, color: AppColors.textMuted),
+                      Text(
+                        'Dose ${rec.doseNumber}  ·  ${rec.route}${rec.lotNumber != null ? "  ·  Lot ${rec.lotNumber}" : ""}',
+                        style: const TextStyle(
+                          fontSize: 12.5,
+                          color: StaffSurfaces.textSecondary,
+                        ),
                       ),
-                      const SizedBox(height: 16),
-                      ElevatedButton.icon(
-                        onPressed: () => _openAgentBookingSheet(context),
-                        icon: const Text('🤖', style: TextStyle(fontSize: 14)),
-                        label: const Text('Book Your First Dose'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.brandBlue,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      const SizedBox(height: 4),
+                      Text(
+                        '$adminDateStr  ·  ${rec.administeredByName}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: StaffSurfaces.textMutedSoft,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      OutlinedButton.icon(
+                        onPressed: () => _openCertificate(context, rec),
+                        icon: const Icon(Icons.qr_code_2, size: 16),
+                        label: const Text('View certificate'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: StaffSurfaces.textPrimary,
+                          side: const BorderSide(color: StaffSurfaces.cardBorder),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          textStyle: const TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                     ],
                   ),
+                );
+              })
+            else ...[
+              const StaffEmptyCard(
+                message:
+                    'Doses recorded at registered centres will appear here.',
+                icon: Icons.verified_user_outlined,
+              ),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: () => _openAgentBookingSheet(context),
+                icon: const Icon(Icons.auto_awesome, size: 18),
+                label: const Text('Book first dose'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: StaffSurfaces.cta,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
-              ],
+              ),
             ],
-          ),
+          ],
         ),
       ),
     );

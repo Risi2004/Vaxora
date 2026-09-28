@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import '../../../../core/theme/app_colors.dart';
+import '../../../staff/presentation/widgets/staff_common_widgets.dart';
 
 class ImmunizationTimelineItem extends StatelessWidget {
-  final String icon;
+  final IconData icon;
   final String name;
   final String target;
   final String status;
@@ -17,52 +17,37 @@ class ImmunizationTimelineItem extends StatelessWidget {
     required this.date,
   });
 
-  Color _getStatusColor() {
+  StaffChipTone get _tone {
     switch (status.toLowerCase()) {
       case 'completed':
-        return AppColors.success;
-      case 'scheduled':
-        return AppColors.brandBlue;
+      case 'confirmed':
+        return StaffChipTone.success;
+      case 'cancelled':
+        return StaffChipTone.danger;
       case 'due soon':
-        return const Color(0xFFD97706); // Amber
+      case 'pending':
+        return StaffChipTone.warning;
       default:
-        return AppColors.textMuted;
-    }
-  }
-
-  Color _getStatusBg() {
-    switch (status.toLowerCase()) {
-      case 'completed':
-        return const Color(0xFFDCFCE7);
-      case 'scheduled':
-        return const Color(0xFFDBEAFE);
-      case 'due soon':
-        return const Color(0xFFFEF3C7);
-      default:
-        return const Color(0xFFF1F5F9);
+        return StaffChipTone.brand;
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final statusColor = _getStatusColor();
-    final statusBg = _getStatusBg();
-
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 10),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Container(
-            width: 38,
-            height: 38,
+            width: 36,
+            height: 36,
             decoration: BoxDecoration(
-              color: AppColors.surfaceSubtle,
-              shape: BoxShape.circle,
-              border: Border.all(color: AppColors.borderLight),
+              color: StaffSurfaces.softPanelDeep,
+              borderRadius: BorderRadius.circular(10),
             ),
             alignment: Alignment.center,
-            child: Text(icon, style: const TextStyle(fontSize: 16)),
+            child: Icon(icon, size: 18, color: StaffSurfaces.brandSoft),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -74,15 +59,15 @@ class ImmunizationTimelineItem extends StatelessWidget {
                   style: const TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.textTitle,
+                    color: StaffSurfaces.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   target,
                   style: const TextStyle(
-                    fontSize: 11,
-                    color: AppColors.textMuted,
+                    fontSize: 11.5,
+                    color: StaffSurfaces.textSecondary,
                   ),
                 ),
               ],
@@ -92,28 +77,14 @@ class ImmunizationTimelineItem extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: statusBg,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  status,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: statusColor,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 3),
+              StaffStatusChip(label: status, tone: _tone),
+              const SizedBox(height: 4),
               Text(
                 date,
                 style: const TextStyle(
-                  fontSize: 10,
+                  fontSize: 10.5,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.textMuted,
+                  color: StaffSurfaces.textMutedSoft,
                 ),
               ),
             ],

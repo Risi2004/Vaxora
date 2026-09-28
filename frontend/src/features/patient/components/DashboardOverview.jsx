@@ -5,6 +5,19 @@ import { agentService } from "../services/agentService";
 import { appointmentService } from "../services/appointmentService";
 import { patientVaccinationService } from "../services/patientVaccinationService";
 import CarePlanModal from "./CarePlanModal";
+import {
+  IconBot,
+  IconCalendar,
+  IconClock,
+  IconDoctor,
+  IconHospital,
+  IconRefresh,
+  IconRocket,
+  IconShield,
+  IconStethoscope,
+  IconSyringe,
+} from "../../../shared/icons/AppIcons";
+import heroImage from "../../../assets/images/patient-home-hero.png";
 
 // ---------- Date helpers ----------
 const formatLongDate = (iso) => {
@@ -236,86 +249,93 @@ export default function DashboardOverview({ onNavigateTab, onOpenBookModal }) {
   return (
     <div className="dashboard-overview-tab">
       {/* ---------- 1. Welcome Banner ---------- */}
-      <div className="patient-welcome-banner">
-        <div className="welcome-text-group">
-          <h1>Welcome back{displayName ? `, ${displayName}` : ""}! 👋</h1>
+      <section className="patient-welcome-banner">
+        <div className="patient-welcome-content">
+          <p className="patient-welcome-eyebrow">
+            <IconStethoscope size={14} /> Your care hub
+          </p>
+          <h1>Welcome back{displayName ? `, ${displayName}` : ""}!</h1>
           <p className="welcome-subtitle">
             {nextAppointment
               ? `Your next vaccination is scheduled for ${formatShortDate(nextApptDate)}.`
               : "Your Vaxora immunization pass is cryptographically verified and up-to-date. No upcoming appointments scheduled."}
           </p>
-        </div>
-        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-          {carePlanResult ? (
-            <>
+          <div className="patient-welcome-tags">
+            <span className="patient-welcome-tag">
+              <IconShield size={13} /> Protected
+            </span>
+            <span className="patient-welcome-tag">
+              <IconSyringe size={13} /> Vaccination ready
+            </span>
+            <span className="patient-welcome-tag patient-welcome-tag--soft">
+              Care-first support
+            </span>
+          </div>
+          <div className="patient-welcome-actions">
+            {carePlanResult ? (
+              <>
+                <button
+                  type="button"
+                  className="btn-banner-action"
+                  onClick={() => setCarePlanOpen(true)}
+                >
+                  <IconBot size={16} /> View Care Plan
+                </button>
+                <button
+                  type="button"
+                  className="btn-banner-action"
+                  onClick={handleGenerateCarePlan}
+                >
+                  <IconRefresh size={16} /> Refresh Plan
+                </button>
+              </>
+            ) : (
               <button
                 type="button"
                 className="btn-banner-action"
-                style={{
-                  background: "rgba(255,255,255,0.25)",
-                  color: "#ffffff",
-                  borderColor: "rgba(255,255,255,0.5)",
-                }}
-                onClick={() => setCarePlanOpen(true)}
-              >
-                ✨ View Care Plan
-              </button>
-              <button
-                type="button"
-                className="btn-banner-action"
-                style={{
-                  background: "rgba(255,255,255,0.12)",
-                  color: "#ffffff",
-                  borderColor: "rgba(255,255,255,0.35)",
-                }}
                 onClick={handleGenerateCarePlan}
               >
-                🔄 Refresh Plan
+                <IconBot size={16} /> Generate AI Care Plan
               </button>
-            </>
-          ) : (
+            )}
             <button
               type="button"
-              className="btn-banner-action"
-              style={{
-                background: "rgba(255,255,255,0.15)",
-                color: "#ffffff",
-                borderColor: "rgba(255,255,255,0.4)",
-              }}
-              onClick={handleGenerateCarePlan}
+              className="btn-banner-action btn-banner-action--primary"
+              onClick={() =>
+                onOpenBookModal
+                  ? onOpenBookModal()
+                  : navigate("/patient/appointments")
+              }
             >
-              ✨ Generate AI Care Plan
+              + Book Vaccination
             </button>
-          )}
-          <button
-            type="button"
-            className="btn-banner-action"
-            onClick={() =>
-              onOpenBookModal
-                ? onOpenBookModal()
-                : navigate("/patient/appointments")
-            }
-          >
-            + Book Vaccination
-          </button>
+          </div>
         </div>
-      </div>
+        <div className="patient-welcome-media" aria-hidden="true">
+          <img
+            src={heroImage}
+            alt=""
+            className="patient-welcome-image"
+          />
+        </div>
+      </section>
 
-      {/* ---------- 2. Stat Metric Cards (all real data) ---------- */}
-      <div className="patient-stats-grid">
-        {/* Card 1 — Upcoming Dose */}
-        <div className="patient-stat-card">
-          <div className="stat-card-icon-box icon-blue">📅</div>
-          <div className="stat-card-info">
-            <span className="stat-card-label">Upcoming Dose</span>
-            <span className="stat-card-value">
+      {/* ---------- 2. Stat Metric Cards (match hospital home pattern) ---------- */}
+      <div className="hospital-metrics-grid hospital-metrics-grid--4">
+        <div className="hospital-stat-card">
+          <div className="hospital-stat-icon stat-icon-purple">
+            <IconCalendar size={22} />
+          </div>
+          <div className="hospital-stat-info">
+            <span className="hospital-stat-label">Upcoming Dose</span>
+            <span className="hospital-stat-value">
               {dashboardLoading
-                ? "…"
+                ? "—"
                 : nextAppointment
                   ? formatShortDate(nextApptDate)
-                  : "None"}
+                  : "—"}
             </span>
-            <span className="stat-card-note">
+            <span className="hospital-stat-meta">
               {dashboardLoading
                 ? "Loading"
                 : nextAppointment
@@ -325,33 +345,33 @@ export default function DashboardOverview({ onNavigateTab, onOpenBookModal }) {
           </div>
         </div>
 
-        {/* Card 2 — Doses Received */}
-        <div className="patient-stat-card">
-          <div className="stat-card-icon-box icon-green">💉</div>
-          <div className="stat-card-info">
-            <span className="stat-card-label">Doses Received</span>
-            <span className="stat-card-value">
-              {dashboardLoading
-                ? "…"
-                : `${vaccinationStats.totalDoses} Completed`}
+        <div className="hospital-stat-card">
+          <div className="hospital-stat-icon stat-icon-blue">
+            <IconSyringe size={22} />
+          </div>
+          <div className="hospital-stat-info">
+            <span className="hospital-stat-label">Doses Received</span>
+            <span className="hospital-stat-value">
+              {dashboardLoading ? "—" : vaccinationStats.totalDoses}
             </span>
-            <span className="stat-card-note">
+            <span className="hospital-stat-meta">
               {vaccinationStats.totalDoses > 0
-                ? "Recorded in registry"
+                ? "Completed in registry"
                 : "No doses on file"}
             </span>
           </div>
         </div>
 
-        {/* Card 3 — Distinct Vaccines */}
-        <div className="patient-stat-card">
-          <div className="stat-card-icon-box icon-purple">🛡️</div>
-          <div className="stat-card-info">
-            <span className="stat-card-label">Distinct Vaccines</span>
-            <span className="stat-card-value">
-              {dashboardLoading ? "…" : vaccinationStats.distinctVaccines}
+        <div className="hospital-stat-card">
+          <div className="hospital-stat-icon stat-icon-teal">
+            <IconShield size={22} />
+          </div>
+          <div className="hospital-stat-info">
+            <span className="hospital-stat-label">Distinct Vaccines</span>
+            <span className="hospital-stat-value">
+              {dashboardLoading ? "—" : vaccinationStats.distinctVaccines}
             </span>
-            <span className="stat-card-note">
+            <span className="hospital-stat-meta">
               {vaccinationStats.distinctVaccines > 0
                 ? "Verified in registry"
                 : "None yet"}
@@ -359,19 +379,20 @@ export default function DashboardOverview({ onNavigateTab, onOpenBookModal }) {
           </div>
         </div>
 
-        {/* Card 4 — Last Vaccination */}
-        <div className="patient-stat-card">
-          <div className="stat-card-icon-box icon-amber">⏰</div>
-          <div className="stat-card-info">
-            <span className="stat-card-label">Last Vaccination</span>
-            <span className="stat-card-value">
+        <div className="hospital-stat-card">
+          <div className="hospital-stat-icon stat-icon-amber">
+            <IconClock size={22} />
+          </div>
+          <div className="hospital-stat-info">
+            <span className="hospital-stat-label">Last Vaccination</span>
+            <span className="hospital-stat-value">
               {dashboardLoading
-                ? "…"
+                ? "—"
                 : vaccinationStats.lastVaccinatedAt
                   ? formatShortDate(vaccinationStats.lastVaccinatedAt)
                   : "—"}
             </span>
-            <span className="stat-card-note">
+            <span className="hospital-stat-meta">
               {vaccinationStats.lastVaccinatedAt
                 ? daysAgo(vaccinationStats.lastVaccinatedAt)
                 : "No record"}
@@ -381,54 +402,41 @@ export default function DashboardOverview({ onNavigateTab, onOpenBookModal }) {
       </div>
 
       {/* ---------- 3. Main Dashboard Columns ---------- */}
-      <div className="dashboard-columns-grid">
-        {/* -------- Left column -------- */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-          {/* Next Confirmed Appointment (now dynamic) */}
-          <div className="patient-panel-card">
-            <div className="panel-header-row">
-              <h2 className="panel-title">Next Confirmed Appointment</h2>
+      <div className="hospital-dashboard-columns patient-home-columns">
+        <div className="patient-home-column">
+          <div className="hospital-section-card">
+            <div className="section-card-header">
+              <div className="section-title-group">
+                <h2>
+                  <span className="section-title-icon icon-shade-purple">
+                    <IconCalendar size={22} />
+                  </span>
+                  Next Confirmed Appointment
+                </h2>
+                <p className="section-title-desc">
+                  Your upcoming dose booking and visit details
+                </p>
+              </div>
               <button
                 type="button"
-                className="panel-link-btn"
+                className="btn-inventory-refresh"
                 onClick={() => onNavigateTab("appointments")}
               >
-                View all →
+                View all
               </button>
             </div>
 
             {dashboardLoading ? (
-              <div
-                style={{
-                  padding: "32px",
-                  textAlign: "center",
-                  color: "#64748b",
-                }}
-              >
+              <div className="patient-empty-state">
                 Loading your next appointment…
               </div>
             ) : !nextAppointment ? (
-              <div
-                style={{
-                  padding: "32px",
-                  textAlign: "center",
-                  color: "#64748b",
-                  background: "#f8fafc",
-                  borderRadius: "12px",
-                  border: "1.5px dashed #cbd5e1",
-                }}
-              >
-                <p style={{ margin: "0 0 12px", fontSize: "0.95rem" }}>
-                  You have no upcoming appointments.
-                </p>
+              <div className="patient-empty-state patient-empty-state--dashed">
+                <p>You have no upcoming appointments.</p>
                 <button
                   type="button"
-                  className="btn-outline-action"
-                  style={{
-                    background: "#19469d",
-                    color: "#ffffff",
-                    borderColor: "#19469d",
-                  }}
+                  className="btn-queue-walkin"
+                  style={{ marginLeft: 0 }}
                   onClick={() =>
                     onOpenBookModal
                       ? onOpenBookModal()
@@ -443,7 +451,6 @@ export default function DashboardOverview({ onNavigateTab, onOpenBookModal }) {
                 <div className="appointment-meta-top">
                   <span className="vaccine-badge-pill">{nextApptVaccine}</span>
                   <span className="status-badge-confirmed">
-                    ●{" "}
                     {String(
                       nextAppointment.status || "Confirmed",
                     ).toUpperCase()}
@@ -457,8 +464,8 @@ export default function DashboardOverview({ onNavigateTab, onOpenBookModal }) {
                       "Hospital"}
                   </h3>
                   <div className="appointment-hospital-line">
-                    <span>
-                      📍{" "}
+                    <span className="appointment-meta-icon">
+                      <IconHospital size={14} />
                       {nextAppointment.hospitalAddress ||
                         nextAppointment.district ||
                         "See appointment details"}
@@ -467,12 +474,19 @@ export default function DashboardOverview({ onNavigateTab, onOpenBookModal }) {
                 </div>
 
                 <div className="appointment-date-time-bar">
-                  <span>🗓️ {formatLongDate(nextApptDate)}</span>
-                  <span>
-                    ⏰ {nextAppointment.timeSlot || nextAppointment.time || "—"}
+                  <span className="appointment-meta-icon">
+                    <IconCalendar size={14} />
+                    {formatLongDate(nextApptDate)}
+                  </span>
+                  <span className="appointment-meta-icon">
+                    <IconClock size={14} />
+                    {nextAppointment.timeSlot || nextAppointment.time || "—"}
                   </span>
                   {nextAppointment.doctorName && (
-                    <span>👨‍⚕️ Dr. {nextAppointment.doctorName}</span>
+                    <span className="appointment-meta-icon">
+                      <IconDoctor size={14} />
+                      Dr. {nextAppointment.doctorName}
+                    </span>
                   )}
                 </div>
 
@@ -486,12 +500,8 @@ export default function DashboardOverview({ onNavigateTab, onOpenBookModal }) {
                   </button>
                   <button
                     type="button"
-                    className="btn-outline-action"
-                    style={{
-                      background: "#19469d",
-                      color: "#ffffff",
-                      borderColor: "#19469d",
-                    }}
+                    className="btn-queue-walkin"
+                    style={{ marginLeft: 0, flex: 1 }}
                     onClick={() =>
                       alert(
                         `Appointment on ${formatShortDate(nextApptDate)} — a slip has been sent to your registered email.`,
@@ -505,42 +515,16 @@ export default function DashboardOverview({ onNavigateTab, onOpenBookModal }) {
             )}
           </div>
 
-          {/* Travel advisory (static info — unchanged) */}
-          <div
-            className="patient-panel-card"
-            style={{ background: "#f8fafc", border: "1.5px dashed #cbd5e1" }}
-          >
-            <div
-              style={{ display: "flex", alignItems: "flex-start", gap: "16px" }}
-            >
-              <div
-                style={{
-                  fontSize: "1.8rem",
-                  background: "#eff6ff",
-                  padding: "10px",
-                  borderRadius: "12px",
-                }}
-              >
-                ✈️
+          <div className="hospital-section-card patient-advisory-card">
+            <div className="patient-advisory-row">
+              <div className="hospital-stat-icon stat-icon-teal">
+                <IconRocket size={22} />
               </div>
               <div>
-                <h4
-                  style={{
-                    fontSize: "1.05rem",
-                    fontWeight: 800,
-                    color: "#1e1b4b",
-                    marginBottom: "4px",
-                  }}
-                >
+                <h4 className="patient-advisory-title">
                   International Travel Immunization Advisory
                 </h4>
-                <p
-                  style={{
-                    fontSize: "0.88rem",
-                    color: "#475569",
-                    lineHeight: 1.5,
-                  }}
-                >
+                <p className="patient-advisory-copy">
                   Planning international travel in 2026? Ensure your Yellow
                   Fever and Meningococcal vaccine certificates are renewed at
                   least 14 days before departure.
@@ -548,7 +532,6 @@ export default function DashboardOverview({ onNavigateTab, onOpenBookModal }) {
                 <button
                   type="button"
                   className="panel-link-btn"
-                  style={{ marginTop: "8px", display: "inline-block" }}
                   onClick={() => navigate("/patient/vaccination-history")}
                 >
                   Check Vaccination Certifications →
@@ -558,47 +541,43 @@ export default function DashboardOverview({ onNavigateTab, onOpenBookModal }) {
           </div>
         </div>
 
-        {/* -------- Right column: Immunization Tracker (real data) -------- */}
-        <div className="patient-panel-card">
-          <div className="panel-header-row">
-            <h2 className="panel-title">Immunization Tracker</h2>
-            <button
-              type="button"
-              className="panel-link-btn"
-              onClick={() => navigate("/patient/vaccination-history")}
-            >
-              Full History →
-            </button>
+        <div className="hospital-section-card">
+          <div className="section-card-header inventory-section-header">
+            <div className="inventory-section-title-row">
+              <h2>
+                <span className="section-title-icon section-title-icon--teal">
+                  <IconShield size={22} />
+                </span>
+                Immunization Tracker
+              </h2>
+              <button
+                type="button"
+                className="btn-inventory-refresh"
+                onClick={() => navigate("/patient/vaccination-history")}
+              >
+                Full History
+              </button>
+            </div>
+            <p className="section-title-desc inventory-section-desc">
+              Recent completed doses from your vaccination registry
+            </p>
           </div>
 
-          <div className="schedule-checklist">
+          <div className="patient-tracker-list">
             {dashboardLoading ? (
-              <div
-                style={{
-                  padding: "24px",
-                  textAlign: "center",
-                  color: "#64748b",
-                }}
-              >
-                Loading your vaccinations…
-              </div>
+              <p className="patient-empty-state">Loading your vaccinations…</p>
             ) : recentVaccines.length === 0 ? (
-              <div
-                style={{
-                  padding: "24px",
-                  textAlign: "center",
-                  color: "#64748b",
-                  fontStyle: "italic",
-                }}
-              >
+              <p className="patient-empty-state">
                 No vaccination records on file yet.
-              </div>
+              </p>
             ) : (
               recentVaccines.map((rec, idx) => (
-                <div key={rec.id || idx} className="schedule-item">
+                <div key={rec.id || idx} className="patient-tracker-item">
                   <div className="schedule-left">
-                    <div className="schedule-icon-circle">✅</div>
-                    <div>
+                    <div className="hospital-stat-icon stat-icon-green icon-shade-sm">
+                      <IconShield size={18} />
+                    </div>
+                    <div className="patient-tracker-copy">
                       <div className="schedule-name">
                         {rec.vaccineName || "Vaccine"}
                       </div>
@@ -608,42 +587,24 @@ export default function DashboardOverview({ onNavigateTab, onOpenBookModal }) {
                       </div>
                     </div>
                   </div>
-                  <div style={{ textAlign: "right" }}>
+                  <div className="patient-tracker-meta">
                     <span className="schedule-status-tag status-completed">
                       Completed
                     </span>
-                    <div
-                      style={{
-                        fontSize: "0.78rem",
-                        color: "#64748b",
-                        marginTop: "4px",
-                        fontWeight: 600,
-                      }}
-                    >
+                    <span className="patient-tracker-date">
                       {formatShortDate(rec.administeredAt)}
-                    </div>
+                    </span>
                   </div>
                 </div>
               ))
             )}
           </div>
 
-          <div
-            style={{
-              marginTop: "24px",
-              paddingTop: "16px",
-              borderTop: "1px solid #f1f5f9",
-              textAlign: "center",
-            }}
-          >
+          <div className="patient-tracker-footer">
             <button
               type="button"
-              className="btn-outline-action"
-              style={{
-                width: "100%",
-                borderColor: "#19469d",
-                color: "#19469d",
-              }}
+              className="btn-inventory-restock"
+              style={{ width: "100%" }}
               onClick={() => navigate("/patient/appointments")}
             >
               + Schedule Recommended Dose

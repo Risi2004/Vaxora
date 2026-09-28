@@ -17,6 +17,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<StaffAffiliation> StaffAffiliations => Set<StaffAffiliation>();
     public DbSet<StaffShift> StaffShifts => Set<StaffShift>();
+    public DbSet<ShiftSwapRequest> ShiftSwapRequests => Set<ShiftSwapRequest>();
     public DbSet<HospitalBooth> HospitalBooths => Set<HospitalBooth>();
     public DbSet<HospitalBoothVaccine> HospitalBoothVaccines => Set<HospitalBoothVaccine>();
     public DbSet<AgentWorkflow> AgentWorkflows => Set<AgentWorkflow>();
@@ -195,6 +196,31 @@ public class ApplicationDbContext : DbContext
 
         modelBuilder.Entity<StaffShift>()
             .HasIndex(s => new { s.AffiliationId, s.ShiftDate });
+
+        modelBuilder.Entity<ShiftSwapRequest>()
+            .Property(r => r.Status)
+            .HasConversion<string>();
+
+        modelBuilder.Entity<ShiftSwapRequest>()
+            .HasOne(r => r.HospitalUser)
+            .WithMany()
+            .HasForeignKey(r => r.HospitalUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<ShiftSwapRequest>()
+            .HasOne(r => r.RequesterUser)
+            .WithMany()
+            .HasForeignKey(r => r.RequesterUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<ShiftSwapRequest>()
+            .HasIndex(r => new { r.HospitalUserId, r.Status, r.CreatedAt });
+
+        modelBuilder.Entity<ShiftSwapRequest>()
+            .HasIndex(r => new { r.RequesterUserId, r.CreatedAt });
+
+        modelBuilder.Entity<ShiftSwapRequest>()
+            .HasIndex(r => r.ReplacementUserId);
 
         modelBuilder.Entity<HospitalBooth>()
             .HasOne(b => b.HospitalUser)
