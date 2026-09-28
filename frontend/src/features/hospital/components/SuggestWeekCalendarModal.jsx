@@ -183,7 +183,7 @@ export default function SuggestWeekCalendarModal({
                 🤖
               </div>
               <h3>Agent is working…</h3>
-              <p>Suggest Week — LLM is analyzing gaps, choosing staff, and building the plan</p>
+              <p>Suggest Week — agent is working</p>
               <div className="suggest-week-modal-waiting-track">
                 <div className="suggest-week-modal-waiting-bar" />
               </div>
