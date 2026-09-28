@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../hospital_staff/presentation/screens/hospital_staff_screen.dart';
 import 'inventory_home_screen.dart';
 import 'hospital_alerts_screen.dart';
 import 'hospital_ai_screen.dart';
@@ -17,6 +18,7 @@ class _HospitalMainScreenState extends State<HospitalMainScreen> {
 
   static const _screens = [
     InventoryHomeScreen(),
+    HospitalStaffScreen(),
     HospitalAlertsScreen(),
     HospitalAiScreen(),
     HospitalProfileScreen(),
@@ -37,6 +39,11 @@ class _HospitalMainScreenState extends State<HospitalMainScreen> {
             icon: Icon(Icons.inventory_2_outlined),
             selectedIcon: Icon(Icons.inventory_2, color: AppColors.brandBlue),
             label: 'Inventory',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.groups_outlined),
+            selectedIcon: Icon(Icons.groups, color: AppColors.brandBlue),
+            label: 'Staff',
           ),
           NavigationDestination(
             icon: Icon(Icons.notifications_none),
