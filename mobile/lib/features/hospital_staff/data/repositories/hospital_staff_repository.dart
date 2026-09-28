@@ -1,5 +1,6 @@
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_constants.dart';
+import '../../../staff/data/models/shift_model.dart';
 import '../models/hospital_staff_candidate_model.dart';
 import '../models/hospital_staff_member_model.dart';
 
@@ -89,5 +90,30 @@ class HospitalStaffRepository {
       return HospitalStaffMemberModel.fromJson(response);
     }
     throw ApiException('Failed to parse invitation response.');
+  }
+
+  /// Shifts scheduled at this hospital in the given ISO date range.
+  static Future<List<ShiftModel>> getShifts({
+    String? from,
+    String? to,
+  }) async {
+    final query = <String, String>{};
+    if (from != null && from.isNotEmpty) query['from'] = from;
+    if (to != null && to.isNotEmpty) query['to'] = to;
+
+    try {
+      final response = await ApiClient.get(
+        ApiConstants.hospitalStaffShifts,
+        queryParams: query.isEmpty ? null : query,
+      );
+      if (response is! List) return [];
+      return response
+          .map((e) => ShiftModel.fromJson(e as Map<String, dynamic>))
+          .toList();
+    } on ApiException {
+      rethrow;
+    } catch (_) {
+      return [];
+    }
   }
 }

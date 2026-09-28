@@ -7,6 +7,7 @@ import '../../../staff/presentation/widgets/staff_common_widgets.dart';
 import '../../data/models/hospital_staff_member_model.dart';
 import '../../data/repositories/hospital_staff_repository.dart';
 import '../widgets/invite_staff_sheet.dart';
+import 'hospital_shifts_screen.dart';
 
 /// Hospital-side "Staff" tab: on-duty roster and full active staff list.
 class HospitalStaffScreen extends StatefulWidget {
@@ -80,6 +81,12 @@ class _HospitalStaffScreenState extends State<HospitalStaffScreen> {
     if (sent == true) await _load();
   }
 
+  Future<void> _openShifts() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const HospitalShiftsScreen()),
+    );
+  }
+
   int get _onDutyCount => _staff.where((s) => s.isOnDutyNow).length;
 
   List<HospitalStaffMemberModel> get _onDuty =>
@@ -96,6 +103,11 @@ class _HospitalStaffScreenState extends State<HospitalStaffScreen> {
         subtitle: 'Hospital · Staff',
         photoUrl: _hospitalLogoUrl,
         actions: [
+          StaffHeaderAction(
+            icon: Icons.event_note_outlined,
+            tooltip: 'Weekly shifts',
+            onPressed: _loading ? null : _openShifts,
+          ),
           StaffHeaderAction(
             icon: Icons.refresh,
             tooltip: 'Refresh',
