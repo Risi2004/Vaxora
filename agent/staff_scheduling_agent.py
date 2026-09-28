@@ -159,9 +159,9 @@ class StaffSchedulingAgent:
             "Specialized agent for hospital staff coverage analysis, shift proposals, "
             "and approved shift creation."
         )
-        self.base_url = settings.runpod_base_url.rstrip("/")
-        self.model = settings.model_name
-        self.api_key = settings.runpod_api_key
+        self.base_url = settings.openrouter_base_url.rstrip("/")
+        self.model = settings.openrouter_model
+        self.api_key = settings.openrouter_api_key
 
     async def _call_llm(
         self,
@@ -174,7 +174,7 @@ class StaffSchedulingAgent:
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.api_key}",
         }
-        # Rough char→token estimate so input+output stays under RunPod --max-model-len 8128.
+        # Rough char→token estimate so input+output stays within model context budget.
         approx_input = max(1, sum(len(json.dumps(m, default=str)) for m in messages) // 4)
         if tools:
             approx_input += max(1, len(json.dumps(tools)) // 4)
@@ -216,7 +216,7 @@ class StaffSchedulingAgent:
 
     @staticmethod
     def _tool_message_content(tool_name: str, tool_output: Any) -> str:
-        """Send compact tool payloads to the model (RunPod 8k context)."""
+        """Send compact tool payloads to the model (context budget)."""
         if (
             tool_name == "analyze_staffing_needs"
             and isinstance(tool_output, dict)

@@ -858,7 +858,7 @@ def _free_candidates_for_gap(
 
 
 def _compact_analyze_for_llm(payload: Dict[str, Any]) -> Dict[str, Any]:
-    """Shrink analyze_staffing_needs output so week plans fit ~8k-token RunPod contexts."""
+    """Shrink analyze_staffing_needs output so week plans fit model context limits."""
     aliases: Dict[str, str] = {}
     gaps = []
     for index, gap in enumerate(payload.get("gaps") or []):

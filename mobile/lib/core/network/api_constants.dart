@@ -2,19 +2,35 @@ import 'package:flutter/foundation.dart';
 import 'dart:io' show Platform;
 
 class ApiConstants {
-  // In Android Emulator, localhost maps to 10.0.2.2
-  // On iOS Simulator / Desktop / Web, localhost is 127.0.0.1
-  static String get baseUrl {
-    if (kIsWeb) {
-      return 'http://localhost:5004/api';
-    }
+  // Configurable compile-time environment URLs (via --dart-define=API_URL=... and --dart-define=AGENT_URL=...)
+  static const String _envApiUrl = String.fromEnvironment('API_URL');
+  static const String _envAgentUrl = String.fromEnvironment('AGENT_URL');
+
+  // Local development fallbacks (Android Emulator: 10.0.2.2, iOS/Desktop/Web: localhost)
+  static String get _localFallback {
+    if (kIsWeb) return 'http://localhost:5004/api';
     try {
-      if (Platform.isAndroid) {
-        return 'http://10.0.2.2:5004/api';
-      }
+      if (Platform.isAndroid) return 'http://10.0.2.2:5004/api';
     } catch (_) {}
     return 'http://localhost:5004/api';
   }
+
+  static String get baseUrl {
+    if (_envApiUrl.isNotEmpty) {
+      final trimmed = _envApiUrl.trim().replaceAll(RegExp(r'/+$'), '');
+      return trimmed.endsWith('/api') ? trimmed : '$trimmed/api';
+    }
+    return _localFallback;
+  }
+
+  static String get agentUrl {
+    if (_envAgentUrl.isNotEmpty) {
+      return _envAgentUrl.trim().replaceAll(RegExp(r'/+$'), '');
+    }
+    return 'http://10.0.2.2:8001';
+  }
+
+
 
   // Auth endpoints
   static const String login = '/auth/login';

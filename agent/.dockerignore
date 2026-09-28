@@ -1,0 +1,17 @@
+venv/
+.venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.env
+.env.*
+!.env.example
+*.db
+*.db-journal
+*.db-wal
+workflow_state.db
+.git
+.gitignore
+.DS_Store
