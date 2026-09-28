@@ -6,6 +6,7 @@ import '../../../staff/presentation/widgets/network_avatar.dart';
 import '../../../staff/presentation/widgets/staff_common_widgets.dart';
 import '../../data/models/hospital_staff_member_model.dart';
 import '../../data/repositories/hospital_staff_repository.dart';
+import '../widgets/invite_staff_sheet.dart';
 
 /// Hospital-side "Staff" tab: on-duty roster and full active staff list.
 class HospitalStaffScreen extends StatefulWidget {
@@ -74,6 +75,11 @@ class _HospitalStaffScreenState extends State<HospitalStaffScreen> {
     }
   }
 
+  Future<void> _openInviteSheet() async {
+    final sent = await InviteStaffSheet.show(context);
+    if (sent == true) await _load();
+  }
+
   int get _onDutyCount => _staff.where((s) => s.isOnDutyNow).length;
 
   List<HospitalStaffMemberModel> get _onDuty =>
@@ -96,6 +102,17 @@ class _HospitalStaffScreenState extends State<HospitalStaffScreen> {
             onPressed: _loading ? null : _load,
           ),
         ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _loading ? null : _openInviteSheet,
+        backgroundColor: StaffSurfaces.cta,
+        foregroundColor: Colors.white,
+        elevation: 2,
+        icon: const Icon(Icons.person_add_alt_1),
+        label: const Text(
+          'Invite staff',
+          style: TextStyle(fontWeight: FontWeight.w700),
+        ),
       ),
       body: RefreshIndicator(
         onRefresh: _load,

@@ -1,5 +1,6 @@
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_constants.dart';
+import '../models/hospital_staff_candidate_model.dart';
 import '../models/hospital_staff_member_model.dart';
 
 class HospitalStaffRepository {
@@ -10,6 +11,14 @@ class HospitalStaffRepository {
     return response
         .map((e) =>
             HospitalStaffMemberModel.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  static List<HospitalStaffCandidateModel> _parseCandidates(dynamic response) {
+    if (response is! List) return [];
+    return response
+        .map((e) =>
+            HospitalStaffCandidateModel.fromJson(e as Map<String, dynamic>))
         .toList();
   }
 
@@ -44,5 +53,41 @@ class HospitalStaffRepository {
     } catch (_) {
       return [];
     }
+  }
+
+  /// Search doctors / nurses this hospital can invite.
+  /// Matches on registration number, name, or email.
+  static Future<List<HospitalStaffCandidateModel>> searchCandidates(
+    String query, {
+    int limit = 10,
+  }) async {
+    final params = <String, String>{'limit': '$limit'};
+    if (query.trim().isNotEmpty) params['q'] = query.trim();
+
+    try {
+      final response = await ApiClient.get(
+        ApiConstants.hospitalStaffCandidates,
+        queryParams: params,
+      );
+      return _parseCandidates(response);
+    } on ApiException {
+      rethrow;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// Send an invitation using the staff member's registration number.
+  static Future<HospitalStaffMemberModel> invite(
+    String registrationNumber,
+  ) async {
+    final response = await ApiClient.post(
+      ApiConstants.hospitalStaffInvite,
+      body: {'registrationNumber': registrationNumber.trim()},
+    );
+    if (response is Map<String, dynamic>) {
+      return HospitalStaffMemberModel.fromJson(response);
+    }
+    throw ApiException('Failed to parse invitation response.');
   }
 }
