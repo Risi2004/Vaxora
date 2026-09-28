@@ -3,6 +3,7 @@ class AppAssets {
   static const String logo = 'assets/images/logo.png';
   static const String heroVaccine = 'assets/images/hero_vaccine.jpg';
   static const String feedback = 'assets/images/feedback.png';
+  static const String staffShiftsHero = 'assets/images/staff-shifts-hero.jpg';
 
   // Icons
   static const String badgeExperience = 'assets/icons/badge_experience.svg';

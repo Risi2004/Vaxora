@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_text_styles.dart';
 import '../../../auth/presentation/utils/home_route_utils.dart';
 import '../../data/models/affiliation_model.dart';
 import '../../data/repositories/staff_repository.dart';
@@ -63,22 +62,79 @@ class _StaffAffiliationsScreenState extends State<StaffAffiliationsScreen> {
   Future<void> _confirmReject(AffiliationModel item) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Reject invitation?'),
-        content: Text(
-          'Decline the invitation from ${item.hospitalName}? You can be invited again later.',
+      barrierColor: StaffSurfaces.textPrimary.withValues(alpha: 0.35),
+      builder: (ctx) => Dialog(
+        backgroundColor: StaffSurfaces.appBarBg,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 28),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: const BorderSide(color: StaffSurfaces.cardBorder),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Reject invitation?',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: StaffSurfaces.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Decline the invitation from ${item.hospitalName}? You can be invited again later.',
+                style: const TextStyle(
+                  color: StaffSurfaces.textSecondary,
+                  height: 1.4,
+                  fontSize: 13.5,
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () => Navigator.of(ctx).pop(false),
+                      style: TextButton.styleFrom(
+                        foregroundColor: StaffSurfaces.textSecondary,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      child: const Text(
+                        'Cancel',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: () => Navigator.of(ctx).pop(true),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.error,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      child: const Text(
+                        'Reject',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            style: TextButton.styleFrom(foregroundColor: AppColors.error),
-            child: const Text('Reject'),
-          ),
-        ],
+        ),
       ),
     );
     if (confirmed == true) {
@@ -125,83 +181,91 @@ class _StaffAffiliationsScreenState extends State<StaffAffiliationsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        title: const Text('Hospital Affiliations', style: AppTextStyles.h3),
-        centerTitle: false,
-        backgroundColor: Colors.white,
-        elevation: 0,
+      backgroundColor: StaffSurfaces.pageBg,
+      appBar: StaffSurfaces.appBar(
+        title: 'Hospital Affiliations',
         actions: [
           IconButton(
             tooltip: 'Refresh',
             onPressed: _loading ? null : _load,
-            icon: const Icon(Icons.refresh, color: AppColors.brandBlue),
+            icon: Icon(Icons.refresh, color: StaffSurfaces.brandSoft),
           ),
         ],
       ),
-      body: _loading && _invitations.isEmpty && _affiliations.isEmpty
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _load,
-              color: AppColors.brandBlue,
-              child: ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
-                children: [
-                  if (_error != null) ...[
-                    StaffErrorBanner(
-                      message: _error!,
-                      onDismiss: () => setState(() => _error = null),
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-                  _SummaryRow(
-                    pending: _invitations.length,
-                    active: _affiliations.length,
-                  ),
-                  const SizedBox(height: 20),
-                  _SectionTitle(
-                    title: 'Pending Invitations',
-                    count: _invitations.length,
-                  ),
-                  const SizedBox(height: 10),
-                  if (_invitations.isEmpty)
-                    const StaffEmptyCard(
-                      message: 'No pending hospital invitations.',
-                    )
-                  else
-                    ..._invitations.map(
-                      (item) => Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: _InvitationCard(
-                          item: item,
-                          actionId: _actionId,
-                          onAccept: () => _respond(item, 'Accept'),
-                          onReject: () => _confirmReject(item),
-                        ),
-                      ),
-                    ),
-                  const SizedBox(height: 18),
-                  _SectionTitle(
-                    title: 'Active Affiliations',
-                    count: _affiliations.length,
-                  ),
-                  const SizedBox(height: 10),
-                  if (_affiliations.isEmpty)
-                    const StaffEmptyCard(
-                      message:
-                          'You are not affiliated with any hospital yet. Accept an invitation to join a roster.',
-                    )
-                  else
-                    ..._affiliations.map(
-                      (item) => Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: _AffiliationCard(item: item),
-                      ),
-                    ),
-                ],
+      body: RefreshIndicator(
+        onRefresh: _load,
+        color: StaffSurfaces.brandSoft,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 28),
+          children: [
+            if (_error != null) ...[
+              StaffErrorBanner(
+                message: _error!,
+                onDismiss: () => setState(() => _error = null),
               ),
-            ),
+              const SizedBox(height: 12),
+            ],
+            if (_loading && _invitations.isEmpty && _affiliations.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 48),
+                child: Center(
+                  child: CircularProgressIndicator(color: StaffSurfaces.brandSoft),
+                ),
+              )
+            else ...[
+              _SummaryRow(
+                pending: _invitations.length,
+                active: _affiliations.length,
+              ),
+              const SizedBox(height: 20),
+              _SectionTitle(
+                title: 'Active Affiliations',
+                count: _affiliations.length,
+              ),
+              const SizedBox(height: 10),
+              if (_affiliations.isEmpty)
+                const StaffEmptyCard(
+                  message:
+                      'You are not affiliated with any hospital yet. Accept an invitation to join a roster.',
+                  icon: Icons.local_hospital_outlined,
+                  compact: true,
+                )
+              else
+                ..._affiliations.map(
+                  (item) => Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: _AffiliationCard(item: item),
+                  ),
+                ),
+              const SizedBox(height: 18),
+              _SectionTitle(
+                title: 'Pending Invitations',
+                count: _invitations.length,
+              ),
+              const SizedBox(height: 10),
+              if (_invitations.isEmpty)
+                const StaffEmptyCard(
+                  message: 'No pending hospital invitations.',
+                  icon: Icons.mail_outline,
+                  compact: true,
+                )
+              else
+                ..._invitations.map(
+                  (item) => Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: _InvitationCard(
+                      item: item,
+                      actionId: _actionId,
+                      onAccept: () => _respond(item, 'Accept'),
+                      onReject: () => _confirmReject(item),
+                    ),
+                  ),
+                ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }
@@ -216,9 +280,21 @@ class _SummaryRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Expanded(child: _SummaryPill(label: 'Pending', value: pending)),
+        Expanded(
+          child: _SummaryPill(
+            label: 'Pending',
+            value: pending,
+            icon: Icons.mark_email_unread_outlined,
+          ),
+        ),
         const SizedBox(width: 10),
-        Expanded(child: _SummaryPill(label: 'Active', value: active)),
+        Expanded(
+          child: _SummaryPill(
+            label: 'Active',
+            value: active,
+            icon: Icons.verified_outlined,
+          ),
+        ),
       ],
     );
   }
@@ -227,36 +303,52 @@ class _SummaryRow extends StatelessWidget {
 class _SummaryPill extends StatelessWidget {
   final String label;
   final int value;
+  final IconData icon;
 
-  const _SummaryPill({required this.label, required this.value});
+  const _SummaryPill({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderLight),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.all(14),
+      decoration: StaffSurfaces.softWell(),
+      child: Row(
         children: [
-          Text(
-            '$value',
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-              color: AppColors.textTitle,
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: StaffSurfaces.softPanelDeep,
+              borderRadius: BorderRadius.circular(10),
             ),
+            child: Icon(icon, size: 18, color: StaffSurfaces.brandSoft),
           ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textMuted,
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$value',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: StaffSurfaces.brandSoft,
+                  ),
+                ),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: StaffSurfaces.textSecondary,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -276,9 +368,9 @@ class _SectionTitle extends StatelessWidget {
     return Text(
       '$title ($count)',
       style: const TextStyle(
-        fontSize: 15,
-        fontWeight: FontWeight.w800,
-        color: AppColors.textTitle,
+        fontSize: 13,
+        fontWeight: FontWeight.w700,
+        color: StaffSurfaces.textSecondary,
       ),
     );
   }
@@ -307,11 +399,7 @@ class _InvitationCard extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderLight),
-      ),
+      decoration: StaffSurfaces.card(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -328,7 +416,7 @@ class _InvitationCard extends StatelessWidget {
                       style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
-                        color: AppColors.textTitle,
+                        color: StaffSurfaces.textPrimary,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -336,7 +424,7 @@ class _InvitationCard extends StatelessWidget {
                       _affiliationMeta(item, pending: true),
                       style: const TextStyle(
                         fontSize: 12,
-                        color: AppColors.textMuted,
+                        color: StaffSurfaces.textSecondary,
                       ),
                     ),
                   ],
@@ -352,8 +440,12 @@ class _InvitationCard extends StatelessWidget {
                   onPressed: _busy ? null : onReject,
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.error,
-                    side: const BorderSide(color: AppColors.error),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    side: const BorderSide(color: StaffSurfaces.dangerBorder),
+                    backgroundColor: AppColors.errorBg,
+                    padding: const EdgeInsets.symmetric(vertical: 11),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                   ),
                   child: Text(rejecting ? 'Rejecting…' : 'Reject'),
                 ),
@@ -363,9 +455,13 @@ class _InvitationCard extends StatelessWidget {
                 child: ElevatedButton(
                   onPressed: _busy ? null : onAccept,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.brandBlue,
+                    backgroundColor: StaffSurfaces.cta,
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(vertical: 11),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                   ),
                   child: Text(accepting ? 'Accepting…' : 'Accept'),
                 ),
@@ -387,11 +483,7 @@ class _AffiliationCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderLight),
-      ),
+      decoration: StaffSurfaces.card(),
       child: Row(
         children: [
           StaffHospitalAvatar(logoUrl: item.hospitalLogoUrl),
@@ -405,7 +497,7 @@ class _AffiliationCard extends StatelessWidget {
                   style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.textTitle,
+                    color: StaffSurfaces.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -413,29 +505,16 @@ class _AffiliationCard extends StatelessWidget {
                   _affiliationMeta(item, pending: false),
                   style: const TextStyle(
                     fontSize: 12,
-                    color: AppColors.textMuted,
+                    color: StaffSurfaces.textSecondary,
                   ),
                 ),
               ],
             ),
           ),
           const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: item.isOnDutyNow
-                  ? AppColors.successBg
-                  : const Color(0xFFF1F5F9),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              item.isOnDutyNow ? 'On duty now' : 'Off duty',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: item.isOnDutyNow ? AppColors.success : AppColors.textMuted,
-              ),
-            ),
+          StaffStatusChip(
+            label: item.isOnDutyNow ? 'On duty now' : 'Off duty',
+            positive: item.isOnDutyNow,
           ),
         ],
       ),
