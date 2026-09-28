@@ -155,6 +155,7 @@ public class StaffShiftDto
     public Guid StaffUserId { get; set; }
     public string StaffName { get; set; } = string.Empty;
     public string StaffRole { get; set; } = string.Empty;
+    public string? StaffPhotoUrl { get; set; }
     public DateOnly ShiftDate { get; set; }
     public TimeOnly StartTime { get; set; }
     public TimeOnly EndTime { get; set; }
@@ -163,6 +164,10 @@ public class StaffShiftDto
     public string? Notes { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
+    /// <summary>Requested, Covering, or Declined.</summary>
+    public string? CoverStatus { get; set; }
+    public string? CoverLabel { get; set; }
+    public string? CoverForName { get; set; }
 }
 
 /// <summary>

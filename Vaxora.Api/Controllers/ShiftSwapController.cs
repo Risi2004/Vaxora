@@ -51,6 +51,60 @@ public class ShiftSwapController : ControllerBase
         }
     }
 
+    [HttpGet("quota")]
+    [Authorize(Roles = "DOCTOR,NURSE")]
+    public async Task<IActionResult> GetQuota([FromQuery] Guid? shiftId)
+    {
+        if (!TryGetUserId(out var staffUserId))
+            return Unauthorized(new { message = "Invalid identity claim." });
+
+        try
+        {
+            var result = await _swapService.GetQuotaAsync(staffUserId, shiftId);
+            return Ok(result);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading cover quota");
+            return StatusCode(500, new { message = "Failed to load cover quota." });
+        }
+    }
+
+    [HttpGet("mine")]
+    [Authorize(Roles = "DOCTOR,NURSE")]
+    public async Task<IActionResult> ListForStaff([FromQuery] int limit = 40)
+    {
+        if (!TryGetUserId(out var staffUserId))
+            return Unauthorized(new { message = "Invalid identity claim." });
+
+        try
+        {
+            var result = await _swapService.ListForStaffAsync(staffUserId, limit);
+            return Ok(result);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error listing staff cover requests");
+            return StatusCode(500, new { message = "Failed to load cover requests." });
+        }
+    }
+
     [HttpGet("hospital")]
     [Authorize(Roles = "HOSPITAL")]
     public async Task<IActionResult> ListForHospital([FromQuery] string? status, [FromQuery] int limit = 40)

@@ -57,6 +57,26 @@ public class ShiftSwapRequestDto
     public string? DecisionNote { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? DecidedAt { get; set; }
+    public Guid? ReplacementUserId { get; set; }
+    public string? ReplacementName { get; set; }
+    /// <summary>Outgoing for the requester, Incoming when this staff was assigned cover.</summary>
+    public string? Direction { get; set; }
     public string? ReviewSummary { get; set; }
     public List<ShiftSwapReplacementDto> Suggestions { get; set; } = new();
+}
+
+public class CoverQuotaDto
+{
+    public int UsedThisMonth { get; set; }
+    public int MonthlyLimit { get; set; }
+    public int UrgentUsedThisMonth { get; set; }
+    public int UrgentLimit { get; set; }
+    public int MinNoticeDays { get; set; }
+    public int? DaysUntilShift { get; set; }
+    public bool IsUrgent { get; set; }
+    public bool ReasonRequired { get; set; }
+    public bool AlreadyPending { get; set; }
+    public bool CanRequest { get; set; }
+    public string? BlockReason { get; set; }
+    public string Summary { get; set; } = string.Empty;
 }

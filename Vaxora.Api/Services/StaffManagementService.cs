@@ -600,7 +600,9 @@ public class StaffManagementService : IStaffManagementService
         if (to.HasValue) query = query.Where(s => s.ShiftDate <= to.Value);
 
         var list = await query.OrderBy(s => s.ShiftDate).ThenBy(s => s.StartTime).ToListAsync();
-        return list.Select(s => MapShift(s, s.Affiliation)).ToList();
+        var mapped = list.Select(s => MapShift(s, s.Affiliation)).ToList();
+        await ApplyCoverStatusAsync(mapped, viewerUserId: null);
+        return mapped;
     }
 
     public async Task<List<StaffBusyBlockDto>> GetAffiliatedStaffBusyBlocksAsync(
@@ -1018,7 +1020,9 @@ public class StaffManagementService : IStaffManagementService
         if (to.HasValue) query = query.Where(s => s.ShiftDate <= to.Value);
 
         var list = await query.OrderBy(s => s.ShiftDate).ThenBy(s => s.StartTime).ToListAsync();
-        return list.Select(s => MapShift(s, s.Affiliation)).ToList();
+        var mapped = list.Select(s => MapShift(s, s.Affiliation)).ToList();
+        await ApplyCoverStatusAsync(mapped, viewerUserId: staffUserId);
+        return mapped;
     }
 
     public async Task<StaffShiftDto> UpdateShiftAsync(Guid hospitalUserId, Guid shiftId, UpdateStaffShiftDto dto)
@@ -1392,6 +1396,8 @@ public class StaffManagementService : IStaffManagementService
             StaffUserId = affiliation.StaffUserId,
             StaffName = GetStaffName(affiliation.StaffUser),
             StaffRole = affiliation.StaffRole.ToString(),
+            StaffPhotoUrl = affiliation.StaffUser?.DoctorProfile?.ProfilePhotoUrl
+                ?? affiliation.StaffUser?.NurseProfile?.ProfilePhotoUrl,
             ShiftDate = shift.ShiftDate,
             StartTime = shift.StartTime,
             EndTime = shift.EndTime,
@@ -1401,5 +1407,67 @@ public class StaffManagementService : IStaffManagementService
             CreatedAt = shift.CreatedAt,
             UpdatedAt = shift.UpdatedAt
         };
+    }
+
+    private async Task ApplyCoverStatusAsync(List<StaffShiftDto> shifts, Guid? viewerUserId)
+    {
+        if (shifts.Count == 0) return;
+
+        var ids = shifts.Select(s => s.ShiftId).Distinct().ToList();
+        var swaps = await _context.ShiftSwapRequests
+            .AsNoTracking()
+            .Include(r => r.RequesterUser).ThenInclude(u => u.DoctorProfile)
+            .Include(r => r.RequesterUser).ThenInclude(u => u.NurseProfile)
+            .Where(r => ids.Contains(r.ShiftId))
+            .ToListAsync();
+
+        if (swaps.Count == 0) return;
+
+        var byShift = swaps
+            .GroupBy(r => r.ShiftId)
+            .ToDictionary(
+                g => g.Key,
+                g => g.OrderBy(r => r.Status == ShiftSwapStatus.Pending
+                        ? 0
+                        : r.Status == ShiftSwapStatus.Approved ? 1 : 2)
+                    .ThenByDescending(r => r.UpdatedAt)
+                    .First());
+
+        foreach (var dto in shifts)
+        {
+            if (!byShift.TryGetValue(dto.ShiftId, out var swap)) continue;
+
+            var requesterName = GetStaffName(swap.RequesterUser);
+
+            if (swap.Status == ShiftSwapStatus.Pending)
+            {
+                if (viewerUserId.HasValue && swap.RequesterUserId != viewerUserId.Value)
+                    continue;
+                dto.CoverStatus = "Requested";
+                dto.CoverLabel = "Cover requested";
+                dto.CoverForName = requesterName;
+                continue;
+            }
+
+            if (swap.Status == ShiftSwapStatus.Approved)
+            {
+                if (viewerUserId.HasValue && swap.ReplacementUserId != viewerUserId.Value)
+                    continue;
+                dto.CoverStatus = "Covering";
+                dto.CoverLabel = string.IsNullOrWhiteSpace(requesterName)
+                    ? "Covering"
+                    : $"Covering for {requesterName}";
+                dto.CoverForName = requesterName;
+                continue;
+            }
+
+            if (swap.Status == ShiftSwapStatus.Declined &&
+                viewerUserId.HasValue &&
+                swap.RequesterUserId == viewerUserId.Value)
+            {
+                dto.CoverStatus = "Declined";
+                dto.CoverLabel = "Cover declined";
+            }
+        }
     }
 }

@@ -219,6 +219,9 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<ShiftSwapRequest>()
             .HasIndex(r => new { r.RequesterUserId, r.CreatedAt });
 
+        modelBuilder.Entity<ShiftSwapRequest>()
+            .HasIndex(r => r.ReplacementUserId);
+
         modelBuilder.Entity<HospitalBooth>()
             .HasOne(b => b.HospitalUser)
             .WithMany()

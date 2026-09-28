@@ -9,12 +9,14 @@ namespace Vaxora.Api.Services;
 public interface IShiftSwapService
 {
     Task<ShiftSwapRequestDto> CreateAsync(Guid staffUserId, CreateShiftSwapRequestDto dto);
+    Task<CoverQuotaDto> GetQuotaAsync(Guid staffUserId, Guid? shiftId = null);
     Task<List<ShiftSwapRequestDto>> ListForHospitalAsync(
         Guid hospitalUserId,
         string? status = null,
         int limit = 40,
         string? bearerToken = null);
     Task<ShiftSwapRequestDto> DecideAsync(Guid hospitalUserId, Guid requestId, ShiftSwapDecisionDto decision);
+    Task<List<ShiftSwapRequestDto>> ListForStaffAsync(Guid staffUserId, int limit = 40);
     Task TryRecordFromAgentAsync(Guid staffUserId, string? agentJson);
 }
 
@@ -24,6 +26,13 @@ public interface IShiftSwapService
 /// </summary>
 public class ShiftSwapService : IShiftSwapService
 {
+    private const int MonthlyCoverLimit = 3;
+    private const int MonthlyUrgentLimit = 1;
+    private const int MinNoticeDays = 2;
+    private static readonly TimeSpan HospitalUtcOffset = TimeSpan.FromHours(5.5);
+
+    private static DateTime HospitalNow() => DateTime.UtcNow + HospitalUtcOffset;
+    private static DateOnly HospitalToday() => DateOnly.FromDateTime(HospitalNow());
     private readonly ApplicationDbContext _context;
     private readonly IAgentGatewayService _agentGateway;
     private readonly ILogger<ShiftSwapService> _logger;
@@ -74,6 +83,10 @@ public class ShiftSwapService : IShiftSwapService
             return await GetMappedAsync(existing.Id);
         }
 
+        var quota = await BuildQuotaAsync(staffUserId, shift, reason, submitting: true);
+        if (!quota.CanRequest)
+            throw new InvalidOperationException(quota.BlockReason ?? "You cannot request cover for this shift.");
+
         var row = new ShiftSwapRequest
         {
             ShiftId = shift.Id,
@@ -99,6 +112,23 @@ public class ShiftSwapService : IShiftSwapService
             shift.Id);
 
         return await GetMappedAsync(row.Id);
+    }
+
+    public async Task<CoverQuotaDto> GetQuotaAsync(Guid staffUserId, Guid? shiftId = null)
+    {
+        await EnsureActiveStaffAsync(staffUserId);
+
+        StaffShift? shift = null;
+        if (shiftId.HasValue && shiftId.Value != Guid.Empty)
+        {
+            shift = await _context.StaffShifts
+                .Include(s => s.Affiliation)
+                .FirstOrDefaultAsync(s => s.Id == shiftId.Value);
+            if (shift != null && shift.Affiliation.StaffUserId != staffUserId)
+                shift = null;
+        }
+
+        return await BuildQuotaAsync(staffUserId, shift, reason: null, submitting: false);
     }
 
     public async Task<List<ShiftSwapRequestDto>> ListForHospitalAsync(
@@ -132,6 +162,32 @@ public class ShiftSwapService : IShiftSwapService
         var dtos = rows.Select(Map).ToList();
         await AttachSuggestionsAsync(hospitalUserId, dtos, bearerToken);
         return dtos;
+    }
+
+    public async Task<List<ShiftSwapRequestDto>> ListForStaffAsync(Guid staffUserId, int limit = 40)
+    {
+        await EnsureActiveStaffAsync(staffUserId);
+        limit = Math.Clamp(limit, 1, 80);
+
+        var rows = await _context.ShiftSwapRequests
+            .AsNoTracking()
+            .Include(r => r.RequesterUser).ThenInclude(u => u.DoctorProfile)
+            .Include(r => r.RequesterUser).ThenInclude(u => u.NurseProfile)
+            .Include(r => r.HospitalUser).ThenInclude(h => h.HospitalProfile)
+            .Where(r =>
+                r.RequesterUserId == staffUserId ||
+                (r.Status == ShiftSwapStatus.Approved && r.ReplacementUserId == staffUserId))
+            .OrderByDescending(r => r.Status == ShiftSwapStatus.Pending)
+            .ThenByDescending(r => r.CreatedAt)
+            .Take(limit)
+            .ToListAsync();
+
+        return rows.Select(r =>
+        {
+            var dto = Map(r);
+            dto.Direction = r.RequesterUserId == staffUserId ? "Outgoing" : "Incoming";
+            return dto;
+        }).ToList();
     }
 
     public async Task<ShiftSwapRequestDto> DecideAsync(
@@ -274,6 +330,8 @@ public class ShiftSwapService : IShiftSwapService
             DecisionNote = row.DecisionNote,
             CreatedAt = row.CreatedAt,
             DecidedAt = row.DecidedAt,
+            ReplacementUserId = row.ReplacementUserId,
+            ReplacementName = row.ReplacementName,
             Suggestions = new List<ShiftSwapReplacementDto>()
         };
     }
@@ -327,7 +385,7 @@ public class ShiftSwapService : IShiftSwapService
             var roleLabel = role == UserRole.DOCTOR ? "doctor" : "nurse";
             var neededSpec = shift.Affiliation.StaffUser?.DoctorProfile?.Specialization;
             var booth = shift.Booth?.DisplayLabel ?? shift.BoothOrStation ?? dto.BoothOrStation;
-            var candidates = new List<(StaffAffiliation Aff, bool SpecMatch, bool Overlaps, int OtherCount, string Why)>();
+            var candidates = new List<(StaffAffiliation Aff, bool SpecMatch, int OtherCount, string Why)>();
 
             foreach (var affiliation in pool)
             {
@@ -345,19 +403,15 @@ public class ShiftSwapService : IShiftSwapService
                 // Only a clashing window blocks assignment — another slot the same day is fine.
                 var overlaps = theirs.Any(s =>
                     shift.StartTime < s.EndTime && shift.EndTime > s.StartTime);
+                if (overlaps) continue;
+
                 var specMatch = SpecializationFits(
                     affiliation.StaffUser.DoctorProfile?.Specialization,
                     neededSpec,
                     booth);
                 var window = $"{shift.StartTime:HH\\:mm}–{shift.EndTime:HH\\:mm}";
                 string why;
-                if (overlaps)
-                {
-                    why = specMatch
-                        ? $"Same specialization · booked during {window}"
-                        : $"Same role · booked during {window}";
-                }
-                else if (specMatch)
+                if (specMatch)
                 {
                     why = theirs.Count == 0
                         ? $"Same specialization · free {window}"
@@ -370,13 +424,12 @@ public class ShiftSwapService : IShiftSwapService
                         : $"Same role · free {window} · {theirs.Count} other shift(s) that day";
                 }
 
-                candidates.Add((affiliation, specMatch, overlaps, theirs.Count, why));
+                candidates.Add((affiliation, specMatch, theirs.Count, why));
             }
 
-            // Free first so the hospital can assign; matching specialization before other same-role.
+            // Matching specialization first, then other same-role colleagues who are free.
             var picked = candidates
-                .OrderBy(c => c.Overlaps)
-                .ThenByDescending(c => c.SpecMatch)
+                .OrderByDescending(c => c.SpecMatch)
                 .ThenBy(c => c.OtherCount)
                 .ThenBy(c => GetStaffName(c.Aff.StaffUser), StringComparer.OrdinalIgnoreCase)
                 .Take(5)
@@ -392,18 +445,15 @@ public class ShiftSwapService : IShiftSwapService
                     ?? c.Aff.StaffUser.NurseProfile?.ProfilePhotoUrl,
                 Specialization = c.Aff.StaffUser.DoctorProfile?.Specialization,
                 Why = c.Why,
-                Available = !c.Overlaps
+                Available = true
             }).ToList();
 
-            var freeCount = picked.Count(c => !c.Overlaps);
-            var specCount = picked.Count(c => c.SpecMatch && !c.Overlaps);
+            var specCount = picked.Count(c => c.SpecMatch);
             dto.ReviewSummary = picked.Count == 0
-                ? $"No other {roleLabel} is on this hospital's roster."
-                : freeCount == 0
-                    ? $"No other {roleLabel} is free in this window — showing {roleLabel}s on the roster."
-                    : specCount > 0
-                        ? $"{specCount} matching specialization, then other {roleLabel}s."
-                        : $"{freeCount} other {roleLabel}(s) can cover this window.";
+                ? $"No other {roleLabel} is free in this window."
+                : specCount > 0
+                    ? $"{specCount} matching specialization, then other {roleLabel}s."
+                    : $"{picked.Count} other {roleLabel}(s) can cover this window.";
         }
 
         await RankCoverWithAgentAsync(dtos, bearerToken);
@@ -575,6 +625,10 @@ public class ShiftSwapService : IShiftSwapService
         var fromName = GetStaffName(shift.Affiliation.StaffUser);
         var toName = GetStaffName(replacement.StaffUser);
 
+        row.ReplacementUserId = replacement.StaffUserId;
+        row.ReplacementAffiliationId = replacement.Id;
+        row.ReplacementName = Truncate(toName, 120);
+
         shift.Affiliation = replacement;
         shift.AffiliationId = replacement.Id;
         shift.UpdatedAt = DateTime.UtcNow;
@@ -651,6 +705,109 @@ public class ShiftSwapService : IShiftSwapService
         if (name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             return name;
         return $"{prefix} {name}".Trim();
+    }
+
+    private async Task<CoverQuotaDto> BuildQuotaAsync(
+        Guid staffUserId,
+        StaffShift? shift,
+        string? reason,
+        bool submitting)
+    {
+        var today = HospitalToday();
+        var monthStart = new DateOnly(today.Year, today.Month, 1);
+        var monthEnd = monthStart.AddMonths(1);
+        var monthStartUtc = monthStart.ToDateTime(TimeOnly.MinValue) - HospitalUtcOffset;
+        var monthEndUtc = monthEnd.ToDateTime(TimeOnly.MinValue) - HospitalUtcOffset;
+
+        var monthRows = await _context.ShiftSwapRequests
+            .AsNoTracking()
+            .Where(r =>
+                r.RequesterUserId == staffUserId &&
+                (r.Status == ShiftSwapStatus.Pending || r.Status == ShiftSwapStatus.Approved) &&
+                r.CreatedAt >= monthStartUtc &&
+                r.CreatedAt < monthEndUtc)
+            .ToListAsync();
+
+        var used = monthRows.Count;
+        var urgentUsed = monthRows.Count(r =>
+        {
+            var createdLocal = DateOnly.FromDateTime(r.CreatedAt + HospitalUtcOffset);
+            return r.ShiftDate.DayNumber - createdLocal.DayNumber < MinNoticeDays;
+        });
+
+        var quota = new CoverQuotaDto
+        {
+            UsedThisMonth = used,
+            MonthlyLimit = MonthlyCoverLimit,
+            UrgentUsedThisMonth = urgentUsed,
+            UrgentLimit = MonthlyUrgentLimit,
+            MinNoticeDays = MinNoticeDays,
+            CanRequest = true,
+            Summary = $"{used} of {MonthlyCoverLimit} covers used this month."
+        };
+
+        if (shift == null)
+            return quota;
+
+        quota.AlreadyPending = monthRows.Any(r =>
+            r.ShiftId == shift.Id && r.Status == ShiftSwapStatus.Pending);
+        if (quota.AlreadyPending)
+        {
+            quota.Summary = "You already have a pending request for this shift.";
+            return quota;
+        }
+
+        var daysUntil = shift.ShiftDate.DayNumber - today.DayNumber;
+        quota.DaysUntilShift = daysUntil;
+
+        if (daysUntil < 0 ||
+            (daysUntil == 0 && HospitalNow().TimeOfDay >= shift.EndTime.ToTimeSpan()))
+        {
+            quota.CanRequest = false;
+            quota.BlockReason = "This shift has already finished.";
+            quota.Summary = quota.BlockReason;
+            return quota;
+        }
+
+        quota.IsUrgent = daysUntil < MinNoticeDays;
+        quota.ReasonRequired = quota.IsUrgent;
+
+        if (used >= MonthlyCoverLimit)
+        {
+            quota.CanRequest = false;
+            quota.BlockReason =
+                $"You've already requested {MonthlyCoverLimit} covers this month. Try again next month.";
+            quota.Summary = quota.BlockReason;
+            return quota;
+        }
+
+        if (quota.IsUrgent && urgentUsed >= MonthlyUrgentLimit)
+        {
+            quota.CanRequest = false;
+            quota.BlockReason =
+                $"Short-notice cover (under {MinNoticeDays} days) is limited to {MonthlyUrgentLimit} per month. Ask at least {MinNoticeDays} days ahead next time.";
+            quota.Summary = quota.BlockReason;
+            return quota;
+        }
+
+        if (quota.IsUrgent && string.IsNullOrWhiteSpace(reason))
+        {
+            quota.Summary =
+                $"Short notice ({daysUntil} day{(daysUntil == 1 ? "" : "s")} left). Add a reason — {MonthlyUrgentLimit - urgentUsed} urgent slot left this month.";
+            if (submitting)
+            {
+                quota.CanRequest = false;
+                quota.BlockReason = "Short-notice cover needs a reason so the hospital can triage it.";
+                quota.Summary = quota.BlockReason;
+            }
+            return quota;
+        }
+
+        var left = MonthlyCoverLimit - used;
+        quota.Summary = quota.IsUrgent
+            ? $"Short notice. {left} cover{(left == 1 ? "" : "s")} left this month."
+            : $"{left} cover{(left == 1 ? "" : "s")} left this month · ask at least {MinNoticeDays} days ahead.";
+        return quota;
     }
 
     private async Task EnsureActiveHospitalAsync(Guid hospitalUserId)

@@ -1146,6 +1146,16 @@ namespace Vaxora.Api.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<Guid?>("ReplacementAffiliationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ReplacementName")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<Guid?>("ReplacementUserId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("RequesterUserId")
                         .HasColumnType("uuid");
 
@@ -1169,6 +1179,8 @@ namespace Vaxora.Api.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("HospitalUserId", "Status", "CreatedAt");
+
+                    b.HasIndex("ReplacementUserId");
 
                     b.HasIndex("RequesterUserId", "CreatedAt");
 

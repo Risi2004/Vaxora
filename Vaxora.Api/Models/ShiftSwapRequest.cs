@@ -66,6 +66,13 @@ public class ShiftSwapRequest
     public Guid? DecidedByUserId { get; set; }
     public DateTime? DecidedAt { get; set; }
 
+    /// <summary>Staff who took the shift after hospital approval.</summary>
+    public Guid? ReplacementUserId { get; set; }
+    public Guid? ReplacementAffiliationId { get; set; }
+
+    [MaxLength(120)]
+    public string? ReplacementName { get; set; }
+
     [MaxLength(500)]
     public string? DecisionNote { get; set; }
 
