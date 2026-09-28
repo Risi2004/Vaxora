@@ -4,6 +4,48 @@ import '../../../../core/services/storage_service.dart';
 import '../models/user_model.dart';
 
 class AuthRepository {
+  /// Persist API user payload + normalized fields so photo URLs are not dropped.
+  static Future<void> _persistUser(
+    UserModel user, [
+    Map<String, dynamic>? raw,
+  ]) async {
+    final merged = <String, dynamic>{
+      if (raw != null) ...raw,
+      ...user.toJson(),
+    };
+
+    // Never let a null model field wipe a photo URL that came from the API payload.
+    final fromModel = user.profilePhotoUrl?.trim();
+    final fromRawTop = raw?['profilePhotoUrl']?.toString().trim() ??
+        raw?['ProfilePhotoUrl']?.toString().trim();
+    String? fromDetails;
+    final details = raw?['profileDetails'] ?? raw?['ProfileDetails'];
+    if (details is Map) {
+      fromDetails = details['profilePhotoUrl']?.toString().trim() ??
+          details['ProfilePhotoUrl']?.toString().trim() ??
+          details['logoUrl']?.toString().trim() ??
+          details['LogoUrl']?.toString().trim();
+    }
+
+    final photo = [
+      fromModel,
+      fromRawTop,
+      fromDetails,
+      merged['profilePhotoUrl']?.toString().trim(),
+    ].firstWhere(
+      (v) => v != null && v.isNotEmpty && v.toLowerCase() != 'null',
+      orElse: () => null,
+    );
+
+    if (photo != null) {
+      merged['profilePhotoUrl'] = photo;
+    } else {
+      merged.remove('profilePhotoUrl');
+    }
+
+    await StorageService.saveUser(merged);
+  }
+
   static Future<UserModel> login({
     required String email,
     required String password,
@@ -23,9 +65,11 @@ class AuthRepository {
       }
 
       if (response['user'] != null && response['user'] is Map<String, dynamic>) {
-        final userMap = response['user'] as Map<String, dynamic>;
+        final userMap = Map<String, dynamic>.from(
+          response['user'] as Map<String, dynamic>,
+        );
         final user = UserModel.fromJson(userMap);
-        await StorageService.saveUser(user.toJson());
+        await _persistUser(user, userMap);
         return user;
       }
     }
@@ -65,20 +109,28 @@ class AuthRepository {
     return {'message': 'Patient registration submitted successfully.'};
   }
 
-  static Future<UserModel?> getCurrentUser() async {
-    final cached = await StorageService.getUser();
-    if (cached != null) {
-      return UserModel.fromJson(cached);
+  static Future<UserModel?> getCurrentUser({bool forceRefresh = false}) async {
+    if (!forceRefresh) {
+      final cached = await StorageService.getUser();
+      if (cached != null) {
+        return UserModel.fromJson(cached);
+      }
     }
 
     try {
       final response = await ApiClient.get(ApiConstants.currentUser);
       if (response is Map<String, dynamic>) {
-        final user = UserModel.fromJson(response);
-        await StorageService.saveUser(user.toJson());
+        final raw = Map<String, dynamic>.from(response);
+        final user = UserModel.fromJson(raw);
+        await _persistUser(user, raw);
         return user;
       }
-    } catch (_) {}
+    } catch (_) {
+      if (!forceRefresh) return null;
+      final cached = await StorageService.getUser();
+      if (cached != null) return UserModel.fromJson(cached);
+      rethrow;
+    }
 
     return null;
   }
@@ -99,8 +151,9 @@ class AuthRepository {
     );
 
     if (response is Map<String, dynamic>) {
-      final user = UserModel.fromJson(response);
-      await StorageService.saveUser(user.toJson());
+      final raw = Map<String, dynamic>.from(response);
+      final user = UserModel.fromJson(raw);
+      await _persistUser(user, raw);
       return user;
     }
     throw ApiException('Failed to update profile.');

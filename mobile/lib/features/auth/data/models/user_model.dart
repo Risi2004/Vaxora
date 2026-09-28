@@ -9,6 +9,7 @@ class UserModel {
   final String? nicNumber;
   final String? patientProfileId;
   final String? dateOfBirth;
+  final String? profilePhotoUrl;
 
   const UserModel({
     required this.id,
@@ -21,31 +22,70 @@ class UserModel {
     this.nicNumber,
     this.patientProfileId,
     this.dateOfBirth,
+    this.profilePhotoUrl,
   });
+
+  static String? _pick(Map<dynamic, dynamic> json, List<String> keys) {
+    for (final key in keys) {
+      final value = json[key]?.toString().trim();
+      if (value != null && value.isNotEmpty && value.toLowerCase() != 'null') {
+        return value;
+      }
+    }
+    return null;
+  }
+
+  static String? _photoFromJson(Map<String, dynamic> json) {
+    final direct = _pick(json, [
+      'profilePhotoUrl',
+      'ProfilePhotoUrl',
+      'photoUrl',
+      'PhotoUrl',
+      'avatarUrl',
+      'logoUrl',
+      'LogoUrl',
+    ]);
+    if (direct != null) return direct;
+
+    final details = json['profileDetails'] ?? json['ProfileDetails'];
+    if (details is Map) {
+      return _pick(details, [
+        'profilePhotoUrl',
+        'ProfilePhotoUrl',
+        'photoUrl',
+        'PhotoUrl',
+        'logoUrl',
+        'LogoUrl',
+      ]);
+    }
+    return null;
+  }
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
     String? extractedNic;
     String? extractedProfileId;
     String? extractedDob;
 
-    if (json['profileDetails'] != null && json['profileDetails'] is Map) {
-      final details = json['profileDetails'] as Map;
-      extractedNic = details['nicNumber']?.toString();
-      extractedProfileId = details['id']?.toString();
-      extractedDob = details['dateOfBirth']?.toString();
+    final details = json['profileDetails'] ?? json['ProfileDetails'];
+    if (details is Map) {
+      extractedNic = _pick(details, ['nicNumber', 'NicNumber']);
+      extractedProfileId = _pick(details, ['id', 'Id']);
+      extractedDob = _pick(details, ['dateOfBirth', 'DateOfBirth']);
     }
 
     return UserModel(
-      id: json['id']?.toString() ?? '',
-      email: json['email']?.toString() ?? '',
-      role: json['role']?.toString() ?? 'PATIENT',
-      status: json['status']?.toString() ?? 'APPROVED',
-      name: json['name']?.toString() ?? json['fullName']?.toString() ?? 'User',
-      phoneNumber: json['phoneNumber']?.toString(),
-      registrationNumber: json['registrationNumber']?.toString(),
-      nicNumber: extractedNic ?? json['nicNumber']?.toString(),
+      id: _pick(json, ['id', 'Id']) ?? '',
+      email: _pick(json, ['email', 'Email']) ?? '',
+      role: _pick(json, ['role', 'Role']) ?? 'PATIENT',
+      status: _pick(json, ['status', 'Status']) ?? 'APPROVED',
+      name: _pick(json, ['name', 'Name', 'fullName', 'FullName']) ?? 'User',
+      phoneNumber: _pick(json, ['phoneNumber', 'PhoneNumber']),
+      registrationNumber:
+          _pick(json, ['registrationNumber', 'RegistrationNumber']),
+      nicNumber: extractedNic ?? _pick(json, ['nicNumber', 'NicNumber']),
       patientProfileId: extractedProfileId,
-      dateOfBirth: extractedDob ?? json['dateOfBirth']?.toString(),
+      dateOfBirth: extractedDob ?? _pick(json, ['dateOfBirth', 'DateOfBirth']),
+      profilePhotoUrl: _photoFromJson(json),
     );
   }
 
@@ -61,6 +101,7 @@ class UserModel {
       'nicNumber': nicNumber,
       'patientProfileId': patientProfileId,
       'dateOfBirth': dateOfBirth,
+      'profilePhotoUrl': profilePhotoUrl,
     };
   }
 }
