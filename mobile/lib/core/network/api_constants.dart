@@ -73,7 +73,10 @@ class ApiConstants {
   static const String staffMyAffiliations = '/staff/my-affiliations';
   static const String staffInvitations = '/staff/invitations';
   static const String staffMyShifts = '/staff/shifts/mine';
+  static const String staffAppointments = '/appointments/staff';
 
   static String staffInvitationRespond(String affiliationId) =>
       '/staff/invitations/$affiliationId/respond';
+
+  static String appointmentStatus(String id) => '/appointments/$id/status';
 }

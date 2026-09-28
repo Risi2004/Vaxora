@@ -6,6 +6,8 @@ String formatDateOnly(DateTime dt) {
   return '${d.year}-${twoDigits(d.month)}-${twoDigits(d.day)}';
 }
 
+String todayIsoDate() => formatDateOnly(DateTime.now());
+
 DateTime startOfLocalDay(DateTime dt) => DateTime(dt.year, dt.month, dt.day);
 
 DateTime addDays(DateTime dt, int days) => startOfLocalDay(dt).add(Duration(days: days));
@@ -13,6 +15,13 @@ DateTime addDays(DateTime dt, int days) => startOfLocalDay(dt).add(Duration(days
 /// Inclusive week window starting today (default 7 days: today → +6).
 ({String from, String to}) weekRangeFromToday({int days = 7}) {
   final start = startOfLocalDay(DateTime.now());
+  final end = addDays(start, days - 1);
+  return (from: formatDateOnly(start), to: formatDateOnly(end));
+}
+
+/// Inclusive week window offset by [weekOffset] (0 = this week Mon–Sun style from today span).
+({String from, String to}) weekRangeOffset(int weekOffset, {int days = 7}) {
+  final start = addDays(startOfLocalDay(DateTime.now()), weekOffset * days);
   final end = addDays(start, days - 1);
   return (from: formatDateOnly(start), to: formatDateOnly(end));
 }

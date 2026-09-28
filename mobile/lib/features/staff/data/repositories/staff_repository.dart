@@ -2,6 +2,7 @@ import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_constants.dart';
 import '../models/affiliation_model.dart';
 import '../models/shift_model.dart';
+import '../models/staff_appointment_model.dart';
 
 class StaffRepository {
   StaffRepository._();
@@ -17,6 +18,13 @@ class StaffRepository {
     if (response is! List) return [];
     return response
         .map((e) => ShiftModel.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  static List<StaffAppointmentModel> _parseAppointments(dynamic response) {
+    if (response is! List) return [];
+    return response
+        .map((e) => StaffAppointmentModel.fromJson(e as Map<String, dynamic>))
         .toList();
   }
 
@@ -85,5 +93,44 @@ class StaffRepository {
     } catch (_) {
       return [];
     }
+  }
+
+  /// Hospital appointments visible to affiliated doctor/nurse.
+  static Future<List<StaffAppointmentModel>> getHospitalAppointments({
+    required String hospitalUserId,
+    String? date,
+  }) async {
+    final query = <String, String>{'hospitalUserId': hospitalUserId};
+    if (date != null && date.trim().isNotEmpty) {
+      query['date'] = date.trim();
+    }
+
+    final response = await ApiClient.get(
+      ApiConstants.staffAppointments,
+      queryParams: query,
+    );
+    return _parseAppointments(response);
+  }
+
+  /// Status values: Confirmed, Administering, Observation, Completed, Cancelled, Rejected.
+  static Future<StaffAppointmentModel> updateAppointmentStatus({
+    required String appointmentId,
+    required String status,
+    String? remarks,
+  }) async {
+    final body = <String, dynamic>{'status': status};
+    if (remarks != null && remarks.trim().isNotEmpty) {
+      body['remarks'] = remarks.trim();
+    }
+
+    final response = await ApiClient.patch(
+      ApiConstants.appointmentStatus(appointmentId),
+      body: body,
+    );
+
+    if (response is Map<String, dynamic>) {
+      return StaffAppointmentModel.fromJson(response);
+    }
+    throw ApiException('Failed to update appointment status.');
   }
 }
