@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../../../core/network/api_client.dart';
+import '../../../../core/services/storage_service.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../auth/presentation/utils/home_route_utils.dart';
 import '../../data/models/affiliation_model.dart';
 import '../../data/repositories/staff_repository.dart';
+import '../widgets/network_avatar.dart';
 import '../widgets/staff_common_widgets.dart';
 
 class StaffAffiliationsScreen extends StatefulWidget {
@@ -12,7 +14,8 @@ class StaffAffiliationsScreen extends StatefulWidget {
   const StaffAffiliationsScreen({super.key, this.onChanged});
 
   @override
-  State<StaffAffiliationsScreen> createState() => _StaffAffiliationsScreenState();
+  State<StaffAffiliationsScreen> createState() =>
+      _StaffAffiliationsScreenState();
 }
 
 class _StaffAffiliationsScreenState extends State<StaffAffiliationsScreen> {
@@ -22,10 +25,32 @@ class _StaffAffiliationsScreenState extends State<StaffAffiliationsScreen> {
   String? _error;
   String? _actionId;
 
+  String _displayName = 'there';
+  String _roleLabel = 'Staff';
+  String? _photoUrl;
+
   @override
   void initState() {
     super.initState();
-    _load();
+    _bootstrap();
+  }
+
+  Future<void> _bootstrap() async {
+    final user = await StorageService.getUser();
+    if (mounted && user != null) {
+      setState(() {
+        _displayName = user['name']?.toString().trim().isNotEmpty == true
+            ? user['name'].toString().trim()
+            : 'there';
+        _roleLabel = staffRoleLabel(user['role']?.toString() ?? '');
+        _photoUrl = resolveMediaUrl(
+          user['profilePhotoUrl']?.toString() ??
+              user['profilePhoto']?.toString() ??
+              user['photoUrl']?.toString(),
+        );
+      });
+    }
+    await _load();
   }
 
   Future<void> _load() async {
@@ -51,7 +76,8 @@ class _StaffAffiliationsScreenState extends State<StaffAffiliationsScreen> {
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _error = e is ApiException ? e.message : 'Failed to load affiliations.';
+        _error =
+            e is ApiException ? e.message : 'Failed to load affiliations.';
         _invitations = [];
         _affiliations = [];
       });
@@ -153,7 +179,9 @@ class _StaffAffiliationsScreenState extends State<StaffAffiliationsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            decision == 'Accept' ? 'Invitation accepted.' : 'Invitation rejected.',
+            decision == 'Accept'
+                ? 'Invitation accepted.'
+                : 'Invitation rejected.',
           ),
           backgroundColor: AppColors.success,
           behavior: SnackBarBehavior.floating,
@@ -180,15 +208,19 @@ class _StaffAffiliationsScreenState extends State<StaffAffiliationsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final onDutyCount = _affiliations.where((a) => a.isOnDutyNow).length;
+
     return Scaffold(
       backgroundColor: StaffSurfaces.pageBg,
-      appBar: StaffSurfaces.appBar(
-        title: 'Hospital Affiliations',
+      appBar: StaffScreenHeader.appBar(
+        displayName: _displayName,
+        subtitle: '$_roleLabel · Hospitals',
+        photoUrl: _photoUrl,
         actions: [
-          IconButton(
+          StaffHeaderAction(
+            icon: Icons.refresh,
             tooltip: 'Refresh',
             onPressed: _loading ? null : _load,
-            icon: Icon(Icons.refresh, color: StaffSurfaces.brandSoft),
           ),
         ],
       ),
@@ -199,6 +231,30 @@ class _StaffAffiliationsScreenState extends State<StaffAffiliationsScreen> {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 28),
           children: [
+            StaffPageIntro(
+              eyebrow: 'Hospital network',
+              title: 'Your affiliations',
+              subtitle:
+                  'Accept invitations to join a hospital roster and manage where you work.',
+              stats: [
+                StaffIntroStat(
+                  label: 'Active',
+                  value: '${_affiliations.length}',
+                  icon: Icons.verified_outlined,
+                ),
+                StaffIntroStat(
+                  label: 'On duty now',
+                  value: '$onDutyCount',
+                  icon: Icons.medical_services_outlined,
+                ),
+                StaffIntroStat(
+                  label: 'Pending',
+                  value: '${_invitations.length}',
+                  icon: Icons.mark_email_unread_outlined,
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
             if (_error != null) ...[
               StaffErrorBanner(
                 message: _error!,
@@ -210,20 +266,33 @@ class _StaffAffiliationsScreenState extends State<StaffAffiliationsScreen> {
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 48),
                 child: Center(
-                  child: CircularProgressIndicator(color: StaffSurfaces.brandSoft),
+                  child: CircularProgressIndicator(
+                      color: StaffSurfaces.brandSoft),
                 ),
               )
             else ...[
-              _SummaryRow(
-                pending: _invitations.length,
-                active: _affiliations.length,
-              ),
-              const SizedBox(height: 20),
-              _SectionTitle(
-                title: 'Active Affiliations',
+              if (_invitations.isNotEmpty) ...[
+                StaffSectionHeader(
+                  title: 'Pending invitations',
+                  count: _invitations.length,
+                ),
+                ..._invitations.map(
+                  (item) => Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: _InvitationCard(
+                      item: item,
+                      actionId: _actionId,
+                      onAccept: () => _respond(item, 'Accept'),
+                      onReject: () => _confirmReject(item),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
+              StaffSectionHeader(
+                title: 'Active affiliations',
                 count: _affiliations.length,
               ),
-              const SizedBox(height: 10),
               if (_affiliations.isEmpty)
                 const StaffEmptyCard(
                   message:
@@ -238,139 +307,21 @@ class _StaffAffiliationsScreenState extends State<StaffAffiliationsScreen> {
                     child: _AffiliationCard(item: item),
                   ),
                 ),
-              const SizedBox(height: 18),
-              _SectionTitle(
-                title: 'Pending Invitations',
-                count: _invitations.length,
-              ),
-              const SizedBox(height: 10),
-              if (_invitations.isEmpty)
+              if (_invitations.isEmpty) ...[
+                const SizedBox(height: 8),
+                StaffSectionHeader(
+                  title: 'Pending invitations',
+                  count: 0,
+                ),
                 const StaffEmptyCard(
                   message: 'No pending hospital invitations.',
                   icon: Icons.mail_outline,
                   compact: true,
-                )
-              else
-                ..._invitations.map(
-                  (item) => Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: _InvitationCard(
-                      item: item,
-                      actionId: _actionId,
-                      onAccept: () => _respond(item, 'Accept'),
-                      onReject: () => _confirmReject(item),
-                    ),
-                  ),
                 ),
+              ],
             ],
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _SummaryRow extends StatelessWidget {
-  final int pending;
-  final int active;
-
-  const _SummaryRow({required this.pending, required this.active});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: _SummaryPill(
-            label: 'Pending',
-            value: pending,
-            icon: Icons.mark_email_unread_outlined,
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _SummaryPill(
-            label: 'Active',
-            value: active,
-            icon: Icons.verified_outlined,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _SummaryPill extends StatelessWidget {
-  final String label;
-  final int value;
-  final IconData icon;
-
-  const _SummaryPill({
-    required this.label,
-    required this.value,
-    required this.icon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: StaffSurfaces.softWell(),
-      child: Row(
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: StaffSurfaces.softPanelDeep,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, size: 18, color: StaffSurfaces.brandSoft),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '$value',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color: StaffSurfaces.brandSoft,
-                  ),
-                ),
-                Text(
-                  label,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: StaffSurfaces.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SectionTitle extends StatelessWidget {
-  final String title;
-  final int count;
-
-  const _SectionTitle({required this.title, required this.count});
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      '$title ($count)',
-      style: const TextStyle(
-        fontSize: 13,
-        fontWeight: FontWeight.w700,
-        color: StaffSurfaces.textSecondary,
       ),
     );
   }
@@ -414,7 +365,7 @@ class _InvitationCard extends StatelessWidget {
                     Text(
                       item.hospitalName,
                       style: const TextStyle(
-                        fontSize: 14,
+                        fontSize: 14.5,
                         fontWeight: FontWeight.w700,
                         color: StaffSurfaces.textPrimary,
                       ),
@@ -430,9 +381,13 @@ class _InvitationCard extends StatelessWidget {
                   ],
                 ),
               ),
+              const StaffStatusChip(
+                label: 'Pending',
+                tone: StaffChipTone.warning,
+              ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           Row(
             children: [
               Expanded(
@@ -442,26 +397,30 @@ class _InvitationCard extends StatelessWidget {
                     foregroundColor: AppColors.error,
                     side: const BorderSide(color: StaffSurfaces.dangerBorder),
                     backgroundColor: AppColors.errorBg,
-                    padding: const EdgeInsets.symmetric(vertical: 11),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
+                    textStyle: const TextStyle(
+                        fontSize: 13.5, fontWeight: FontWeight.w700),
                   ),
                   child: Text(rejecting ? 'Rejecting…' : 'Reject'),
                 ),
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: ElevatedButton(
+                child: FilledButton(
                   onPressed: _busy ? null : onAccept,
-                  style: ElevatedButton.styleFrom(
+                  style: FilledButton.styleFrom(
                     backgroundColor: StaffSurfaces.cta,
                     foregroundColor: Colors.white,
                     elevation: 0,
-                    padding: const EdgeInsets.symmetric(vertical: 11),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
+                    textStyle: const TextStyle(
+                        fontSize: 13.5, fontWeight: FontWeight.w700),
                   ),
                   child: Text(accepting ? 'Accepting…' : 'Accept'),
                 ),
@@ -494,8 +453,10 @@ class _AffiliationCard extends StatelessWidget {
               children: [
                 Text(
                   item.hospitalName,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontSize: 14,
+                    fontSize: 14.5,
                     fontWeight: FontWeight.w700,
                     color: StaffSurfaces.textPrimary,
                   ),
@@ -513,8 +474,13 @@ class _AffiliationCard extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           StaffStatusChip(
-            label: item.isOnDutyNow ? 'On duty now' : 'Off duty',
-            positive: item.isOnDutyNow,
+            label: item.isOnDutyNow ? 'On duty' : 'Off duty',
+            tone: item.isOnDutyNow
+                ? StaffChipTone.success
+                : StaffChipTone.neutral,
+            icon: item.isOnDutyNow
+                ? Icons.circle
+                : Icons.circle_outlined,
           ),
         ],
       ),

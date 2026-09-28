@@ -2,22 +2,26 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import 'network_avatar.dart';
 
-/// Soft staff UI tokens — use these everywhere for consistency.
+/// Design tokens for every staff screen.
 ///
-/// Rules of thumb:
-/// - Surfaces / text → pageBg, card*, softPanel*, text*
-/// - Icons, refresh, loaders, stats → brandSoft
-/// - Primary CTAs only → cta (full brand blue)
-/// - Destructive / success → AppColors.error / success (semantic only)
+/// Surface hierarchy (one job per block):
+/// - pageBg           → screen background
+/// - card()           → white content blocks (lists, tiles, profile)
+/// - softWell()       → tinted controls only (week strip, filters)
+/// - softPanelDeep    → chips, small icon backdrops
+/// - brandSoft        → icons / loaders / accent text
+/// - cta              → primary filled buttons only
+/// - AppColors.error  → destructive / warnings
+/// - AppColors.success→ success chips / banners
 class StaffSurfaces {
-  static const Color pageBg = Color(0xFFF5F8FC);
-  static const Color cardBg = Color(0xFFF8FBFE);
-  static const Color cardBorder = Color(0xFFD7E6F5);
-  static const Color softPanel = Color(0xFFE8F1FA);
-  static const Color softPanelDeep = Color(0xFFDCEAF7);
+  static const Color pageBg = Color(0xFFF4F7FB);
+  static const Color cardBg = Color(0xFFFFFFFF);
+  static const Color cardBorder = Color(0xFFDCE6F2);
+  static const Color softPanel = Color(0xFFEDF3FA);
+  static const Color softPanelDeep = Color(0xFFDEEAF6);
   static const Color accentBar = Color(0xFF9BB8D9);
   static const Color textPrimary = Color(0xFF1E3A5F);
-  static const Color textSecondary = Color(0xFF6B7C93);
+  static const Color textSecondary = Color(0xFF5E6E85);
   static const Color textMutedSoft = Color(0xFF8A97A8);
   static const Color appBarBg = Color(0xFFFFFFFF);
   static const Color divider = Color(0xFFE8EEF5);
@@ -26,11 +30,10 @@ class StaffSurfaces {
   static const Color dangerBorder = Color(0xFFFECACA);
   static const double cardRadius = 14;
 
-  /// Soft brand for chrome (icons, loaders, accents).
-  static Color get brandSoft =>
-      AppColors.brandBlue.withValues(alpha: 0.88);
+  /// Slightly-muted brand blue for chrome (icons / loaders / accents).
+  static Color get brandSoft => AppColors.brandBlue.withValues(alpha: 0.88);
 
-  /// Full brand for primary filled buttons only.
+  /// Full brand blue — primary filled buttons only.
   static const Color cta = AppColors.brandBlue;
 
   static Color get navSelected => cta;
@@ -62,6 +65,8 @@ class StaffSurfaces {
     );
   }
 
+  /// Plain title app bar (use for Profile screen only — everything else uses
+  /// [StaffScreenHeader.appBar] to show the logged-in user in the top bar).
   static PreferredSizeWidget appBar({
     required String title,
     List<Widget>? actions,
@@ -89,6 +94,373 @@ class StaffSurfaces {
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// Personalized app bar shared across staff screens.
+// ---------------------------------------------------------------------------
+
+/// AppBar for Shifts / Appointments / Affiliations screens.
+///
+/// Left  → circular avatar (or initials fallback)
+/// Middle→ display name + subtitle (screen name / role · screen)
+/// Right → action icons (refresh, etc.)
+class StaffScreenHeader {
+  StaffScreenHeader._();
+
+  static PreferredSizeWidget appBar({
+    required String displayName,
+    required String subtitle,
+    String? photoUrl,
+    List<Widget>? actions,
+  }) {
+    return AppBar(
+      titleSpacing: 16,
+      title: _HeaderTitle(
+        displayName: displayName,
+        subtitle: subtitle,
+        photoUrl: photoUrl,
+      ),
+      centerTitle: false,
+      backgroundColor: StaffSurfaces.appBarBg,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      iconTheme: IconThemeData(color: StaffSurfaces.brandSoft),
+      actionsIconTheme: IconThemeData(color: StaffSurfaces.brandSoft),
+      actions: [
+        ...?actions,
+        const SizedBox(width: 4),
+      ],
+      bottom: const PreferredSize(
+        preferredSize: Size.fromHeight(1),
+        child: Divider(height: 1, thickness: 1, color: StaffSurfaces.divider),
+      ),
+    );
+  }
+}
+
+class _HeaderTitle extends StatelessWidget {
+  final String displayName;
+  final String subtitle;
+  final String? photoUrl;
+
+  const _HeaderTitle({
+    required this.displayName,
+    required this.subtitle,
+    this.photoUrl,
+  });
+
+  String get _initials {
+    final parts = displayName
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((p) => p.isNotEmpty)
+        .toList();
+    if (parts.isEmpty || displayName == 'there') return '?';
+    if (parts.length == 1) {
+      final w = parts.first;
+      return w.substring(0, w.length >= 2 ? 2 : 1).toUpperCase();
+    }
+    return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: StaffSurfaces.cardBorder),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: NetworkAvatar(
+            url: photoUrl,
+            size: 38,
+            fallback: Container(
+              color: StaffSurfaces.softPanelDeep,
+              alignment: Alignment.center,
+              child: Text(
+                _initials,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: StaffSurfaces.brandSoft,
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                displayName == 'there' ? 'Welcome' : displayName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 15.5,
+                  fontWeight: FontWeight.w700,
+                  color: StaffSurfaces.textPrimary,
+                  height: 1.15,
+                ),
+              ),
+              const SizedBox(height: 1),
+              Text(
+                subtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w500,
+                  color: StaffSurfaces.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Circle-button style wrapper for app-bar action icons — gives every screen
+/// the same tap target + hit color.
+class StaffHeaderAction extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback? onPressed;
+
+  const StaffHeaderAction({
+    super.key,
+    required this.icon,
+    required this.tooltip,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 6),
+      child: Material(
+        color: StaffSurfaces.softPanel,
+        shape: const CircleBorder(),
+        child: IconButton(
+          tooltip: tooltip,
+          onPressed: onPressed,
+          icon: Icon(icon, color: StaffSurfaces.brandSoft, size: 20),
+          splashRadius: 22,
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Screen intro (title + subtitle + optional stat strip).
+// ---------------------------------------------------------------------------
+
+class StaffPageIntro extends StatelessWidget {
+  final String eyebrow;
+  final String title;
+  final String subtitle;
+  final List<StaffIntroStat> stats;
+
+  const StaffPageIntro({
+    super.key,
+    required this.eyebrow,
+    required this.title,
+    required this.subtitle,
+    this.stats = const [],
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: StaffSurfaces.card(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            eyebrow.toUpperCase(),
+            style: TextStyle(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.6,
+              color: StaffSurfaces.brandSoft,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: StaffSurfaces.textPrimary,
+              height: 1.2,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            subtitle,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 12.5,
+              color: StaffSurfaces.textSecondary,
+              height: 1.35,
+            ),
+          ),
+          if (stats.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                for (var i = 0; i < stats.length; i++) ...[
+                  if (i > 0) const SizedBox(width: 8),
+                  Expanded(child: _StatTile(stat: stats[i])),
+                ],
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class StaffIntroStat {
+  final String label;
+  final String value;
+  final IconData? icon;
+
+  const StaffIntroStat({
+    required this.label,
+    required this.value,
+    this.icon,
+  });
+}
+
+class _StatTile extends StatelessWidget {
+  final StaffIntroStat stat;
+
+  const _StatTile({required this.stat});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
+      decoration: BoxDecoration(
+        color: StaffSurfaces.softPanel,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: StaffSurfaces.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              if (stat.icon != null) ...[
+                Icon(stat.icon, size: 14, color: StaffSurfaces.brandSoft),
+                const SizedBox(width: 6),
+              ],
+              Expanded(
+                child: Text(
+                  stat.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w600,
+                    color: StaffSurfaces.textSecondary,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            stat.value,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: StaffSurfaces.brandSoft,
+              height: 1.1,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Section header for grouped lists.
+// ---------------------------------------------------------------------------
+
+class StaffSectionHeader extends StatelessWidget {
+  final String title;
+  final int? count;
+  final Widget? trailing;
+
+  const StaffSectionHeader({
+    super.key,
+    required this.title,
+    this.count,
+    this.trailing,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8, top: 4),
+      child: Row(
+        children: [
+          Text(
+            title.toUpperCase(),
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.6,
+              color: StaffSurfaces.textSecondary,
+            ),
+          ),
+          if (count != null) ...[
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+              decoration: BoxDecoration(
+                color: StaffSurfaces.softPanelDeep,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                '$count',
+                style: TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w700,
+                  color: StaffSurfaces.brandSoft,
+                ),
+              ),
+            ),
+          ],
+          const Spacer(),
+          ?trailing,
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Banners & empty states.
+// ---------------------------------------------------------------------------
 
 class StaffErrorBanner extends StatelessWidget {
   final String message;
@@ -212,6 +584,10 @@ class StaffEmptyCard extends StatelessWidget {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Common building blocks.
+// ---------------------------------------------------------------------------
+
 class StaffHospitalAvatar extends StatelessWidget {
   final String? logoUrl;
   final double size;
@@ -256,206 +632,88 @@ class StaffHospitalAvatar extends StatelessWidget {
   }
 }
 
+enum StaffChipTone { neutral, brand, success, warning, danger }
+
 class StaffStatusChip extends StatelessWidget {
   final String label;
-  final bool positive;
+  final StaffChipTone tone;
+  final IconData? icon;
 
   const StaffStatusChip({
     super.key,
     required this.label,
-    this.positive = false,
+    this.tone = StaffChipTone.neutral,
+    this.icon,
   });
 
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: positive
-            ? StaffSurfaces.softPanelDeep
-            : StaffSurfaces.chipNeutralBg,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(
-          color: positive
-              ? StaffSurfaces.cardBorder
-              : StaffSurfaces.chipNeutralBorder,
-        ),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          color: positive
-              ? StaffSurfaces.brandSoft
-              : StaffSurfaces.textSecondary,
-        ),
-      ),
-    );
+  /// Legacy positional convenience — keeps older call sites working.
+  const StaffStatusChip.positive({super.key, required this.label, this.icon})
+      : tone = StaffChipTone.brand;
+
+  ({Color bg, Color border, Color fg}) get _palette {
+    switch (tone) {
+      case StaffChipTone.brand:
+        return (
+          bg: StaffSurfaces.softPanelDeep,
+          border: StaffSurfaces.cardBorder,
+          fg: StaffSurfaces.brandSoft,
+        );
+      case StaffChipTone.success:
+        return (
+          bg: AppColors.successBg,
+          border: AppColors.success.withValues(alpha: 0.3),
+          fg: AppColors.success,
+        );
+      case StaffChipTone.warning:
+        return (
+          bg: const Color(0xFFFFF4E5),
+          border: const Color(0xFFF5B168),
+          fg: const Color(0xFFB2660A),
+        );
+      case StaffChipTone.danger:
+        return (
+          bg: AppColors.errorBg,
+          border: AppColors.error.withValues(alpha: 0.3),
+          fg: AppColors.error,
+        );
+      case StaffChipTone.neutral:
+        return (
+          bg: StaffSurfaces.chipNeutralBg,
+          border: StaffSurfaces.chipNeutralBorder,
+          fg: StaffSurfaces.textSecondary,
+        );
+    }
   }
-}
-
-/// Landing-only hero: soft blue wash + light geometry (no photo).
-class StaffHeroBanner extends StatelessWidget {
-  final String eyebrow;
-  final String title;
-  final String subtitle;
-  final List<String> pills;
-
-  const StaffHeroBanner({
-    super.key,
-    required this.eyebrow,
-    required this.title,
-    required this.subtitle,
-    this.pills = const [],
-  });
 
   @override
   Widget build(BuildContext context) {
-    // Clear soft sky-blue — obvious against pageBg, not washed out / not navy.
-    const bgDeep = Color(0xFF7FA4C4);
-    const bgMid = Color(0xFF8FB2CF);
-    const bgLight = Color(0xFFA3C0D9);
-
+    final p = _palette;
     return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: icon == null ? 10 : 8,
+        vertical: 5,
+      ),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFF6E96B8)),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF3E5F7C).withValues(alpha: 0.12),
-            blurRadius: 14,
-            offset: const Offset(0, 5),
+        color: p.bg,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: p.border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 12, color: p.fg),
+            const SizedBox(width: 4),
+          ],
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: p.fg,
+            ),
           ),
         ],
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [bgDeep, bgMid, bgLight],
-          stops: [0.0, 0.5, 1.0],
-        ),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(18),
-        child: SizedBox(
-          height: 200,
-          width: double.infinity,
-          child: Stack(
-            children: [
-              Positioned(
-                right: -30,
-                top: -36,
-                child: Container(
-                  width: 150,
-                  height: 150,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.white.withValues(alpha: 0.22),
-                  ),
-                ),
-              ),
-              Positioned(
-                right: 48,
-                bottom: -40,
-                child: Container(
-                  width: 120,
-                  height: 120,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.white.withValues(alpha: 0.14),
-                  ),
-                ),
-              ),
-              Positioned(
-                left: -18,
-                bottom: 20,
-                child: Transform.rotate(
-                  angle: -0.35,
-                  child: Container(
-                    width: 72,
-                    height: 72,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(18),
-                      color: Colors.white.withValues(alpha: 0.16),
-                    ),
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      eyebrow,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.4,
-                        color: Colors.white.withValues(alpha: 0.9),
-                      ),
-                    ),
-                    const SizedBox(height: 7),
-                    Text(
-                      title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
-                        height: 1.2,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 7),
-                    Text(
-                      subtitle,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        height: 1.4,
-                        color: Colors.white.withValues(alpha: 0.88),
-                      ),
-                    ),
-                    if (pills.isNotEmpty) ...[
-                      const Spacer(),
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 6,
-                        children: pills
-                            .map(
-                              (p) => Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 5,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.22),
-                                  borderRadius: BorderRadius.circular(999),
-                                  border: Border.all(
-                                    color: Colors.white.withValues(alpha: 0.4),
-                                  ),
-                                ),
-                                child: Text(
-                                  p,
-                                  style: const TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ),
-                            )
-                            .toList(),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }

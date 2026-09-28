@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/services/storage_service.dart';
+import '../../../auth/presentation/utils/home_route_utils.dart';
 import '../../data/models/affiliation_model.dart';
 import '../../data/models/staff_appointment_model.dart';
 import '../../data/repositories/staff_repository.dart';
 import '../utils/staff_date_utils.dart';
+import '../widgets/network_avatar.dart';
 import '../widgets/staff_common_widgets.dart';
 
 class StaffAppointmentsScreen extends StatefulWidget {
@@ -26,6 +28,10 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
   bool _allowHospitalSwitch = true;
   String _facilitySuffix = '';
 
+  String _displayName = 'there';
+  String _roleLabel = 'Staff';
+  String? _photoUrl;
+
   @override
   void initState() {
     super.initState();
@@ -41,6 +47,17 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
       setState(() {
         _allowHospitalSwitch = !isNurse;
         _facilitySuffix = isNurse ? ' · Nursing Station' : '';
+        if (user != null) {
+          _displayName = user['name']?.toString().trim().isNotEmpty == true
+              ? user['name'].toString().trim()
+              : 'there';
+          _roleLabel = staffRoleLabel(user['role']?.toString() ?? '');
+          _photoUrl = resolveMediaUrl(
+            user['profilePhotoUrl']?.toString() ??
+                user['profilePhoto']?.toString() ??
+                user['photoUrl']?.toString(),
+          );
+        }
       });
     }
     await _loadHospitals();
@@ -155,21 +172,23 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
   @override
   Widget build(BuildContext context) {
     final facility = _selectedHospital == null
-        ? (_loadingHospitals ? 'Loading hospital...' : 'No affiliated hospital')
+        ? (_loadingHospitals ? 'Loading hospital…' : 'No affiliated hospital')
         : '${_selectedHospital!.hospitalName}$_facilitySuffix';
     final isToday = _filterDate == todayIsoDate();
 
     return Scaffold(
       backgroundColor: StaffSurfaces.pageBg,
-      appBar: StaffSurfaces.appBar(
-        title: 'Appointments',
+      appBar: StaffScreenHeader.appBar(
+        displayName: _displayName,
+        subtitle: '$_roleLabel · Appointments',
+        photoUrl: _photoUrl,
         actions: [
-          IconButton(
+          StaffHeaderAction(
+            icon: Icons.refresh,
             tooltip: 'Refresh',
             onPressed: _loadingHospitals || _loadingAppointments
                 ? null
                 : _loadHospitals,
-            icon: Icon(Icons.refresh, color: StaffSurfaces.brandSoft),
           ),
         ],
       ),
@@ -180,51 +199,27 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 28),
           children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: StaffSurfaces.softWell(),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Clinic roster',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.3,
-                      color: StaffSurfaces.brandSoft,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  const Text(
-                    'Manage Your Appointments',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: StaffSurfaces.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    facility,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: StaffSurfaces.textSecondary,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      _SoftStat(label: 'Total', value: '${_appointments.length}'),
-                      const SizedBox(width: 8),
-                      _SoftStat(label: 'Waiting', value: '$_waitingCount'),
-                      const SizedBox(width: 8),
-                      _SoftStat(label: 'Done', value: '$_completedCount'),
-                    ],
-                  ),
-                ],
-              ),
+            StaffPageIntro(
+              eyebrow: 'Clinic roster',
+              title: 'Manage appointments',
+              subtitle: facility,
+              stats: [
+                StaffIntroStat(
+                  label: 'Total',
+                  value: '${_appointments.length}',
+                  icon: Icons.list_alt_outlined,
+                ),
+                StaffIntroStat(
+                  label: 'Waiting',
+                  value: '$_waitingCount',
+                  icon: Icons.pending_outlined,
+                ),
+                StaffIntroStat(
+                  label: 'Done',
+                  value: '$_completedCount',
+                  icon: Icons.check_circle_outline,
+                ),
+              ],
             ),
             const SizedBox(height: 14),
             if (_error != null) ...[
@@ -271,80 +266,22 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
               ),
               const SizedBox(height: 12),
             ],
-            Row(
-              children: [
-                Expanded(
-                  child: Material(
-                    color: StaffSurfaces.cardBg,
-                    borderRadius: BorderRadius.circular(12),
-                    child: InkWell(
-                      onTap: _pickDate,
-                      borderRadius: BorderRadius.circular(12),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 13,
-                        ),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: StaffSurfaces.cardBorder),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.calendar_today_outlined,
-                              size: 18,
-                              color: StaffSurfaces.brandSoft,
-                            ),
-                            const SizedBox(width: 10),
-                            Text(
-                              _filterDate,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                                color: StaffSurfaces.textPrimary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                FilledButton(
-                  onPressed: () async {
-                    setState(() => _filterDate = todayIsoDate());
-                    await _loadAppointments();
-                  },
-                  style: FilledButton.styleFrom(
-                    backgroundColor: isToday
-                        ? StaffSurfaces.cta
-                        : StaffSurfaces.softPanelDeep,
-                    foregroundColor: isToday
-                        ? Colors.white
-                        : StaffSurfaces.brandSoft,
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 18,
-                      vertical: 14,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: const Text(
-                    'Today',
-                    style: TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                ),
-              ],
+            _DateFilterRow(
+              date: _filterDate,
+              isToday: isToday,
+              onPick: _pickDate,
+              onToday: () async {
+                setState(() => _filterDate = todayIsoDate());
+                await _loadAppointments();
+              },
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 18),
             if (_loadingHospitals || _loadingAppointments)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 48),
                 child: Center(
-                  child: CircularProgressIndicator(color: StaffSurfaces.brandSoft),
+                  child: CircularProgressIndicator(
+                      color: StaffSurfaces.brandSoft),
                 ),
               )
             else if (_hospitals.isEmpty)
@@ -354,16 +291,21 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
               )
             else if (_appointments.isEmpty)
               const StaffEmptyCard(
-                message: 'No appointments for this date.',
+                message: 'No appointments scheduled for this date.',
                 icon: Icons.event_busy_outlined,
               )
-            else
+            else ...[
+              StaffSectionHeader(
+                title: isToday ? "Today's appointments" : 'Appointments',
+                count: _appointments.length,
+              ),
               ..._appointments.map(
                 (a) => Padding(
                   padding: const EdgeInsets.only(bottom: 10),
                   child: _AppointmentCard(appointment: a),
                 ),
               ),
+            ],
           ],
         ),
       ),
@@ -371,42 +313,89 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
   }
 }
 
-class _SoftStat extends StatelessWidget {
-  final String label;
-  final String value;
+class _DateFilterRow extends StatelessWidget {
+  final String date;
+  final bool isToday;
+  final VoidCallback onPick;
+  final VoidCallback onToday;
 
-  const _SoftStat({required this.label, required this.value});
+  const _DateFilterRow({
+    required this.date,
+    required this.isToday,
+    required this.onPick,
+    required this.onToday,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        decoration: BoxDecoration(
-          color: StaffSurfaces.softPanelDeep,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Column(
-          children: [
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: StaffSurfaces.brandSoft,
+    return Row(
+      children: [
+        Expanded(
+          child: Material(
+            color: StaffSurfaces.cardBg,
+            borderRadius: BorderRadius.circular(12),
+            child: InkWell(
+              onTap: onPick,
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 13,
+                ),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: StaffSurfaces.cardBorder),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.calendar_today_outlined,
+                      size: 18,
+                      color: StaffSurfaces.brandSoft,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        date,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: StaffSurfaces.textPrimary,
+                          fontSize: 13.5,
+                        ),
+                      ),
+                    ),
+                    Icon(
+                      Icons.expand_more,
+                      size: 20,
+                      color: StaffSurfaces.textMutedSoft,
+                    ),
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 11,
-                color: StaffSurfaces.textSecondary,
-              ),
-            ),
-          ],
+          ),
         ),
-      ),
+        const SizedBox(width: 10),
+        FilledButton(
+          onPressed: onToday,
+          style: FilledButton.styleFrom(
+            backgroundColor:
+                isToday ? StaffSurfaces.cta : StaffSurfaces.softPanelDeep,
+            foregroundColor:
+                isToday ? Colors.white : StaffSurfaces.brandSoft,
+            elevation: 0,
+            padding:
+                const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          child: const Text(
+            'Today',
+            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -415,6 +404,17 @@ class _AppointmentCard extends StatelessWidget {
   final StaffAppointmentModel appointment;
 
   const _AppointmentCard({required this.appointment});
+
+  StaffChipTone _toneFor(String uiStatus) {
+    switch (uiStatus) {
+      case 'completed':
+        return StaffChipTone.success;
+      case 'waiting':
+        return StaffChipTone.warning;
+      default:
+        return StaffChipTone.brand;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -428,7 +428,7 @@ class _AppointmentCard extends StatelessWidget {
         children: [
           Container(
             width: 4,
-            height: 58,
+            height: 60,
             decoration: BoxDecoration(
               color: StaffSurfaces.accentBar,
               borderRadius: BorderRadius.circular(4),
@@ -444,6 +444,8 @@ class _AppointmentCard extends StatelessWidget {
                     Expanded(
                       child: Text(
                         a.patientName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
@@ -451,23 +453,9 @@ class _AppointmentCard extends StatelessWidget {
                         ),
                       ),
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 9,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: StaffSurfaces.softPanelDeep,
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        a.status,
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: StaffSurfaces.brandSoft,
-                        ),
-                      ),
+                    StaffStatusChip(
+                      label: a.status,
+                      tone: _toneFor(a.uiStatus),
                     ),
                   ],
                 ),
@@ -481,20 +469,42 @@ class _AppointmentCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  '${a.appointmentDate} · ${a.timeLabel}',
-                  style: const TextStyle(
-                    fontSize: 12.5,
-                    color: StaffSurfaces.textSecondary,
-                  ),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.schedule,
+                      size: 13,
+                      color: StaffSurfaces.textMutedSoft,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${a.appointmentDate} · ${a.timeLabel}',
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        color: StaffSurfaces.textSecondary,
+                      ),
+                    ),
+                  ],
                 ),
                 if (a.hasDosage) ...[
                   const SizedBox(height: 6),
-                  Text(
-                    'Dosage: ${a.prescribedDosage}',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: StaffSurfaces.textMutedSoft,
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: StaffSurfaces.softPanel,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: StaffSurfaces.cardBorder),
+                    ),
+                    child: Text(
+                      'Dosage · ${a.prescribedDosage}',
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: StaffSurfaces.textSecondary,
+                      ),
                     ),
                   ),
                 ],

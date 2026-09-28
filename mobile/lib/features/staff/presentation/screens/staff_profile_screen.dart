@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/services/storage_service.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_text_styles.dart';
 import '../../../auth/presentation/screens/login_screen.dart';
 import '../../../auth/presentation/utils/home_route_utils.dart';
 import '../../../auth/data/repositories/auth_repository.dart';
@@ -106,7 +105,8 @@ class _StaffProfileScreenState extends State<StaffProfileScreen> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: StaffSurfaces.brandSoft, width: 1.4),
+              borderSide:
+                  BorderSide(color: StaffSurfaces.brandSoft, width: 1.4),
             ),
           );
         }
@@ -222,8 +222,8 @@ class _StaffProfileScreenState extends State<StaffProfileScreen> {
         fullName: name.isEmpty ? null : name,
         phoneNumber: phone,
       );
-      if (!mounted) return;
       final fresh = await StorageService.getUser();
+      if (!mounted) return;
       setState(() {
         _user = updated;
         _photoUrl = _photoFromMap(fresh) ??
@@ -264,8 +264,38 @@ class _StaffProfileScreenState extends State<StaffProfileScreen> {
 
   String get _roleLabel {
     final raw = _user?.role ?? '';
-    final label = staffRoleLabel(raw).toUpperCase();
-    return label == 'STAFF' && raw.isEmpty ? 'STAFF' : label;
+    final label = staffRoleLabel(raw);
+    return label == 'Staff' && raw.isNotEmpty ? raw : label;
+  }
+
+  String get _initials {
+    final name = _user?.name ?? '';
+    final parts = name
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((p) => p.isNotEmpty)
+        .toList();
+    if (parts.isEmpty) return 'V';
+    if (parts.length == 1) {
+      final w = parts.first;
+      return w.substring(0, w.length >= 2 ? 2 : 1).toUpperCase();
+    }
+    return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
+  }
+
+  Widget _avatarFallback() {
+    return Container(
+      color: StaffSurfaces.softPanelDeep,
+      alignment: Alignment.center,
+      child: Text(
+        _initials,
+        style: TextStyle(
+          fontSize: 26,
+          fontWeight: FontWeight.w700,
+          color: StaffSurfaces.brandSoft,
+        ),
+      ),
+    );
   }
 
   @override
@@ -275,151 +305,254 @@ class _StaffProfileScreenState extends State<StaffProfileScreen> {
     return Scaffold(
       backgroundColor: StaffSurfaces.pageBg,
       appBar: StaffSurfaces.appBar(
-        title: 'Profile',
+        title: 'My Profile',
         actions: [
-          IconButton(
+          StaffHeaderAction(
+            icon: Icons.edit_outlined,
+            tooltip: 'Edit profile',
+            onPressed:
+                _loading || _saving || _user == null ? null : _editProfile,
+          ),
+          StaffHeaderAction(
+            icon: Icons.refresh,
             tooltip: 'Refresh',
             onPressed: _loading || _saving ? null : _load,
-            icon: Icon(Icons.refresh, color: StaffSurfaces.brandSoft),
-          ),
-          IconButton(
-            tooltip: 'Edit',
-            onPressed: _loading || _saving || _user == null ? null : _editProfile,
-            icon: Icon(Icons.edit_outlined, color: StaffSurfaces.brandSoft),
           ),
         ],
       ),
       body: _loading
           ? Center(
-              child: CircularProgressIndicator(color: StaffSurfaces.brandSoft),
+              child:
+                  CircularProgressIndicator(color: StaffSurfaces.brandSoft),
             )
-          : ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                if (_error != null) ...[
-                  StaffErrorBanner(
-                    message: _error!,
-                    onDismiss: () => setState(() => _error = null),
+          : RefreshIndicator(
+              onRefresh: _load,
+              color: StaffSurfaces.brandSoft,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 28),
+                children: [
+                  if (_error != null) ...[
+                    StaffErrorBanner(
+                      message: _error!,
+                      onDismiss: () => setState(() => _error = null),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  _ProfileCard(
+                    photoUrl: photo,
+                    fallback: _avatarFallback(),
+                    name: _user?.name ?? 'Staff',
+                    email: _user?.email ?? '',
+                    roleLabel: _roleLabel,
+                    status: _user?.status ?? 'Active',
                   ),
-                  const SizedBox(height: 12),
-                ],
-                Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: StaffSurfaces.card(),
-                  child: Column(
-                    children: [
-                      Container(
-                        width: 80,
-                        height: 80,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: StaffSurfaces.accentBar,
-                            width: 2,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: StaffSurfaces.cta.withValues(alpha: 0.08),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: ClipOval(
-                          child: NetworkAvatar(
-                            url: photo,
-                            size: 80,
-                            fallback: _avatarFallback(),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      Text(
-                        _user?.name ?? 'Staff',
-                        style: AppTextStyles.h3.copyWith(
-                          color: StaffSurfaces.textPrimary,
-                          fontWeight: FontWeight.w700,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        _user?.email ?? '',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: StaffSurfaces.textSecondary,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      StaffStatusChip(label: _roleLabel, positive: true),
-                    ],
+                  const SizedBox(height: 18),
+                  StaffSectionHeader(title: 'Account details'),
+                  _InfoTile(
+                    icon: Icons.badge_outlined,
+                    label: 'Registration number',
+                    value: _user?.registrationNumber ?? 'N/A',
                   ),
-                ),
-                const SizedBox(height: 16),
-                _infoTile(
-                  'Registration Number',
-                  _user?.registrationNumber ?? 'N/A',
-                ),
-                _infoTile('Phone', _user?.phoneNumber ?? 'N/A'),
-                _infoTile('Role', _roleLabel),
-                _infoTile('Status', _user?.status ?? 'Active'),
-                const SizedBox(height: 16),
-                OutlinedButton.icon(
-                  onPressed: _logout,
-                  icon: const Icon(Icons.logout, size: 18),
-                  label: const Text('Log out'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.error,
-                    side: const BorderSide(color: StaffSurfaces.dangerBorder),
-                    backgroundColor: AppColors.errorBg,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
+                  _InfoTile(
+                    icon: Icons.phone_outlined,
+                    label: 'Phone',
+                    value: _user?.phoneNumber?.trim().isNotEmpty == true
+                        ? _user!.phoneNumber!
+                        : 'Not set',
+                  ),
+                  _InfoTile(
+                    icon: Icons.medical_services_outlined,
+                    label: 'Role',
+                    value: _roleLabel,
+                  ),
+                  _InfoTile(
+                    icon: Icons.verified_user_outlined,
+                    label: 'Account status',
+                    value: _user?.status ?? 'Active',
+                  ),
+                  const SizedBox(height: 18),
+                  StaffSectionHeader(title: 'Session'),
+                  OutlinedButton.icon(
+                    onPressed: _logout,
+                    icon: const Icon(Icons.logout, size: 18),
+                    label: const Text('Log out'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.error,
+                      side: const BorderSide(
+                          color: StaffSurfaces.dangerBorder),
+                      backgroundColor: AppColors.errorBg,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      textStyle: const TextStyle(
+                          fontSize: 14, fontWeight: FontWeight.w700),
                     ),
                   ),
+                ],
+              ),
+            ),
+    );
+  }
+}
+
+class _ProfileCard extends StatelessWidget {
+  final String? photoUrl;
+  final Widget fallback;
+  final String name;
+  final String email;
+  final String roleLabel;
+  final String status;
+
+  const _ProfileCard({
+    required this.photoUrl,
+    required this.fallback,
+    required this.name,
+    required this.email,
+    required this.roleLabel,
+    required this.status,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: StaffSurfaces.card(),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: StaffSurfaces.cardBorder, width: 2),
+              boxShadow: [
+                BoxShadow(
+                  color: StaffSurfaces.cta.withValues(alpha: 0.06),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
                 ),
               ],
             ),
-    );
-  }
-
-  Widget _avatarFallback() {
-    return Container(
-      color: StaffSurfaces.softPanelDeep,
-      child: Icon(
-        Icons.medical_services_outlined,
-        color: StaffSurfaces.brandSoft,
-        size: 36,
-      ),
-    );
-  }
-
-  Widget _infoTile(String label, String value) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(16),
-      decoration: StaffSurfaces.card(),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              label,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: StaffSurfaces.textSecondary,
+            child: ClipOval(
+              child: NetworkAvatar(
+                url: photoUrl,
+                size: 72,
+                fallback: fallback,
               ),
             ),
           ),
-          Flexible(
-            child: Text(
-              value,
-              textAlign: TextAlign.right,
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: StaffSurfaces.textPrimary,
-              ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: StaffSurfaces.textPrimary,
+                    height: 1.2,
+                  ),
+                ),
+                if (email.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    email,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      color: StaffSurfaces.textSecondary,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    StaffStatusChip(
+                      label: roleLabel,
+                      tone: StaffChipTone.brand,
+                      icon: Icons.medical_services,
+                    ),
+                    StaffStatusChip(
+                      label: status,
+                      tone: status.toLowerCase() == 'active'
+                          ? StaffChipTone.success
+                          : StaffChipTone.neutral,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InfoTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+
+  const _InfoTile({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: StaffSurfaces.card(),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: StaffSurfaces.softPanelDeep,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, size: 18, color: StaffSurfaces.brandSoft),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: StaffSurfaces.textSecondary,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w700,
+                    color: StaffSurfaces.textPrimary,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
