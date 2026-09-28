@@ -112,6 +112,7 @@ builder.Services.AddHttpClient(AgentGatewayService.HttpClientName, client =>
 
 builder.Services.AddScoped<IAgentGatewayService, AgentGatewayService>();
 builder.Services.AddScoped<IAgentWorkflowService, AgentWorkflowService>();
+builder.Services.AddScoped<IShiftSwapService, ShiftSwapService>();
 
 // 3. Configure JWT Authentication & Authorization
 var jwtSecretKey = builder.Configuration["Jwt:SecretKey"];
