@@ -145,15 +145,14 @@ def _briefing(payload: Dict[str, Any], proposals: List[Dict[str, Any]]) -> Optio
 
 COVER_RANK_MARKER = "RANK_COVER_REPLACEMENTS"
 COVER_RANK_PROMPT = """You rank already-filtered staff who can cover a specific shift.
-Every candidate is the same role as the requester (doctor or nurse). Some may already be booked.
+Every candidate is the same role as the requester and is free in that window.
 Do not invent people. Do not drop a candidate because their specialty differs. Do not build a week plan or call tools.
 
 Return JSON only (no markdown):
 {"reviews":[{"requestId":"...","summary":"one short sentence","ranked":[{"affiliationId":"...","why":"one short human reason"}]}]}
 
 Put matching specialization / booth first, then other colleagues of the same role.
-Within each group, prefer people free in the window (available=true), then fewer other shifts that day.
-Keep every candidate in ranked. Keep why to one sentence.
+Within each group, prefer fewer other shifts that day. Keep every candidate in ranked. Keep why to one sentence.
 """
 
 
