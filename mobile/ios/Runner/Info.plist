@@ -66,5 +66,9 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSCalendarsUsageDescription</key>
+	<string>Vaxora adds your assigned clinic shifts to your device calendar so you can get reminders.</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Vaxora adds your assigned clinic shifts to your device calendar so you can get reminders.</string>
 </dict>
 </plist>
