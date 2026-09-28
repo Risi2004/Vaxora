@@ -9,6 +9,7 @@ import '../../data/repositories/staff_repository.dart';
 import '../utils/staff_calendar_sync.dart';
 import '../utils/staff_date_utils.dart';
 import '../widgets/network_avatar.dart';
+import '../widgets/shift_swap_sheet.dart';
 import '../widgets/staff_common_widgets.dart';
 
 class StaffShiftsScreen extends StatefulWidget {
@@ -675,6 +676,24 @@ class _ShiftCard extends StatelessWidget {
     required this.onToggleSelect,
   });
 
+  Future<void> _openMenu(BuildContext context) async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _ShiftActionSheet(
+        shift: shift,
+        hospitalName: hospitalName,
+      ),
+    );
+    if (action == 'swap' && context.mounted) {
+      await ShiftSwapSheet.show(
+        context,
+        shift: shift,
+        hospitalName: hospitalName,
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final booth = (shift.boothOrStation?.trim().isNotEmpty ?? false)
@@ -685,6 +704,7 @@ class _ShiftCard extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: selectMode ? onToggleSelect : null,
+        onLongPress: selectMode ? null : () => _openMenu(context),
         borderRadius: BorderRadius.circular(StaffSurfaces.cardRadius),
         child: Container(
           padding: const EdgeInsets.all(14),
@@ -776,6 +796,157 @@ class _ShiftCard extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Bottom-sheet action menu for a shift (long-press).
+class _ShiftActionSheet extends StatelessWidget {
+  final ShiftModel shift;
+  final String hospitalName;
+
+  const _ShiftActionSheet({
+    required this.shift,
+    required this.hospitalName,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: StaffSurfaces.appBarBg,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: StaffSurfaces.chipNeutralBorder,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: StaffSurfaces.softPanelDeep,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      Icons.event_note,
+                      color: StaffSurfaces.brandSoft,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          shift.timeRangeLabel,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: StaffSurfaces.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '$hospitalName · ${shift.shiftDate}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            color: StaffSurfaces.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+            const Divider(color: StaffSurfaces.divider, height: 1),
+            _MenuTile(
+              icon: Icons.swap_horiz,
+              label: 'Request cover',
+              subtitle: 'Ask the assistant to arrange a swap',
+              onTap: () => Navigator.of(context).pop('swap'),
+            ),
+            const SizedBox(height: 4),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MenuTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const _MenuTile({
+    required this.icon,
+    required this.label,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Icon(icon, color: StaffSurfaces.brandSoft, size: 20),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: StaffSurfaces.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: StaffSurfaces.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.chevron_right,
+              size: 20,
+              color: StaffSurfaces.textMutedSoft,
+            ),
+          ],
         ),
       ),
     );
