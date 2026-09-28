@@ -806,3 +806,133 @@ class ShiftCoverStatusChip extends StatelessWidget {
     return StaffStatusChip(label: chipLabel, tone: tone, icon: icon);
   }
 }
+
+// ---------------------------------------------------------------------------
+// Bottom navigation (same chrome as staff main).
+// ---------------------------------------------------------------------------
+
+class StaffNavDestination {
+  final IconData icon;
+  final IconData activeIcon;
+  final String label;
+  final int badgeCount;
+
+  const StaffNavDestination({
+    required this.icon,
+    required this.activeIcon,
+    required this.label,
+    this.badgeCount = 0,
+  });
+}
+
+class StaffBottomNav extends StatelessWidget {
+  final int index;
+  final ValueChanged<int> onSelect;
+  final List<StaffNavDestination> destinations;
+
+  const StaffBottomNav({
+    super.key,
+    required this.index,
+    required this.onSelect,
+    required this.destinations,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: StaffSurfaces.appBarBg,
+        border: const Border(
+          top: BorderSide(color: StaffSurfaces.divider, width: 1),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: StaffSurfaces.textPrimary.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              for (var i = 0; i < destinations.length; i++)
+                _StaffNavItem(
+                  destination: destinations[i],
+                  selected: index == i,
+                  onTap: () => onSelect(i),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StaffNavItem extends StatelessWidget {
+  final StaffNavDestination destination;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _StaffNavItem({
+    required this.destination,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color =
+        selected ? StaffSurfaces.navSelected : StaffSurfaces.navIdle;
+
+    Widget iconWidget = Icon(
+      selected ? destination.activeIcon : destination.icon,
+      color: color,
+      size: 22,
+    );
+
+    if (destination.badgeCount > 0) {
+      iconWidget = Badge(
+        label: Text(
+          destination.badgeCount > 9 ? '9+' : '${destination.badgeCount}',
+        ),
+        backgroundColor: AppColors.error,
+        child: iconWidget,
+      );
+    }
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected
+              ? StaffSurfaces.navSelectedBg
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            iconWidget,
+            const SizedBox(height: 4),
+            Text(
+              destination.label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                color: color,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
