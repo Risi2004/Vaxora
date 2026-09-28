@@ -3,6 +3,7 @@ import '../../../../core/network/api_constants.dart';
 import '../../../staff/data/models/shift_model.dart';
 import '../models/hospital_staff_candidate_model.dart';
 import '../models/hospital_staff_member_model.dart';
+import '../models/shift_swap_request_model.dart';
 
 class HospitalStaffRepository {
   HospitalStaffRepository._();
@@ -90,6 +91,52 @@ class HospitalStaffRepository {
       return HospitalStaffMemberModel.fromJson(response);
     }
     throw ApiException('Failed to parse invitation response.');
+  }
+
+  /// Cover requests from affiliated doctors / nurses.
+  static Future<List<ShiftSwapRequestModel>> getShiftSwaps({
+    String? status,
+  }) async {
+    final query = <String, String>{};
+    if (status != null && status.isNotEmpty) query['status'] = status;
+
+    try {
+      final response = await ApiClient.get(
+        ApiConstants.hospitalShiftSwaps,
+        queryParams: query.isEmpty ? null : query,
+      );
+      if (response is! List) return [];
+      return response
+          .map((e) =>
+              ShiftSwapRequestModel.fromJson(e as Map<String, dynamic>))
+          .toList();
+    } on ApiException {
+      rethrow;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  static Future<ShiftSwapRequestModel> decideShiftSwap({
+    required String requestId,
+    required bool approved,
+    String? note,
+    String? replacementAffiliationId,
+  }) async {
+    final response = await ApiClient.post(
+      ApiConstants.hospitalShiftSwapDecision(requestId),
+      body: {
+        'approved': approved,
+        if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+        if (replacementAffiliationId != null &&
+            replacementAffiliationId.trim().isNotEmpty)
+          'replacementAffiliationId': replacementAffiliationId.trim(),
+      },
+    );
+    if (response is Map<String, dynamic>) {
+      return ShiftSwapRequestModel.fromJson(response);
+    }
+    throw ApiException('Failed to record decision.');
   }
 
   /// Shifts scheduled at this hospital in the given ISO date range.

@@ -5,7 +5,9 @@ import '../../../auth/presentation/utils/home_route_utils.dart';
 import '../../../staff/presentation/widgets/network_avatar.dart';
 import '../../../staff/presentation/widgets/staff_common_widgets.dart';
 import '../../data/models/hospital_staff_member_model.dart';
+import '../../data/models/shift_swap_request_model.dart';
 import '../../data/repositories/hospital_staff_repository.dart';
+import '../widgets/cover_requests_sheet.dart';
 import '../widgets/invite_staff_sheet.dart';
 import 'hospital_shifts_screen.dart';
 
@@ -20,6 +22,7 @@ class HospitalStaffScreen extends StatefulWidget {
 class _HospitalStaffScreenState extends State<HospitalStaffScreen> {
   List<HospitalStaffMemberModel> _staff = [];
   List<HospitalStaffMemberModel> _pending = [];
+  List<ShiftSwapRequestModel> _coverRequests = [];
   bool _loading = true;
   String? _error;
 
@@ -55,14 +58,22 @@ class _HospitalStaffScreenState extends State<HospitalStaffScreen> {
       _error = null;
     });
     try {
-      final results = await Future.wait([
-        HospitalStaffRepository.getStaff(),
-        HospitalStaffRepository.getStaff(status: 'Pending'),
-      ]);
+      final staffFuture = HospitalStaffRepository.getStaff();
+      final pendingFuture = HospitalStaffRepository.getStaff(status: 'Pending');
+      final swapFuture = HospitalStaffRepository.getShiftSwaps();
+      final staff = await staffFuture;
+      final pending = await pendingFuture;
+      List<ShiftSwapRequestModel> swaps = [];
+      try {
+        swaps = await swapFuture;
+      } on ApiException {
+        swaps = [];
+      }
       if (!mounted) return;
       setState(() {
-        _staff = results[0];
-        _pending = results[1];
+        _staff = staff;
+        _pending = pending;
+        _coverRequests = swaps;
         _loading = false;
       });
     } catch (e) {
@@ -72,8 +83,17 @@ class _HospitalStaffScreenState extends State<HospitalStaffScreen> {
         _error = e is ApiException ? e.message : 'Failed to load staff.';
         _staff = [];
         _pending = [];
+        _coverRequests = [];
       });
     }
+  }
+
+  List<ShiftSwapRequestModel> get _pendingCover =>
+      _coverRequests.where((r) => r.isPending).toList();
+
+  Future<void> _openCoverInbox() async {
+    await CoverRequestsSheet.show(context);
+    if (mounted) await _load();
   }
 
   Future<void> _openInviteSheet() async {
@@ -107,6 +127,12 @@ class _HospitalStaffScreenState extends State<HospitalStaffScreen> {
             icon: Icons.event_note_outlined,
             tooltip: 'Weekly shifts',
             onPressed: _loading ? null : _openShifts,
+          ),
+          StaffHeaderAction(
+            icon: Icons.swap_horiz,
+            tooltip: 'Cover requests',
+            badgeCount: _pendingCover.length,
+            onPressed: _loading ? null : _openCoverInbox,
           ),
           StaffHeaderAction(
             icon: Icons.refresh,
@@ -164,7 +190,10 @@ class _HospitalStaffScreenState extends State<HospitalStaffScreen> {
               ),
               const SizedBox(height: 12),
             ],
-            if (_loading && _staff.isEmpty && _pending.isEmpty)
+            if (_loading &&
+                _staff.isEmpty &&
+                _pending.isEmpty &&
+                _coverRequests.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 48),
                 child: Center(

@@ -83,7 +83,11 @@ class ApiConstants {
   static const String hospitalStaffCandidates = '/staff/candidates';
   static const String hospitalStaffInvite = '/staff/invite';
   static const String hospitalStaffShifts = '/staff/shifts/hospital';
-  static const String hospitalStaffCoverage = '/staff/coverage';
+  static const String hospitalShiftSwaps = '/staff/shift-swaps/hospital';
+  static const String staffShiftSwaps = '/staff/shift-swaps';
+
+  static String hospitalShiftSwapDecision(String requestId) =>
+      '/staff/shift-swaps/$requestId/decision';
 
   static String hospitalAffiliationDuty(String affiliationId) =>
       '/staff/affiliations/$affiliationId/duty';

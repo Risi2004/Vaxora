@@ -234,27 +234,68 @@ class StaffHeaderAction extends StatelessWidget {
   final IconData icon;
   final String tooltip;
   final VoidCallback? onPressed;
+  final int badgeCount;
 
   const StaffHeaderAction({
     super.key,
     required this.icon,
     required this.tooltip,
     required this.onPressed,
+    this.badgeCount = 0,
   });
 
   @override
   Widget build(BuildContext context) {
+    final button = Material(
+      color: StaffSurfaces.softPanel,
+      shape: const CircleBorder(),
+      child: IconButton(
+        tooltip: tooltip,
+        onPressed: onPressed,
+        icon: Icon(icon, color: StaffSurfaces.brandSoft, size: 20),
+        splashRadius: 22,
+      ),
+    );
+
+    if (badgeCount <= 0) {
+      return Padding(
+        padding: const EdgeInsets.only(right: 6),
+        child: button,
+      );
+    }
+
+    final label = badgeCount > 9 ? '9+' : '$badgeCount';
     return Padding(
       padding: const EdgeInsets.only(right: 6),
-      child: Material(
-        color: StaffSurfaces.softPanel,
-        shape: const CircleBorder(),
-        child: IconButton(
-          tooltip: tooltip,
-          onPressed: onPressed,
-          icon: Icon(icon, color: StaffSurfaces.brandSoft, size: 20),
-          splashRadius: 22,
-        ),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          button,
+          Positioned(
+            right: 2,
+            top: 2,
+            child: IgnorePointer(
+              child: Container(
+                constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                decoration: const BoxDecoration(
+                  color: AppColors.error,
+                  borderRadius: BorderRadius.all(Radius.circular(999)),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                    height: 1.1,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
