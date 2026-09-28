@@ -17,6 +17,7 @@ class HospitalStaffScreen extends StatefulWidget {
 
 class _HospitalStaffScreenState extends State<HospitalStaffScreen> {
   List<HospitalStaffMemberModel> _staff = [];
+  List<HospitalStaffMemberModel> _pending = [];
   bool _loading = true;
   String? _error;
 
@@ -52,10 +53,14 @@ class _HospitalStaffScreenState extends State<HospitalStaffScreen> {
       _error = null;
     });
     try {
-      final list = await HospitalStaffRepository.getStaff();
+      final results = await Future.wait([
+        HospitalStaffRepository.getStaff(),
+        HospitalStaffRepository.getStaff(status: 'Pending'),
+      ]);
       if (!mounted) return;
       setState(() {
-        _staff = list;
+        _staff = results[0];
+        _pending = results[1];
         _loading = false;
       });
     } catch (e) {
@@ -64,15 +69,12 @@ class _HospitalStaffScreenState extends State<HospitalStaffScreen> {
         _loading = false;
         _error = e is ApiException ? e.message : 'Failed to load staff.';
         _staff = [];
+        _pending = [];
       });
     }
   }
 
   int get _onDutyCount => _staff.where((s) => s.isOnDutyNow).length;
-  int get _doctorCount =>
-      _staff.where((s) => s.staffRole.toUpperCase().contains('DOCTOR')).length;
-  int get _nurseCount =>
-      _staff.where((s) => s.staffRole.toUpperCase().contains('NURSE')).length;
 
   List<HospitalStaffMemberModel> get _onDuty =>
       _staff.where((s) => s.isOnDutyNow).toList();
@@ -119,9 +121,9 @@ class _HospitalStaffScreenState extends State<HospitalStaffScreen> {
                   icon: Icons.medical_services_outlined,
                 ),
                 StaffIntroStat(
-                  label: 'Doctors · Nurses',
-                  value: '$_doctorCount · $_nurseCount',
-                  icon: Icons.health_and_safety_outlined,
+                  label: 'Pending',
+                  value: '${_pending.length}',
+                  icon: Icons.mark_email_unread_outlined,
                 ),
               ],
             ),
@@ -133,7 +135,7 @@ class _HospitalStaffScreenState extends State<HospitalStaffScreen> {
               ),
               const SizedBox(height: 12),
             ],
-            if (_loading && _staff.isEmpty)
+            if (_loading && _staff.isEmpty && _pending.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 48),
                 child: Center(
@@ -141,19 +143,13 @@ class _HospitalStaffScreenState extends State<HospitalStaffScreen> {
                       color: StaffSurfaces.brandSoft),
                 ),
               )
-            else if (_staff.isEmpty)
-              const StaffEmptyCard(
-                message:
-                    'No affiliated staff yet. Invitations you send will appear here once accepted.',
-                icon: Icons.groups_outlined,
-              )
             else ...[
-              if (_onDuty.isNotEmpty) ...[
+              if (_pending.isNotEmpty) ...[
                 StaffSectionHeader(
-                  title: 'On duty now',
-                  count: _onDuty.length,
+                  title: 'Pending invitations',
+                  count: _pending.length,
                 ),
-                ..._onDuty.map(
+                ..._pending.map(
                   (m) => Padding(
                     padding: const EdgeInsets.only(bottom: 10),
                     child: _StaffMemberCard(member: m),
@@ -161,23 +157,46 @@ class _HospitalStaffScreenState extends State<HospitalStaffScreen> {
                 ),
                 const SizedBox(height: 6),
               ],
-              StaffSectionHeader(
-                title: _onDuty.isEmpty ? 'Staff' : 'Off duty',
-                count: _offDuty.length,
-              ),
-              if (_offDuty.isEmpty)
+              if (_staff.isEmpty && _pending.isEmpty)
                 const StaffEmptyCard(
-                  message: 'Everyone is currently on duty.',
-                  icon: Icons.check_circle_outline,
-                  compact: true,
+                  message:
+                      'No affiliated staff yet. Invitations you send will appear here once accepted.',
+                  icon: Icons.groups_outlined,
                 )
-              else
-                ..._offDuty.map(
-                  (m) => Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: _StaffMemberCard(member: m),
+              else ...[
+                if (_onDuty.isNotEmpty) ...[
+                  StaffSectionHeader(
+                    title: 'On duty now',
+                    count: _onDuty.length,
                   ),
-                ),
+                  ..._onDuty.map(
+                    (m) => Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: _StaffMemberCard(member: m),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                ],
+                if (_offDuty.isNotEmpty || _onDuty.isEmpty) ...[
+                  StaffSectionHeader(
+                    title: _onDuty.isEmpty ? 'Staff' : 'Off duty',
+                    count: _offDuty.length,
+                  ),
+                  if (_offDuty.isEmpty)
+                    const StaffEmptyCard(
+                      message: 'Everyone is currently on duty.',
+                      icon: Icons.check_circle_outline,
+                      compact: true,
+                    )
+                  else
+                    ..._offDuty.map(
+                      (m) => Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: _StaffMemberCard(member: m),
+                      ),
+                    ),
+                ],
+              ],
             ],
           ],
         ),
@@ -278,15 +297,22 @@ class _StaffMemberCard extends StatelessWidget {
                         ),
                       ),
                     ),
-                    StaffStatusChip(
-                      label: member.isOnDutyNow ? 'On duty' : 'Off duty',
-                      tone: member.isOnDutyNow
-                          ? StaffChipTone.success
-                          : StaffChipTone.neutral,
-                      icon: member.isOnDutyNow
-                          ? Icons.circle
-                          : Icons.circle_outlined,
-                    ),
+                    if (member.isPending)
+                      const StaffStatusChip(
+                        label: 'Pending',
+                        tone: StaffChipTone.warning,
+                        icon: Icons.mark_email_unread_outlined,
+                      )
+                    else
+                      StaffStatusChip(
+                        label: member.isOnDutyNow ? 'On duty' : 'Off duty',
+                        tone: member.isOnDutyNow
+                            ? StaffChipTone.success
+                            : StaffChipTone.neutral,
+                        icon: member.isOnDutyNow
+                            ? Icons.circle
+                            : Icons.circle_outlined,
+                      ),
                   ],
                 ),
                 const SizedBox(height: 4),
