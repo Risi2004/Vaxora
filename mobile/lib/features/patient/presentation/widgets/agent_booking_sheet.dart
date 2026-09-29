@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../staff/presentation/widgets/staff_common_widgets.dart';
 import '../../data/models/agent_models.dart';
 import '../../data/repositories/agent_repository.dart';
 import 'appointment_card.dart';
@@ -28,7 +29,7 @@ class _AgentBookingSheetState extends State<AgentBookingSheet> {
     const AgentMessage(
       role: 'assistant',
       content:
-          'Hello! 👋 I am your **Vaxora AI Booking Concierge**.\n\nI can help you:\n• 🔍 Find which hospitals have your required vaccine in stock\n• 📅 Discover clinic schedule dates & available 20-minute slots\n• 💉 Reserve your appointment with instant confirmation\n\nHow can I help you today?',
+          'Hello — I am the Vaxora booking concierge.\n\nI can:\n• Find hospitals that have your vaccine in stock\n• Show clinic dates and 20-minute slots\n• Reserve an appointment with confirmation\n\nHow can I help?',
     ),
   ];
 
@@ -38,10 +39,10 @@ class _AgentBookingSheetState extends State<AgentBookingSheet> {
   bool _isOnline = true;
 
   final List<String> _suggestedPrompts = [
-    '🔍 Which hospitals have Pfizer COVID-19 vaccine?',
-    '💉 Book next available slot for Influenza vaccine',
-    '📅 Show my booked appointments',
-    '🏥 What vaccines are available right now?',
+    'Which hospitals have Pfizer COVID-19 vaccine?',
+    'Book the next Influenza slot',
+    'Show my booked appointments',
+    'What vaccines are available right now?',
   ];
 
   @override
@@ -206,38 +207,35 @@ class _AgentBookingSheetState extends State<AgentBookingSheet> {
       height: MediaQuery.of(context).size.height * 0.88,
       margin: EdgeInsets.only(bottom: bottomInset),
       decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        color: StaffSurfaces.appBarBg,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: Column(
         children: [
-          // Drag handle
           Center(
             child: Container(
               margin: const EdgeInsets.only(top: 10, bottom: 8),
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.grey.shade300,
+                color: StaffSurfaces.chipNeutralBorder,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
           ),
-
-          // Header
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+            padding: const EdgeInsets.fromLTRB(16, 4, 8, 8),
             child: Row(
               children: [
                 Container(
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.12),
+                    color: StaffSurfaces.softPanelDeep,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   alignment: Alignment.center,
-                  child: const Text('🤖', style: TextStyle(fontSize: 20)),
+                  child: Icon(Icons.auto_awesome, color: StaffSurfaces.brandSoft),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -245,11 +243,11 @@ class _AgentBookingSheetState extends State<AgentBookingSheet> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'AI Booking Concierge',
+                        'AI booking concierge',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
-                          color: AppColors.textTitle,
+                          color: StaffSurfaces.textPrimary,
                         ),
                       ),
                       Row(
@@ -258,16 +256,20 @@ class _AgentBookingSheetState extends State<AgentBookingSheet> {
                             width: 8,
                             height: 8,
                             decoration: BoxDecoration(
-                              color: _isOnline ? AppColors.success : const Color(0xFFF59E0B),
+                              color: _isOnline
+                                  ? AppColors.success
+                                  : const Color(0xFFF59E0B),
                               shape: BoxShape.circle,
                             ),
                           ),
                           const SizedBox(width: 6),
                           Text(
-                            _isOnline ? 'Online • Automated Booking Assistant' : 'Connecting • Agent Ready',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Colors.grey.shade600,
+                            _isOnline
+                                ? 'Online · booking assistant'
+                                : 'Connecting…',
+                            style: const TextStyle(
+                              fontSize: 11.5,
+                              color: StaffSurfaces.textSecondary,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
@@ -277,13 +279,13 @@ class _AgentBookingSheetState extends State<AgentBookingSheet> {
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.close, color: Colors.grey),
+                  icon: Icon(Icons.close, color: StaffSurfaces.textSecondary),
                   onPressed: () => Navigator.of(context).pop(),
                 ),
               ],
             ),
           ),
-          const Divider(height: 1, color: AppColors.borderLight),
+          const Divider(height: 1, thickness: 1, color: StaffSurfaces.divider),
 
           // Messages
           Expanded(
@@ -314,11 +316,17 @@ class _AgentBookingSheetState extends State<AgentBookingSheet> {
                   return ActionChip(
                     label: Text(
                       prompt,
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primaryDark),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: StaffSurfaces.textPrimary,
+                      ),
                     ),
-                    backgroundColor: const Color(0xFFF1F5F9),
-                    side: const BorderSide(color: AppColors.borderLight),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    backgroundColor: StaffSurfaces.softPanel,
+                    side: const BorderSide(color: StaffSurfaces.cardBorder),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
                     onPressed: () => _sendMessage(prompt),
                   );
                 },
@@ -333,12 +341,18 @@ class _AgentBookingSheetState extends State<AgentBookingSheet> {
                   const SizedBox(
                     width: 16,
                     height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: StaffSurfaces.cta,
+                    ),
                   ),
                   const SizedBox(width: 10),
                   Text(
-                    'Agent is checking schedules & vaccine stock...',
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+                    'Checking schedules and stock…',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: StaffSurfaces.textSecondary,
+                    ),
                   ),
                 ],
               ),
@@ -348,8 +362,8 @@ class _AgentBookingSheetState extends State<AgentBookingSheet> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: const BoxDecoration(
-              color: Colors.white,
-              border: Border(top: BorderSide(color: AppColors.borderLight)),
+              color: StaffSurfaces.appBarBg,
+              border: Border(top: BorderSide(color: StaffSurfaces.divider)),
             ),
             child: SafeArea(
               top: false,
@@ -359,35 +373,47 @@ class _AgentBookingSheetState extends State<AgentBookingSheet> {
                     child: TextField(
                       controller: _textController,
                       decoration: InputDecoration(
-                        hintText: 'Ask AI to find vaccines or book slots...',
-                        hintStyle: TextStyle(fontSize: 13, color: Colors.grey.shade400),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        hintText: 'Ask to find vaccines or book a slot…',
+                        hintStyle: const TextStyle(
+                          fontSize: 13,
+                          color: StaffSurfaces.textMutedSoft,
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
                         filled: true,
-                        fillColor: const Color(0xFFF8FAFC),
+                        fillColor: StaffSurfaces.softPanel,
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(24),
-                          borderSide: const BorderSide(color: AppColors.borderLight),
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: StaffSurfaces.cardBorder,
+                          ),
                         ),
                         enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(24),
-                          borderSide: const BorderSide(color: AppColors.borderLight),
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: StaffSurfaces.cardBorder,
+                          ),
                         ),
                         focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(24),
-                          borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: StaffSurfaces.brandSoft),
                         ),
                       ),
                       onSubmitted: (val) => _sendMessage(),
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Container(
-                    decoration: const BoxDecoration(
-                      color: AppColors.primary,
-                      shape: BoxShape.circle,
-                    ),
+                  Material(
+                    color: StaffSurfaces.cta,
+                    shape: const CircleBorder(),
                     child: IconButton(
-                      icon: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
+                      icon: const Icon(
+                        Icons.send_rounded,
+                        color: Colors.white,
+                        size: 20,
+                      ),
                       onPressed: _isLoading ? null : () => _sendMessage(),
                     ),
                   ),
@@ -415,11 +441,21 @@ class _AgentBookingSheetState extends State<AgentBookingSheet> {
                   width: 30,
                   height: 30,
                   decoration: BoxDecoration(
-                    color: msg.isError ? Colors.red.shade50 : AppColors.primary.withValues(alpha: 0.12),
+                    color: msg.isError
+                        ? AppColors.errorBg
+                        : StaffSurfaces.softPanelDeep,
                     shape: BoxShape.circle,
                   ),
                   alignment: Alignment.center,
-                  child: Text(msg.isError ? '⚠️' : '🤖', style: const TextStyle(fontSize: 15)),
+                  child: Icon(
+                    msg.isError
+                        ? Icons.error_outline
+                        : Icons.auto_awesome,
+                    size: 16,
+                    color: msg.isError
+                        ? AppColors.error
+                        : StaffSurfaces.brandSoft,
+                  ),
                 ),
                 const SizedBox(width: 8),
               ],
@@ -428,16 +464,24 @@ class _AgentBookingSheetState extends State<AgentBookingSheet> {
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   decoration: BoxDecoration(
                     color: isUser
-                        ? AppColors.primary
-                        : (msg.isError ? const Color(0xFFFEF2F2) : const Color(0xFFF8FAFC)),
-                    borderRadius: BorderRadius.circular(16).copyWith(
-                      bottomRight: isUser ? const Radius.circular(2) : const Radius.circular(16),
-                      bottomLeft: !isUser ? const Radius.circular(2) : const Radius.circular(16),
+                        ? StaffSurfaces.cta
+                        : (msg.isError
+                            ? AppColors.errorBg
+                            : StaffSurfaces.softPanel),
+                    borderRadius: BorderRadius.circular(14).copyWith(
+                      bottomRight: isUser
+                          ? const Radius.circular(4)
+                          : const Radius.circular(14),
+                      bottomLeft: !isUser
+                          ? const Radius.circular(4)
+                          : const Radius.circular(14),
                     ),
                     border: Border.all(
                       color: isUser
-                          ? AppColors.primary
-                          : (msg.isError ? const Color(0xFFFCA5A5) : AppColors.borderLight),
+                          ? StaffSurfaces.cta
+                          : (msg.isError
+                              ? AppColors.error.withValues(alpha: 0.3)
+                              : StaffSurfaces.cardBorder),
                     ),
                   ),
                   child: _buildFormattedText(
@@ -705,63 +749,89 @@ class _AgentBookingSheetState extends State<AgentBookingSheet> {
     return Container(
       margin: const EdgeInsets.only(left: 38, top: 4),
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF0FDF4),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFF86EFAC), width: 1.5),
-      ),
+      decoration: StaffSurfaces.card(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            children: const [
-              Icon(Icons.event_available, color: AppColors.success, size: 18),
-              SizedBox(width: 6),
-              Text(
-                'Proposed Appointment Slot',
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Color(0xFF166534)),
+            children: [
+              Icon(Icons.event_available, color: StaffSurfaces.brandSoft, size: 18),
+              const SizedBox(width: 6),
+              const Text(
+                'Proposed slot',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                  color: StaffSurfaces.textPrimary,
+                ),
               ),
             ],
           ),
           const SizedBox(height: 8),
           Text(
-            '💉 ${p.vaccineName}',
-            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: AppColors.textTitle),
+            p.vaccineName,
+            style: const TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 14,
+              color: StaffSurfaces.textPrimary,
+            ),
           ),
           const SizedBox(height: 2),
-          Text('🏥 ${p.hospitalName}', style: const TextStyle(fontSize: 12, color: AppColors.textBody)),
+          Text(
+            p.hospitalName,
+            style: const TextStyle(
+              fontSize: 12,
+              color: StaffSurfaces.textSecondary,
+            ),
+          ),
           const SizedBox(height: 2),
-          Text('📅 ${p.appointmentDate} at ${p.timeSlot}',
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.brandBlue)),
+          Text(
+            '${p.appointmentDate}  ·  ${p.timeSlot}',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: StaffSurfaces.brandSoft,
+            ),
+          ),
           if (p.fee > 0) ...[
             const SizedBox(height: 2),
-            Text('💳 Fee: LKR ${p.fee.toStringAsFixed(2)}',
-                style: const TextStyle(fontSize: 12, color: Color(0xFFB45309), fontWeight: FontWeight.w600)),
+            Text(
+              'Fee LKR ${p.fee.toStringAsFixed(2)}',
+              style: const TextStyle(
+                fontSize: 12,
+                color: Color(0xFFB2660A),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ],
           const SizedBox(height: 12),
           Row(
             children: [
               Expanded(
-                child: ElevatedButton.icon(
+                child: FilledButton(
                   onPressed: _isLoading ? null : () => _approveProposal(p),
-                  icon: const Icon(Icons.check_circle_outline, size: 16),
-                  label: const Text('Confirm & Book'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: StaffSurfaces.cta,
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    textStyle: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
+                  child: const Text('Confirm & book'),
                 ),
               ),
               const SizedBox(width: 8),
               OutlinedButton(
                 onPressed: _isLoading ? null : _declineProposal,
                 style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  side: const BorderSide(color: Color(0xFFCBD5E1)),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  foregroundColor: StaffSurfaces.textSecondary,
+                  side: const BorderSide(color: StaffSurfaces.cardBorder),
                 ),
-                child: const Text('Decline', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                child: const Text('Decline', style: TextStyle(fontSize: 12)),
               ),
             ],
           ),
@@ -774,10 +844,8 @@ class _AgentBookingSheetState extends State<AgentBookingSheet> {
     return Container(
       margin: const EdgeInsets.only(left: 38, top: 4),
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFEF2F2),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFFCA5A5), width: 1.5),
+      decoration: StaffSurfaces.card(
+        borderColor: AppColors.error.withValues(alpha: 0.3),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -808,49 +876,77 @@ class _AgentBookingSheetState extends State<AgentBookingSheet> {
           ),
           const SizedBox(height: 10),
           Text(
-            '💉 ${p.vaccineName}',
-            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: AppColors.textTitle),
+            p.vaccineName,
+            style: const TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 14,
+              color: StaffSurfaces.textPrimary,
+            ),
           ),
           if (p.hospitalName.isNotEmpty) ...[
             const SizedBox(height: 2),
-            Text('🏥 ${p.hospitalName}', style: const TextStyle(fontSize: 12, color: AppColors.textBody)),
+            Text(
+              p.hospitalName,
+              style: const TextStyle(
+                fontSize: 12,
+                color: StaffSurfaces.textSecondary,
+              ),
+            ),
           ],
           if (p.appointmentDate.isNotEmpty) ...[
             const SizedBox(height: 2),
             Text(
-              '📅 ${p.appointmentDate}${p.timeSlot.isNotEmpty ? " at ${p.timeSlot}" : ""}',
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFFB91C1C)),
+              '${p.appointmentDate}${p.timeSlot.isNotEmpty ? "  ·  ${p.timeSlot}" : ""}',
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: AppColors.error,
+              ),
             ),
           ],
           const SizedBox(height: 8),
           const Text(
-            'Please confirm if you wish to cancel this appointment. Once cancelled, your reserved time slot will be released.',
-            style: TextStyle(fontSize: 11.5, color: Color(0xFF7F1D1D), height: 1.35),
+            'Confirm to cancel this session. The reserved slot will be released.',
+            style: TextStyle(
+              fontSize: 12,
+              color: StaffSurfaces.textSecondary,
+              height: 1.35,
+            ),
           ),
           const SizedBox(height: 12),
           Row(
             children: [
               Expanded(
-                child: ElevatedButton.icon(
+                child: FilledButton(
                   onPressed: _isLoading ? null : () => _approveCancellation(p),
-                  icon: const Icon(Icons.cancel_outlined, size: 16),
-                  label: const Text('Confirm Cancellation'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFDC2626),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.error,
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    textStyle: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
+                  child: const Text('Confirm cancel'),
                 ),
               ),
               const SizedBox(width: 8),
               OutlinedButton(
                 onPressed: _isLoading ? null : _declineCancellation,
                 style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  side: const BorderSide(color: Color(0xFFCBD5E1)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  foregroundColor: StaffSurfaces.textSecondary,
+                  side: const BorderSide(color: StaffSurfaces.cardBorder),
                 ),
-                child: const Text('Keep Appointment', style: TextStyle(fontSize: 12, color: Color(0xFF475569))),
+                child: const Text(
+                  'Keep',
+                  style: TextStyle(fontSize: 12),
+                ),
               ),
             ],
           ),
@@ -863,40 +959,49 @@ class _AgentBookingSheetState extends State<AgentBookingSheet> {
     return Container(
       margin: const EdgeInsets.only(left: 38, top: 4),
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFECFDF5),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.success, width: 1.5),
-      ),
+      decoration: StaffSurfaces.card(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            children: const [
+            children: [
               Icon(Icons.verified, color: AppColors.success, size: 20),
-              SizedBox(width: 8),
-              Text(
-                'Appointment Confirmed!',
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: Color(0xFF065F46)),
+              const SizedBox(width: 8),
+              const Text(
+                'Appointment confirmed',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                  color: StaffSurfaces.textPrimary,
+                ),
               ),
             ],
           ),
           const SizedBox(height: 6),
           Text(
-            b.message ?? 'Your appointment has been registered in the National Immunization registry.',
-            style: const TextStyle(fontSize: 12, color: Color(0xFF047857), height: 1.4),
+            b.message ??
+                'Your appointment is registered in the immunization registry.',
+            style: const TextStyle(
+              fontSize: 12.5,
+              color: StaffSurfaces.textSecondary,
+              height: 1.4,
+            ),
           ),
           if (!b.isFree && b.payherePayload != null) ...[
             const SizedBox(height: 10),
-            ElevatedButton.icon(
+            FilledButton.icon(
               onPressed: () => _launchPayHere(b),
               icon: const Icon(Icons.payment, size: 16),
               label: const Text('Pay with PayHere'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.success,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                textStyle: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
           ],

@@ -109,10 +109,12 @@ function resolveQueueBooth(appointment, boothCards) {
 
   const practitioner = normalizePersonName(appointment.doctorName || appointment.nurseName);
   if (practitioner && boothCards.length > 0) {
-    const match = boothCards.find((booth) => {
-      const staff = normalizePersonName(booth.staffName);
-      return staff && (practitioner.includes(staff) || staff.includes(practitioner));
-    });
+    const match = boothCards.find((booth) =>
+      (booth.staffMembers || []).some((member) => {
+        const staff = normalizePersonName(member.name);
+        return staff && (practitioner.includes(staff) || staff.includes(practitioner));
+      })
+    );
     if (match) {
       return {
         code: match.code || null,
@@ -335,22 +337,22 @@ export default function HospitalDashboardOverview() {
         const primary = liveShift || boothShifts[0] || null;
         const isLive = Boolean(liveShift);
 
+        const staffMembers = boothShifts.map((s) => ({
+          key: `${s.affiliationId || s.staffName}-${s.startTime}-${s.endTime}`,
+          name: s.staffName || 'Unassigned',
+          roleLabel: roleLabel(s.staffRole),
+          roleKey: s.staffRole === 'NURSE' ? 'Nurse' : 'Doctor',
+          window: formatShiftWindow(s),
+          photoUrl: photoByAffiliation.get(s.affiliationId) || null,
+          isLive: liveShift != null && s === liveShift,
+        }));
+
         return {
           id: booth.boothId,
           code: booth.code || String(index + 1).padStart(2, '0'),
           name: booth.name || booth.displayLabel || 'Booth',
           boothName: booth.displayLabel || `${booth.code} · ${booth.name}`,
-          staffName: primary?.staffName || 'Unassigned',
-          role: primary
-            ? `${roleLabel(primary.staffRole)} · ${formatShiftWindow(primary)}`
-            : 'No shift scheduled today',
-          roleKey: primary?.staffRole === 'NURSE' ? 'Nurse' : 'Doctor',
-          photoUrl: primary ? (photoByAffiliation.get(primary.affiliationId) || null) : null,
-          rosterLine: boothShifts.length
-            ? boothShifts
-                .map((s) => `${s.staffName} (${formatShiftWindow(s)})`)
-                .join(' · ')
-            : '',
+          staffMembers,
           status: !primary ? 'Unstaffed' : isLive ? 'On duty' : 'Scheduled',
           shiftCount: boothShifts.length,
         };
@@ -1040,33 +1042,49 @@ export default function HospitalDashboardOverview() {
                 </div>
               </div>
 
-              <div className="booth-staff-info">
-                <div className="staff-avatar-mini">
-                  {booth.photoUrl ? (
-                    <img src={booth.photoUrl} alt="" />
-                  ) : (
-                    <RoleAvatarIcon role={booth.roleKey} size={18} />
-                  )}
-                </div>
-                <div className="staff-text-group">
-                  <span className="staff-name">{booth.staffName}</span>
-                  <span className="staff-role-desc">{booth.role}</span>
-                </div>
+              <div className="booth-staff-list">
+                {booth.staffMembers.length === 0 ? (
+                  <div className="booth-staff-info">
+                    <div className="staff-avatar-mini">
+                      <RoleAvatarIcon role="Doctor" size={18} />
+                    </div>
+                    <div className="staff-text-group">
+                      <span className="staff-name">Unassigned</span>
+                      <span className="staff-role-desc">No shift scheduled today</span>
+                    </div>
+                  </div>
+                ) : (
+                  booth.staffMembers.map((member) => (
+                    <div
+                      key={member.key}
+                      className={`booth-staff-info${member.isLive ? ' is-live' : ''}`}
+                    >
+                      <div className="staff-avatar-mini">
+                        {member.photoUrl ? (
+                          <img src={member.photoUrl} alt="" />
+                        ) : (
+                          <RoleAvatarIcon role={member.roleKey} size={18} />
+                        )}
+                      </div>
+                      <div className="staff-text-group">
+                        <span className="staff-name">{member.name}</span>
+                        <span className="staff-role-desc">
+                          {member.roleLabel} · {member.window}
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
 
               <div className="booth-stats-row">
                 <span>
-                    Today:{' '}
-                    <strong className="booth-stat-bold">
-                      {booth.shiftCount} shift{booth.shiftCount === 1 ? '' : 's'}
-                    </strong>
+                  Today:{' '}
+                  <strong className="booth-stat-bold">
+                    {booth.shiftCount} shift{booth.shiftCount === 1 ? '' : 's'}
+                  </strong>
                 </span>
-                </div>
-                {booth.rosterLine ? (
-                  <p className="booth-roster-line">
-                    {booth.rosterLine}
-                  </p>
-                ) : null}
+              </div>
             </div>
           ))}
         </div>

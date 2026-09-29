@@ -143,6 +143,19 @@ def _briefing(payload: Dict[str, Any], proposals: List[Dict[str, Any]]) -> Optio
     }
 
 
+COVER_RANK_MARKER = "RANK_COVER_REPLACEMENTS"
+COVER_RANK_PROMPT = """You rank already-filtered staff who can cover a specific shift.
+Every candidate is the same role as the requester and is free in that window.
+Do not invent people. Do not drop a candidate because their specialty differs. Do not build a week plan or call tools.
+
+Return JSON only (no markdown):
+{"reviews":[{"requestId":"...","summary":"one short sentence","ranked":[{"affiliationId":"...","why":"one short human reason"}]}]}
+
+Put matching specialization / booth first, then other colleagues of the same role.
+Within each group, prefer fewer other shifts that day. Keep every candidate in ranked. Keep why to one sentence.
+"""
+
+
 def _strip_thinking(content: Any) -> str:
     text = content if isinstance(content, str) else ""
     if "</think>" in text:
@@ -159,9 +172,9 @@ class StaffSchedulingAgent:
             "Specialized agent for hospital staff coverage analysis, shift proposals, "
             "and approved shift creation."
         )
-        self.base_url = settings.runpod_base_url.rstrip("/")
-        self.model = settings.model_name
-        self.api_key = settings.runpod_api_key
+        self.base_url = settings.openrouter_base_url.rstrip("/")
+        self.model = settings.openrouter_model
+        self.api_key = settings.openrouter_api_key
 
     async def _call_llm(
         self,
@@ -174,7 +187,7 @@ class StaffSchedulingAgent:
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.api_key}",
         }
-        # Rough char→token estimate so input+output stays under RunPod --max-model-len 8128.
+        # Rough char→token estimate so input+output stays within model context budget.
         approx_input = max(1, sum(len(json.dumps(m, default=str)) for m in messages) // 4)
         if tools:
             approx_input += max(1, len(json.dumps(tools)) // 4)
@@ -216,7 +229,7 @@ class StaffSchedulingAgent:
 
     @staticmethod
     def _tool_message_content(tool_name: str, tool_output: Any) -> str:
-        """Send compact tool payloads to the model (RunPod 8k context)."""
+        """Send compact tool payloads to the model (context budget)."""
         if (
             tool_name == "analyze_staffing_needs"
             and isinstance(tool_output, dict)
@@ -271,6 +284,23 @@ class StaffSchedulingAgent:
             "proposals": proposals or None,
             "suggestedFollowUps": _build_follow_ups(messages, proposals),
         }
+
+    async def _rank_cover_replacements(
+        self,
+        messages: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        blob = self._last_user_text(messages)
+        conversation = [
+            {"role": "system", "content": COVER_RANK_PROMPT},
+            {"role": "user", "content": blob},
+        ]
+        try:
+            msg = await self._call_llm(conversation, tools=None, max_tokens=500)
+            content = _strip_thinking(msg.get("content"))
+        except Exception as exc:
+            logger.error("Cover ranking LLM failed: %s", exc)
+            content = ""
+        return self._reply(messages, content or "{}")
 
     async def _handle_decline_alternative(
         self,
@@ -397,6 +427,9 @@ class StaffSchedulingAgent:
                 "proposals": None,
                 "suggestedFollowUps": [],
             }
+
+        if COVER_RANK_MARKER in user_text:
+            return await self._rank_cover_replacements(messages)
 
         today = date.fromisoformat(_hospital_today())
         tomorrow = today + timedelta(days=1)

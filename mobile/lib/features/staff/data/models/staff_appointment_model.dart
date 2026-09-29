@@ -1,0 +1,107 @@
+class StaffAppointmentModel {
+  final String id;
+  final String patientUserId;
+  final String patientName;
+  final String? patientNic;
+  final String? patientPhone;
+  final String? patientEmail;
+  final String hospitalUserId;
+  final String hospitalName;
+  final String vaccineName;
+  final String? doctorName;
+  final String? nurseName;
+  final String appointmentDate;
+  final String timeSlot;
+  final String? startTime;
+  final String? endTime;
+  final String status;
+  final String paymentStatus;
+  final String? notes;
+  final String? boothLabel;
+  final String? prescribedDosage;
+  final String? prescribedByDoctorName;
+  final String? dosageUpdatedAt;
+  final String? updatedAt;
+
+  const StaffAppointmentModel({
+    required this.id,
+    required this.patientUserId,
+    required this.patientName,
+    this.patientNic,
+    this.patientPhone,
+    this.patientEmail,
+    required this.hospitalUserId,
+    required this.hospitalName,
+    required this.vaccineName,
+    this.doctorName,
+    this.nurseName,
+    required this.appointmentDate,
+    required this.timeSlot,
+    this.startTime,
+    this.endTime,
+    required this.status,
+    required this.paymentStatus,
+    this.notes,
+    this.boothLabel,
+    this.prescribedDosage,
+    this.prescribedByDoctorName,
+    this.dosageUpdatedAt,
+    this.updatedAt,
+  });
+
+  /// UI queue bucket mirrored from web StaffClinicalDashboard.
+  String get uiStatus {
+    final s = status.toLowerCase();
+    if (s == 'completed') return 'completed';
+    if (s == 'observation') return 'observation';
+    if (s == 'administering') return 'consulting';
+    if (s == 'cancelled' || s == 'rejected') return 'completed';
+    return 'waiting';
+  }
+
+  String get token {
+    final short = id.replaceAll('-', '');
+    final slice = short.length >= 4 ? short.substring(0, 4) : short;
+    return 'T-${slice.toUpperCase()}';
+  }
+
+  String get timeLabel {
+    if (timeSlot.trim().isNotEmpty) return timeSlot;
+    final start = startTime?.trim() ?? '';
+    final end = endTime?.trim() ?? '';
+    if (start.isNotEmpty && end.isNotEmpty) return '$start – $end';
+    if (start.isNotEmpty) return start;
+    return '—';
+  }
+
+  bool get hasDosage =>
+      prescribedDosage != null && prescribedDosage!.trim().isNotEmpty;
+
+  factory StaffAppointmentModel.fromJson(Map<String, dynamic> json) {
+    return StaffAppointmentModel(
+      id: json['id']?.toString() ?? '',
+      patientUserId: json['patientUserId']?.toString() ?? '',
+      patientName: json['patientName']?.toString() ?? 'Patient',
+      patientNic: json['patientNic']?.toString(),
+      patientPhone: json['patientPhone']?.toString(),
+      patientEmail: json['patientEmail']?.toString(),
+      hospitalUserId: json['hospitalUserId']?.toString() ?? '',
+      hospitalName: json['hospitalName']?.toString() ?? 'Hospital',
+      vaccineName: json['vaccineName']?.toString() ?? 'Vaccine',
+      doctorName: json['doctorName']?.toString(),
+      nurseName: json['nurseName']?.toString(),
+      appointmentDate: json['appointmentDate']?.toString() ?? '',
+      timeSlot: json['timeSlot']?.toString() ?? '',
+      startTime: json['startTime']?.toString(),
+      endTime: json['endTime']?.toString(),
+      status: json['status']?.toString() ?? 'Confirmed',
+      paymentStatus: json['paymentStatus']?.toString() ?? '—',
+      notes: json['notes']?.toString(),
+      boothLabel: json['boothLabel']?.toString(),
+      prescribedDosage: json['prescribedDosage']?.toString(),
+      prescribedByDoctorName: json['prescribedByDoctorName']?.toString(),
+      dosageUpdatedAt: json['dosageUpdatedAt']?.toString(),
+      updatedAt: json['updatedAt']?.toString(),
+    );
+  }
+}

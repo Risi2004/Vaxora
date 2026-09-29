@@ -3,11 +3,11 @@ PatientDataAgent — compiles a structured summary of a patient's full health re
 
 Architecture note:
   Tool invocation is deterministic (controlled orchestration) rather than
-  LLM-driven. This is required because Groq's free-tier tool-calling
-  implementation has documented parsing instability across all currently
-  available models (gpt-oss, llama-3.1, qwen3.8). The LLM still performs
-  all reasoning: it decides what to include in the summary, computes age,
-  and composes the final structured JSON.
+  LLM-driven. This is required because free-tier tool-calling on shared LLM
+  providers has documented parsing instability across multiple model families
+  (gpt-oss, llama-3.1, qwen3.8). The LLM still performs all reasoning: it
+  decides what to include in the summary, computes age, and composes the
+  final structured JSON.
 
 Tools invoked: get_patient_profile, get_vaccination_history, get_medical_history,
                get_active_conditions, get_visit_history, get_upcoming_follow_ups
@@ -87,9 +87,9 @@ class PatientDataAgent:
     description = "Retrieves and compiles a structured summary of a patient's full health record."
 
     def __init__(self):
-        self.base_url = settings.runpod_base_url.rstrip("/")
-        self.model = settings.model_name
-        self.api_key = settings.runpod_api_key
+        self.base_url = settings.openrouter_base_url.rstrip("/")
+        self.model = settings.openrouter_model
+        self.api_key = settings.openrouter_api_key
 
     async def _call_llm(self, messages: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Single-shot LLM call — no tools, no streaming. Retries on 429."""
@@ -104,15 +104,17 @@ class PatientDataAgent:
             "reasoning_effort": "none",
         }
 
-        max_retries = 4
+        max_retries = 6
         for attempt in range(max_retries):
             async with httpx.AsyncClient(timeout=120.0) as client:
                 resp = await client.post(
                     f"{self.base_url}/chat/completions", headers=headers, json=payload
                 )
                 if resp.status_code == 429:
-                    retry_after = int(resp.headers.get("retry-after", "5"))
-                    wait = max(retry_after, 3) + (2 ** attempt)
+                    retry_after = int(resp.headers.get("retry-after", "20"))
+                    # Provider retry-after is often too small; enforce a 20s
+                    # floor so the rolling rate-limit window can reset.
+                    wait = max(retry_after, 20) + (5 * attempt)
                     logger.warning(
                         f"[{self.name}] Rate limited (429). Waiting {wait}s "
                         f"before retry {attempt + 1}/{max_retries}..."
@@ -127,7 +129,7 @@ class PatientDataAgent:
                 return resp.json()["choices"][0]["message"]
 
         raise RuntimeError(
-            f"Max retries ({max_retries}) exceeded due to Groq rate limiting."
+            f"Max retries ({max_retries}) exceeded due to LLM rate limiting."
         )
 
     async def run(self, patient_profile_id: str, token: Optional[str] = None) -> Dict[str, Any]:

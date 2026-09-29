@@ -3,7 +3,8 @@ CarePlanningAgent — generates a personalized care plan from a patient summary.
 
 Architecture note:
   Same as PatientDataAgent — tool invocation is deterministic to work around
-  Groq free-tier tool-calling instability. The LLM makes two real decisions:
+  free-tier tool-calling instability on shared LLM providers. The LLM makes
+  two real decisions:
     1. Which clinical guidelines to look up (given the patient's conditions/allergies)
     2. How to compose the final care plan
 
@@ -73,9 +74,9 @@ class CarePlanningAgent:
     description = "Generates a personalized, guideline-grounded care plan from a patient summary."
 
     def __init__(self):
-        self.base_url = settings.runpod_base_url.rstrip("/")
-        self.model = settings.model_name
-        self.api_key = settings.runpod_api_key
+        self.base_url = settings.openrouter_base_url.rstrip("/")
+        self.model = settings.openrouter_model
+        self.api_key = settings.openrouter_api_key
 
     async def _call_llm(self, messages: List[Dict[str, Any]], temperature: float = 0.2) -> Dict[str, Any]:
         headers = {
@@ -89,15 +90,15 @@ class CarePlanningAgent:
             "reasoning_effort": "none",
         }
 
-        max_retries = 4
+        max_retries = 6
         for attempt in range(max_retries):
             async with httpx.AsyncClient(timeout=120.0) as client:
                 resp = await client.post(
                     f"{self.base_url}/chat/completions", headers=headers, json=payload
                 )
                 if resp.status_code == 429:
-                    retry_after = int(resp.headers.get("retry-after", "5"))
-                    wait = max(retry_after, 3) + (2 ** attempt)
+                    retry_after = int(resp.headers.get("retry-after", "20"))
+                    wait = max(retry_after, 20) + (5 * attempt)
                     logger.warning(
                         f"[{self.name}] Rate limited (429). Waiting {wait}s "
                         f"before retry {attempt + 1}/{max_retries}..."
@@ -112,7 +113,7 @@ class CarePlanningAgent:
                 return resp.json()["choices"][0]["message"]
 
         raise RuntimeError(
-            f"Max retries ({max_retries}) exceeded due to Groq rate limiting."
+            f"Max retries ({max_retries}) exceeded due to LLM rate limiting."
         )
 
     async def _extract_guideline_keys(self, patient_summary: Dict[str, Any]) -> List[str]:

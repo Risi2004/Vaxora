@@ -419,7 +419,7 @@ export default function HospitalShiftsPanel() {
       if (proposals.length === 0) {
         setSuggestModalError(
           res.content ||
-            'No shift suggestions for this week. Post vaccine schedules or check bookings first.'
+            'No new shifts to propose — this week looks fully covered already. Approval cards only appear when there are gaps. Try another week, add schedules/booths, or clear some existing shifts first.'
         );
         return;
       }

@@ -220,7 +220,7 @@ export default function InventoryAIInventoryWorkflow({ isOpen, onClose, onApprov
 
         {status === 'idle' && (
           <div style={{ padding: '12px 20px', borderTop: '1px solid #e2e8f0', background: '#f8fafc', fontSize: '0.78rem', color: '#64748b' }}>
-            Powered by Groq LLM • All drafts require your approval before any data is changed
+            Powered by AI Multi-Agent Intelligence • All drafts require your approval before any data is changed
           </div>
         )}
       </div>

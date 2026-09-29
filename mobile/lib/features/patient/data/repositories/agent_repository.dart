@@ -52,6 +52,7 @@ class AgentRepository {
         'patientInfo': patientInfo,
         'targetAgent': 'BookingAgent',
       },
+      timeout: const Duration(seconds: 120),
     );
 
     if (response is Map<String, dynamic>) {
