@@ -136,7 +136,7 @@ class _CarePlanLoaderState extends State<CarePlanLoader> {
     try {
       final cached = await StorageService.getUser();
       final user = cached != null ? UserModel.fromJson(cached) : null;
-      await CarePlanPdfService.share(
+      final savedPath = await CarePlanPdfService.share(
         r,
         patientName: user?.name,
         registrationNumber: user?.registrationNumber,
@@ -146,6 +146,17 @@ class _CarePlanLoaderState extends State<CarePlanLoader> {
         _isDownloading = false;
         _downloadSuccess = true;
       });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: AppColors.success,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 8),
+          content: Text(
+            'PDF saved to device.\n$savedPath',
+            style: const TextStyle(fontSize: 12),
+          ),
+        ),
+      );
       Future.delayed(const Duration(seconds: 4), () {
         if (mounted) setState(() => _downloadSuccess = false);
       });

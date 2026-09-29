@@ -1,5 +1,8 @@
+import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -8,9 +11,23 @@ import '../data/models/agent_models.dart';
 
 /// Flutter port of `carePlanPdfService.js` — matches the web PDF's layout,
 /// sections and color scheme.
+///
+/// Font note: the `pdf` package's built-in Helvetica font has no Unicode
+/// support, so characters like bullets, em-dashes, arrows and check marks
+/// in the layout would render as boxes or trigger warnings. We load
+/// Noto Sans (full Unicode coverage) via `PdfGoogleFonts` and apply it as
+/// the document theme.
+///
+/// Output note: the emulator image often has no Android print service and
+/// no share targets, so `Printing.layoutPdf` / `sharePdf` appear to
+/// "do nothing". We always write the PDF to the app documents directory
+/// first — that path is stable, readable via `adb pull`, and observable
+/// through a SnackBar shown by the caller.
 class CarePlanPdfService {
-  /// Share sheet — lets the user save to Files, email, or share.
-  static Future<void> share(
+  /// Builds the PDF, saves it to disk, then tries to open the system
+  /// print preview (Save as PDF) or the share sheet. Returns the full
+  /// path of the saved file.
+  static Future<String> share(
     CarePlanResponseModel result, {
     String? patientName,
     String? registrationNumber,
@@ -21,22 +38,44 @@ class CarePlanPdfService {
       registrationNumber: registrationNumber,
     );
     final fileName = _fileName(patientName ?? 'Patient');
-    await Printing.sharePdf(bytes: bytes, filename: fileName);
+
+    // ---- 1. Persist to disk (always) ----
+    final dir = await getApplicationDocumentsDirectory();
+    final savedPath = '${dir.path}/$fileName';
+    final file = File(savedPath);
+    await file.writeAsBytes(bytes, flush: true);
+    debugPrint('[CarePlanPdfService] PDF saved: $savedPath');
+
+    // ---- 2. Try print preview (best on real devices) ----
+    try {
+      await Printing.layoutPdf(onLayout: (_) => bytes, name: fileName);
+      debugPrint('[CarePlanPdfService] layoutPdf opened');
+      return savedPath;
+    } catch (e) {
+      debugPrint('[CarePlanPdfService] layoutPdf failed: $e');
+    }
+
+    // ---- 3. Fallback: share intent ----
+    try {
+      await Printing.sharePdf(bytes: bytes, filename: fileName);
+      debugPrint('[CarePlanPdfService] sharePdf opened');
+    } catch (e) {
+      debugPrint('[CarePlanPdfService] sharePdf failed: $e');
+    }
+
+    return savedPath;
   }
 
-  /// Print / preview dialog — also lets the user save as PDF.
-  static Future<void> preview(
+  /// Alias for [share] — kept for API compatibility.
+  static Future<String> preview(
     CarePlanResponseModel result, {
     String? patientName,
     String? registrationNumber,
-  }) async {
-    final bytes = await _buildPdf(
-      result,
-      patientName: patientName,
-      registrationNumber: registrationNumber,
-    );
-    await Printing.layoutPdf(onLayout: (_) => bytes);
-  }
+  }) => share(
+    result,
+    patientName: patientName,
+    registrationNumber: registrationNumber,
+  );
 
   // ---------------------------------------------------------------------
   // PDF construction
@@ -77,7 +116,25 @@ class CarePlanPdfService {
     const border = PdfColor.fromInt(0xFFE2E8F0);
     const surfaceSubtle = PdfColor.fromInt(0xFFF8FAFC);
 
-    final doc = pw.Document();
+    // ---- Load Unicode-capable fonts ----
+    // Noto Sans covers bullets, em-dashes, arrows and check marks.
+    // Google Fonts requires a one-time fetch; after that the font is
+    // cached locally by the printing package.
+    final pw.Font fontRegular;
+    final pw.Font fontBold;
+    try {
+      fontRegular = await PdfGoogleFonts.notoSansRegular();
+      fontBold = await PdfGoogleFonts.notoSansBold();
+    } catch (e) {
+      throw Exception(
+        'Could not load PDF fonts. Check your internet connection '
+        'and try again. ($e)',
+      );
+    }
+
+    final doc = pw.Document(
+      theme: pw.ThemeData.withFont(base: fontRegular, bold: fontBold),
+    );
 
     doc.addPage(
       pw.MultiPage(
@@ -710,7 +767,7 @@ class CarePlanPdfService {
           ),
           pw.SizedBox(height: 3),
           pw.Text(
-            'Generated via Vaxora Multi-Agent System (PatientDataAgent → CarePlanningAgent). Evidence-based clinical guidelines applied.',
+            'Generated via Vaxora Multi-Agent System (PatientDataAgent -> CarePlanningAgent). Evidence-based clinical guidelines applied.',
             style: pw.TextStyle(color: muted, fontSize: 6.8, lineSpacing: 1.3),
           ),
           pw.SizedBox(height: 3),
@@ -732,8 +789,8 @@ class CarePlanPdfService {
               (s) => pw.Padding(
                 padding: const pw.EdgeInsets.only(top: 2),
                 child: pw.Text(
-                  '✓ ${s.agent} — ${s.durationMs}ms'
-                  '${s.toolsUsed.isNotEmpty ? ' · ${s.toolsUsed.length} tools: ${s.toolsUsed.join(", ")}' : ''}',
+                  '[OK] ${s.agent} - ${s.durationMs}ms'
+                  '${s.toolsUsed.isNotEmpty ? ' | ${s.toolsUsed.length} tools: ${s.toolsUsed.join(", ")}' : ''}',
                   style: pw.TextStyle(
                     color: muted,
                     fontSize: 6.8,
@@ -770,7 +827,7 @@ class CarePlanPdfService {
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
         children: [
           pw.Text(
-            'VAXORA HEALTHCARE SYSTEM — PERSONALIZED CARE PLAN',
+            'VAXORA HEALTHCARE SYSTEM - PERSONALIZED CARE PLAN',
             style: pw.TextStyle(
               color: muted,
               fontSize: 7,
@@ -803,7 +860,7 @@ class CarePlanPdfService {
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
         children: [
           pw.Text(
-            'Vaxora National Immunization Platform  •  Doc Ref: $ref',
+            'Vaxora National Immunization Platform  |  Doc Ref: $ref',
             style: pw.TextStyle(color: muted, fontSize: 6.5),
           ),
           pw.Text(
