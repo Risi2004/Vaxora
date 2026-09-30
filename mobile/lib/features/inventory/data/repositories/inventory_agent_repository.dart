@@ -58,3 +58,5 @@ class InventoryAgentRepository {
     return [];
   }
 }
+
+//repository for interacting with the inventory agent endpoints, including running agents, approving drafts, and fetching recent workflows.
