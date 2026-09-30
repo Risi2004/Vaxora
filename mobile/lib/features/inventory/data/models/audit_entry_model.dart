@@ -37,3 +37,5 @@ class BatchAuditModel {
     );
   }
 }
+
+//audit entry model for a batch, including restock, dispense, QA, and sensor events
