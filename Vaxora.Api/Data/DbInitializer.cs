@@ -101,7 +101,7 @@ public static class DbInitializer
                 logger.LogWarning(exSql, "Non-fatal notice during database schema sync: {Message}", exSql.Message);
             }
 
-            // Seed Admin if not exists
+            // ============ SEED ADMIN ============
             var adminEmail = configuration["AdminSeed:Email"] ?? "admin@vaxora.health.gov.lk";
             var adminPassword = configuration["AdminSeed:Password"] ?? "Admin@Vaxora2026";
 
@@ -134,6 +134,61 @@ public static class DbInitializer
                 await context.SaveChangesAsync();
                 logger.LogInformation("Administrator account successfully seeded: {AdminEmail}", adminEmail);
             }
+
+            // ============ SEED TEST HOSPITAL (DEV ONLY) ============
+            // TODO(revert): remove before merging to main
+            const string testHospitalEmail = "hospital@vaxora.local";
+            const string testHospitalPassword = "Hospital@123";
+
+            var existingHospital = await context.Users
+                .FirstOrDefaultAsync(u => u.Email.ToLower() == testHospitalEmail.ToLower());
+
+            if (existingHospital == null)
+            {
+                var hospitalUser = new User
+                {
+                    Id = Guid.NewGuid(),
+                    Email = testHospitalEmail,
+                    PasswordHash = passwordHasher.HashPassword(testHospitalPassword),
+                    Role = UserRole.HOSPITAL,
+                    Status = UserStatus.Active,
+                    PhoneNumber = "+94112345678",
+                    RegistrationNumber = "VAX-H-9001",
+                    CreatedAt = DateTime.UtcNow
+                };
+                context.Users.Add(hospitalUser);
+
+                var hospitalProfile = new HospitalProfile
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = hospitalUser.Id,
+                    HospitalName = "Test Hospital",
+                    RegistrationNumber = "REG-TEST-9001",
+                    HospitalType = "Government",
+                    Address = "1 Test Road, Colombo",
+                    District = "Colombo",
+                    Province = "Western",
+                    ContactNumber = "+94112345678",
+                    VerificationStatus = VerificationStatus.Approved,
+                    CreatedAt = DateTime.UtcNow
+                };
+                context.HospitalProfiles.Add(hospitalProfile);
+
+                context.AuditLogs.Add(new AuditLog
+                {
+                    UserId = hospitalUser.Id,
+                    UserEmail = hospitalUser.Email,
+                    Role = "HOSPITAL",
+                    Action = "SYSTEM_SEED",
+                    Details = "Test hospital account provisioned on startup (dev only)",
+                    Timestamp = DateTime.UtcNow
+                });
+
+                await context.SaveChangesAsync();
+                logger.LogInformation("Test hospital account seeded: {Email} / {Password}",
+                    testHospitalEmail, testHospitalPassword);
+            }
+            // ============ END DEV-ONLY ============
         }
         catch (Exception ex)
         {
