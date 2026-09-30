@@ -29,11 +29,16 @@ public class InventoryService : IInventoryService
 {
     private readonly ApplicationDbContext _context;
     private readonly ILogger<InventoryService> _logger;
+    private readonly IEmailService _emailService;
 
-    public InventoryService(ApplicationDbContext context, ILogger<InventoryService> logger)
+    public InventoryService(
+        ApplicationDbContext context,
+        ILogger<InventoryService> logger,
+        IEmailService emailService)
     {
         _context = context;
         _logger = logger;
+        _emailService = emailService;
     }
 
     // ==================== HELPERS ====================
@@ -530,8 +535,6 @@ public class InventoryService : IInventoryService
         return MapToItemDto(batch, batch.Vaccine);
     }
 
-    // ==================== BUSINESS OP: ISSUE STOCK ====================
-
     public async Task<InventoryItemDto> IssueStockAsync(Guid userId, Guid batchId, IssueStockDto dto)
     {
         var (userName, userEmail) = await GetUserInfoAsync(userId);
@@ -576,8 +579,6 @@ public class InventoryService : IInventoryService
         return MapToItemDto(batch, batch.Vaccine);
     }
 
-    // ==================== AUDIT TRAIL ====================
-
     public async Task<BatchAuditDto> GetBatchAuditAsync(Guid userId, Guid batchId)
     {
         var batch = await _context.Batches
@@ -621,8 +622,6 @@ public class InventoryService : IInventoryService
         TransactionType.Adjustment => $"Stock adjustment: {t.Quantity} vials — {t.Reason}",
         _ => $"Transaction: {t.Quantity} vials"
     };
-
-    // ==================== COLD VAULTS ====================
 
     public async Task<List<ColdVaultDto>> GetColdVaultsAsync(Guid userId)
     {
@@ -744,8 +743,6 @@ public class InventoryService : IInventoryService
         };
     }
 
-    // ==================== EXPIRING BATCHES ====================
-
     public async Task<List<InventoryItemDto>> GetExpiringBatchesAsync(Guid userId, int daysThreshold)
     {
         var hospital = await GetHospitalAsync(userId);
@@ -860,10 +857,51 @@ public class InventoryService : IInventoryService
 
         await _context.SaveChangesAsync();
 
+        // ========== SEND EMAIL TO SUPPLIER ==========
+        bool emailSent = false;
+        string supplierEmail = Environment.GetEnvironmentVariable("Supplier__Email") ?? "supplier@spc.gov.lk";
+
+        try
+        {
+            List<(string VaccineName, int Quantity, decimal UnitPrice, decimal LineTotal)> poLines =
+                (dto.Payload.TryGetValue("line_items", out var rawLines) && rawLines is System.Text.Json.JsonElement linesElem)
+                ? linesElem.EnumerateArray().Select(li => (
+                    VaccineName: li.TryGetProperty("vaccine_name", out var v) ? v.GetString() ?? "" : "",
+                    Quantity: li.TryGetProperty("quantity", out var q) ? q.GetInt32() : 0,
+                    UnitPrice: li.TryGetProperty("unit_price_lkr", out var u) ? u.GetDecimal() : 0m,
+                    LineTotal: li.TryGetProperty("total_lkr", out var t) ? t.GetDecimal() : 0m
+                  )).ToList()
+                : new List<(string VaccineName, int Quantity, decimal UnitPrice, decimal LineTotal)>();
+
+            var totalLkr = dto.Payload.TryGetValue("total_lkr", out var tot) && tot is System.Text.Json.JsonElement tEl
+                ? tEl.GetDecimal()
+                : poLines.Sum(l => l.LineTotal);
+
+            emailSent = await _emailService.SendPurchaseOrderToSupplierAsync(
+                toEmail: supplierEmail,
+                supplierName: "State Pharmaceuticals Corporation",
+                poNumber: poNumber,
+                hospitalName: hospital.HospitalName,
+                orderDate: DateTime.UtcNow.ToString("yyyy-MM-dd"),
+                deliveryDate: DateTime.UtcNow.AddDays(14).ToString("yyyy-MM-dd"),
+                lineItems: poLines,
+                totalLkr: totalLkr,
+                approvalNotes: $"Approved by {userName} via Vaxora AI Agent"
+            );
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send supplier email for PO {PoNumber}", poNumber);
+        }
+
         return new
         {
             success = true,
-            message = $"Purchase Order {poNumber} executed. {createdBatches.Count} batch(es) added to inventory.",
+            message = emailSent
+                ? $"Purchase Order {poNumber} executed + email sent to {supplierEmail}"
+                : $"Purchase Order {poNumber} executed. {createdBatches.Count} batch(es) added. (Email delivery failed — check logs.)",
+            emailSent = emailSent,
+            supplierEmail = supplierEmail,
             batches = createdBatches
         };
     }
@@ -907,10 +945,41 @@ public class InventoryService : IInventoryService
 
         await _context.SaveChangesAsync();
 
+        // ========== SEND EMAIL TO OPS MANAGER ==========
+        bool emailSent = false;
+        string opsEmail = Environment.GetEnvironmentVariable("OpsManager__Email") ?? "opsmanager@vaxora.local";
+
+        try
+        {
+            var daysLeft = (batch.ExpiryDate - DateTime.UtcNow).Days;
+            var actionsList = new List<(string VaccineName, string BatchNumber, int Quantity, string ExpiryDate, int DaysLeft, string Priority, string Action)>
+            {
+                (batch.Vaccine.Name, batch.BatchNumber, batch.QuantityAvailable,
+                 batch.ExpiryDate.ToString("yyyy-MM-dd"), daysLeft, "high", action)
+            };
+
+            emailSent = await _emailService.SendExpiryMemoToOpsManagerAsync(
+                toEmail: opsEmail,
+                recipientName: "Operations Manager",
+                memoNumber: memoNumber,
+                hospitalName: hospital.HospitalName,
+                actions: actionsList,
+                summary: $"Batch {batch.BatchNumber} reserved for {action}."
+            );
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send ops manager email for memo {MemoNumber}", memoNumber);
+        }
+
         return new
         {
             success = true,
-            message = $"Expiry memo {memoNumber} executed. Batch {batch.BatchNumber} reserved for {action}.",
+            message = emailSent
+                ? $"Expiry memo {memoNumber} executed + notification sent to {opsEmail}"
+                : $"Expiry memo {memoNumber} executed. Batch {batch.BatchNumber} reserved for {action}. (Email delivery failed — check logs.)",
+            emailSent = emailSent,
+            opsEmail = opsEmail,
             batchId = batch.Id
         };
     }

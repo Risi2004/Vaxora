@@ -4,6 +4,7 @@ Multi-step workflow:
   Plan → Scan expiring batches → Investigate → Prioritize → Validate → Draft Memo (pause for approval)
 Uses OpenRouter LLM.
 """
+import asyncio
 import json
 import logging
 import httpx
@@ -63,6 +64,40 @@ class ExpiryWatchdogAgent:
             payload["tools"] = tools
             payload["tool_choice"] = "auto"
 
+<<<<<<< HEAD
+        max_retries = 3
+        for attempt in range(max_retries + 1):
+            async with httpx.AsyncClient(timeout=90.0) as client:
+                resp = await client.post(
+                    f"{self.base_url}/chat/completions", headers=headers, json=payload
+                )
+
+                # Handle 429 rate limit with exponential backoff
+                if resp.status_code == 429:
+                    wait_seconds = 15 * (attempt + 1)  # 15s, 30s, 45s
+                    if attempt < max_retries:
+                        logger.warning(
+                            f"[{self.name}] Rate limited (429). "
+                            f"Retry {attempt + 1}/{max_retries} in {wait_seconds}s..."
+                        )
+                        await asyncio.sleep(wait_seconds)
+                        continue
+                    else:
+                        logger.error(
+                            f"[{self.name}] Rate limit exceeded after {max_retries} retries"
+                        )
+                        resp.raise_for_status()
+
+                if resp.status_code >= 400:
+                    logger.error(
+                        f"[{self.name}] Groq error {resp.status_code}: {resp.text[:1000]}"
+                    )
+                resp.raise_for_status()
+                return resp.json()["choices"][0]["message"]
+
+        # Should never reach here
+        raise RuntimeError("Unexpected: retry loop exited without result")
+=======
         async with httpx.AsyncClient(timeout=90.0) as client:
             resp = await client.post(
                 f"{self.base_url}/chat/completions", headers=headers, json=payload
@@ -71,6 +106,7 @@ class ExpiryWatchdogAgent:
                 logger.error(f"[{self.name}] OpenRouter error {resp.status_code}: {resp.text[:1000]}")
             resp.raise_for_status()
             return resp.json()["choices"][0]["message"]
+>>>>>>> origin/main
 
     async def _execute_tool(
         self, name: str, args: Dict[str, Any], token: Optional[str], workflow_id: str
@@ -81,14 +117,18 @@ class ExpiryWatchdogAgent:
             days = args.get("days_threshold", 60)
             result = await tool_get_expiring_batches(days_threshold=days, token=token)
         elif name == "get_batch_audit":
-            result = await tool_get_batch_audit(batch_id=args.get("batch_id", ""), token=token)
+            result = await tool_get_batch_audit(
+                batch_id=args.get("batch_id", ""), token=token
+            )
         elif name == "propose_expiry_action":
             actions = args.get("actions", [])
             validation_results = []
             all_valid = True
             for a in actions:
                 ok, errs = validate_expiry_action(a)
-                validation_results.append({"action": a.get("batch_id"), "passed": ok, "errors": errs})
+                validation_results.append(
+                    {"action": a.get("batch_id"), "passed": ok, "errors": errs}
+                )
                 if not ok:
                     all_valid = False
 
@@ -130,18 +170,22 @@ class ExpiryWatchdogAgent:
         hospital_name = "Unknown Hospital"
         if user_info:
             hospital_name = user_info.get("name", hospital_name)
-            conversation.append({
-                "role": "system",
-                "content": f"Hospital context: {hospital_name}",
-            })
+            conversation.append(
+                {
+                    "role": "system",
+                    "content": f"Hospital context: {hospital_name}",
+                }
+            )
         conversation.extend(messages)
 
         # Planning — deterministic
         plan: List[Dict[str, Any]] = [dict(s) for s in EXPIRY_DEFAULT_PLAN]
         state_store.set_plan(workflow_id, plan)
-        state_store.append_step(workflow_id, {"step": "planning", "status": "completed", "plan": plan})
+        state_store.append_step(
+            workflow_id, {"step": "planning", "status": "completed", "plan": plan}
+        )
 
-        max_iter = 8
+        max_iter = 4
         iteration = 0
         expiry_actions: List[Dict[str, Any]] = []
         summary = ""
@@ -167,32 +211,42 @@ class ExpiryWatchdogAgent:
             tool_calls = msg.get("tool_calls") or []
 
             if tool_calls:
-                conversation.append({
-                    "role": "assistant",
-                    "content": msg.get("content") or "",
-                    "tool_calls": tool_calls,
-                })
+                conversation.append(
+                    {
+                        "role": "assistant",
+                        "content": msg.get("content") or "",
+                        "tool_calls": tool_calls,
+                    }
+                )
                 for tc in tool_calls:
                     fn = tc.get("function", {})
                     fn_name = fn.get("name")
                     raw_args = fn.get("arguments", {})
                     try:
-                        fn_args = json.loads(raw_args) if isinstance(raw_args, str) else (raw_args or {})
+                        fn_args = (
+                            json.loads(raw_args)
+                            if isinstance(raw_args, str)
+                            else (raw_args or {})
+                        )
                     except Exception:
                         fn_args = {}
 
-                    tool_result = await self._execute_tool(fn_name, fn_args, token, workflow_id)
+                    tool_result = await self._execute_tool(
+                        fn_name, fn_args, token, workflow_id
+                    )
 
                     if fn_name == "propose_expiry_action" and tool_result.get("success"):
                         proposal = tool_result.get("proposal", {})
                         expiry_actions = proposal.get("actions", [])
                         summary = proposal.get("summary", "")
 
-                    conversation.append({
-                        "role": "tool",
-                        "tool_call_id": tc.get("id"),
-                        "content": json.dumps(tool_result),
-                    })
+                    conversation.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": tc.get("id"),
+                            "content": json.dumps(tool_result),
+                        }
+                    )
             else:
                 final_content = msg.get("content") or "Expiry scan complete."
                 break
@@ -220,7 +274,10 @@ class ExpiryWatchdogAgent:
             "content": final_content,
             "workflow_id": workflow_id,
             "plan": plan,
-            "proposal": {"actions": expiry_actions, "summary": summary} if expiry_actions else None,
+            "proposal": {
+                "actions": expiry_actions,
+                "summary": summary,
+            } if expiry_actions else None,
             "draft": draft,
         }
 

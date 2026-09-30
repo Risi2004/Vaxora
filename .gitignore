@@ -149,3 +149,6 @@ __pycache__/
 *.db
 *.db-journal
 *.db-wal
+
+__pycache__/
+*.pyc

@@ -17,6 +17,90 @@ public static class DbInitializer
         {
             await context.Database.MigrateAsync();
 
+            // Safe column checks for pricing and payment integration
+            try
+            {
+                await context.Database.ExecuteSqlRawAsync(@"
+                    ALTER TABLE ""VaccineSchedules"" ADD COLUMN IF NOT EXISTS ""Price"" NUMERIC(18,2) NOT NULL DEFAULT 0.00;
+                    ALTER TABLE ""Appointments"" ADD COLUMN IF NOT EXISTS ""Fee"" NUMERIC(18,2) NOT NULL DEFAULT 0.00;
+                    ALTER TABLE ""Appointments"" ADD COLUMN IF NOT EXISTS ""PaymentMethod"" VARCHAR(50) NOT NULL DEFAULT 'Free';
+                    ALTER TABLE ""Appointments"" ADD COLUMN IF NOT EXISTS ""PaymentStatus"" VARCHAR(50) NOT NULL DEFAULT 'Paid';
+                    ALTER TABLE ""Appointments"" ADD COLUMN IF NOT EXISTS ""PaymentTransactionId"" VARCHAR(100) NULL;
+                    ALTER TABLE ""Appointments"" ADD COLUMN IF NOT EXISTS ""PrescribedDosage"" VARCHAR(100) NULL;
+                    ALTER TABLE ""Appointments"" ADD COLUMN IF NOT EXISTS ""PrescribedByDoctorUserId"" UUID NULL;
+                    ALTER TABLE ""Appointments"" ADD COLUMN IF NOT EXISTS ""PrescribedByDoctorName"" VARCHAR(200) NULL;
+                    ALTER TABLE ""Appointments"" ADD COLUMN IF NOT EXISTS ""DosageUpdatedAt"" TIMESTAMPTZ NULL;
+
+                    CREATE TABLE IF NOT EXISTS ""PatientMedicalHistories"" (
+                        ""Id"" UUID PRIMARY KEY,
+                        ""PatientProfileId"" UUID NOT NULL REFERENCES ""PatientProfiles""(""Id"") ON DELETE CASCADE,
+                        ""RecordType"" VARCHAR(50) NOT NULL,
+                        ""Title"" VARCHAR(200) NOT NULL,
+                        ""Description"" VARCHAR(2000) NULL,
+                        ""Severity"" VARCHAR(50) NOT NULL,
+                        ""Status"" VARCHAR(50) NOT NULL,
+                        ""Icd10Code"" VARCHAR(20) NULL,
+                        ""DiagnosedAt"" TIMESTAMPTZ NOT NULL,
+                        ""ResolvedAt"" TIMESTAMPTZ NULL,
+                        ""RecordedByUserId"" UUID NULL REFERENCES ""Users""(""Id"") ON DELETE SET NULL,
+                        ""RecordedByName"" VARCHAR(200) NULL,
+                        ""Notes"" VARCHAR(1000) NULL,
+                        ""CreatedAt"" TIMESTAMPTZ NOT NULL,
+                        ""UpdatedAt"" TIMESTAMPTZ NULL
+                    );
+
+                    CREATE TABLE IF NOT EXISTS ""PatientVaccinationRecords"" (
+                        ""Id"" UUID PRIMARY KEY,
+                        ""PatientProfileId"" UUID NOT NULL REFERENCES ""PatientProfiles""(""Id"") ON DELETE CASCADE,
+                        ""VaccineId"" UUID NOT NULL REFERENCES ""Vaccines""(""Id"") ON DELETE RESTRICT,
+                        ""BatchId"" UUID NULL REFERENCES ""Batches""(""Id"") ON DELETE SET NULL,
+                        ""AdministeredByUserId"" UUID NULL REFERENCES ""Users""(""Id"") ON DELETE SET NULL,
+                        ""AdministeredByName"" VARCHAR(200) NULL,
+                        ""AdministeredAt"" TIMESTAMPTZ NOT NULL,
+                        ""DoseNumber"" INT NOT NULL DEFAULT 1,
+                        ""Route"" VARCHAR(50) NOT NULL,
+                        ""Site"" VARCHAR(50) NULL,
+                        ""LotNumber"" VARCHAR(100) NULL,
+                        ""Notes"" VARCHAR(1000) NULL,
+                        ""AdverseEventReported"" BOOLEAN NOT NULL DEFAULT FALSE,
+                        ""AdverseEventNotes"" VARCHAR(1000) NULL,
+                        ""CreatedAt"" TIMESTAMPTZ NOT NULL
+                    );
+
+                    CREATE TABLE IF NOT EXISTS ""PatientVisits"" (
+                        ""Id"" UUID PRIMARY KEY,
+                        ""PatientProfileId"" UUID NOT NULL REFERENCES ""PatientProfiles""(""Id"") ON DELETE CASCADE,
+                        ""DoctorUserId"" UUID NULL REFERENCES ""Users""(""Id"") ON DELETE SET NULL,
+                        ""DoctorName"" VARCHAR(200) NULL,
+                        ""NurseUserId"" UUID NULL REFERENCES ""Users""(""Id"") ON DELETE SET NULL,
+                        ""NurseName"" VARCHAR(200) NULL,
+                        ""HospitalProfileId"" UUID NULL REFERENCES ""HospitalProfiles""(""Id"") ON DELETE SET NULL,
+                        ""AppointmentId"" UUID NULL,
+                        ""VisitDate"" TIMESTAMPTZ NOT NULL,
+                        ""VisitType"" VARCHAR(50) NOT NULL,
+                        ""Status"" VARCHAR(50) NOT NULL,
+                        ""ChiefComplaint"" VARCHAR(1000) NULL,
+                        ""BloodPressure"" VARCHAR(20) NULL,
+                        ""Temperature"" VARCHAR(10) NULL,
+                        ""WeightKg"" VARCHAR(10) NULL,
+                        ""HeightCm"" VARCHAR(10) NULL,
+                        ""HeartRate"" VARCHAR(10) NULL,
+                        ""OxygenSaturation"" VARCHAR(10) NULL,
+                        ""DiagnosisSummary"" VARCHAR(2000) NULL,
+                        ""TreatmentPlan"" VARCHAR(2000) NULL,
+                        ""Notes"" VARCHAR(1000) NULL,
+                        ""FollowUpDate"" TIMESTAMPTZ NULL,
+                        ""CreatedAt"" TIMESTAMPTZ NOT NULL,
+                        ""UpdatedAt"" TIMESTAMPTZ NULL
+                    );
+                ");
+            }
+            catch (Exception exSql)
+            {
+                logger.LogWarning(exSql, "Non-fatal notice during database schema sync: {Message}", exSql.Message);
+            }
+
+            // ============ SEED ADMIN ============
             // Seed Admin if not exists
             var adminEmail = configuration["AdminSeed:Email"] ?? "admin@vaxora.health.gov.lk";
             var adminPassword = configuration["AdminSeed:Password"] ?? "Admin@Vaxora2026";
@@ -51,6 +135,60 @@ public static class DbInitializer
                 logger.LogInformation("Administrator account successfully seeded: {AdminEmail}", adminEmail);
             }
 
+            // ============ SEED TEST HOSPITAL (DEV ONLY) ============
+            // TODO(revert): remove before merging to main
+            const string testHospitalEmail = "hospital@vaxora.local";
+            const string testHospitalPassword = "Hospital@123";
+
+            var existingHospital = await context.Users
+                .FirstOrDefaultAsync(u => u.Email.ToLower() == testHospitalEmail.ToLower());
+
+            if (existingHospital == null)
+            {
+                var hospitalUser = new User
+                {
+                    Id = Guid.NewGuid(),
+                    Email = testHospitalEmail,
+                    PasswordHash = passwordHasher.HashPassword(testHospitalPassword),
+                    Role = UserRole.HOSPITAL,
+                    Status = UserStatus.Active,
+                    PhoneNumber = "+94112345678",
+                    RegistrationNumber = "VAX-H-9001",
+                    CreatedAt = DateTime.UtcNow
+                };
+                context.Users.Add(hospitalUser);
+
+                var hospitalProfile = new HospitalProfile
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = hospitalUser.Id,
+                    HospitalName = "Test Hospital",
+                    RegistrationNumber = "REG-TEST-9001",
+                    HospitalType = "Government",
+                    Address = "1 Test Road, Colombo",
+                    District = "Colombo",
+                    Province = "Western",
+                    ContactNumber = "+94112345678",
+                    VerificationStatus = VerificationStatus.Approved,
+                    CreatedAt = DateTime.UtcNow
+                };
+                context.HospitalProfiles.Add(hospitalProfile);
+
+                context.AuditLogs.Add(new AuditLog
+                {
+                    UserId = hospitalUser.Id,
+                    UserEmail = hospitalUser.Email,
+                    Role = "HOSPITAL",
+                    Action = "SYSTEM_SEED",
+                    Details = "Test hospital account provisioned on startup (dev only)",
+                    Timestamp = DateTime.UtcNow
+                });
+
+                await context.SaveChangesAsync();
+                logger.LogInformation("Test hospital account seeded: {Email} / {Password}",
+                    testHospitalEmail, testHospitalPassword);
+            }
+            // ============ END DEV-ONLY ============
             // Seed National Vaccines if not exists
             if (!await context.Vaccines.AnyAsync())
             {

@@ -30,8 +30,6 @@ class ApiConstants {
     return 'http://10.0.2.2:8001';
   }
 
-
-
   // Auth endpoints
   static const String login = '/auth/login';
   static const String signupPatient = '/auth/signup/patient';
@@ -64,6 +62,9 @@ class ApiConstants {
   static const String inventorySummary = '/inventory/summary';
   static const String inventoryVaults = '/inventory/vaults';
 
+  // Inventory AI draft execution (approval-gated)
+  static const String inventoryAgentExecuteDraft = '/inventory/agent/execute-draft';
+  static const String inventoryAgentWorkflows = '/inventory/agent/workflows';
 
   static String batchIssue(String batchId) => '/inventory/batches/$batchId/issue';
   static String batchWastage(String batchId) => '/inventory/batches/$batchId/wastage';
