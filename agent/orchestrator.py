@@ -28,6 +28,18 @@ except ImportError:
         staff_scheduling_agent = None
         STAFF_AGENT_AVAILABLE = False
 
+# Staff-facing shift swap agent (mobile-first)
+try:
+    from .shift_swap_agent import shift_swap_agent
+    SHIFT_SWAP_AGENT_AVAILABLE = True
+except ImportError:
+    try:
+        from shift_swap_agent import shift_swap_agent
+        SHIFT_SWAP_AGENT_AVAILABLE = True
+    except ImportError:
+        shift_swap_agent = None
+        SHIFT_SWAP_AGENT_AVAILABLE = False
+
 logger = logging.getLogger("vaxora-orchestrator")
 
 ORCHESTRATOR_SYSTEM_PROMPT = """You are the Vaxora Master Multi-Agent Orchestrator.
@@ -53,11 +65,11 @@ class MultiAgentOrchestrator:
 
     def __init__(self):
         self.client = AsyncOpenAI(
-            base_url=settings.runpod_base_url,
-            api_key=settings.runpod_api_key,
+            base_url=settings.openrouter_base_url,
+            api_key=settings.openrouter_api_key,
             timeout=60.0,
         )
-        self.model = settings.model_name
+        self.model = settings.openrouter_model
         self.agents: Dict[str, Any] = {
             "BookingAgent": booking_agent,
         }
@@ -70,13 +82,30 @@ class MultiAgentOrchestrator:
         if STAFF_AGENT_AVAILABLE and staff_scheduling_agent is not None:
             self.register_agent(staff_scheduling_agent)
 
+        # Staff-facing shift swap agent
+        if SHIFT_SWAP_AGENT_AVAILABLE and shift_swap_agent is not None:
+            self.register_agent(shift_swap_agent)
+
     def register_agent(self, agent_instance: Any):
         """Allows team members to register their specialized agents into the orchestrator."""
         self.agents[agent_instance.name] = agent_instance
         logger.info(f"Registered agent: {agent_instance.name}")
 
-    async def route_intent(self, messages: List[Dict[str, Any]]) -> str:
-        """Determines which specialized agent should handle the incoming conversation."""
+    async def route_intent(
+        self,
+        messages: List[Dict[str, Any]],
+        allowed_agents: Optional[List[str]] = None,
+    ) -> str:
+        """
+        Determines which specialized agent should handle the incoming conversation.
+
+        `allowed_agents` comes from the ASP.NET gateway and reflects the caller's role.
+        Keyword matches for agents outside that list are ignored, so a non-hospital
+        user cannot reach the staff roster agent by wording their message a certain way.
+        """
+        def permitted(name: str) -> bool:
+            return allowed_agents is None or name in allowed_agents
+
         if not messages:
             return "BookingAgent"
 
@@ -93,7 +122,7 @@ class MultiAgentOrchestrator:
             "expired batch", "wastage", "dispose", "disposal",
             "near expiry", "expiration",
         ]
-        if any(kw in msg_lower for kw in inventory_expiry_keywords):
+        if any(kw in msg_lower for kw in inventory_expiry_keywords) and permitted("ExpiryAgent"):
             return "ExpiryAgent"
 
         inventory_restock_keywords = [
@@ -101,8 +130,25 @@ class MultiAgentOrchestrator:
             "purchase order", "restock order", "what should we order",
             "need to order", "stock level",
         ]
-        if any(kw in msg_lower for kw in inventory_restock_keywords):
+        if any(kw in msg_lower for kw in inventory_restock_keywords) and permitted("RestockAgent"):
             return "RestockAgent"
+
+        # === STAFF SHIFT SWAP (staff-side, DOCTOR/NURSE only) ===
+        # Must run BEFORE hospital-scoped staff routing so "cover my shift"
+        # doesn't get sent to the scheduling agent that a staff member is not
+        # allowed to drive.
+        swap_keywords = [
+            "swap", "cover me", "cover my shift", "cover for me",
+            "can't make", "cant make", "can not make",
+            "someone to cover", "shift swap", "replace me",
+            "trade shift", "trade my shift",
+        ]
+        if (
+            SHIFT_SWAP_AGENT_AVAILABLE
+            and permitted("ShiftSwapAgent")
+            and any(kw in msg_lower for kw in swap_keywords)
+        ):
+            return "ShiftSwapAgent"
 
         # === STAFF ROUTING ===
         # Unambiguous hospital-roster vocabulary — a patient would not use these.
@@ -110,10 +156,11 @@ class MultiAgentOrchestrator:
             "shift", "roster", "coverage", "schedule staff",
             "assign nurse", "assign doctor", "on duty", "duty",
         ]
-        if any(kw in msg_lower for kw in staff_keywords) and STAFF_AGENT_AVAILABLE:
-            return "StaffSchedulingAgent"
-        if any(kw in msg_lower for kw in ["staff", "doctor", "nurse"]) and STAFF_AGENT_AVAILABLE:
-            return "StaffSchedulingAgent"
+        if STAFF_AGENT_AVAILABLE and permitted("StaffSchedulingAgent"):
+            if any(kw in msg_lower for kw in staff_keywords):
+                return "StaffSchedulingAgent"
+            if any(kw in msg_lower for kw in ["staff", "doctor", "nurse"]):
+                return "StaffSchedulingAgent"
 
         # === BOOKING ROUTING ===
         booking_keywords = [
@@ -136,7 +183,7 @@ class MultiAgentOrchestrator:
             )
             content = res.choices[0].message.content or ""
             for agent_name in ("RestockAgent", "ExpiryAgent", "StaffSchedulingAgent", "BookingAgent"):
-                if agent_name in content:
+                if agent_name in content and permitted(agent_name):
                     return agent_name
         except Exception as e:
             logger.warning(f"Orchestrator routing fallback to BookingAgent: {e}")
@@ -149,11 +196,12 @@ class MultiAgentOrchestrator:
         token: Optional[str] = None,
         patient_info: Optional[Dict[str, Any]] = None,
         user_id: Optional[str] = None,
+        allowed_agents: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """
         Orchestrates request: routes to the target agent and returns the agent's output.
         """
-        target_agent_name = await self.route_intent(messages)
+        target_agent_name = await self.route_intent(messages, allowed_agents=allowed_agents)
         target_agent = self.agents.get(target_agent_name, booking_agent)
 
         logger.info(f"Orchestrator routed request to: {target_agent.name}")

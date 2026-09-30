@@ -15,7 +15,6 @@ public static class DbInitializer
 
         try
         {
-            // Automatically apply any pending migrations
             await context.Database.MigrateAsync();
 
             // Safe column checks for pricing and payment integration
@@ -102,6 +101,7 @@ public static class DbInitializer
             }
 
             // ============ SEED ADMIN ============
+            // Seed Admin if not exists
             var adminEmail = configuration["AdminSeed:Email"] ?? "admin@vaxora.health.gov.lk";
             var adminPassword = configuration["AdminSeed:Password"] ?? "Admin@Vaxora2026";
 
@@ -189,6 +189,23 @@ public static class DbInitializer
                     testHospitalEmail, testHospitalPassword);
             }
             // ============ END DEV-ONLY ============
+            // Seed National Vaccines if not exists
+            if (!await context.Vaccines.AnyAsync())
+            {
+                var defaultVaccines = new List<Vaccine>
+                {
+                    new Vaccine { Name = "Pfizer Bivalent mRNA", Manufacturer = "Pfizer-BioNTech", Category = VaccineCategory.MRNA, DosesPerVial = 6, RequiredTemp = "-80°C to -60°C Deep Freeze", DefaultMinThreshold = 200 },
+                    new Vaccine { Name = "Hepatitis B Recombinant", Manufacturer = "Serum Institute of India", Category = VaccineCategory.Routine, DosesPerVial = 10, RequiredTemp = "+2°C to +8°C Chilled", DefaultMinThreshold = 300 },
+                    new Vaccine { Name = "Moderna Spikevax", Manufacturer = "Moderna Inc.", Category = VaccineCategory.MRNA, DosesPerVial = 10, RequiredTemp = "-25°C to -15°C Frozen", DefaultMinThreshold = 150 },
+                    new Vaccine { Name = "Influenza (Quadrivalent)", Manufacturer = "Sanofi Pasteur", Category = VaccineCategory.Seasonal, DosesPerVial = 1, RequiredTemp = "+2°C to +8°C Chilled", DefaultMinThreshold = 250 },
+                    new Vaccine { Name = "MMR (Measles, Mumps, Rubella)", Manufacturer = "GlaxoSmithKline", Category = VaccineCategory.Routine, DosesPerVial = 1, RequiredTemp = "+2°C to +8°C Chilled", DefaultMinThreshold = 200 },
+                    new Vaccine { Name = "BCG (Tuberculosis)", Manufacturer = "State Pharmaceuticals Corp", Category = VaccineCategory.Routine, DosesPerVial = 20, RequiredTemp = "+2°C to +8°C Chilled", DefaultMinThreshold = 100 }
+                };
+
+                context.Vaccines.AddRange(defaultVaccines);
+                await context.SaveChangesAsync();
+                logger.LogInformation("National immunization vaccines successfully initialized.");
+            }
         }
         catch (Exception ex)
         {

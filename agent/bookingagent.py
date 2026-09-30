@@ -93,9 +93,9 @@ class BookingAgent:
     def __init__(self):
         self.name = "BookingAgent"
         self.description = "Specialized agent for searching vaccine inventory, checking hospital clinic schedules, and booking vaccination appointments."
-        self.base_url = settings.runpod_base_url.rstrip("/")
-        self.model = settings.model_name
-        self.api_key = settings.runpod_api_key
+        self.base_url = settings.openrouter_base_url.rstrip("/")
+        self.model = settings.openrouter_model
+        self.api_key = settings.openrouter_api_key
 
     async def _call_llm(self, messages: List[Dict[str, Any]], tools: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
         """Calls the OpenAI-compatible endpoint with full error resilience."""
@@ -106,7 +106,8 @@ class BookingAgent:
         payload = {
             "model": self.model,
             "messages": messages,
-            "temperature": 0.2
+            "temperature": 0.2,
+            "max_tokens": 500,
         }
         if tools:
             payload["tools"] = tools
@@ -219,7 +220,7 @@ class BookingAgent:
                 return {
                     "agent": self.name,
                     "role": "assistant",
-                    "content": f"I encountered an issue connecting to the AI model service ({self.model}): {str(e)}. Please verify your RunPod instance is running.",
+                    "content": f"I encountered an issue connecting to the AI model service ({self.model}): {str(e)}. Please verify your OpenRouter configuration and API key.",
                     "proposal": None,
                     "booking": None,
                     "cancellation": None

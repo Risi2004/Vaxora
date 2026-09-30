@@ -8,25 +8,13 @@ env_path = Path(__file__).parent / ".env"
 load_dotenv(dotenv_path=env_path, override=True)
 
 class Settings(BaseModel):
-    # LLM Provider: "runpod" or "google"
-    llm_provider: str = os.getenv("LLM_PROVIDER", "runpod")
+    # OpenRouter LLM Settings
+    openrouter_base_url: str = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1").rstrip("/")
+    openrouter_api_key: str = os.getenv("OPENROUTER_API_KEY", "")
+    openrouter_model: str = os.getenv("OPENROUTER_MODEL", "qwen/qwen3.8-27b")
     
-    # RunPod / Open-Source LLM Settings (strictly read from .env)
-    runpod_base_url: str = os.getenv("RUNPOD_BASE_URL", "").rstrip("/")
-    runpod_api_key: str = os.getenv("RUNPOD_API_KEY", "ollama")
-    model_name: str = os.getenv("MODEL_NAME", "qwen2.5:7b")
-
-    # Inventory Agents (Groq)
-    groq_base_url: str = os.getenv("GROQ_BASE_URL", "https://api.groq.com/openai/v1").rstrip("/")
-    groq_api_key: str = os.getenv("GROQ_API_KEY", "")
-    groq_model: str = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
-    
-    # Google GenAI / ADK Settings
-    gemini_api_key: str = os.getenv("GEMINI_API_KEY", "")
-    gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
-    
-    # Vaxora ASP.NET Core API Base URL
-    vaxora_api_base_url: str = os.getenv("VAXORA_API_BASE_URL", "http://localhost:5004/api").rstrip("/")
+    # Vaxora ASP.NET Core API Base URL (normalized to always end with /api)
+    vaxora_api_base_url: str = os.getenv("VAXORA_API_BASE_URL", "http://localhost:5004/api")
     
     # Server port for the Agent FastAPI service
     port: int = int(os.getenv("PORT", "8001"))
@@ -36,4 +24,15 @@ class Settings(BaseModel):
     # Leave empty to disable the check (local development).
     agent_service_key: str = os.getenv("AGENT_SERVICE_KEY", "")
 
+    def __init__(self, **data):
+        super().__init__(**data)
+        # Normalize vaxora_api_base_url: strip trailing slashes and ensure /api path exists
+        url = self.vaxora_api_base_url.rstrip("/")
+        if url and not url.endswith("/api"):
+            self.vaxora_api_base_url = f"{url}/api"
+        else:
+            self.vaxora_api_base_url = url
+        self.openrouter_base_url = self.openrouter_base_url.rstrip("/")
+
 settings = Settings()
+

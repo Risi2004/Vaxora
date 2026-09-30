@@ -40,7 +40,11 @@ class ApiClient {
     }
   }
 
-  static Future<dynamic> post(String endpoint, {dynamic body}) async {
+  static Future<dynamic> post(
+    String endpoint, {
+    dynamic body,
+    Duration timeout = const Duration(seconds: 120),
+  }) async {
     final uri = Uri.parse('${ApiConstants.baseUrl}$endpoint');
     final headers = await _getHeaders();
 
@@ -51,7 +55,7 @@ class ApiClient {
             headers: headers,
             body: body != null ? jsonEncode(body) : null,
           )
-          .timeout(const Duration(seconds: 45));
+          .timeout(timeout);
       return _processResponse(response);
     } catch (e) {
       if (e is ApiException) rethrow;
@@ -66,6 +70,25 @@ class ApiClient {
     try {
       final response = await http
           .put(
+            uri,
+            headers: headers,
+            body: body != null ? jsonEncode(body) : null,
+          )
+          .timeout(const Duration(seconds: 45));
+      return _processResponse(response);
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      throw ApiException('Unable to connect to Vaxora server ($e). Please ensure backend is running at ${ApiConstants.baseUrl}');
+    }
+  }
+
+  static Future<dynamic> patch(String endpoint, {dynamic body}) async {
+    final uri = Uri.parse('${ApiConstants.baseUrl}$endpoint');
+    final headers = await _getHeaders();
+
+    try {
+      final response = await http
+          .patch(
             uri,
             headers: headers,
             body: body != null ? jsonEncode(body) : null,

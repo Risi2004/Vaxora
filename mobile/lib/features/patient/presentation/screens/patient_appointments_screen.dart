@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_text_styles.dart';
+import '../../../auth/data/models/user_model.dart';
+import '../../../auth/data/repositories/auth_repository.dart';
+import '../../../staff/presentation/widgets/network_avatar.dart';
+import '../../../staff/presentation/widgets/staff_common_widgets.dart';
+import '../../data/repositories/appointment_repository.dart';
+import '../widgets/agent_booking_sheet.dart';
 import '../widgets/appointment_card.dart';
 import '../widgets/book_appointment_sheet.dart';
 import '../widgets/digital_certificate_sheet.dart';
-import '../widgets/agent_booking_sheet.dart';
 import '../widgets/payhere_checkout_sheet.dart';
-import '../../data/repositories/appointment_repository.dart';
-import '../../../auth/data/models/user_model.dart';
-import '../../../auth/data/repositories/auth_repository.dart';
 
 class PatientAppointmentsScreen extends StatefulWidget {
   final List<PatientAppointment>? initialAppointments;
@@ -165,15 +166,36 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Cancel Appointment?', style: TextStyle(fontWeight: FontWeight.w700)),
-        content: Text('Are you sure you want to cancel your appointment for ${apt.vaccineName}?'),
+        backgroundColor: StaffSurfaces.cardBg,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(StaffSurfaces.cardRadius),
+        ),
+        title: const Text(
+          'Cancel appointment?',
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            color: StaffSurfaces.textPrimary,
+          ),
+        ),
+        content: Text(
+          'Cancel your ${apt.vaccineName} session at ${apt.hospitalName}?',
+          style: const TextStyle(
+            fontSize: 13.5,
+            color: StaffSurfaces.textSecondary,
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Keep Appointment', style: TextStyle(color: AppColors.textMuted)),
+            child: const Text(
+              'Keep',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: StaffSurfaces.textSecondary,
+              ),
+            ),
           ),
-          ElevatedButton(
+          FilledButton(
             onPressed: () async {
               Navigator.pop(ctx);
               try {
@@ -182,7 +204,8 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen> {
                 if (mounted) {
                   setState(() {
                     _appointments = _appointments.map((a) {
-                      if ((apt.rawId.isNotEmpty && a.rawId == apt.rawId) || a.id == apt.id) {
+                      if ((apt.rawId.isNotEmpty && a.rawId == apt.rawId) ||
+                          a.id == apt.id) {
                         return PatientAppointment(
                           id: a.id,
                           rawId: a.rawId,
@@ -206,7 +229,7 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen> {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       backgroundColor: AppColors.error,
-                      content: Text('Appointment cancelled successfully.'),
+                      content: Text('Appointment cancelled.'),
                       behavior: SnackBarBehavior.floating,
                     ),
                   );
@@ -216,15 +239,18 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen> {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       backgroundColor: AppColors.error,
-                      content: Text('Failed to cancel appointment: $e'),
+                      content: Text('Failed to cancel: $e'),
                       behavior: SnackBarBehavior.floating,
                     ),
                   );
                 }
               }
             },
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-            child: const Text('Yes, Cancel', style: TextStyle(color: Colors.white)),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.error,
+              elevation: 0,
+            ),
+            child: const Text('Cancel session'),
           ),
         ],
       ),
@@ -284,179 +310,147 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen> {
     final filteredAppointments = _selectedFilter == 0 ? upcomingList : pastList;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        title: const Text('My Appointments', style: AppTextStyles.h3),
-        centerTitle: false,
-        backgroundColor: Colors.white,
-        elevation: 0,
+      backgroundColor: StaffSurfaces.pageBg,
+      appBar: StaffScreenHeader.appBar(
+        displayName: _user?.name.isNotEmpty == true ? _user!.name : 'Citizen',
+        subtitle: 'Patient · Bookings',
+        photoUrl: resolveMediaUrl(_user?.profilePhotoUrl),
         actions: [
-          TextButton.icon(
+          StaffHeaderAction(
+            icon: Icons.auto_awesome,
+            tooltip: 'Book with AI',
             onPressed: _openAgentBookingSheet,
-            icon: const Text('🤖', style: TextStyle(fontSize: 16)),
-            label: const Text('AI Booking', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.brandBlue)),
           ),
-          IconButton(
+          StaffHeaderAction(
+            icon: Icons.add,
+            tooltip: 'Manual booking',
             onPressed: _openBookSheet,
-            icon: const Icon(Icons.add_circle, color: AppColors.brandBlue, size: 26),
-            tooltip: 'Manual Booking',
           ),
         ],
       ),
-      body: Column(
-        children: [
-          // Filter Tabs (Upcoming / Past)
-          Container(
-            color: Colors.white,
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 14),
-            child: Container(
+      body: RefreshIndicator(
+        onRefresh: _loadBackendAppointments,
+        color: StaffSurfaces.brandSoft,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 28),
+          children: [
+            StaffPageIntro(
+              eyebrow: 'Vaccination bookings',
+              title: _selectedFilter == 0 ? 'Upcoming sessions' : 'Past sessions',
+              subtitle: _selectedFilter == 0
+                  ? 'Confirmed and pending slots you can still manage.'
+                  : 'Completed and cancelled sessions on your record.',
+              stats: [
+                StaffIntroStat(
+                  label: 'Upcoming',
+                  value: '${upcomingList.length}',
+                  icon: Icons.event_note_outlined,
+                ),
+                StaffIntroStat(
+                  label: 'Past',
+                  value: '${pastList.length}',
+                  icon: Icons.history,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Container(
               padding: const EdgeInsets.all(4),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF1F5F9),
-                borderRadius: BorderRadius.circular(12),
-              ),
+              decoration: StaffSurfaces.softWell(),
               child: Row(
                 children: [
                   Expanded(
-                    child: InkWell(
+                    child: _FilterChip(
+                      label: 'Upcoming',
+                      selected: _selectedFilter == 0,
                       onTap: () => setState(() => _selectedFilter = 0),
-                      borderRadius: BorderRadius.circular(9),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 9),
-                        decoration: BoxDecoration(
-                          color: _selectedFilter == 0 ? Colors.white : Colors.transparent,
-                          borderRadius: BorderRadius.circular(9),
-                          boxShadow: _selectedFilter == 0
-                              ? [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.05),
-                                    blurRadius: 4,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ]
-                              : null,
-                        ),
-                        child: Text(
-                          'Upcoming (${upcomingList.length})',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: _selectedFilter == 0 ? AppColors.brandBlue : AppColors.textMuted,
-                          ),
-                        ),
-                      ),
                     ),
                   ),
                   Expanded(
-                    child: InkWell(
+                    child: _FilterChip(
+                      label: 'Past',
+                      selected: _selectedFilter == 1,
                       onTap: () => setState(() => _selectedFilter = 1),
-                      borderRadius: BorderRadius.circular(9),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 9),
-                        decoration: BoxDecoration(
-                          color: _selectedFilter == 1 ? Colors.white : Colors.transparent,
-                          borderRadius: BorderRadius.circular(9),
-                          boxShadow: _selectedFilter == 1
-                              ? [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.05),
-                                    blurRadius: 4,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ]
-                              : null,
-                        ),
-                        child: Text(
-                          'Past / History (${pastList.length})',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: _selectedFilter == 1 ? AppColors.brandBlue : AppColors.textMuted,
-                          ),
-                        ),
-                      ),
                     ),
                   ),
                 ],
               ),
             ),
-          ),
-
-          // Appointment List
-          Expanded(
-            child: RefreshIndicator(
-              onRefresh: _loadBackendAppointments,
-              color: AppColors.brandBlue,
-              child: _isLoading
-                  ? const Center(child: CircularProgressIndicator(color: AppColors.brandBlue))
-                  : filteredAppointments.isEmpty
-                      ? ListView(
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 80),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const Icon(Icons.event_busy, size: 54, color: AppColors.textMuted),
-                                  const SizedBox(height: 16),
-                                  Text(
-                                    _selectedFilter == 0 ? 'No upcoming appointments' : 'No past appointments on record',
-                                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textTitle),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  const Text(
-                                    'Schedule your recommended vaccination dosage at an accredited hospital or MOH center.',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(fontSize: 13, color: AppColors.textMuted),
-                                  ),
-                                  const SizedBox(height: 20),
-                                  ElevatedButton.icon(
-                                    onPressed: _openBookSheet,
-                                    icon: const Icon(Icons.add, size: 18),
-                                    label: const Text('Book Appointment'),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: AppColors.brandBlue,
-                                      foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        )
-                      : ListView.builder(
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
-                          itemCount: filteredAppointments.length,
-                          itemBuilder: (context, index) {
-                            final apt = filteredAppointments[index];
-                            return AppointmentCard(
-                              appointment: apt,
-                              onViewSlip: () => _showSlipSheet(apt),
-                              onCancel: () => _cancelAppointment(apt),
-                              onPayNow: (!apt.isPaid &&
-                                      apt.status.toLowerCase() != 'confirmed' &&
-                                      apt.status.toLowerCase() != 'completed' &&
-                                      apt.status.toLowerCase() != 'cancelled')
-                                  ? () => _payNow(apt)
-                                  : null,
-                            );
-                          },
-                        ),
+            const SizedBox(height: 18),
+            StaffSectionHeader(
+              title: _selectedFilter == 0 ? 'Sessions' : 'History',
+              count: filteredAppointments.length,
             ),
-          ),
-        ],
+            if (_isLoading && _appointments.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 48),
+                child: Center(
+                  child: CircularProgressIndicator(color: StaffSurfaces.brandSoft),
+                ),
+              )
+            else if (filteredAppointments.isEmpty)
+              StaffEmptyCard(
+                message: _selectedFilter == 0
+                    ? 'No upcoming sessions. Book a slot with AI or the form.'
+                    : 'No past appointments on record.',
+                icon: Icons.event_busy_outlined,
+              )
+            else
+              ...filteredAppointments.map(
+                (apt) => AppointmentCard(
+                  appointment: apt,
+                  onViewSlip: () => _showSlipSheet(apt),
+                  onCancel: () => _cancelAppointment(apt),
+                  onPayNow: (!apt.isPaid &&
+                          apt.status.toLowerCase() != 'confirmed' &&
+                          apt.status.toLowerCase() != 'completed' &&
+                          apt.status.toLowerCase() != 'cancelled')
+                      ? () => _payNow(apt)
+                      : null,
+                ),
+              ),
+          ],
+        ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _openBookSheet,
-        backgroundColor: AppColors.brandBlue,
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.add),
-        label: const Text('Book Slot', style: TextStyle(fontWeight: FontWeight.w700)),
+    );
+  }
+}
+
+class _FilterChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _FilterChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: selected ? StaffSurfaces.cardBg : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: selected ? StaffSurfaces.cardBorder : Colors.transparent,
+          ),
+        ),
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            color: selected ? StaffSurfaces.brandSoft : StaffSurfaces.textSecondary,
+          ),
+        ),
       ),
     );
   }

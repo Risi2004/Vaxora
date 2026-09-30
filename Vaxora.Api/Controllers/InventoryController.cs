@@ -9,7 +9,7 @@ namespace Vaxora.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = "HOSPITAL,ADMIN,NURSE")]
+[Authorize(Roles = "HOSPITAL,ADMIN,NURSE,DOCTOR")]
 public class InventoryController : ControllerBase
 {
     private readonly IInventoryService _inventoryService;

@@ -13,7 +13,12 @@ public record AgentGatewayResult(bool Success, string? Json, string? Error)
 
 public interface IAgentGatewayService
 {
-    Task<AgentGatewayResult> ChatAsync(AgentChatRequestDto request, string? bearerToken, CancellationToken ct = default);
+    Task<AgentGatewayResult> ChatAsync(
+        AgentChatRequestDto request,
+        string? bearerToken,
+        IReadOnlyCollection<string>? allowedAgents = null,
+        CancellationToken ct = default);
+    Task<AgentGatewayResult> PatientCarePlanAsync(Guid patientProfileId, string? bearerToken, CancellationToken ct = default);
     Task<AgentHealthDto> HealthAsync(CancellationToken ct = default);
 }
 
@@ -51,6 +56,7 @@ public class AgentGatewayService : IAgentGatewayService
     public async Task<AgentGatewayResult> ChatAsync(
         AgentChatRequestDto request,
         string? bearerToken,
+        IReadOnlyCollection<string>? allowedAgents = null,
         CancellationToken ct = default)
     {
         // Rebuild the payload from validated fields only, so nothing the client attached
@@ -59,7 +65,10 @@ public class AgentGatewayService : IAgentGatewayService
         {
             messages = request.Messages.Select(m => new { role = m.Role, content = m.Content }).ToList(),
             patientInfo = request.PatientInfo,
-            targetAgent = string.IsNullOrWhiteSpace(request.TargetAgent) ? null : request.TargetAgent
+            targetAgent = string.IsNullOrWhiteSpace(request.TargetAgent) ? null : request.TargetAgent,
+            // The caller's role decides which agents may run, so keyword routing inside the
+            // agent service cannot reach an agent this user is not allowed to drive.
+            allowedAgents = allowedAgents
         };
 
         var client = _httpClientFactory.CreateClient(HttpClientName);
@@ -101,6 +110,60 @@ public class AgentGatewayService : IAgentGatewayService
         {
             _logger.LogWarning("Agent service call timed out.");
             return AgentGatewayResult.Fail("The AI assistant took too long to respond. Please try again.");
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "Agent service is unreachable.");
+            return AgentGatewayResult.Fail("The AI assistant is currently unavailable.");
+        }
+    }
+
+    public async Task<AgentGatewayResult> PatientCarePlanAsync(
+        Guid patientProfileId,
+        string? bearerToken,
+        CancellationToken ct = default)
+    {
+        var payload = new { patient_profile_id = patientProfileId.ToString() };
+
+        var client = _httpClientFactory.CreateClient(HttpClientName);
+        using var message = new HttpRequestMessage(HttpMethod.Post, "/api/agent/patient-care-plan")
+        {
+            Content = new StringContent(JsonSerializer.Serialize(payload, JsonOptions), Encoding.UTF8, "application/json")
+        };
+
+        if (!string.IsNullOrWhiteSpace(bearerToken))
+        {
+            message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
+        }
+
+        if (!string.IsNullOrWhiteSpace(_agentServiceKey))
+        {
+            message.Headers.Add(AgentKeyHeader, _agentServiceKey);
+        }
+
+        try
+        {
+            using var response = await client.SendAsync(message, ct);
+            var body = await response.Content.ReadAsStringAsync(ct);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("Agent service returned {StatusCode} for care plan.", (int)response.StatusCode);
+                return AgentGatewayResult.Fail("The care plan workflow could not complete. Please try again.");
+            }
+
+            if (!IsValidJsonObject(body))
+            {
+                _logger.LogWarning("Agent service returned an unrecognised care-plan payload shape.");
+                return AgentGatewayResult.Fail("The care plan workflow returned an unreadable response.");
+            }
+
+            return AgentGatewayResult.Ok(body);
+        }
+        catch (TaskCanceledException)
+        {
+            _logger.LogWarning("Agent care-plan call timed out.");
+            return AgentGatewayResult.Fail("The care plan workflow took too long to respond. Please try again.");
         }
         catch (HttpRequestException ex)
         {
@@ -152,6 +215,22 @@ public class AgentGatewayService : IAgentGatewayService
             return document.RootElement.ValueKind == JsonValueKind.Object &&
                    document.RootElement.TryGetProperty("content", out var content) &&
                    content.ValueKind == JsonValueKind.String;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>Looser check for endpoints that return a structured object (not just a chat message).</summary>
+    private static bool IsValidJsonObject(string body)
+    {
+        if (string.IsNullOrWhiteSpace(body)) return false;
+
+        try
+        {
+            using var document = JsonDocument.Parse(body);
+            return document.RootElement.ValueKind == JsonValueKind.Object;
         }
         catch (JsonException)
         {

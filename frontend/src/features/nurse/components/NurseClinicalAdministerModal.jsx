@@ -1,17 +1,29 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+
+/** Blank administration record. Confirmations start unticked so the nurse must sign off. */
+const emptyAdministration = {
+  lotNumber: '',
+  injectionSite: 'Left Deltoid',
+  route: 'Intramuscular (IM)',
+  dosage: '',
+  notes: '',
+  consentConfirmed: false,
+  vitalsConfirmed: false,
+};
 
 export default function NurseClinicalAdministerModal({ isOpen, onClose, patient, onCertify }) {
-  if (!isOpen || !patient) return null;
+  const [formData, setFormData] = useState(emptyAdministration);
 
-  const [formData, setFormData] = useState({
-    lotNumber: 'HB-8821',
-    injectionSite: 'Left Deltoid',
-    route: 'Intramuscular (IM)',
-    dosage: patient.dose || '1.0 mL (Physician Prescribed)',
-    notes: 'Pre-vaccination triage completed. Patient afebrile. Prescribed dose verified by nurse.',
-    consentConfirmed: true,
-    vitalsConfirmed: true,
-  });
+  // Reset per patient so one patient's entries can never be certified against another.
+  useEffect(() => {
+    if (!isOpen) return;
+    setFormData({
+      ...emptyAdministration,
+      dosage: patient?.hasDosage ? patient.dose : '',
+    });
+  }, [isOpen, patient?.id, patient?.dose, patient?.hasDosage]);
+
+  if (!isOpen || !patient) return null;
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -61,7 +73,7 @@ export default function NurseClinicalAdministerModal({ isOpen, onClose, patient,
                   {patient.name}
                 </span>
                 <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '3px' }}>
-                  NIC: {patient.nic} • Age: {patient.age} yrs ({patient.gender})
+                  NIC: {patient.nic}
                 </div>
               </div>
               <div style={{ textAlign: 'right' }}>
@@ -82,7 +94,9 @@ export default function NurseClinicalAdministerModal({ isOpen, onClose, patient,
                   className="doctor-form-select"
                   value={formData.lotNumber}
                   onChange={(e) => setFormData({ ...formData, lotNumber: e.target.value })}
+                  required
                 >
+                  <option value="">Select the lot being administered</option>
                   <option value="HB-8821">Lot #HB-8821 (Exp: Nov 2027)</option>
                   <option value="PF-9082">Lot #PF-9082 (Exp: Oct 2027)</option>
                   <option value="MD-4419">Lot #MD-4419 (Exp: Aug 2027)</option>
@@ -171,7 +185,7 @@ export default function NurseClinicalAdministerModal({ isOpen, onClose, patient,
               Cancel
             </button>
             <button type="submit" className="doctor-btn-submit" style={{ background: '#0284c7' }}>
-              💉 Confirm Dose &amp; Transfer to Observation
+              Confirm Dose &amp; Transfer to Observation
             </button>
           </div>
         </form>

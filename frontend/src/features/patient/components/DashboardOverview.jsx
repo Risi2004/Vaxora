@@ -1,226 +1,538 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { authService, getUser } from '../../auth';
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { authService, getUser } from "../../auth";
+import { agentService } from "../services/agentService";
+import { appointmentService } from "../services/appointmentService";
+import { patientVaccinationService } from "../services/patientVaccinationService";
+import CarePlanModal from "./CarePlanModal";
+import {
+  IconBot,
+  IconCalendar,
+  IconClock,
+  IconDoctor,
+  IconHospital,
+  IconRefresh,
+  IconRocket,
+  IconShield,
+  IconStethoscope,
+  IconSyringe,
+} from "../../../shared/icons/AppIcons";
+import heroImage from "../../../assets/images/patient-home-hero.png";
+
+// ---------- Date helpers ----------
+const formatLongDate = (iso) => {
+  if (!iso) return "—";
+  try {
+    return new Date(iso).toLocaleDateString("en-GB", {
+      weekday: "long",
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  } catch {
+    return iso;
+  }
+};
+
+const formatShortDate = (iso) => {
+  if (!iso) return "—";
+  try {
+    return new Date(iso).toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  } catch {
+    return iso;
+  }
+};
+
+const daysAgo = (iso) => {
+  if (!iso) return "";
+  const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+  if (diff < 0) return `in ${Math.abs(diff)} days`;
+  if (diff === 0) return "Today";
+  if (diff === 1) return "Yesterday";
+  if (diff < 30) return `${diff} days ago`;
+  if (diff < 365) return `${Math.floor(diff / 30)} months ago`;
+  return `${Math.floor(diff / 365)} years ago`;
+};
+
+const daysUntil = (iso) => {
+  if (!iso) return "";
+  const diff = Math.ceil((new Date(iso).getTime() - Date.now()) / 86400000);
+  if (diff === 0) return "Today";
+  if (diff === 1) return "Tomorrow";
+  return `in ${diff} days`;
+};
 
 export default function DashboardOverview({ onNavigateTab, onOpenBookModal }) {
   const navigate = useNavigate();
 
   const [displayName, setDisplayName] = useState(() => {
-    const cached = typeof authService?.getUser === 'function' ? authService.getUser() : (getUser ? getUser() : null);
-    return cached?.name || cached?.profileDetails?.fullName || '';
+    const cached =
+      typeof authService?.getUser === "function"
+        ? authService.getUser()
+        : getUser
+          ? getUser()
+          : null;
+    return cached?.name || cached?.profileDetails?.fullName || "";
   });
 
+  // ---------- Care plan state ----------
+  const [carePlanOpen, setCarePlanOpen] = useState(false);
+  const [carePlanLoading, setCarePlanLoading] = useState(false);
+  const [carePlanError, setCarePlanError] = useState(null);
+  const [carePlanResult, setCarePlanResult] = useState(() => {
+    try {
+      const user = getUser();
+      const patientProfileId =
+        user?.profileDetails?.id || user?.profileId || user?.patientProfileId;
+      if (!patientProfileId) return null;
+      const cached = localStorage.getItem(
+        `vaxora_care_plan_${patientProfileId}`
+      );
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed?.care_plan) return parsed;
+      }
+    } catch {
+      // ignore
+    }
+    return null;
+  });
+
+  // ---------- Dashboard data state ----------
+  const [nextAppointment, setNextAppointment] = useState(null);
+  const [recentVaccines, setRecentVaccines] = useState([]);
+  const [vaccinationStats, setVaccinationStats] = useState({
+    totalDoses: 0,
+    distinctVaccines: 0,
+    lastVaccinatedAt: null,
+  });
+  const [dashboardLoading, setDashboardLoading] = useState(true);
+
+  // ---------- Fetch latest profile (existing behaviour) ----------
   useEffect(() => {
     const fetchLatestProfile = async () => {
       try {
-        if (typeof authService?.getMe === 'function') {
+        if (typeof authService?.getMe === "function") {
           const fresh = await authService.getMe();
           const name = fresh?.name || fresh?.profileDetails?.fullName;
-          if (name) {
-            setDisplayName(name);
-          }
+          if (name) setDisplayName(name);
         }
       } catch (err) {
-        console.warn('Could not fetch latest user profile for dashboard banner:', err);
+        console.warn("Could not fetch latest user profile:", err);
       }
     };
-
     fetchLatestProfile();
   }, []);
 
-  const scheduleItems = [
-    {
-      id: 1,
-      name: 'COVID-19 mRNA Booster',
-      target: 'Dose 3 • Annual Protection',
-      status: 'Scheduled',
-      statusClass: 'status-scheduled',
-      date: 'Oct 12, 2026',
-      icon: '💉',
-    },
-    {
-      id: 2,
-      name: 'Influenza (Quadrivalent)',
-      target: 'Seasonal Influenza',
-      status: 'Due Soon',
-      statusClass: 'status-due',
-      date: 'Nov 2026',
-      icon: '🛡️',
-    },
-    {
-      id: 3,
-      name: 'Hepatitis B Booster',
-      target: 'Dose 3 Completed',
-      status: 'Completed',
-      statusClass: 'status-completed',
-      date: 'Jan 15, 2026',
-      icon: '✅',
-    },
-    {
-      id: 4,
-      name: 'Tetanus, Diphtheria (Td)',
-      target: '10-Year Routine Booster',
-      status: 'Completed',
-      statusClass: 'status-completed',
-      date: 'Aug 04, 2025',
-      icon: '✅',
-    },
-  ];
+  // ---------- Load real dashboard data ----------
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadDashboardData = async () => {
+      const user = getUser();
+      const patientProfileId =
+        user?.profileDetails?.id || user?.profileId || user?.patientProfileId;
+
+      try {
+        setDashboardLoading(true);
+
+        // 1. Appointments (next confirmed upcoming)
+        try {
+          const appointments =
+            await appointmentService.getPatientAppointments();
+          if (!cancelled && Array.isArray(appointments)) {
+            const todayStr = new Date().toISOString().split("T")[0];
+            const upcoming = appointments
+              .filter((a) => {
+                const status = String(a.status || a.Status || "").toLowerCase();
+                const date = a.appointmentDate || a.date || a.Date;
+                return status !== "cancelled" && date >= todayStr;
+              })
+              .sort(
+                (a, b) =>
+                  new Date(a.appointmentDate || a.date) -
+                  new Date(b.appointmentDate || b.date),
+              );
+            setNextAppointment(upcoming[0] || null);
+          }
+        } catch (err) {
+          console.warn("Could not load appointments for dashboard:", err);
+        }
+
+        // 2. Vaccination timeline
+        if (patientProfileId) {
+          try {
+            const timeline =
+              await patientVaccinationService.getTimeline(patientProfileId);
+            if (!cancelled && timeline) {
+              setVaccinationStats({
+                totalDoses: timeline.totalDoses ?? 0,
+                distinctVaccines: timeline.distinctVaccines ?? 0,
+                lastVaccinatedAt: timeline.lastVaccinatedAt || null,
+              });
+              const records = Array.isArray(timeline.records)
+                ? timeline.records
+                : [];
+              setRecentVaccines(records.slice(0, 4));
+            }
+          } catch (err) {
+            console.warn("Could not load vaccination timeline:", err);
+          }
+        }
+      } finally {
+        if (!cancelled) setDashboardLoading(false);
+      }
+    };
+
+    loadDashboardData();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+
+
+  // ---------- Care plan trigger ----------
+  const handleGenerateCarePlan = async () => {
+    const user = getUser();
+    const patientProfileId =
+      user?.profileDetails?.id || user?.profileId || user?.patientProfileId;
+
+    if (!patientProfileId) {
+      setCarePlanError(
+        "Your patient profile could not be found. Please contact support.",
+      );
+      setCarePlanOpen(true);
+      return;
+    }
+
+    setCarePlanOpen(true);
+    setCarePlanLoading(true);
+    setCarePlanError(null);
+
+    try {
+      const result = await agentService.patientCarePlan(patientProfileId);
+      setCarePlanResult(result);
+      if (result?.success) {
+        try {
+          localStorage.setItem(
+            `vaxora_care_plan_${patientProfileId}`,
+            JSON.stringify(result)
+          );
+        } catch (e) {
+          console.warn("Could not cache care plan:", e);
+        }
+      } else {
+        setCarePlanError(
+          result?.error || "The AI assistant could not generate a care plan.",
+        );
+      }
+    } catch (err) {
+      setCarePlanError(err.message || "Failed to generate care plan.");
+    } finally {
+      setCarePlanLoading(false);
+    }
+  };
+
+  // ---------- Derived values for stat cards ----------
+  const nextApptDate = nextAppointment
+    ? nextAppointment.appointmentDate || nextAppointment.date
+    : null;
+  const nextApptVaccine = nextAppointment
+    ? nextAppointment.vaccineName || nextAppointment.vaccine || "Appointment"
+    : null;
 
   return (
     <div className="dashboard-overview-tab">
-      {/* 1. Welcome Banner */}
-      <div className="patient-welcome-banner">
-        <div className="welcome-text-group">
-          <h1>Welcome back{displayName ? `, ${displayName}` : ''}! 👋</h1>
-          <p className="welcome-subtitle">
-            Your Vaxora immunization pass is cryptographically verified and up-to-date.
-            Your next booster dose is confirmed for October 12, 2026.
+      {/* ---------- 1. Welcome Banner ---------- */}
+      <section className="patient-welcome-banner">
+        <div className="patient-welcome-content">
+          <p className="patient-welcome-eyebrow">
+            <IconStethoscope size={14} /> Your care hub
           </p>
-        </div>
-        <button
-          type="button"
-          className="btn-banner-action"
-          onClick={() => (onOpenBookModal ? onOpenBookModal() : navigate('/patient/appointments'))}
-        >
-          + Book Vaccination
-        </button>
-      </div>
-
-      {/* 2. Stat Metric Cards */}
-      <div className="patient-stats-grid">
-        <div className="patient-stat-card">
-          <div className="stat-card-icon-box icon-blue">
-            📅
+          <h1>Welcome back{displayName ? `, ${displayName}` : ""}!</h1>
+          <p className="welcome-subtitle">
+            {nextAppointment
+              ? `Your next vaccination is scheduled for ${formatShortDate(nextApptDate)}.`
+              : "Your Vaxora immunization pass is cryptographically verified and up-to-date. No upcoming appointments scheduled."}
+          </p>
+          <div className="patient-welcome-tags">
+            <span className="patient-welcome-tag">
+              <IconShield size={13} /> Protected
+            </span>
+            <span className="patient-welcome-tag">
+              <IconSyringe size={13} /> Vaccination ready
+            </span>
+            <span className="patient-welcome-tag patient-welcome-tag--soft">
+              Care-first support
+            </span>
           </div>
-          <div className="stat-card-info">
-            <span className="stat-card-label">Upcoming Dose</span>
-            <span className="stat-card-value">12 Oct 2026</span>
-            <span className="stat-card-note">COVID-19 Booster</span>
-          </div>
-        </div>
-
-        <div className="patient-stat-card">
-          <div className="stat-card-icon-box icon-green">
-            💉
-          </div>
-          <div className="stat-card-info">
-            <span className="stat-card-label">Doses Received</span>
-            <span className="stat-card-value">4 Completed</span>
-            <span className="stat-card-note">100% Up to date</span>
-          </div>
-        </div>
-
-        <div className="patient-stat-card">
-          <div className="stat-card-icon-box icon-purple">
-            🛡️
-          </div>
-          <div className="stat-card-info">
-            <span className="stat-card-label">Health Pass Status</span>
-            <span className="stat-card-value">Verified</span>
-            <span className="stat-card-note">QR Valid Internationally</span>
-          </div>
-        </div>
-
-        <div className="patient-stat-card">
-          <div className="stat-card-icon-box icon-amber">
-            ⏰
-          </div>
-          <div className="stat-card-info">
-            <span className="stat-card-label">Next Due</span>
-            <span className="stat-card-value">Influenza</span>
-            <span className="stat-card-note">Recommended in 60 days</span>
-          </div>
-        </div>
-      </div>
-
-      {/* 3. Main Dashboard Columns */}
-      <div className="dashboard-columns-grid">
-        {/* Left Column: Spotlight Upcoming Appointment & Advisories */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          <div className="patient-panel-card">
-            <div className="panel-header-row">
-              <h2 className="panel-title">Next Confirmed Appointment</h2>
+          <div className="patient-welcome-actions">
+            {carePlanResult ? (
+              <>
+                <button
+                  type="button"
+                  className="btn-banner-action"
+                  onClick={() => setCarePlanOpen(true)}
+                >
+                  <IconBot size={16} /> View Care Plan
+                </button>
+                <button
+                  type="button"
+                  className="btn-banner-action"
+                  onClick={handleGenerateCarePlan}
+                >
+                  <IconRefresh size={16} /> Refresh Plan
+                </button>
+              </>
+            ) : (
               <button
                 type="button"
-                className="panel-link-btn"
-                onClick={() => onNavigateTab('appointments')}
+                className="btn-banner-action"
+                onClick={handleGenerateCarePlan}
               >
-                View all →
+                <IconBot size={16} /> Generate AI Care Plan
+              </button>
+            )}
+            <button
+              type="button"
+              className="btn-banner-action btn-banner-action--primary"
+              onClick={() =>
+                onOpenBookModal
+                  ? onOpenBookModal()
+                  : navigate("/patient/appointments")
+              }
+            >
+              + Book Vaccination
+            </button>
+          </div>
+        </div>
+        <div className="patient-welcome-media" aria-hidden="true">
+          <img
+            src={heroImage}
+            alt=""
+            className="patient-welcome-image"
+          />
+        </div>
+      </section>
+
+      {/* ---------- 2. Stat Metric Cards (match hospital home pattern) ---------- */}
+      <div className="hospital-metrics-grid hospital-metrics-grid--4">
+        <div className="hospital-stat-card">
+          <div className="hospital-stat-icon stat-icon-purple">
+            <IconCalendar size={22} />
+          </div>
+          <div className="hospital-stat-info">
+            <span className="hospital-stat-label">Upcoming Dose</span>
+            <span className="hospital-stat-value">
+              {dashboardLoading
+                ? "—"
+                : nextAppointment
+                  ? formatShortDate(nextApptDate)
+                  : "—"}
+            </span>
+            <span className="hospital-stat-meta">
+              {dashboardLoading
+                ? "Loading"
+                : nextAppointment
+                  ? nextApptVaccine
+                  : "No upcoming appointment"}
+            </span>
+          </div>
+        </div>
+
+        <div className="hospital-stat-card">
+          <div className="hospital-stat-icon stat-icon-blue">
+            <IconSyringe size={22} />
+          </div>
+          <div className="hospital-stat-info">
+            <span className="hospital-stat-label">Doses Received</span>
+            <span className="hospital-stat-value">
+              {dashboardLoading ? "—" : vaccinationStats.totalDoses}
+            </span>
+            <span className="hospital-stat-meta">
+              {vaccinationStats.totalDoses > 0
+                ? "Completed in registry"
+                : "No doses on file"}
+            </span>
+          </div>
+        </div>
+
+        <div className="hospital-stat-card">
+          <div className="hospital-stat-icon stat-icon-teal">
+            <IconShield size={22} />
+          </div>
+          <div className="hospital-stat-info">
+            <span className="hospital-stat-label">Distinct Vaccines</span>
+            <span className="hospital-stat-value">
+              {dashboardLoading ? "—" : vaccinationStats.distinctVaccines}
+            </span>
+            <span className="hospital-stat-meta">
+              {vaccinationStats.distinctVaccines > 0
+                ? "Verified in registry"
+                : "None yet"}
+            </span>
+          </div>
+        </div>
+
+        <div className="hospital-stat-card">
+          <div className="hospital-stat-icon stat-icon-amber">
+            <IconClock size={22} />
+          </div>
+          <div className="hospital-stat-info">
+            <span className="hospital-stat-label">Last Vaccination</span>
+            <span className="hospital-stat-value">
+              {dashboardLoading
+                ? "—"
+                : vaccinationStats.lastVaccinatedAt
+                  ? formatShortDate(vaccinationStats.lastVaccinatedAt)
+                  : "—"}
+            </span>
+            <span className="hospital-stat-meta">
+              {vaccinationStats.lastVaccinatedAt
+                ? daysAgo(vaccinationStats.lastVaccinatedAt)
+                : "No record"}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* ---------- 3. Main Dashboard Columns ---------- */}
+      <div className="hospital-dashboard-columns patient-home-columns">
+        <div className="patient-home-column">
+          <div className="hospital-section-card">
+            <div className="section-card-header">
+              <div className="section-title-group">
+                <h2>
+                  <span className="section-title-icon icon-shade-purple">
+                    <IconCalendar size={22} />
+                  </span>
+                  Next Confirmed Appointment
+                </h2>
+                <p className="section-title-desc">
+                  Your upcoming dose booking and visit details
+                </p>
+              </div>
+              <button
+                type="button"
+                className="btn-inventory-refresh"
+                onClick={() => onNavigateTab("appointments")}
+              >
+                View all
               </button>
             </div>
 
-            <div className="spotlight-appointment">
-              <div className="appointment-meta-top">
-                <span className="vaccine-badge-pill">COVID-19 Booster (Moderna)</span>
-                <span className="status-badge-confirmed">● Confirmed</span>
+            {dashboardLoading ? (
+              <div className="patient-empty-state">
+                Loading your next appointment…
               </div>
+            ) : !nextAppointment ? (
+              <div className="patient-empty-state patient-empty-state--dashed">
+                <p>You have no upcoming appointments.</p>
+                <button
+                  type="button"
+                  className="btn-queue-walkin"
+                  style={{ marginLeft: 0 }}
+                  onClick={() =>
+                    onOpenBookModal
+                      ? onOpenBookModal()
+                      : navigate("/patient/appointments")
+                  }
+                >
+                  + Book an Appointment
+                </button>
+              </div>
+            ) : (
+              <div className="spotlight-appointment">
+                <div className="appointment-meta-top">
+                  <span className="vaccine-badge-pill">{nextApptVaccine}</span>
+                  <span className="status-badge-confirmed">
+                    {String(
+                      nextAppointment.status || "Confirmed",
+                    ).toUpperCase()}
+                  </span>
+                </div>
 
-              <div className="appointment-main-details">
-                <h3>National Hospital of Sri Lanka</h3>
-                <div className="appointment-hospital-line">
-                  <span>📍 Unit 4, Vaccination Clinic Wing B, Colombo 10</span>
+                <div className="appointment-main-details">
+                  <h3>
+                    {nextAppointment.hospitalName ||
+                      nextAppointment.location ||
+                      "Hospital"}
+                  </h3>
+                  <div className="appointment-hospital-line">
+                    <span className="appointment-meta-icon">
+                      <IconHospital size={14} />
+                      {nextAppointment.hospitalAddress ||
+                        nextAppointment.district ||
+                        "See appointment details"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="appointment-date-time-bar">
+                  <span className="appointment-meta-icon">
+                    <IconCalendar size={14} />
+                    {formatLongDate(nextApptDate)}
+                  </span>
+                  <span className="appointment-meta-icon">
+                    <IconClock size={14} />
+                    {nextAppointment.timeSlot || nextAppointment.time || "—"}
+                  </span>
+                  {nextAppointment.doctorName && (
+                    <span className="appointment-meta-icon">
+                      <IconDoctor size={14} />
+                      Dr. {nextAppointment.doctorName}
+                    </span>
+                  )}
+                </div>
+
+                <div className="appointment-actions-row">
+                  <button
+                    type="button"
+                    className="btn-outline-action"
+                    onClick={() => navigate("/patient/appointments")}
+                  >
+                    Manage / Reschedule
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-queue-walkin"
+                    style={{ marginLeft: 0, flex: 1 }}
+                    onClick={() =>
+                      alert(
+                        `Appointment on ${formatShortDate(nextApptDate)} — a slip has been sent to your registered email.`,
+                      )
+                    }
+                  >
+                    Download Appointment Slip
+                  </button>
                 </div>
               </div>
-
-              <div className="appointment-date-time-bar">
-                <span>🗓️ Monday, Oct 12, 2026</span>
-                <span>⏰ 10:30 AM - 11:00 AM</span>
-                <span>👨‍⚕️ Dr. N. Wickramasinghe</span>
-              </div>
-
-              <div className="appointment-actions-row">
-                <button
-                  type="button"
-                  className="btn-outline-action"
-                  onClick={() => navigate('/patient/appointments')}
-                >
-                  Manage / Reschedule
-                </button>
-                <button
-                  type="button"
-                  className="btn-outline-action"
-                  style={{ background: '#19469d', color: '#ffffff', borderColor: '#19469d' }}
-                  onClick={() => alert('Appointment Slip #VX-88349 sent to your registered email.')}
-                >
-                  Download Appointment Slip
-                </button>
-              </div>
-            </div>
+            )}
           </div>
 
-          {/* Health & Travel Advisory Notice */}
-          <div
-            className="patient-panel-card"
-            style={{
-              background: '#f8fafc',
-              border: '1.5px dashed #cbd5e1',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
-              <div
-                style={{
-                  fontSize: '1.8rem',
-                  background: '#eff6ff',
-                  padding: '10px',
-                  borderRadius: '12px',
-                }}
-              >
-                ✈️
+          <div className="hospital-section-card patient-advisory-card">
+            <div className="patient-advisory-row">
+              <div className="hospital-stat-icon stat-icon-teal">
+                <IconRocket size={22} />
               </div>
               <div>
-                <h4 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#1e1b4b', marginBottom: '4px' }}>
+                <h4 className="patient-advisory-title">
                   International Travel Immunization Advisory
                 </h4>
-                <p style={{ fontSize: '0.88rem', color: '#475569', lineHeight: 1.5 }}>
-                  Planning international travel in 2026? Ensure your Yellow Fever and Meningococcal
-                  vaccine certificates are renewed at least 14 days before departure.
+                <p className="patient-advisory-copy">
+                  Planning international travel in 2026? Ensure your Yellow
+                  Fever and Meningococcal vaccine certificates are renewed at
+                  least 14 days before departure.
                 </p>
                 <button
                   type="button"
                   className="panel-link-btn"
-                  style={{ marginTop: '8px', display: 'inline-block' }}
-                  onClick={() => navigate('/patient/vaccination-history')}
+                  onClick={() => navigate("/patient/vaccination-history")}
                 >
                   Check Vaccination Certifications →
                 </button>
@@ -229,53 +541,92 @@ export default function DashboardOverview({ onNavigateTab, onOpenBookModal }) {
           </div>
         </div>
 
-        {/* Right Column: Immunization Schedule & Timeline */}
-        <div className="patient-panel-card">
-          <div className="panel-header-row">
-            <h2 className="panel-title">Immunization Tracker</h2>
-            <button
-              type="button"
-              className="panel-link-btn"
-              onClick={() => navigate('/patient/vaccination-history')}
-            >
-              Full History →
-            </button>
+        <div className="hospital-section-card">
+          <div className="section-card-header inventory-section-header">
+            <div className="inventory-section-title-row">
+              <h2>
+                <span className="section-title-icon section-title-icon--teal">
+                  <IconShield size={22} />
+                </span>
+                Immunization Tracker
+              </h2>
+              <button
+                type="button"
+                className="btn-inventory-refresh"
+                onClick={() => navigate("/patient/vaccination-history")}
+              >
+                Full History
+              </button>
+            </div>
+            <p className="section-title-desc inventory-section-desc">
+              Recent completed doses from your vaccination registry
+            </p>
           </div>
 
-          <div className="schedule-checklist">
-            {scheduleItems.map((item) => (
-              <div key={item.id} className="schedule-item">
-                <div className="schedule-left">
-                  <div className="schedule-icon-circle">{item.icon}</div>
-                  <div>
-                    <div className="schedule-name">{item.name}</div>
-                    <div className="schedule-target">{item.target}</div>
+          <div className="patient-tracker-list">
+            {dashboardLoading ? (
+              <p className="patient-empty-state">Loading your vaccinations…</p>
+            ) : recentVaccines.length === 0 ? (
+              <p className="patient-empty-state">
+                No vaccination records on file yet.
+              </p>
+            ) : (
+              recentVaccines.map((rec, idx) => (
+                <div key={rec.id || idx} className="patient-tracker-item">
+                  <div className="schedule-left">
+                    <div className="hospital-stat-icon stat-icon-green icon-shade-sm">
+                      <IconShield size={18} />
+                    </div>
+                    <div className="patient-tracker-copy">
+                      <div className="schedule-name">
+                        {rec.vaccineName || "Vaccine"}
+                      </div>
+                      <div className="schedule-target">
+                        Dose {rec.doseNumber || 1} •{" "}
+                        {rec.administeredByName || "—"}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="patient-tracker-meta">
+                    <span className="schedule-status-tag status-completed">
+                      Completed
+                    </span>
+                    <span className="patient-tracker-date">
+                      {formatShortDate(rec.administeredAt)}
+                    </span>
                   </div>
                 </div>
-                <div style={{ textAlign: 'right' }}>
-                  <span className={`schedule-status-tag ${item.statusClass}`}>
-                    {item.status}
-                  </span>
-                  <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '4px', fontWeight: 600 }}>
-                    {item.date}
-                  </div>
-                </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
 
-          <div style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid #f1f5f9', textAlign: 'center' }}>
+          <div className="patient-tracker-footer">
             <button
               type="button"
-              className="btn-outline-action"
-              style={{ width: '100%', borderColor: '#19469d', color: '#19469d' }}
-              onClick={() => navigate('/patient/appointments')}
+              className="btn-inventory-restock"
+              style={{ width: "100%" }}
+              onClick={() => navigate("/patient/appointments")}
             >
               + Schedule Recommended Dose
             </button>
           </div>
         </div>
       </div>
+
+      {/* ---------- 4. Care Plan Modal ---------- */}
+      <CarePlanModal
+        isOpen={carePlanOpen}
+        loading={carePlanLoading}
+        error={carePlanError}
+        result={carePlanResult}
+        patientName={displayName}
+        onRegenerate={handleGenerateCarePlan}
+        onClose={() => {
+          if (carePlanLoading) return;
+          setCarePlanOpen(false);
+          setCarePlanError(null);
+        }}
+      />
     </div>
   );
 }

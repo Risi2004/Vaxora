@@ -1,4 +1,7 @@
 services:
+  # ------------------------------------------------------------
+  # 1. Vaxora ASP.NET Core Web API
+  # ------------------------------------------------------------
   - type: web
     name: vaxora-api
     env: docker
@@ -21,6 +24,10 @@ services:
         value: Vaxora.Api
       - key: Jwt__Audience
         value: Vaxora.Client
+      - key: AGENT_SERVICE_URL
+        sync: false
+      - key: AGENT_SERVICE_KEY
+        sync: false
       - key: SMTP_HOST
         sync: false
       - key: SMTP_PORT
@@ -44,4 +51,26 @@ services:
       - key: R2_BUCKET_NAME
         sync: false
       - key: R2_PUBLIC_DOMAIN
+        sync: false
+
+  # ------------------------------------------------------------
+  # 2. Vaxora Multi-Agent AI Service (FastAPI / OpenRouter)
+  # ------------------------------------------------------------
+  - type: web
+    name: vaxora-agent
+    env: docker
+    dockerfilePath: ./agent/Dockerfile
+    dockerContext: ./agent
+    plan: free
+    healthCheckPath: /api/agent/health
+    envVars:
+      - key: OPENROUTER_BASE_URL
+        value: https://openrouter.ai/api/v1
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENROUTER_MODEL
+        value: qwen/qwen3.8-27b
+      - key: VAXORA_API_BASE_URL
+        sync: false
+      - key: AGENT_SERVICE_KEY
         sync: false

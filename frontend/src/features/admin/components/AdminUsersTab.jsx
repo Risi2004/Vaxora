@@ -1,5 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { authService } from '../../auth';
+import {
+  IconClock,
+  IconUsers,
+  RoleAvatarIcon,
+} from '../../../shared/icons/AppIcons';
 
 export default function AdminUsersTab() {
   const [roleFilter, setRoleFilter] = useState('all');
@@ -100,8 +105,8 @@ export default function AdminUsersTab() {
       <div className="doctor-card admin-main-card">
         <div className="doctor-card-header" style={{ flexWrap: 'wrap', gap: '12px' }}>
           <div>
-            <div className="doctor-card-title">
-              <span>👥</span>
+            <div className="doctor-card-title" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+              <span className="icon-shade icon-shade-blue"><IconUsers size={22} /></span>
               National User Directory
             </div>
             <p style={{ margin: '4px 0 0 0', fontSize: '0.82rem', color: '#64748b' }}>
@@ -216,7 +221,7 @@ export default function AdminUsersTab() {
               {loading ? (
                 <tr>
                   <td colSpan={7} style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
-                    <div style={{ display: 'inline-block', animation: 'spin 1s linear infinite', fontSize: '1.5rem', marginBottom: '8px' }}>⏳</div>
+                    <div style={{ display: 'inline-flex', animation: 'spin 1s linear infinite', marginBottom: '8px' }}><IconClock size={24} /></div>
                     <div>Loading live user directory...</div>
                   </td>
                 </tr>
@@ -247,11 +252,12 @@ export default function AdminUsersTab() {
                     </td>
                     <td style={{ whiteSpace: 'nowrap' }}>
                       <span className={`admin-role-badge ${u.role}`}>
-                        {u.role === 'doctor' && '🩺 Doctor'}
-                        {u.role === 'nurse' && '👩‍⚕️ Nurse'}
-                        {u.role === 'hospital' && '🏥 Hospital'}
-                        {u.role === 'patient' && '👤 Patient'}
-                        {u.role === 'admin' && '🛡️ Admin'}
+                        <RoleAvatarIcon role={u.role} size={14} />
+                        {u.role === 'doctor' && 'Doctor'}
+                        {u.role === 'nurse' && 'Nurse'}
+                        {u.role === 'hospital' && 'Hospital'}
+                        {u.role === 'patient' && 'Patient'}
+                        {u.role === 'admin' && 'Admin'}
                       </span>
                     </td>
                     <td style={{ whiteSpace: 'nowrap' }}>
@@ -359,8 +365,8 @@ export default function AdminUsersTab() {
 
             <div className="doctor-modal-body">
               <div style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '14px', background: '#111a2e', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', marginBottom: '16px' }}>
-                <div style={{ fontSize: '2.4rem' }}>
-                  {selectedUser.role === 'doctor' ? '🩺' : selectedUser.role === 'nurse' ? '👩‍⚕️' : selectedUser.role === 'hospital' ? '🏥' : selectedUser.role === 'admin' ? '🛡️' : '👤'}
+                <div style={{ color: '#94a3b8', display: 'flex', alignItems: 'center' }}>
+                  <RoleAvatarIcon role={selectedUser.role} size={40} />
                 </div>
                 <div>
                   <h3 style={{ margin: 0, color: '#ffffff', fontSize: '1.2rem', fontWeight: 800 }}>{selectedUser.name}</h3>

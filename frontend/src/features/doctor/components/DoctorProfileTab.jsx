@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { authService } from '../../auth';
+import { IconFile, IconShield } from '../../../shared/icons/AppIcons';
 
 export default function DoctorProfileTab() {
   const fileInputRef = useRef(null);
@@ -104,7 +105,6 @@ export default function DoctorProfileTab() {
           fullName: personalInfo.name,
           phoneNumber: personalInfo.phone,
           specialization: personalInfo.specialization,
-          profilePhotoUrl: personalInfo.profilePhotoUrl,
         });
         triggerNotification('Personal details updated successfully in the national registry!');
         setIsEditingPersonal(false);
@@ -137,21 +137,19 @@ export default function DoctorProfileTab() {
     }
   };
 
-  const handleAvatarUpload = (e) => {
+  const handleAvatarUpload = async (e) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = async () => {
-        const photoData = reader.result;
-        setPersonalInfo((prev) => ({ ...prev, profilePhotoUrl: photoData }));
-        try {
-          await authService.updateProfile({ profilePhotoUrl: photoData });
-          triggerNotification('Profile avatar updated successfully!');
-        } catch {
-          triggerNotification('Updated photo locally.', 'success');
-        }
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+    try {
+      const updated = await authService.updateProfilePhoto(file);
+      if (updated?.profilePhotoUrl) {
+        setPersonalInfo((prev) => ({ ...prev, profilePhotoUrl: updated.profilePhotoUrl }));
+      }
+      triggerNotification('Profile avatar updated successfully!');
+    } catch (err) {
+      triggerNotification(err.message || 'Failed to upload profile photo.', 'error');
+    } finally {
+      if (e.target) e.target.value = '';
     }
   };
 
@@ -174,7 +172,9 @@ export default function DoctorProfileTab() {
             color: notificationType === 'error' ? '#f87171' : '#34d399',
           }}
         >
-          {notificationType === 'error' ? '⚠️' : '✓'} {notification}
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+            {notificationType === 'error' ? <IconShield size={16} /> : '✓'} {notification}
+          </span>
         </div>
       )}
 
@@ -503,7 +503,7 @@ export default function DoctorProfileTab() {
                       className="admin-action-btn view"
                       style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem' }}
                     >
-                      📄 View SLMC Certificate
+                      <IconFile size={14} /> View SLMC Certificate
                     </a>
                   ) : (
                     <span style={{ color: '#94a3b8', fontSize: '0.85rem' }}>SLMC Document Uploaded on File</span>
@@ -517,7 +517,7 @@ export default function DoctorProfileTab() {
                       className="admin-action-btn view"
                       style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem' }}
                     >
-                      📎 View Supporting Credentials
+                      <IconFile size={14} /> View Supporting Credentials
                     </a>
                   )}
                 </div>

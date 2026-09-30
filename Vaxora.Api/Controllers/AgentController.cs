@@ -18,10 +18,18 @@ namespace Vaxora.Api.Controllers;
 [Authorize]
 public class AgentController : ControllerBase
 {
-    /// <summary>Agents that may only be driven by a hospital account.</summary>
+    /// <summary>Every agent the gateway can dispatch to.</summary>
+    private static readonly string[] KnownAgents =
+    {
+        "BookingAgent", "RestockAgent", "ExpiryAgent", "StaffSchedulingAgent",
+        "ShiftSwapAgent"
+    };
+
+    /// <summary>Agents that may only be driven by specific account roles.</summary>
     private static readonly Dictionary<string, string[]> AgentRoleRequirements = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["StaffSchedulingAgent"] = new[] { "HOSPITAL" }
+        ["StaffSchedulingAgent"] = new[] { "HOSPITAL" },
+        ["ShiftSwapAgent"] = new[] { "DOCTOR", "NURSE" },
     };
 
     private readonly IAgentGatewayService _agentGateway;
@@ -92,7 +100,7 @@ public class AgentController : ControllerBase
         }
 
         var bearerToken = ExtractBearerToken();
-        var result = await _agentGateway.ChatAsync(request, bearerToken, ct);
+        var result = await _agentGateway.ChatAsync(request, bearerToken, GetAllowedAgents(), ct);
 
         AgentWorkflowDto? workflow = null;
         try
@@ -110,6 +118,40 @@ public class AgentController : ControllerBase
 
         return Content(AttachWorkflowId(result.Json!, workflow?.WorkflowId), "application/json");
     }
+
+    /// <summary>
+    /// Runs the two-agent Patient Care workflow (PatientDataAgent -> CarePlanningAgent).
+    /// Ownership is enforced downstream — the Python agents call the patient endpoints
+    /// using the caller's JWT, and those endpoints verify ownership when the caller is a PATIENT.
+    /// </summary>
+    [HttpPost("patient-care-plan")]
+    [Authorize(Roles = "DOCTOR,NURSE,HOSPITAL,ADMIN,PATIENT")]
+    public async Task<IActionResult> PatientCarePlan(
+        [FromBody] PatientCarePlanRequestDto request,
+        CancellationToken ct)
+    {
+        if (!TryGetUserId(out _))
+            return Unauthorized(new { message = "Invalid identity claim." });
+
+        var bearerToken = ExtractBearerToken();
+        if (string.IsNullOrWhiteSpace(bearerToken))
+            return Unauthorized(new { message = "Missing bearer token." });
+
+        var result = await _agentGateway.PatientCarePlanAsync(request.PatientProfileId, bearerToken, ct);
+
+        if (!result.Success)
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = result.Error });
+
+        return Content(result.Json!, "application/json");
+    }
+
+    /// <summary>
+    /// Agents the current caller is permitted to drive. Sent to the agent service so that
+    /// its own keyword routing cannot select a role-restricted agent for this user.
+    /// </summary>
+    private string[] GetAllowedAgents() => KnownAgents
+        .Where(agent => !AgentRoleRequirements.TryGetValue(agent, out var roles) || roles.Any(User.IsInRole))
+        .ToArray();
 
     /// <summary>Injects workflowId into the agent JSON so the UI can approve/reject against the persisted run.</summary>
     private static string AttachWorkflowId(string agentJson, Guid? workflowId)

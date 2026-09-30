@@ -1,7 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import staffService from '../services/staffService';
+import agentService from '../../patient/services/agentService';
 import StaffSchedulingAgentChat from './StaffSchedulingAgentChat';
+import SuggestWeekCalendarModal, {
+  proposalIdentity as modalProposalIdentity,
+} from './SuggestWeekCalendarModal';
 import { hospitalMinutesNow, hospitalToday } from '../utils/hospitalDate';
+import { IconCalendar, RoleAvatarIcon } from './HospitalIcons';
+import { IconBot } from '../../../shared/icons/AppIcons';
 
 function toDateInputValue(date = new Date()) {
   const y = date.getFullYear();
@@ -29,7 +35,34 @@ function formatDayLabel(dateInput) {
   return date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
-function validateShiftForm({ shiftDate, startTime, endTime }) {
+function formatDayHeader(dateInput) {
+  const date = new Date(`${dateInput}T00:00:00`);
+  return {
+    weekday: date.toLocaleDateString(undefined, { weekday: 'short' }),
+    dateLabel: date.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }),
+  };
+}
+
+function shiftDurationMinutes(shift) {
+  const start = String(shift.startTime || '00:00').slice(0, 5);
+  const end = String(shift.endTime || '00:00').slice(0, 5);
+  const [sh, sm] = start.split(':').map(Number);
+  const [eh, em] = end.split(':').map(Number);
+  return Math.max(0, eh * 60 + em - (sh * 60 + sm));
+}
+
+function formatHours(totalMinutes) {
+  const hours = Math.floor(totalMinutes / 60);
+  const mins = totalMinutes % 60;
+  if (mins === 0) return `${hours}h`;
+  return `${hours}h ${mins}m`;
+}
+
+function formatShiftTime(shift) {
+  return `${String(shift.startTime).slice(0, 5)} – ${String(shift.endTime).slice(0, 5)}`;
+}
+
+function validateShiftForm({ shiftDate, startTime, endTime }, { isEdit = false, originalDate = '', originalStart = '' } = {}) {
   const today = hospitalToday();
   if (shiftDate < today) {
     return 'Shifts cannot be scheduled on past dates.';
@@ -47,9 +80,17 @@ function validateShiftForm({ shiftDate, startTime, endTime }) {
   }
 
   if (shiftDate === today) {
-    const startMinutes = startH * 60 + startM;
-    if (startMinutes < hospitalMinutesNow()) {
-      return 'Shift start time cannot be in the past.';
+    const startUnchanged =
+      isEdit &&
+      originalDate === shiftDate &&
+      String(originalStart).slice(0, 5) === String(startTime).slice(0, 5);
+
+    // Editing an already-started today shift (booth/notes/end) must still be allowed.
+    if (!startUnchanged) {
+      const startMinutes = startH * 60 + startM;
+      if (startMinutes < hospitalMinutesNow()) {
+        return 'Shift start time cannot be in the past.';
+      }
     }
   }
 
@@ -76,11 +117,32 @@ const weekNavButtonStyle = {
   cursor: 'pointer',
 };
 
-const coverageColor = {
-  Good: { bg: '#ecfdf5', border: '#6ee7b7', text: '#047857' },
-  Partial: { bg: '#fffbeb', border: '#fcd34d', text: '#b45309' },
-  Low: { bg: '#fef2f2', border: '#fca5a5', text: '#b91c1c' },
+const roleCalendarStyle = {
+  DOCTOR: { accent: '#6366f1', bg: '#eef2ff', border: '#c7d2fe', label: 'Doctor' },
+  NURSE: { accent: '#059669', bg: '#ecfdf5', border: '#a7f3d0', label: 'Nurse' },
 };
+
+function normalizeProposalTime(value) {
+  const s = String(value || '').trim();
+  if (s.length === 5) return `${s}:00`;
+  return s;
+}
+
+function proposalIdentity(p) {
+  return modalProposalIdentity(p);
+}
+
+function shiftPayloadFromProposal(proposal) {
+  return {
+    affiliationId: proposal.affiliationId,
+    shiftDate: String(proposal.shiftDate).slice(0, 10),
+    startTime: normalizeProposalTime(proposal.startTime),
+    endTime: normalizeProposalTime(proposal.endTime),
+    boothId: proposal.boothId || null,
+    boothOrStation: proposal.boothOrStation || null,
+    notes: proposal.notes || 'Approved via Staff Scheduling Agent',
+  };
+}
 
 export default function HospitalShiftsPanel() {
   const [activeStaff, setActiveStaff] = useState([]);
@@ -89,10 +151,19 @@ export default function HospitalShiftsPanel() {
   const [coverage, setCoverage] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [editingShiftId, setEditingShiftId] = useState(null);
+  /** Original date/start of the shift being edited — allows saving booth/notes on an already-started today slot. */
+  const [editingOriginal, setEditingOriginal] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showAgentChat, setShowAgentChat] = useState(false);
   const [agentPrompt, setAgentPrompt] = useState(null);
+  const [pendingProposals, setPendingProposals] = useState([]);
+  const [proposalWorkflowId, setProposalWorkflowId] = useState(null);
+  const [suggestingWeek, setSuggestingWeek] = useState(false);
+  const [suggestRerollSeed, setSuggestRerollSeed] = useState(0);
+  const [showSuggestModal, setShowSuggestModal] = useState(false);
+  const [suggestModalError, setSuggestModalError] = useState('');
+  const [proposalActionId, setProposalActionId] = useState(null);
   const [actionId, setActionId] = useState(null);
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
@@ -136,12 +207,9 @@ export default function HospitalShiftsPanel() {
       try {
         const coverageReport = await staffService.getCoverage({ from: weekStart, to: weekEnd });
         setCoverage(coverageReport || null);
-      } catch (coverageErr) {
+      } catch {
+        // Coverage is optional UI — don't block the roster with a hard error banner.
         setCoverage(null);
-        setError(
-          coverageErr.message ||
-            'Coverage summary unavailable. Restart the API if you recently pulled updates, then refresh.'
-        );
       }
     } catch (err) {
       setError(err.message || 'Failed to load shifts.');
@@ -193,18 +261,42 @@ export default function HospitalShiftsPanel() {
     return staffOptions.filter((opt) => opt.search.includes(query));
   }, [staffOptions, staffQuery]);
 
-  const shiftsByDay = useMemo(() => {
-    const map = {};
-    weekDays.forEach((day) => {
-      map[day] = [];
+  const staffCalendarRows = useMemo(() => {
+    const sorted = [...activeStaff].sort((a, b) => {
+      const roleOrder = { DOCTOR: 0, NURSE: 1 };
+      const roleDiff = (roleOrder[a.staffRole] ?? 2) - (roleOrder[b.staffRole] ?? 2);
+      if (roleDiff !== 0) return roleDiff;
+      return String(a.staffName || '').localeCompare(String(b.staffName || ''));
     });
-    shifts.forEach((shift) => {
-      const key = String(shift.shiftDate).slice(0, 10);
-      if (!map[key]) map[key] = [];
-      map[key].push(shift);
+    return sorted.map((member) => {
+      let weekMinutes = 0;
+      const byDay = {};
+      weekDays.forEach((day) => {
+        byDay[day] = [];
+      });
+      shifts.forEach((shift) => {
+        if (shift.affiliationId !== member.affiliationId) return;
+        const day = String(shift.shiftDate).slice(0, 10);
+        if (!byDay[day]) byDay[day] = [];
+        byDay[day].push(shift);
+        weekMinutes += shiftDurationMinutes(shift);
+      });
+      weekDays.forEach((day) => {
+        byDay[day].sort((a, b) => String(a.startTime).localeCompare(String(b.startTime)));
+      });
+      return { member, byDay, weekMinutes };
     });
-    return map;
-  }, [shifts, weekDays]);
+  }, [activeStaff, shifts, weekDays]);
+
+  const applyAgentProposals = useCallback((proposals, meta = {}) => {
+    const list = Array.isArray(proposals) ? proposals.filter(Boolean) : [];
+    if (list.length === 0) return;
+    setSuggestModalError('');
+    setPendingProposals(list.map((p) => ({ ...p, _status: undefined, _selected: true })));
+    setProposalWorkflowId(meta.workflowId || null);
+    setShowSuggestModal(true);
+    showToast(`${list.length} suggested shift${list.length === 1 ? '' : 's'} — select which to keep in the calendar window.`);
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -213,19 +305,23 @@ export default function HospitalShiftsPanel() {
 
   const resetForm = (keepDate = true) => {
     setEditingShiftId(null);
+    setEditingOriginal(null);
     setStaffQuery('');
     setStaffMenuOpen(false);
     setForm((prev) => ({ ...emptyForm, shiftDate: keepDate ? prev.shiftDate : emptyForm.shiftDate }));
   };
 
   const beginEdit = (shift) => {
+    const date = String(shift.shiftDate).slice(0, 10);
+    const startTime = String(shift.startTime).slice(0, 5);
     setEditingShiftId(shift.shiftId);
+    setEditingOriginal({ date, startTime });
     setStaffQuery(`${shift.staffName || 'Staff'} · ${shift.staffRole === 'DOCTOR' ? 'Doctor' : 'Nurse'}`);
     setStaffMenuOpen(false);
     setForm({
       affiliationId: shift.affiliationId,
-      shiftDate: String(shift.shiftDate).slice(0, 10),
-      startTime: String(shift.startTime).slice(0, 5),
+      shiftDate: date,
+      startTime,
       endTime: String(shift.endTime).slice(0, 5),
       boothId: shift.boothId || '',
       notes: shift.notes || '',
@@ -240,7 +336,11 @@ export default function HospitalShiftsPanel() {
       return;
     }
 
-    const formError = validateShiftForm(form);
+    const formError = validateShiftForm(form, {
+      isEdit: Boolean(editingShiftId),
+      originalDate: editingOriginal?.date || '',
+      originalStart: editingOriginal?.startTime || '',
+    });
     if (formError) {
       setError(formError);
       return;
@@ -295,9 +395,92 @@ export default function HospitalShiftsPanel() {
     }
   };
 
-  const handleSuggestWeek = () => {
-    setAgentPrompt(`Suggest shifts for booked appointments from ${weekStart} to ${weekEnd}`);
-    setShowAgentChat(true);
+  const handleSuggestWeek = async () => {
+    setSuggestingWeek(true);
+    setShowSuggestModal(true);
+    setPendingProposals([]);
+    setSuggestModalError('');
+    setSuggestRerollSeed(0);
+    try {
+      const res = await agentService.sendMessage(
+        [
+          {
+            role: 'user',
+            content: `Suggest shifts for booked appointments from ${weekStart} to ${weekEnd}`,
+          },
+        ],
+        { targetAgent: 'StaffSchedulingAgent' }
+      );
+      const proposals = Array.isArray(res.proposals)
+        ? res.proposals
+        : res.proposal
+          ? [res.proposal]
+          : [];
+      if (proposals.length === 0) {
+        setSuggestModalError(
+          res.content ||
+            'No new shifts to propose — this week looks fully covered already. Approval cards only appear when there are gaps. Try another week, add schedules/booths, or clear some existing shifts first.'
+        );
+        return;
+      }
+      applyAgentProposals(proposals, {
+        workflowId: res.workflowId || res.WorkflowId || null,
+      });
+    } catch (err) {
+      setSuggestModalError(err.message || 'Failed to suggest week shifts.');
+    } finally {
+      setSuggestingWeek(false);
+    }
+  };
+
+  const handleRerollSuggestWeek = async () => {
+    const excludeIds = [
+      ...new Set(
+        pendingProposals
+          .filter((p) => p._status !== 'approved' && p._status !== 'declined')
+          .map((p) => String(p.affiliationId || ''))
+          .filter(Boolean)
+      ),
+    ];
+    const nextSeed = suggestRerollSeed + 1;
+    setSuggestRerollSeed(nextSeed);
+    setSuggestingWeek(true);
+    setSuggestModalError('');
+    setPendingProposals([]);
+    try {
+      const excludeClause =
+        excludeIds.length > 0
+          ? ` Reroll exclude affiliation ids: ${excludeIds.join(',')}.`
+          : '';
+      const res = await agentService.sendMessage(
+        [
+          {
+            role: 'user',
+            content: `Suggest shifts for booked appointments from ${weekStart} to ${weekEnd}. Reroll seed: ${nextSeed}.${excludeClause}`,
+          },
+        ],
+        { targetAgent: 'StaffSchedulingAgent' }
+      );
+      const proposals = Array.isArray(res.proposals)
+        ? res.proposals
+        : res.proposal
+          ? [res.proposal]
+          : [];
+      if (proposals.length === 0) {
+        setSuggestModalError(
+          res.content ||
+            'No alternate suggestions available. Try again or post more vaccine schedules.'
+        );
+        return;
+      }
+      applyAgentProposals(proposals, {
+        workflowId: res.workflowId || res.WorkflowId || null,
+      });
+    } catch (err) {
+      setSuggestModalError(err.message || 'Failed to reroll week suggestions.');
+    } finally {
+      setSuggestingWeek(false);
+    }
   };
 
   const handleCloseAgentChat = () => {
@@ -305,11 +488,140 @@ export default function HospitalShiftsPanel() {
     setAgentPrompt(null);
   };
 
+  const handleToggleProposalSelect = (id) => {
+    setPendingProposals((prev) =>
+      prev.map((p) =>
+        proposalIdentity(p) === id ? { ...p, _selected: !p._selected } : p
+      )
+    );
+  };
+
+  const handleSelectAllProposals = () => {
+    setPendingProposals((prev) =>
+      prev.map((p) =>
+        p._status === 'approved' || p._status === 'declined'
+          ? p
+          : { ...p, _selected: true }
+      )
+    );
+  };
+
+  const handleClearProposalSelection = () => {
+    setPendingProposals((prev) => prev.map((p) => ({ ...p, _selected: false })));
+  };
+
+  const handleApproveSelectedProposals = async () => {
+    const pending = pendingProposals.filter(
+      (p) => p._selected && p._status !== 'approved' && p._status !== 'declined'
+    );
+    if (pending.length === 0) return;
+    setProposalActionId('batch');
+    setError('');
+    const approvedIds = new Set();
+    const failed = [];
+    for (const proposal of pending) {
+      try {
+        await staffService.createShift(shiftPayloadFromProposal(proposal));
+        approvedIds.add(proposalIdentity(proposal));
+      } catch {
+        failed.push(proposal.staffName || 'A shift');
+      }
+    }
+
+    const nextProposals = pendingProposals.map((p) =>
+      approvedIds.has(proposalIdentity(p)) ? { ...p, _status: 'approved', _selected: false } : p
+    );
+    const leftAfter = nextProposals.filter(
+      (p) => p._status !== 'approved' && p._status !== 'declined'
+    ).length;
+    setPendingProposals(nextProposals);
+
+    if (proposalWorkflowId && leftAfter === 0 && failed.length === 0) {
+      try {
+        await agentService.recordDecision(proposalWorkflowId, {
+          approved: true,
+          note: 'Approved selected shifts from suggest-week calendar',
+        });
+      } catch {
+        /* optional */
+      }
+      setProposalWorkflowId(null);
+    }
+    if (failed.length > 0) {
+      setError(`Could not create: ${failed.join(', ')}`);
+    } else {
+      showToast(`${approvedIds.size} shift${approvedIds.size === 1 ? '' : 's'} created.`);
+    }
+    setProposalActionId(null);
+    await refreshRosterQuietly();
+    if (leftAfter === 0 && failed.length === 0) {
+      setShowSuggestModal(false);
+      setPendingProposals([]);
+    }
+  };
+
+  const handleDeclineProposal = async (proposal) => {
+    const id = proposalIdentity(proposal);
+    setProposalActionId(id);
+    setError('');
+    let alternative = null;
+    try {
+      const res = await agentService.sendMessage(
+        [
+          {
+            role: 'user',
+            content: `__shift_declined__ ${JSON.stringify({
+              affiliationId: proposal.affiliationId,
+              gapId: proposal.gapId,
+              shiftDate: String(proposal.shiftDate).slice(0, 10),
+              startTime: normalizeProposalTime(proposal.startTime),
+              endTime: normalizeProposalTime(proposal.endTime),
+              requestAlternative: Boolean(proposal.gapId),
+            })}`,
+          },
+        ],
+        { targetAgent: 'StaffSchedulingAgent' }
+      );
+      if (Array.isArray(res.proposals) && res.proposals.length > 0) {
+        alternative = res.proposals[0];
+      } else if (res.proposal) {
+        alternative = res.proposal;
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to decline suggestion.');
+      setProposalActionId(null);
+      return;
+    }
+
+    setPendingProposals((prev) => {
+      const next = prev.map((p) =>
+        proposalIdentity(p) === id ? { ...p, _status: 'declined', _selected: false } : p
+      );
+      if (alternative) next.push({ ...alternative, _status: undefined, _selected: true });
+      return next;
+    });
+
+    showToast(
+      alternative
+        ? `Declined — alternative: ${alternative.staffName || 'another staff member'}`
+        : 'Suggestion declined.'
+    );
+    setProposalActionId(null);
+  };
+
+  const handleCloseSuggestModal = () => {
+    setShowSuggestModal(false);
+    setSuggestingWeek(false);
+    setSuggestModalError('');
+    setPendingProposals([]);
+    setProposalWorkflowId(null);
+  };
+
   return (
     <div>
       {toast && (
         <div className="appointment-alert-pill" role="status" style={{ marginBottom: '16px' }}>
-          ✓ {toast}
+          {toast}
         </div>
       )}
       {error && (
@@ -335,7 +647,7 @@ export default function HospitalShiftsPanel() {
         >
           <div className="section-title-group">
             <h2 style={{ margin: 0 }}>
-              <span>🗓️</span> Staff Shift Roster
+              <span className="section-title-icon"><IconCalendar size={22} /></span> Staff Shift Roster
             </h2>
             <p className="section-title-desc">
               Weekly roster with coverage insights. Overlaps and shifts over 12 hours are blocked.
@@ -371,7 +683,7 @@ export default function HospitalShiftsPanel() {
               e.currentTarget.style.transform = 'translateY(0)';
             }}
           >
-            <span style={{ fontSize: '18px' }}>🤖</span>
+            <IconBot size={18} />
             <span>Open Scheduling Agent</span>
             <span
               style={{
@@ -457,24 +769,27 @@ export default function HospitalShiftsPanel() {
           <button
             type="button"
             onClick={handleSuggestWeek}
-            disabled={loading || staffOptions.length === 0}
+            disabled={loading || suggestingWeek || staffOptions.length === 0}
             style={{
               padding: '9px 18px',
               borderRadius: '8px',
               border: '1px solid #19469d',
-              background: loading || staffOptions.length === 0 ? '#e2e8f0' : '#19469d',
-              color: loading || staffOptions.length === 0 ? '#94a3b8' : '#ffffff',
+              background:
+                loading || suggestingWeek || staffOptions.length === 0 ? '#e2e8f0' : '#19469d',
+              color:
+                loading || suggestingWeek || staffOptions.length === 0 ? '#94a3b8' : '#ffffff',
               fontSize: '0.88rem',
               fontWeight: 700,
-              cursor: loading || staffOptions.length === 0 ? 'not-allowed' : 'pointer',
+              cursor:
+                loading || suggestingWeek || staffOptions.length === 0 ? 'not-allowed' : 'pointer',
               flexShrink: 0,
             }}
           >
-            Suggest Week
+            {suggestingWeek ? 'Suggesting…' : 'Suggest Week'}
           </button>
         </div>
 
-        <div className="hospital-metrics-grid" style={{ marginBottom: '16px' }}>
+        <div className="hospital-metrics-grid hospital-metrics-grid--4" style={{ marginBottom: '16px' }}>
           <div className="hospital-stat-card">
             <div className="hospital-stat-info">
               <span className="hospital-stat-label">Active Doctors</span>
@@ -657,7 +972,7 @@ export default function HospitalShiftsPanel() {
             />
           </div>
 
-          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
             <button type="submit" className="btn-hospital-primary" disabled={saving || staffOptions.length === 0}>
               {saving ? 'Saving...' : editingShiftId ? 'Save Changes' : 'Create Shift'}
             </button>
@@ -667,6 +982,11 @@ export default function HospitalShiftsPanel() {
               </button>
             )}
           </div>
+          {error && (
+            <p role="alert" style={{ margin: 0, color: '#b91c1c', fontSize: '0.85rem' }}>
+              {error}
+            </p>
+          )}
 
           {staffOptions.length === 0 && !loading && (
             <p style={{ color: '#64748b', margin: 0 }}>
@@ -710,116 +1030,194 @@ export default function HospitalShiftsPanel() {
               weekEnd={weekEnd}
               initialPrompt={agentPrompt}
               onShiftsChanged={refreshRosterQuietly}
+              onProposalsReady={(proposals, meta) => {
+                applyAgentProposals(proposals, meta);
+                handleCloseAgentChat();
+              }}
               onClose={handleCloseAgentChat}
             />
           </div>
         </div>
       )}
 
-      <h3 style={{ margin: '0 0 12px' }}>Week calendar & coverage</h3>
+      {showSuggestModal && (
+        <SuggestWeekCalendarModal
+          weekStart={weekStart}
+          weekEnd={weekEnd}
+          weekDays={weekDays}
+          today={today}
+          activeStaff={activeStaff}
+          proposals={pendingProposals}
+          actionId={proposalActionId}
+          loading={suggestingWeek}
+          error={suggestModalError}
+          onToggleSelect={handleToggleProposalSelect}
+          onSelectAll={handleSelectAllProposals}
+          onClearSelection={handleClearProposalSelection}
+          onApproveSelected={handleApproveSelectedProposals}
+          onDecline={handleDeclineProposal}
+          onReroll={handleRerollSuggestWeek}
+          onClose={handleCloseSuggestModal}
+        />
+      )}
+
+      <h3 style={{ margin: '0 0 12px' }}>Week calendar</h3>
       {loading ? (
         <div className="hospital-section-card">
           <p style={{ color: '#64748b' }}>Loading roster...</p>
         </div>
+      ) : staffCalendarRows.length === 0 ? (
+        <div className="hospital-section-card">
+          <p style={{ color: '#64748b' }}>No active staff to show on the calendar yet.</p>
+        </div>
       ) : (
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-            gap: '12px',
-          }}
-        >
-          {weekDays.map((day) => {
-            const dayCoverage = coverage?.days?.find((d) => String(d.date).slice(0, 10) === day);
-            const level = dayCoverage?.coverageLevel || 'Low';
-            const colors = coverageColor[level] || coverageColor.Low;
-            const dayShifts = shiftsByDay[day] || [];
+        <div className="shift-week-calendar">
+          <div className="shift-week-calendar-scroll">
+            <div className="shift-week-calendar-grid">
+              <div className="shift-week-calendar-corner">
+                <span className="shift-week-calendar-corner-label">Staff</span>
+                <span className="shift-week-calendar-corner-sub">
+                  {formatDayLabel(weekStart)} – {formatDayLabel(weekEnd)}
+                </span>
+              </div>
 
-            return (
-              <div
-                key={day}
-                className="hospital-section-card"
-                style={{
-                  margin: 0,
-                  padding: '14px',
-                  borderTop: `4px solid ${colors.border}`,
-                  background: colors.bg,
-                  minHeight: 220,
-                }}
-              >
-                <div style={{ fontWeight: 800, color: '#0f172a', marginBottom: 4 }}>{formatDayLabel(day)}</div>
-                <div style={{ fontSize: '0.75rem', color: colors.text, fontWeight: 700, marginBottom: 8 }}>
-                  {level} · D {dayCoverage?.scheduledDoctors ?? 0}/{dayCoverage?.activeDoctors ?? 0} · N{' '}
-                  {dayCoverage?.scheduledNurses ?? 0}/{dayCoverage?.activeNurses ?? 0}
-                </div>
-                <div style={{ fontSize: '0.72rem', color: '#64748b', marginBottom: 10 }}>
-                  {dayCoverage?.summary || 'No coverage data'}
-                </div>
+              {weekDays.map((day) => {
+                const header = formatDayHeader(day);
+                const isToday = day === today;
+                return (
+                  <div
+                    key={`head-${day}`}
+                    className={`shift-week-calendar-day-head ${isToday ? 'is-today' : ''}`}
+                  >
+                    <div className="shift-week-calendar-day-top">
+                      <span className="shift-week-calendar-weekday">{header.weekday}</span>
+                      {isToday ? <span className="shift-week-calendar-today-pill">Today</span> : null}
+                    </div>
+                    <span className="shift-week-calendar-date">{header.dateLabel}</span>
+                  </div>
+                );
+              })}
 
-                {dayShifts.length === 0 ? (
-                  <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>No shifts</div>
-                ) : (
-                  <div style={{ display: 'grid', gap: 8 }}>
-                    {dayShifts.map((shift) => (
+              <div className="shift-week-calendar-total-head">Hours</div>
+
+              {staffCalendarRows.map(({ member, byDay, weekMinutes }) => {
+                const roleKey = String(member.staffRole || '').toUpperCase();
+                const roleStyle = roleCalendarStyle[roleKey] || roleCalendarStyle.NURSE;
+                const avatarRole = roleKey === 'DOCTOR' ? 'Doctor' : 'Nurse';
+                const photoUrl = member.staffProfilePhotoUrl || null;
+                const subtitle = member.specialization || roleStyle.label;
+
+                return (
+                  <React.Fragment key={member.affiliationId}>
+                    <div className="shift-week-calendar-staff">
                       <div
-                        key={shift.shiftId}
+                        className={`shift-week-calendar-avatar${photoUrl ? ' has-photo' : ''}`}
                         style={{
-                          background: '#ffffff',
-                          border: '1px solid #e2e8f0',
-                          borderRadius: 8,
-                          padding: '8px',
+                          background: roleStyle.bg,
+                          color: roleStyle.accent,
+                          borderColor: roleStyle.border,
                         }}
                       >
-                        <div style={{ fontWeight: 700, fontSize: '0.82rem', color: '#0f172a' }}>
-                          {shift.staffName}
-                        </div>
-                        <div style={{ fontSize: '0.75rem', color: '#475569' }}>
-                          {String(shift.startTime).slice(0, 5)} – {String(shift.endTime).slice(0, 5)}
-                          {shift.boothOrStation ? ` · ${shift.boothOrStation}` : ''}
-                        </div>
-                        <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
-                          {String(shift.shiftDate).slice(0, 10) >= today && (
-                            <button
-                              type="button"
-                              onClick={() => beginEdit(shift)}
-                              disabled={saving || actionId === shift.shiftId}
-                              style={{
-                                background: 'none',
-                                border: 'none',
-                                color: '#19469d',
-                                fontWeight: 600,
-                                fontSize: '0.72rem',
-                                cursor: 'pointer',
-                                padding: 0,
-                              }}
-                            >
-                              {editingShiftId === shift.shiftId ? 'Editing' : 'Edit'}
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(shift.shiftId)}
-                            disabled={actionId === shift.shiftId}
-                            style={{
-                              background: 'none',
-                              border: 'none',
-                              color: '#dc2626',
-                              fontWeight: 600,
-                              fontSize: '0.72rem',
-                              cursor: 'pointer',
-                              padding: 0,
-                            }}
-                          >
-                            {actionId === shift.shiftId ? 'Deleting...' : 'Delete'}
-                          </button>
-                        </div>
+                        {photoUrl ? (
+                          <img
+                            src={photoUrl}
+                            alt=""
+                            className="shift-week-calendar-avatar-img"
+                          />
+                        ) : (
+                          <RoleAvatarIcon role={avatarRole} size={16} />
+                        )}
                       </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+                      <div className="shift-week-calendar-staff-text">
+                        <span className="shift-week-calendar-staff-name">{member.staffName}</span>
+                        <span
+                          className="shift-week-calendar-staff-role"
+                          style={{ color: roleStyle.accent }}
+                        >
+                          {subtitle}
+                        </span>
+                      </div>
+                    </div>
+
+                    {weekDays.map((day) => {
+                      const dayShifts = byDay[day] || [];
+                      const isToday = day === today;
+                      return (
+                        <div
+                          key={`${member.affiliationId}-${day}`}
+                          className={`shift-week-calendar-cell ${isToday ? 'is-today' : ''}`}
+                        >
+                          {dayShifts.length === 0 ? (
+                            <span className="shift-week-calendar-empty">—</span>
+                          ) : (
+                            dayShifts.map((shift) => (
+                              <div
+                                key={shift.shiftId}
+                                className="shift-week-card"
+                                style={{ borderLeftColor: roleStyle.accent }}
+                              >
+                                <div className="shift-week-card-time">{formatShiftTime(shift)}</div>
+                                <div
+                                  className="shift-week-card-role"
+                                  style={{ color: roleStyle.accent }}
+                                >
+                                  {roleStyle.label}
+                                </div>
+                                {shift.boothOrStation ? (
+                                  <div className="shift-week-card-booth">{shift.boothOrStation}</div>
+                                ) : null}
+                                <div className="shift-week-card-actions">
+                                  {String(shift.shiftDate).slice(0, 10) >= today && (
+                                    <button
+                                      type="button"
+                                      onClick={() => beginEdit(shift)}
+                                      disabled={saving || actionId === shift.shiftId}
+                                      className="shift-week-card-action shift-week-card-action-edit"
+                                    >
+                                      {editingShiftId === shift.shiftId ? 'Editing' : 'Edit'}
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDelete(shift.shiftId)}
+                                    disabled={actionId === shift.shiftId}
+                                    className="shift-week-card-action shift-week-card-action-delete"
+                                  >
+                                    {actionId === shift.shiftId ? 'Deleting...' : 'Delete'}
+                                  </button>
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    <div className="shift-week-calendar-total">
+                      <span>{formatHours(weekMinutes)}</span>
+                    </div>
+                  </React.Fragment>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="shift-week-calendar-legend">
+            <span className="shift-week-calendar-legend-item">
+              <span
+                className="shift-week-calendar-legend-swatch"
+                style={{ background: '#6366f1' }}
+              />
+              Doctor shift
+            </span>
+            <span className="shift-week-calendar-legend-item">
+              <span
+                className="shift-week-calendar-legend-swatch"
+                style={{ background: '#059669' }}
+              />
+              Nurse shift
+            </span>
+          </div>
         </div>
       )}
     </div>

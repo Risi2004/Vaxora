@@ -4,6 +4,12 @@ import VaccineWastageModal from './VaccineWastageModal';
 import BatchAuditModal from './BatchAuditModal';
 import inventoryService from '../services/inventoryService';
 import InventoryAIInventoryWorkflow from './InventoryAIInventoryWorkflow';
+import {
+  IconClock,
+  IconShield,
+  IconSnowflake,
+  IconSyringe,
+} from './HospitalIcons';
 
 export default function HospitalInventoryTab() {
   const [isRestockOpen, setIsRestockOpen] = useState(false);
@@ -27,6 +33,20 @@ export default function HospitalInventoryTab() {
   const [inventory, setInventory] = useState([]);
   const [coldVaults, setColdVaults] = useState([]);
 
+  const uniqueFormulations = useMemo(() => {
+    const seen = new Set();
+    const out = [];
+    for (const name of registeredVaccines) {
+      const label = String(name || '').trim();
+      if (!label) continue;
+      const key = label.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(label);
+    }
+    return out;
+  }, [registeredVaccines]);
+
   const showToast = (msg) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(''), 4000);
@@ -41,7 +61,18 @@ export default function HospitalInventoryTab() {
         inventoryService.getColdVaults(),
       ]);
       setInventory(Array.isArray(batches) ? batches : []);
-      setRegisteredVaccines(Array.isArray(formulary) ? formulary.map((f) => f.vaccineName) : []);
+      const names = Array.isArray(formulary)
+        ? formulary.map((f) => String(f.vaccineName || f.name || '').trim()).filter(Boolean)
+        : [];
+      const seen = new Set();
+      const unique = [];
+      for (const name of names) {
+        const key = name.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        unique.push(name);
+      }
+      setRegisteredVaccines(unique);
       setColdVaults(Array.isArray(vaults) ? vaults : []);
     } catch (err) {
       setErrorMsg(err.message || 'Failed to load inventory.');
@@ -56,15 +87,15 @@ export default function HospitalInventoryTab() {
     const trimmed = vaccineName.trim();
     if (!trimmed) return;
     if (registeredVaccines.some((v) => v.toLowerCase() === trimmed.toLowerCase())) {
-      showToast(`ℹ️ "${trimmed}" is already registered in the hospital formulary.`);
+      showToast(`"${trimmed}" is already registered in the hospital formulary.`);
       return;
     }
     try {
       await inventoryService.registerFormulary(trimmed, mfr);
-      setRegisteredVaccines((prev) => [...prev, trimmed]);
-      showToast(`✓ Registered new vaccine product: "${trimmed}".`);
+      await loadAll();
+      showToast(`Registered new vaccine product: "${trimmed}".`);
     } catch (err) {
-      showToast(`⚠️ ${err.message}`);
+      showToast(err.message);
     }
   };
 
@@ -77,20 +108,27 @@ export default function HospitalInventoryTab() {
   };
 
   const handleRemoveFormulation = async (name) => {
-    if (registeredVaccines.length <= 1) {
+    if (uniqueFormulations.length <= 1) {
       alert('You must keep at least one registered vaccine product.');
       return;
     }
     try {
       const formulary = await inventoryService.getFormulary();
-      const match = formulary.find((f) => f.vaccineName === name);
-      if (match) {
-        await inventoryService.removeFormulary(match.id);
-        setRegisteredVaccines((prev) => prev.filter((v) => v !== name));
-        showToast(`Removed "${name}" from registered formulary options.`);
+      const matches = (Array.isArray(formulary) ? formulary : []).filter(
+        (f) => String(f.vaccineName || f.name || '').trim().toLowerCase() === name.trim().toLowerCase()
+      );
+      if (matches.length === 0) {
+        await loadAll();
+        return;
       }
+      for (const match of matches) {
+        await inventoryService.removeFormulary(match.id);
+      }
+      await loadAll();
+      showToast(`Removed "${name}" from registered formulary options.`);
     } catch (err) {
-      showToast(`⚠️ ${err.message}`);
+      showToast(err.message);
+      await loadAll();
     }
   };
 
@@ -98,9 +136,9 @@ export default function HospitalInventoryTab() {
     try {
       await inventoryService.restockBatch({ vaccineName, lotNumber, quantity, storageUnit, expiryDate, supplier });
       await loadAll();
-      showToast(`✓ Successfully logged restock of +${quantity} vials for ${vaccineName} (Lot ${lotNumber}).`);
+      showToast(`Successfully logged restock of +${quantity} vials for ${vaccineName} (Lot ${lotNumber}).`);
     } catch (err) {
-      showToast(`⚠️ ${err.message}`);
+      showToast(err.message);
       throw err;
     }
   };
@@ -109,9 +147,9 @@ export default function HospitalInventoryTab() {
     try {
       await inventoryService.logWastage(vaccineId, { quantity, reason, reportedBy, notes, incidentDate });
       await loadAll();
-      showToast(`⚠️ Logged ${quantity} wasted vials.`);
+      showToast(`Logged ${quantity} wasted vials.`);
     } catch (err) {
-      showToast(`⚠️ ${err.message}`);
+      showToast(err.message);
       throw err;
     }
   };
@@ -121,7 +159,7 @@ export default function HospitalInventoryTab() {
       await inventoryService.adjustStock(id, delta, `Quick ${delta > 0 ? '+' : ''}${delta} adjustment`);
       await loadAll();
     } catch (err) {
-      showToast(`⚠️ ${err.message}`);
+      showToast(err.message);
     }
   };
 
@@ -238,10 +276,10 @@ export default function HospitalInventoryTab() {
               </form>
 
               <div className="registered-pills-wrap">
-                <span className="registered-pills-label">Registered Formulations ({registeredVaccines.length}):</span>
+                <span className="registered-pills-label">Registered Formulations ({uniqueFormulations.length}):</span>
                 <div className="registered-pills-list">
-                  {registeredVaccines.map((vName) => (
-                    <span key={vName} className="registered-vaccine-pill">
+                  {uniqueFormulations.map((vName) => (
+                    <span key={vName.toLowerCase()} className="registered-vaccine-pill">
                       <span className="pill-dot">💉</span>
                       <strong className="pill-name">{vName}</strong>
                       <button type="button" className="pill-remove-btn" onClick={() => handleRemoveFormulation(vName)} title={`Remove ${vName}`}>&times;</button>
@@ -255,7 +293,7 @@ export default function HospitalInventoryTab() {
 
         <div className="inventory-metrics-grid">
           <div className="inventory-stat-card">
-            <div className="inventory-stat-icon-box icon-blue">💉</div>
+            <div className="inventory-stat-icon-box icon-blue"><IconSyringe size={22} /></div>
             <div className="inventory-stat-content">
               <span className="inventory-stat-label">Total Vials In Stock</span>
               <span className="inventory-stat-value">{totalVials.toLocaleString()}</span>
@@ -263,7 +301,7 @@ export default function HospitalInventoryTab() {
             </div>
           </div>
           <div className="inventory-stat-card">
-            <div className="inventory-stat-icon-box icon-amber">⚠️</div>
+            <div className="inventory-stat-icon-box icon-amber"><IconShield size={22} /></div>
             <div className="inventory-stat-content">
               <span className="inventory-stat-label">Low Stock Reorders</span>
               <span className="inventory-stat-value" style={{ color: lowStockCount > 0 ? '#dc2626' : '#1e1b4b' }}>{lowStockCount} <small style={{ fontSize: '0.85rem', fontWeight: 500 }}>Formulations</small></span>
@@ -271,7 +309,7 @@ export default function HospitalInventoryTab() {
             </div>
           </div>
           <div className="inventory-stat-card">
-            <div className="inventory-stat-icon-box icon-purple">⏳</div>
+            <div className="inventory-stat-icon-box icon-purple"><IconClock size={22} /></div>
             <div className="inventory-stat-content">
               <span className="inventory-stat-label">Expiring in &lt; 60 Days</span>
               <span className="inventory-stat-value" style={{ color: expiringCount > 0 ? '#d97706' : '#1e1b4b' }}>{expiringCount} <small style={{ fontSize: '0.85rem', fontWeight: 500 }}>Batches</small></span>
@@ -279,7 +317,7 @@ export default function HospitalInventoryTab() {
             </div>
           </div>
           <div className="inventory-stat-card">
-            <div className="inventory-stat-icon-box icon-green">❄️</div>
+            <div className="inventory-stat-icon-box icon-green"><IconSnowflake size={22} /></div>
             <div className="inventory-stat-content">
               <span className="inventory-stat-label">Cold Storage Status</span>
               <span className="inventory-stat-value" style={{ color: '#059669' }}>100%</span>
@@ -488,7 +526,6 @@ export default function HospitalInventoryTab() {
         onClose={() => setIsRestockOpen(false)}
         onAddStock={handleAddStock}
         registeredVaccines={registeredVaccines}
-        onRegisterNewVaccine={handleRegisterNewVaccine}
       />
 
       <VaccineWastageModal

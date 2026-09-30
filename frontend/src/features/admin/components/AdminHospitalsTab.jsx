@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { IconHospital, IconPackage, IconSearch, IconSnowflake } from '../../../shared/icons/AppIcons';
 
 export default function AdminHospitalsTab() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -246,7 +247,7 @@ export default function AdminHospitalsTab() {
         <div className="doctor-card-header" style={{ flexWrap: 'wrap', gap: '12px' }}>
           <div>
             <div className="doctor-card-title">
-              <span>🏥</span>
+              <span style={{ display: 'inline-flex' }}><IconHospital size={22} /></span>
               Hospital Centers Performance &amp; Vaccine Supply
             </div>
             <p style={{ margin: '4px 0 0 0', fontSize: '0.82rem', color: '#64748b' }}>
@@ -289,7 +290,7 @@ export default function AdminHospitalsTab() {
 
         {/* Search Bar */}
         <div className="doctor-search-bar">
-          <span className="doctor-search-icon">🔍</span>
+          <span className="doctor-search-icon" style={{ display: 'inline-flex' }}><IconSearch size={16} /></span>
           <input
             type="text"
             className="doctor-search-input"
@@ -364,7 +365,9 @@ export default function AdminHospitalsTab() {
                     </td>
                     <td>
                       <span style={{ fontWeight: 700, color: '#38bdf8' }}>
-                        ❄️ {h.coldChainTemp}
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                          <IconSnowflake size={14} /> {h.coldChainTemp}
+                        </span>
                       </span>
                     </td>
                     <td>
@@ -453,7 +456,9 @@ export default function AdminHospitalsTab() {
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
                   <h4 style={{ margin: 0, color: '#ffffff', fontSize: '1rem', fontWeight: 800 }}>
-                    📦 Vaccines Provided &amp; Live Stock Levels
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                      <IconPackage size={16} /> Vaccines Provided &amp; Live Stock Levels
+                    </span>
                   </h4>
                   <button
                     type="button"

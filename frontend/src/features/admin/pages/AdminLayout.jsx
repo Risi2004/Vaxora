@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import AdminSidebar from '../components/AdminSidebar';
 import { authService } from '../../auth';
+import { IconCalendar } from '../../../shared/icons/AppIcons';
 import '../../../styles/doctor.css';
 import '../../../styles/admin.css';
 
@@ -32,8 +33,6 @@ export default function AdminLayout() {
   const getPageTitle = (pathname) => {
     if (pathname.includes('/admin/users')) return 'National User Directory';
     if (pathname.includes('/admin/approvals')) return 'Doctor, Nurse & Hospital Approvals';
-    if (pathname.includes('/admin/hospitals')) return 'Hospital Performance & Vaccine Logistics';
-    if (pathname.includes('/admin/campaigns')) return 'National Campaigns & Vaccination Drives';
     if (pathname.includes('/admin/feedback')) return 'Feedback & Inquiries Central';
     if (pathname.includes('/admin/audit')) return 'System Audit & Compliance Logs';
     if (pathname.includes('/admin/profile')) return 'Superadmin Security & Profile';
@@ -65,7 +64,9 @@ export default function AdminLayout() {
             </div>
 
             <div className="admin-topbar-time">
-              <span>🗓️ Sep 2026</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                <IconCalendar size={14} /> Sep 2026
+              </span>
             </div>
           </div>
         </header>

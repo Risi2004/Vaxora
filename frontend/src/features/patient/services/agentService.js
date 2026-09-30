@@ -1,16 +1,17 @@
-import { getToken, getUser } from '../../auth/services/authService';
+import { getToken, getUser } from "../../auth/services/authService";
 
 /**
  * The Agentic AI service is internal. The browser talks to the ASP.NET API, which
  * authenticates the caller and forwards the request to the agent orchestrator.
  */
 const getApiBase = () => {
-  const envUrl = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL;
-  if (envUrl && typeof envUrl === 'string' && envUrl.trim()) {
-    const trimmed = envUrl.trim().replace(/\/+$/, '');
-    return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`;
+  const envUrl =
+    import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL;
+  if (envUrl && typeof envUrl === "string" && envUrl.trim()) {
+    const trimmed = envUrl.trim().replace(/\/+$/, "");
+    return trimmed.endsWith("/api") ? trimmed : `${trimmed}/api`;
   }
-  return '/api';
+  return "/api";
 };
 
 const API_BASE = getApiBase();
@@ -39,7 +40,7 @@ export const agentService = {
     const user = getUser();
 
     const headers = {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
     };
 
     if (token) {
@@ -52,7 +53,7 @@ export const agentService = {
             user.name ||
             user.fullName ||
             user.hospitalName ||
-            `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+            `${user.firstName || ""} ${user.lastName || ""}`.trim(),
           email: user.email,
           nic: user.nic || user.nationalId,
           hospitalName: user.hospitalName || user.name,
@@ -62,21 +63,33 @@ export const agentService = {
     // The API only accepts user/assistant turns, so strip UI-only fields before sending.
     const payload = {
       messages: (messages || [])
-        .filter((m) => (m.role === 'user' || m.role === 'assistant') && String(m.content ?? '').trim())
-        .map((m) => ({ role: m.role, content: String(m.content).slice(0, 4000) })),
+        .filter(
+          (m) =>
+            (m.role === "user" || m.role === "assistant") &&
+            String(m.content ?? "").trim(),
+        )
+        .map((m) => ({
+          role: m.role,
+          content: String(m.content).slice(0, 4000),
+        })),
       targetAgent: targetAgent || undefined,
       patientInfo: contextInfo || defaultPatientInfo,
     };
 
     const response = await fetch(`${API_BASE}/agent/chat`, {
-      method: 'POST',
+      method: "POST",
       headers,
       body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
-      throw new Error(err.message || err.detail || err.title || 'Failed to communicate with the AI assistant.');
+      throw new Error(
+        err.message ||
+          err.detail ||
+          err.title ||
+          "Failed to communicate with the AI assistant.",
+      );
     }
 
     return await response.json();
@@ -87,18 +100,26 @@ export const agentService = {
    */
   async recordDecision(workflowId, { approved, note } = {}) {
     const token = getToken();
-    const headers = { 'Content-Type': 'application/json' };
+    const headers = { "Content-Type": "application/json" };
     if (token) headers.Authorization = `Bearer ${token}`;
 
-    const response = await fetch(`${API_BASE}/agent/workflows/${workflowId}/decision`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ approved: Boolean(approved), note: note || undefined }),
-    });
+    const response = await fetch(
+      `${API_BASE}/agent/workflows/${workflowId}/decision`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          approved: Boolean(approved),
+          note: note || undefined,
+        }),
+      },
+    );
 
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
-      throw new Error(err.message || err.title || 'Failed to record workflow decision.');
+      throw new Error(
+        err.message || err.title || "Failed to record workflow decision.",
+      );
     }
 
     return await response.json();
@@ -109,7 +130,7 @@ export const agentService = {
    */
   async getRecentWorkflows(limit = 20) {
     const token = getToken();
-    const headers = { 'Content-Type': 'application/json' };
+    const headers = { "Content-Type": "application/json" };
     if (token) headers.Authorization = `Bearer ${token}`;
 
     const response = await fetch(`${API_BASE}/agent/workflows?limit=${limit}`, {
@@ -118,10 +139,56 @@ export const agentService = {
 
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
-      throw new Error(err.message || err.title || 'Failed to load agent workflows.');
+      throw new Error(
+        err.message || err.title || "Failed to load agent workflows.",
+      );
     }
 
     return await response.json();
+  },
+
+  /**
+   * Run the two-agent patient care workflow (PatientDataAgent + CarePlanningAgent).
+   * The workflow can take 30-90 seconds, so we allow up to 4 minutes.
+   */
+  async patientCarePlan(patientProfileId) {
+    const token = getToken();
+    if (!token) throw new Error("You must be logged in.");
+    if (!patientProfileId) throw new Error("Patient profile ID is required.");
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 240_000); // 4 minutes
+
+    try {
+      const response = await fetch(`${API_BASE}/agent/patient-care-plan`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ patientProfileId }),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(
+          err.message || err.title || "Failed to generate care plan.",
+        );
+      }
+
+      return await response.json();
+    } catch (e) {
+      if (e.name === "AbortError") {
+        throw new Error(
+          "The AI assistant took too long to respond. Please try again.",
+          { cause: e },
+        );
+      }
+      throw e;
+    } finally {
+      clearTimeout(timeoutId);
+    }
   },
 };
 

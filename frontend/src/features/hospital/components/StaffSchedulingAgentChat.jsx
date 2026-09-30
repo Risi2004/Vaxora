@@ -1,11 +1,55 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import agentService from '../../patient/services/agentService';
 import staffService from '../services/staffService';
+import { IconBot, IconClose } from '../../../shared/icons/AppIcons';
 
 function speakDate(iso) {
   const [year, month, day] = String(iso || '').slice(0, 10).split('-').map(Number);
   if (!year || !month || !day) return iso || '';
   return new Date(year, month - 1, day).toLocaleDateString('en-GB', { day: 'numeric', month: 'long' });
+}
+
+function FairnessSummary({ summary, validation }) {
+  const before = Array.isArray(summary?.before) ? summary.before : [];
+  const after = Array.isArray(summary?.after) ? summary.after : [];
+  if (before.length === 0 && after.length === 0) return null;
+
+  const renderRows = (rows, title) => (
+    <div style={{ flex: 1, minWidth: 180 }}>
+      <div style={{ fontWeight: 700, color: '#0f172a', marginBottom: '6px' }}>{title}</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+        {rows.slice(0, 6).map((row) => (
+          <div key={`${title}-${row.affiliationId || row.staffName}`} style={{ fontSize: '12px', color: '#334155' }}>
+            {row.staffName} · {row.shiftCount} shift{row.shiftCount === 1 ? '' : 's'}
+            {row.load ? ` · ${row.load}` : ''}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  return (
+    <div
+      style={{
+        marginTop: '10px',
+        padding: '10px 12px',
+        borderRadius: '8px',
+        border: '1px solid #dbeafe',
+        background: '#eff6ff',
+      }}
+    >
+      <div style={{ fontWeight: 700, color: '#1d4ed8', marginBottom: '8px' }}>Workload fairness</div>
+      <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+        {before.length > 0 ? renderRows(before, 'Before') : null}
+        {after.length > 0 ? renderRows(after, 'After plan') : null}
+      </div>
+      {validation && Array.isArray(validation.issues) && validation.issues.length > 0 ? (
+        <div style={{ marginTop: '8px', color: '#b45309', fontSize: '12px' }}>
+          {validation.issues.length} proposal(s) need review before approval.
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function BookingBrief({ briefing }) {
@@ -219,7 +263,14 @@ function buildRosterGrid(proposals) {
 /**
  * Staff Scheduling Agent chat — UI aligned with BookingAgentChat.
  */
-export default function StaffSchedulingAgentChat({ weekStart, weekEnd, initialPrompt, onShiftsChanged, onClose }) {
+export default function StaffSchedulingAgentChat({
+  weekStart,
+  weekEnd,
+  initialPrompt,
+  onShiftsChanged,
+  onProposalsReady,
+  onClose,
+}) {
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
@@ -302,14 +353,35 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, initialPr
         setFollowUpPrompts(nextFollowUps);
       }
 
+      const workflowId = res.workflowId || res.WorkflowId || null;
+      if (proposals.length > 0 && typeof onProposalsReady === 'function') {
+        onProposalsReady(proposals, {
+          workflowId,
+          fairnessSummary: res.fairnessSummary || res.fairness_summary || null,
+          validation: res.validation || null,
+          briefing: res.briefing || null,
+        });
+      }
+
+      const chatContent =
+        proposals.length > 0 && typeof onProposalsReady === 'function'
+          ? `${res.content || 'I prepared shift suggestions.'}\n\n**${proposals.length} suggested shift${proposals.length === 1 ? '' : 's'}** are in the Suggested week window — select which to approve there.`
+          : res.content || 'I processed your scheduling request.';
+
       setMessages((prev) => [
         ...prev,
         {
           role: 'assistant',
-          content: res.content || 'I processed your scheduling request.',
-          briefing: res.briefing || null,
-          proposals,
-          workflowId: res.workflowId || res.WorkflowId || null,
+          content: chatContent,
+          briefing: proposals.length > 0 && onProposalsReady ? null : res.briefing || null,
+          fairnessSummary:
+            proposals.length > 0 && onProposalsReady
+              ? null
+              : res.fairnessSummary || res.fairness_summary || null,
+          validation: proposals.length > 0 && onProposalsReady ? null : res.validation || null,
+          // Proposals render on the week calendar, not in this chat.
+          proposals: proposals.length > 0 && onProposalsReady ? [] : proposals,
+          workflowId,
           createdShifts: res.created_shifts || res.createdShifts || null,
         },
       ]);
@@ -322,7 +394,7 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, initialPr
         ...prev,
         {
           role: 'assistant',
-          content: `⚠️ **Agent Communication Error**: ${
+          content: `**Agent Communication Error**: ${
             err.message ||
             'Could not connect to the Staff Scheduling Agent service. Please ensure the agent backend is running.'
           }`,
@@ -386,7 +458,7 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, initialPr
         ...prev,
         {
           role: 'assistant',
-          content: `⚠️ Failed to create shift: ${err.message || 'Request failed'}`,
+          content: `Failed to create shift: ${err.message || 'Request failed'}`,
           isError: true,
         },
       ]);
@@ -404,6 +476,8 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, initialPr
     setApprovingId('batch');
     const approvedIds = new Set();
     const failed = [];
+    // Created one at a time on purpose: the API checks for overlapping shifts per
+    // request, so concurrent creates could both pass the check and double-book staff.
     for (const proposal of pending) {
       try {
         await staffService.createShift(shiftPayload(proposal));
@@ -467,21 +541,29 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, initialPr
     const id = proposalIdentity(proposal);
     stickToBottomRef.current = false;
 
+    let alternative = null;
     try {
-      await agentService.sendMessage(
+      const res = await agentService.sendMessage(
         [
           {
             role: 'user',
             content: `__shift_declined__ ${JSON.stringify({
               affiliationId: proposal.affiliationId,
+              gapId: proposal.gapId,
               shiftDate: String(proposal.shiftDate).slice(0, 10),
               startTime: normalizeTime(proposal.startTime),
               endTime: normalizeTime(proposal.endTime),
+              requestAlternative: Boolean(proposal.gapId),
             })}`,
           },
         ],
         { targetAgent: 'StaffSchedulingAgent' },
       );
+      if (Array.isArray(res.proposals) && res.proposals.length > 0) {
+        alternative = res.proposals[0];
+      } else if (res.proposal) {
+        alternative = res.proposal;
+      }
     } catch (err) {
       stickToBottomRef.current = true;
       setMessages((prev) => [
@@ -517,10 +599,16 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, initialPr
         const nextProposals = msg.proposals.map((p) =>
           proposalIdentity(p) === id ? { ...p, _status: 'declined' } : p
         );
+        if (alternative) {
+          nextProposals.push(alternative);
+        }
         const pending = nextProposals.filter((p) => p._status !== 'approved' && p._status !== 'declined');
         return {
           ...msg,
           proposals: nextProposals,
+          fairnessSummary: alternative
+            ? msg.fairnessSummary
+            : msg.fairnessSummary,
           decision:
             pending.length === 0
               ? approvedCount > 0
@@ -575,10 +663,9 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, initialPr
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: '20px',
             }}
           >
-            🤖
+            <IconBot size={20} />
           </div>
           <div>
             <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>Vaxora Staff Scheduling Agent</h3>
@@ -640,8 +727,9 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, initialPr
               onMouseLeave={(e) => {
                 e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';
               }}
+              aria-label="Close scheduling agent"
             >
-              ✕
+              <IconClose size={16} />
             </button>
           )}
         </div>
@@ -687,6 +775,9 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, initialPr
                 }}
               >
                 {msg.briefing ? <BookingBrief briefing={msg.briefing} /> : formatMarkdownText(msg.content, isUser)}
+                {msg.fairnessSummary ? (
+                  <FairnessSummary summary={msg.fairnessSummary} validation={msg.validation} />
+                ) : null}
               </div>
 
               {Array.isArray(msg.proposals) && msg.proposals.length > 0 && (() => {
@@ -742,6 +833,11 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, initialPr
                               <div style={{ fontWeight: 700, color: '#0f172a', lineHeight: 1.3 }}>
                                 {proposal.staffName}
                               </div>
+                              {proposal.specialization ? (
+                                <div style={{ color: '#475569', fontSize: '11px', lineHeight: 1.3 }}>
+                                  {proposal.specialization}
+                                </div>
+                              ) : null}
                               {proposal.vaccineName ? (
                                 <div style={{ color: '#0369a1', fontSize: '11px', fontWeight: 600, lineHeight: 1.3 }}>
                                   {proposal.vaccineName}
@@ -751,6 +847,19 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, initialPr
                                 {proposal.staffRole || 'Staff'} · {String(proposal.startTime).slice(0, 5)}–
                                 {String(proposal.endTime).slice(0, 5)}
                               </div>
+                              {typeof proposal.reason === 'string' &&
+                              proposal.reason.toLowerCase().includes('specialization') ? (
+                                <div style={{ color: '#0f766e', fontSize: '10px', marginTop: '2px', lineHeight: 1.3 }}>
+                                  {proposal.reason.includes('·')
+                                    ? proposal.reason.split('·').slice(1).join('·').trim()
+                                    : proposal.reason}
+                                </div>
+                              ) : null}
+                              {Array.isArray(proposal.alternatives) && proposal.alternatives.length > 0 ? (
+                                <div style={{ color: '#64748b', fontSize: '10px', marginTop: '4px' }}>
+                                  Alt: {proposal.alternatives.map((alt) => alt.staffName).join(', ')}
+                                </div>
+                              ) : null}
                               {resolved ? (
                                 <div
                                   style={{
@@ -1071,7 +1180,6 @@ export default function StaffSchedulingAgentChat({ weekStart, weekEnd, initialPr
           }}
         >
           <span>Send</span>
-          <span>🚀</span>
         </button>
       </div>
     </div>

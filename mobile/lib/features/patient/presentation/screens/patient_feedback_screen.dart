@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import '../../../../core/constants/app_assets.dart';
-import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_text_styles.dart';
 import '../../../auth/data/repositories/auth_repository.dart';
+import '../../../staff/presentation/widgets/network_avatar.dart';
+import '../../../staff/presentation/widgets/staff_common_widgets.dart';
 
 class PatientFeedbackScreen extends StatefulWidget {
   const PatientFeedbackScreen({super.key});
@@ -20,6 +19,8 @@ class _PatientFeedbackScreenState extends State<PatientFeedbackScreen> {
 
   int _rating = 5;
   bool _submitted = false;
+  String _displayName = 'Citizen';
+  String? _photoUrl;
 
   @override
   void initState() {
@@ -33,6 +34,8 @@ class _PatientFeedbackScreenState extends State<PatientFeedbackScreen> {
       setState(() {
         _nameController.text = user.name;
         _emailController.text = user.email;
+        _displayName = user.name.isNotEmpty ? user.name : 'Citizen';
+        _photoUrl = resolveMediaUrl(user.profilePhotoUrl);
         if (user.phoneNumber != null && user.phoneNumber!.isNotEmpty) {
           _phoneController.text = user.phoneNumber!;
         }
@@ -63,221 +66,199 @@ class _PatientFeedbackScreenState extends State<PatientFeedbackScreen> {
     });
   }
 
+  InputDecoration _field(String hint) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: const TextStyle(
+        color: StaffSurfaces.textMutedSoft,
+        fontSize: 13,
+      ),
+      filled: true,
+      fillColor: StaffSurfaces.cardBg,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: StaffSurfaces.cardBorder),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: StaffSurfaces.cardBorder),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: StaffSurfaces.brandSoft),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        title: const Text('Share Feedback', style: AppTextStyles.h3),
-        backgroundColor: Colors.white,
-        elevation: 0,
+      backgroundColor: StaffSurfaces.pageBg,
+      appBar: StaffScreenHeader.appBar(
+        displayName: _displayName,
+        subtitle: 'Patient · Feedback',
+        photoUrl: _photoUrl,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Top Healthcare Image Visual
-            ClipRRect(
-              borderRadius: BorderRadius.circular(18),
-              child: Image.asset(
-                AppAssets.feedback,
-                height: 180,
-                width: double.infinity,
-                fit: BoxFit.cover,
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            // Feedback Card
-            Container(
-              padding: const EdgeInsets.all(22),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.borderAuthCard, width: 2),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.borderAuthCard.withValues(alpha: 0.06),
-                    blurRadius: 16,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: _submitted
-                  ? Column(
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 28),
+        children: [
+          StaffPageIntro(
+            eyebrow: 'Service quality',
+            title: 'Share feedback',
+            subtitle: 'Rate a recent vaccination visit so centres can improve.',
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: StaffSurfaces.card(),
+            child: _submitted
+                ? Column(
+                    children: [
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: StaffSurfaces.softPanelDeep,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(
+                          Icons.check_circle_outline,
+                          color: StaffSurfaces.brandSoft,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Thanks for the feedback',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: StaffSurfaces.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Your $_rating-star rating and comments are recorded.',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: StaffSurfaces.textSecondary,
+                          height: 1.4,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      FilledButton(
+                        onPressed: _handleReset,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: StaffSurfaces.cta,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 12,
+                          ),
+                        ),
+                        child: const Text('Submit another'),
+                      ),
+                    ],
+                  )
+                : Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const SizedBox(height: 10),
-                        const Text('🎉', style: TextStyle(fontSize: 48)),
-                        const SizedBox(height: 12),
                         const Text(
-                          'Thank You for Your Feedback!',
-                          textAlign: TextAlign.center,
+                          'Your experience',
                           style: TextStyle(
-                            fontSize: 18,
+                            fontSize: 15,
                             fontWeight: FontWeight.w700,
-                            color: AppColors.textTitle,
+                            color: StaffSurfaces.textPrimary,
                           ),
                         ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Your rating of $_rating stars and comments have been recorded to help us improve our national immunization services.',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: AppColors.textBody,
-                            height: 1.45,
+                        const SizedBox(height: 4),
+                        const Text(
+                          'Tap a star, then add a short note.',
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            color: StaffSurfaces.textSecondary,
                           ),
                         ),
-                        const SizedBox(height: 20),
-                        ElevatedButton(
-                          onPressed: _handleReset,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.brandBlue,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        const SizedBox(height: 14),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 10,
+                            horizontal: 8,
                           ),
-                          child: const Text('Submit Another Feedback', style: TextStyle(fontWeight: FontWeight.w700)),
+                          decoration: StaffSurfaces.softWell(),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: List.generate(5, (index) {
+                              final starValue = index + 1;
+                              return IconButton(
+                                onPressed: () =>
+                                    setState(() => _rating = starValue),
+                                icon: Icon(
+                                  starValue <= _rating
+                                      ? Icons.star_rounded
+                                      : Icons.star_outline_rounded,
+                                  color: const Color(0xFFF59E0B),
+                                  size: 30,
+                                ),
+                              );
+                            }),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        TextFormField(
+                          controller: _nameController,
+                          decoration: _field('Your name'),
+                          validator: (v) => (v == null || v.trim().isEmpty)
+                              ? 'Please enter name'
+                              : null,
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _emailController,
+                          keyboardType: TextInputType.emailAddress,
+                          decoration: _field('Email'),
+                          validator: (v) => (v == null || v.trim().isEmpty)
+                              ? 'Please enter email'
+                              : null,
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _phoneController,
+                          keyboardType: TextInputType.phone,
+                          decoration: _field('Contact number'),
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _messageController,
+                          maxLines: 4,
+                          decoration: _field('Tell us about your visit…'),
+                          validator: (v) => (v == null || v.trim().isEmpty)
+                              ? 'Please write your feedback'
+                              : null,
+                        ),
+                        const SizedBox(height: 16),
+                        FilledButton(
+                          onPressed: _handleSubmit,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: StaffSurfaces.cta,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            textStyle: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          child: const Text('Submit feedback'),
                         ),
                       ],
-                    )
-                  : Form(
-                      key: _formKey,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Center(
-                            child: Image.asset(
-                              AppAssets.logo,
-                              height: 48,
-                              fit: BoxFit.contain,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          const Text(
-                            'Your Experience Matters',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.textTitle,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          const Text(
-                            'Rate your recent vaccination appointment or healthcare experience.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(fontSize: 12, color: AppColors.textMuted),
-                          ),
-                          const SizedBox(height: 20),
-
-                          // Star Rating Selector
-                          Container(
-                            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF8FAFC),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: AppColors.borderLight),
-                            ),
-                            child: Column(
-                              children: [
-                                const Text(
-                                  'TAP TO RATE',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppColors.textMuted,
-                                    letterSpacing: 0.5,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: List.generate(5, (index) {
-                                    final starValue = index + 1;
-                                    return IconButton(
-                                      onPressed: () => setState(() => _rating = starValue),
-                                      icon: Icon(
-                                        starValue <= _rating ? Icons.star_rounded : Icons.star_outline_rounded,
-                                        color: const Color(0xFFF59E0B), // Golden amber
-                                        size: 32,
-                                      ),
-                                    );
-                                  }),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-
-                          // Name
-                          TextFormField(
-                            controller: _nameController,
-                            decoration: const InputDecoration(hintText: 'Your Name'),
-                            validator: (v) => (v == null || v.trim().isEmpty) ? 'Please enter name' : null,
-                          ),
-                          const SizedBox(height: 12),
-
-                          // Email
-                          TextFormField(
-                            controller: _emailController,
-                            keyboardType: TextInputType.emailAddress,
-                            decoration: const InputDecoration(hintText: 'Email Address'),
-                            validator: (v) => (v == null || v.trim().isEmpty) ? 'Please enter email' : null,
-                          ),
-                          const SizedBox(height: 12),
-
-                          // Contact No
-                          TextFormField(
-                            controller: _phoneController,
-                            keyboardType: TextInputType.phone,
-                            decoration: const InputDecoration(hintText: 'Contact Number'),
-                          ),
-                          const SizedBox(height: 12),
-
-                          // Message
-                          TextFormField(
-                            controller: _messageController,
-                            maxLines: 4,
-                            decoration: const InputDecoration(hintText: 'Tell us about your experience...'),
-                            validator: (v) => (v == null || v.trim().isEmpty) ? 'Please write your feedback' : null,
-                          ),
-                          const SizedBox(height: 20),
-
-                          // Submit CTA
-                          Container(
-                            decoration: BoxDecoration(
-                              gradient: AppColors.authButtonGradient,
-                              borderRadius: BorderRadius.circular(10),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: const Color(0xFF174296).withValues(alpha: 0.35),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
-                            ),
-                            child: ElevatedButton(
-                              onPressed: _handleSubmit,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.transparent,
-                                shadowColor: Colors.transparent,
-                                padding: const EdgeInsets.symmetric(vertical: 14),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                              ),
-                              child: const Text(
-                                'Submit Feedback',
-                                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
                     ),
-            ),
-          ],
-        ),
+                  ),
+          ),
+        ],
       ),
     );
   }

@@ -33,7 +33,11 @@ async function apiRequest(endpoint, options = {}) {
 
   if (!response.ok) {
     let errorMessage = 'Request failed';
-    if (typeof data === 'object' && data !== null) {
+    if (response.status === 401) {
+      errorMessage = 'Session expired. Please log in again.';
+    } else if (response.status === 403) {
+      errorMessage = 'You do not have permission for this action.';
+    } else if (typeof data === 'object' && data !== null) {
       if (data.message) errorMessage = data.message;
       else if (data.title) errorMessage = data.title;
     } else if (typeof data === 'string' && data) {

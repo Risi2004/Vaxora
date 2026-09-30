@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../staff/presentation/widgets/staff_common_widgets.dart';
 import '../../data/models/schedule_model.dart';
 import '../../data/repositories/appointment_repository.dart';
 import '../../data/repositories/patient_repository.dart';
@@ -141,10 +142,10 @@ class _BookAppointmentSheetState extends State<BookAppointmentSheet> {
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: AppColors.brandBlue,
+            colorScheme: ColorScheme.light(
+              primary: StaffSurfaces.cta,
               onPrimary: Colors.white,
-              onSurface: AppColors.textTitle,
+              onSurface: StaffSurfaces.textPrimary,
             ),
           ),
           child: child!,
@@ -214,297 +215,351 @@ class _BookAppointmentSheetState extends State<BookAppointmentSheet> {
     }
   }
 
+  InputDecoration _field(String hint) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: const TextStyle(
+        color: StaffSurfaces.textMutedSoft,
+        fontSize: 13,
+      ),
+      filled: true,
+      fillColor: StaffSurfaces.cardBg,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: StaffSurfaces.cardBorder),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: StaffSurfaces.cardBorder),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: StaffSurfaces.brandSoft),
+      ),
+    );
+  }
+
+  Widget _label(String text) {
+    return Text(
+      text.toUpperCase(),
+      style: const TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 0.5,
+        color: StaffSurfaces.textSecondary,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final fee = _selectedSchedule != null ? _selectedSchedule!.price : 0.0;
-    final feeText = fee == 0.0 ? 'FREE (Gov. Immunization)' : 'LKR ${fee.toStringAsFixed(2)}';
+    final feeText =
+        fee == 0.0 ? 'Free (gov. immunization)' : 'LKR ${fee.toStringAsFixed(2)}';
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
-    return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      child: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Handle bar
-              Center(
-                child: Container(
-                  width: 44,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFCBD5E1),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Title row
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Book Vaccination Slot',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textTitle,
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottomInset),
+      child: Container(
+        decoration: const BoxDecoration(
+          color: StaffSurfaces.appBarBg,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: StaffSurfaces.chipNeutralBorder,
+                      borderRadius: BorderRadius.circular(2),
                     ),
                   ),
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close, size: 20),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-
-              if (_isLoadingData) ...[
-                const LinearProgressIndicator(color: AppColors.brandBlue),
-                const SizedBox(height: 12),
-              ],
-
-              if (_errorMessage != null) ...[
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: AppColors.errorBg,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
-                  ),
-                  child: Text(
-                    _errorMessage!,
-                    style: const TextStyle(color: AppColors.error, fontSize: 12, fontWeight: FontWeight.w600),
-                  ),
                 ),
                 const SizedBox(height: 12),
-              ],
-
-              // Select Vaccine
-              const Text(
-                'Select Vaccine *',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF475569)),
-              ),
-              const SizedBox(height: 6),
-              DropdownButtonFormField<String>(
-                initialValue: _selectedVaccine,
-                decoration: const InputDecoration(hintText: 'Choose Vaccine'),
-                dropdownColor: Colors.white,
-                isExpanded: true,
-                items: _vaccines.map((v) {
-                  return DropdownMenuItem(
-                    value: v,
-                    child: Text(v, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
-                  );
-                }).toList(),
-                onChanged: (v) {
-                  setState(() => _selectedVaccine = v);
-                  _fetchSlotsForCurrentSelection();
-                },
-              ),
-              const SizedBox(height: 14),
-
-              // Select Hospital
-              const Text(
-                'Select Hospital / Center *',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF475569)),
-              ),
-              const SizedBox(height: 6),
-              if (_schedules.isNotEmpty)
-                DropdownButtonFormField<HospitalScheduleModel>(
-                  initialValue: _selectedSchedule,
-                  decoration: const InputDecoration(hintText: 'Choose Center'),
-                  dropdownColor: Colors.white,
-                  isExpanded: true,
-                  items: _schedules.map((s) {
-                    return DropdownMenuItem(
-                      value: s,
+                Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: StaffSurfaces.softPanelDeep,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        Icons.event_available_outlined,
+                        color: StaffSurfaces.brandSoft,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
                       child: Text(
-                        '${s.hospitalName} • ${s.vaccineName} (${s.formattedPrice})',
-                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                        'Book a slot',
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                          color: StaffSurfaces.textPrimary,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: Icon(Icons.close, color: StaffSurfaces.textSecondary),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                if (_isLoadingData) ...[
+                  LinearProgressIndicator(color: StaffSurfaces.brandSoft),
+                  const SizedBox(height: 12),
+                ],
+                if (_errorMessage != null) ...[
+                  StaffErrorBanner(
+                    message: _errorMessage!,
+                    onDismiss: () => setState(() => _errorMessage = null),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+
+                _label('Vaccine'),
+                const SizedBox(height: 6),
+                DropdownButtonFormField<String>(
+                  initialValue: _selectedVaccine,
+                  decoration: _field('Choose vaccine'),
+                  dropdownColor: StaffSurfaces.cardBg,
+                  isExpanded: true,
+                  items: _vaccines.map((v) {
+                    return DropdownMenuItem(
+                      value: v,
+                      child: Text(
+                        v,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: StaffSurfaces.textPrimary,
+                        ),
                       ),
                     );
                   }).toList(),
-                  onChanged: (s) {
-                    setState(() {
-                      _selectedSchedule = s;
-                      if (s?.vaccineName.isNotEmpty == true && _vaccines.contains(s!.vaccineName)) {
-                        _selectedVaccine = s.vaccineName;
-                      }
-                    });
+                  onChanged: (v) {
+                    setState(() => _selectedVaccine = v);
                     _fetchSlotsForCurrentSelection();
                   },
-                )
-              else
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceSubtle,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: AppColors.borderLight),
+                ),
+                const SizedBox(height: 14),
+                _label('Hospital / center'),
+                const SizedBox(height: 6),
+                if (_schedules.isNotEmpty)
+                  DropdownButtonFormField<HospitalScheduleModel>(
+                    initialValue: _selectedSchedule,
+                    decoration: _field('Choose center'),
+                    dropdownColor: StaffSurfaces.cardBg,
+                    isExpanded: true,
+                    items: _schedules.map((s) {
+                      return DropdownMenuItem(
+                        value: s,
+                        child: Text(
+                          '${s.hospitalName} · ${s.vaccineName} (${s.formattedPrice})',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: StaffSurfaces.textPrimary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (s) {
+                      setState(() {
+                        _selectedSchedule = s;
+                        if (s?.vaccineName.isNotEmpty == true &&
+                            _vaccines.contains(s!.vaccineName)) {
+                          _selectedVaccine = s.vaccineName;
+                        }
+                      });
+                      _fetchSlotsForCurrentSelection();
+                    },
+                  )
+                else
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
+                    decoration: StaffSurfaces.softWell(),
+                    child: const Text(
+                      'National hospital network (direct assignment)',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: StaffSurfaces.textPrimary,
+                      ),
+                    ),
                   ),
-                  child: const Text(
-                    'National Hospital Network Center (Direct Assignment)',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.textTitle),
+                const SizedBox(height: 14),
+                _label('Appointment date'),
+                const SizedBox(height: 6),
+                InkWell(
+                  onTap: _pickDate,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: StaffSurfaces.cardBg,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: StaffSurfaces.cardBorder),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          _selectedDate != null
+                              ? '${_selectedDate!.year}-${_selectedDate!.month.toString().padLeft(2, '0')}-${_selectedDate!.day.toString().padLeft(2, '0')}'
+                              : 'Select date',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: StaffSurfaces.textPrimary,
+                          ),
+                        ),
+                        Icon(
+                          Icons.calendar_today_outlined,
+                          size: 18,
+                          color: StaffSurfaces.brandSoft,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              const SizedBox(height: 14),
-
-              // Select Date
-              const Text(
-                'Appointment Date *',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF475569)),
-              ),
-              const SizedBox(height: 6),
-              InkWell(
-                onTap: _pickDate,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: AppColors.inputAuthBg,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: AppColors.borderAuthInput),
+                const SizedBox(height: 14),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    _label('20-minute slot'),
+                    if (_isLoadingSlots)
+                      SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: StaffSurfaces.brandSoft,
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _slots.map((slot) {
+                    final isSelected = _selectedSlot == slot;
+                    return ChoiceChip(
+                      label: Text(
+                        slot,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: isSelected
+                              ? Colors.white
+                              : StaffSurfaces.textPrimary,
+                        ),
+                      ),
+                      selected: isSelected,
+                      selectedColor: StaffSurfaces.cta,
+                      backgroundColor: StaffSurfaces.softPanel,
+                      side: BorderSide(
+                        color: isSelected
+                            ? StaffSurfaces.cta
+                            : StaffSurfaces.cardBorder,
+                      ),
+                      onSelected: (selected) {
+                        if (selected) setState(() => _selectedSlot = slot);
+                      },
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 14),
+                _label('Notes (optional)'),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: _notesController,
+                  maxLines: 2,
+                  decoration: _field(
+                    'Allergy, preferred arm, or anything the center should know',
                   ),
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
+                  decoration: StaffSurfaces.softWell(),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        _selectedDate != null
-                            ? '${_selectedDate!.year}-${_selectedDate!.month.toString().padLeft(2, '0')}-${_selectedDate!.day.toString().padLeft(2, '0')}'
-                            : 'Select Date',
-                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textTitle),
+                      const Text(
+                        'Fee',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: StaffSurfaces.textSecondary,
+                        ),
                       ),
-                      const Icon(Icons.calendar_today_outlined, size: 18, color: AppColors.brandBlue),
+                      Text(
+                        feeText,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: fee == 0.0
+                              ? AppColors.success
+                              : StaffSurfaces.brandSoft,
+                        ),
+                      ),
                     ],
                   ),
                 ),
-              ),
-              const SizedBox(height: 14),
-
-              // Select Slot
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Available 20-Minute Time Slot *',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF475569)),
-                  ),
-                  if (_isLoadingSlots)
-                    const SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.brandBlue),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: _slots.map((slot) {
-                  final isSelected = _selectedSlot == slot;
-                  return ChoiceChip(
-                    label: Text(
-                      slot,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: isSelected ? Colors.white : AppColors.primaryDark,
-                      ),
-                    ),
-                    selected: isSelected,
-                    selectedColor: AppColors.brandBlue,
-                    backgroundColor: const Color(0xFFF1F5F9),
-                    side: BorderSide(color: isSelected ? AppColors.brandBlue : AppColors.borderLight),
-                    onSelected: (selected) {
-                      if (selected) setState(() => _selectedSlot = slot);
-                    },
-                  );
-                }).toList(),
-              ),
-              const SizedBox(height: 14),
-
-              // Medical notes
-              const Text(
-                'Special Medical Notes / Allergies (Optional)',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF475569)),
-              ),
-              const SizedBox(height: 6),
-              TextField(
-                controller: _notesController,
-                maxLines: 2,
-                decoration: const InputDecoration(
-                  hintText: 'e.g. Mild allergy to penicillin, preferred arm etc.',
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Fee summary row
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppColors.borderLight),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Service Charge / Fee:', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textBody)),
-                    Text(
-                      feeText,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: fee == 0.0 ? AppColors.success : AppColors.brandBlue,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // Submit CTA
-              Container(
-                decoration: BoxDecoration(
-                  gradient: AppColors.authButtonGradient,
-                  borderRadius: BorderRadius.circular(10),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF174296).withValues(alpha: 0.35),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: ElevatedButton(
+                const SizedBox(height: 16),
+                FilledButton(
                   onPressed: _isSubmitting ? null : _handleConfirm,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.transparent,
-                    shadowColor: Colors.transparent,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: StaffSurfaces.cta,
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor: StaffSurfaces.softPanelDeep,
+                    elevation: 0,
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    textStyle: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                   child: _isSubmitting
                       ? const SizedBox(
                           height: 20,
                           width: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(Colors.white)),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
                         )
-                      : const Text(
-                          'Confirm & Reserve Slot',
-                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white),
-                        ),
+                      : const Text('Confirm slot'),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

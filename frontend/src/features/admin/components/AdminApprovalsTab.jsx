@@ -1,5 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { authService } from '../../auth';
+import {
+  IconClock,
+  IconShield,
+  RoleAvatarIcon,
+} from '../../../shared/icons/AppIcons';
 
 export default function AdminApprovalsTab() {
   const [filterType, setFilterType] = useState('all');
@@ -132,8 +137,8 @@ export default function AdminApprovalsTab() {
       <div className="doctor-card admin-main-card">
         <div className="doctor-card-header" style={{ flexWrap: 'wrap', gap: '12px' }}>
           <div>
-            <div className="doctor-card-title">
-              <span>🛡️</span>
+            <div className="doctor-card-title" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+              <span className="icon-shade icon-shade-amber"><IconShield size={22} /></span>
               Doctor, Nurse &amp; Hospital Approval Queue
             </div>
             <p style={{ margin: '4px 0 0 0', fontSize: '0.82rem', color: '#64748b' }}>
@@ -225,7 +230,7 @@ export default function AdminApprovalsTab() {
               {loading ? (
                 <tr>
                   <td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
-                    <div style={{ display: 'inline-block', animation: 'spin 1s linear infinite', fontSize: '1.5rem', marginBottom: '8px' }}>⏳</div>
+                    <div style={{ display: 'inline-flex', animation: 'spin 1s linear infinite', marginBottom: '8px' }}><IconClock size={24} /></div>
                     <div>Fetching live verification queue...</div>
                   </td>
                 </tr>
@@ -272,12 +277,12 @@ export default function AdminApprovalsTab() {
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
-                              fontSize: '1.2rem',
+                              color: '#94a3b8',
                               border: '1px solid rgba(255, 255, 255, 0.12)',
                               flexShrink: 0,
                             }}
                           >
-                            {req.type === 'doctor' ? '👨‍⚕️' : req.type === 'nurse' ? '👩‍⚕️' : '🏥'}
+                            <RoleAvatarIcon role={req.type} size={20} />
                           </div>
                         )}
                         <div className="doctor-patient-cell">
@@ -298,9 +303,10 @@ export default function AdminApprovalsTab() {
                     </td>
                     <td style={{ whiteSpace: 'nowrap' }}>
                       <span className={`admin-role-badge ${req.type}`}>
-                        {req.type === 'doctor' && '🩺 Doctor'}
-                        {req.type === 'nurse' && '👩‍⚕️ Nurse'}
-                        {req.type === 'hospital' && '🏥 Hospital'}
+                        <RoleAvatarIcon role={req.type} size={14} />
+                        {req.type === 'doctor' && 'Doctor'}
+                        {req.type === 'nurse' && 'Nurse'}
+                        {req.type === 'hospital' && 'Hospital'}
                       </span>
                     </td>
                     <td style={{ whiteSpace: 'nowrap' }}>

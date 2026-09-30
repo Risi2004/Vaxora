@@ -165,8 +165,9 @@ export default function BookingAgentChat({ onAppointmentCreated, launchPayHere, 
         ...prev,
         {
           role: 'assistant',
-          content: `⚠️ **Agent Communication Error**: ${err.message || 'Could not connect to the Booking Agent service. Please ensure the agent backend is running at port 8001.'}`,
+          content: `⚠️ **Agent Communication Error**: ${err.message || 'Could not connect to the Booking Agent service. Please ensure the agent service is reachable.'}`,
           isError: true
+
         }
       ]);
     } finally {
@@ -254,8 +255,9 @@ export default function BookingAgentChat({ onAppointmentCreated, launchPayHere, 
               background: agentHealth?.online ? '#22c55e' : '#ef4444',
               display: 'inline-block'
             }}></span>
-            {checkingHealth ? 'Checking Agent...' : (agentHealth?.online ? 'Agent Online (Port 8001)' : 'Agent Offline')}
+            {checkingHealth ? 'Checking Agent...' : (agentHealth?.online ? 'Agent Online' : 'Agent Offline')}
           </div>
+
 
           {onClose && (
             <button
