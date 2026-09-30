@@ -87,7 +87,7 @@ class CarePlanningAgent:
             "model": self.model,
             "messages": messages,
             "temperature": temperature,
-            "reasoning_effort": "none",
+            "reasoning_effort": "low",
         }
 
         max_retries = 6

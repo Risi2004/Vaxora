@@ -101,7 +101,7 @@ class PatientDataAgent:
             "model": self.model,
             "messages": messages,
             "temperature": 0.1,
-            "reasoning_effort": "none",
+            "reasoning_effort": "low",
         }
 
         max_retries = 6
