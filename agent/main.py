@@ -27,17 +27,10 @@ app = FastAPI(title="Vaxora Google ADK Multi-Agent API", version="1.0.0")
 # authenticates the caller first. No browser origin is allowed to call this directly.
 app.add_middleware(
     CORSMiddleware,
-<<<<<<< HEAD
-    allow_origins=["http://localhost:5173", "http://localhost:5174"],
-    allow_credentials=False,
-    allow_methods=["POST", "GET", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "X-Agent-Key"],
-=======
     allow_origins=["*"],
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
->>>>>>> origin/main
 )
 
 

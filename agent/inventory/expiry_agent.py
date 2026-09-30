@@ -64,7 +64,6 @@ class ExpiryWatchdogAgent:
             payload["tools"] = tools
             payload["tool_choice"] = "auto"
 
-<<<<<<< HEAD
         max_retries = 3
         for attempt in range(max_retries + 1):
             async with httpx.AsyncClient(timeout=90.0) as client:
@@ -90,23 +89,13 @@ class ExpiryWatchdogAgent:
 
                 if resp.status_code >= 400:
                     logger.error(
-                        f"[{self.name}] Groq error {resp.status_code}: {resp.text[:1000]}"
+                        f"[{self.name}] OpenRouter error {resp.status_code}: {resp.text[:1000]}"
                     )
                 resp.raise_for_status()
                 return resp.json()["choices"][0]["message"]
 
         # Should never reach here
         raise RuntimeError("Unexpected: retry loop exited without result")
-=======
-        async with httpx.AsyncClient(timeout=90.0) as client:
-            resp = await client.post(
-                f"{self.base_url}/chat/completions", headers=headers, json=payload
-            )
-            if resp.status_code >= 400:
-                logger.error(f"[{self.name}] OpenRouter error {resp.status_code}: {resp.text[:1000]}")
-            resp.raise_for_status()
-            return resp.json()["choices"][0]["message"]
->>>>>>> origin/main
 
     async def _execute_tool(
         self, name: str, args: Dict[str, Any], token: Optional[str], workflow_id: str
