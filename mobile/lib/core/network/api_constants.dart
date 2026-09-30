@@ -2,16 +2,10 @@ import 'package:flutter/foundation.dart';
 import 'dart:io' show Platform;
 
 class ApiConstants {
-  // In Android Emulator, localhost maps to 10.0.2.2
-  // On iOS Simulator / Desktop / Web, localhost is 127.0.0.1
   static String get baseUrl {
-    if (kIsWeb) {
-      return 'http://localhost:5004/api';
-    }
+    if (kIsWeb) return 'http://localhost:5004/api';
     try {
-      if (Platform.isAndroid) {
-        return 'http://10.0.2.2:5004/api';
-      }
+      if (Platform.isAndroid) return 'http://10.0.2.2:5004/api';
     } catch (_) {}
     return 'http://localhost:5004/api';
   }
@@ -48,9 +42,12 @@ class ApiConstants {
   static const String inventorySummary = '/inventory/summary';
   static const String inventoryVaults = '/inventory/vaults';
 
+  // Inventory AI draft execution (approval-gated — writes on approve only)
+  static const String inventoryAgentExecuteDraft = '/inventory/agent/execute-draft';
+  static const String inventoryAgentWorkflows    = '/inventory/agent/workflows';
 
+  // Dynamic paths
   static String batchIssue(String batchId) => '/inventory/batches/$batchId/issue';
   static String batchWastage(String batchId) => '/inventory/batches/$batchId/wastage';
   static String batchAudit(String batchId) => '/inventory/batches/$batchId/audit';
-
 }
