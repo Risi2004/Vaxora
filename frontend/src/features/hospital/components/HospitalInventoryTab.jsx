@@ -195,7 +195,7 @@ export default function HospitalInventoryTab() {
           title="Vaccine inventory"
           subtitle="Monitor stock, cold storage, expiry risk, and restock activity from one operational workspace."
         />
-        <div className="hospital-manage-appointments-card" style={{ maxWidth: '1240px', padding: '60px', textAlign: 'center' }}>
+        <div className="hospital-inventory-content hospital-inventory-loading">
           <h3>Loading inventory…</h3>
         </div>
       </div>
@@ -209,7 +209,7 @@ export default function HospitalInventoryTab() {
         title="Vaccine inventory"
         subtitle="Monitor stock, cold storage, expiry risk, and restock activity from one operational workspace."
       />
-      <div className="hospital-manage-appointments-card" style={{ maxWidth: '1240px' }}>
+      <div className="hospital-inventory-content">
         {toastMessage && (
           <div className="inventory-toast-banner">
             <span>{toastMessage}</span>
@@ -226,34 +226,29 @@ export default function HospitalInventoryTab() {
         <div className="inventory-header-row">
           <div>
             <div className="inventory-badge-row">
-              <span className="inventory-moh-tag">MOH Sri Lanka &bull; Cold Chain Certified</span>
-              <span className="inventory-facility-tag">Hospital Code: MOH-COL-77042</span>
+              <span className="inventory-moh-tag">MOH Sri Lanka · Cold chain</span>
             </div>
-            <h2 className="hospital-manage-title" style={{ textAlign: 'left', margin: '8px 0 4px' }}>
-              Vaccine Inventory &amp; Cold Storage Management
-            </h2>
             <p className="inventory-subtitle">
-              Manage authorized vaccine products, log incoming restock shipments, monitor IoT cold storage sensors, and track lot audits.
+              Manage authorized products, stock movements, cold storage, and lot audits.
             </p>
           </div>
 
           <div className="inventory-action-buttons">
             <button type="button" className="btn-inventory-action btn-restock-primary" onClick={() => setIsRestockOpen(true)}>
-              <span className="btn-icon">📦</span> + Log Restock Shipment
+              <span className="btn-icon">📦</span> Log restock
             </button>
             <button type="button" className="btn-inventory-action btn-wastage-secondary" onClick={() => setIsWastageOpen(true)} disabled={inventory.length === 0}>
-              <span className="btn-icon">⚠️</span> Record Wastage
+              <span className="btn-icon">⚠️</span> Record wastage
             </button>
             <button
               type="button"
-              className="btn-inventory-action btn-export-neutral"
+              className="btn-inventory-action btn-inventory-ai"
               onClick={() => setIsAIAgentOpen(true)}
-              style={{ background: '#7c3aed', color: '#ffffff', borderColor: '#7c3aed' }}
             >
-              <span className="btn-icon">🤖</span> AI Agent
+              <span className="btn-icon">🤖</span> Inventory assistant
             </button>
             <button type="button" className="btn-inventory-action btn-export-neutral" onClick={() => showToast('Exporting official MOH Vaccine Stock Ledger (.CSV)...')}>
-              <span className="btn-icon">📄</span> Export Stock Report
+              <span className="btn-icon">📄</span> Export report
             </button>
           </div>
         </div>
