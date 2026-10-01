@@ -290,17 +290,8 @@ export default function HospitalStaffTab() {
         </div>
       </div>
 
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          marginBottom: '20px',
-          flexWrap: 'wrap',
-          gap: '12px',
-        }}
-      >
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+      <div className="hospital-staff-toolbar">
+        <div className="hospital-staff-filters" role="group" aria-label="Filter staff by category">
           <button
             type="button"
             className={`hospital-nav-btn ${activeTab === 'all' ? 'active' : ''}`}
@@ -356,22 +347,8 @@ export default function HospitalStaffTab() {
           placeholder="Search name, Vaxora ID, email..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="queue-search-input"
-          style={{ width: '280px', padding: '8px 14px' }}
+          className="queue-search-input hospital-staff-search"
         />
-        <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', color: '#475569', fontSize: '0.85rem' }}>
-          Sort by
-          <select
-            aria-label="Sort staff directory"
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-            style={{ padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', background: '#ffffff' }}
-          >
-            <option value="name">Name</option>
-            <option value="role">Role</option>
-            <option value="status">Status</option>
-          </select>
-        </label>
       </div>
 
       <div className="booths-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))' }}>

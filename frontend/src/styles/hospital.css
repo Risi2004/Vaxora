@@ -574,10 +574,48 @@
 .hospital-staff-toolbar {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: nowrap;
   margin: -8px 0 20px;
+}
+
+.hospital-staff-filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+}
+
+.hospital-staff-search {
+  width: min(360px, 34vw);
+  min-width: 260px;
+  min-height: 46px;
+  margin-left: auto;
+  padding: 10px 16px;
+  border: 2px solid #a8b6ca;
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(20, 45, 85, 0.08);
+  font-size: 0.95rem;
+}
+
+.hospital-staff-search:focus {
+  border-color: #19469d;
+  box-shadow: 0 0 0 3px rgba(25, 70, 157, 0.14);
+}
+
+@media (max-width: 760px) {
+  .hospital-staff-toolbar {
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+
+  .hospital-staff-search {
+    flex: 0 0 260px;
+    width: 260px;
+  }
 }
 
 .hospital-staff-hero-btn {
