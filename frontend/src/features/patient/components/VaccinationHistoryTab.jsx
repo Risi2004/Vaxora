@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { getUser } from "../../auth/services/authService";
 import { patientVaccinationService } from "../services/patientVaccinationService";
 import { IconClose, IconShield } from "../../../shared/icons/AppIcons";
+import PatientSubpageHeader from './PatientSubpageHeader';
 
 export default function VaccinationHistoryTab() {
   const [loading, setLoading] = useState(true);
@@ -70,7 +71,12 @@ export default function VaccinationHistoryTab() {
   const records = timeline?.records || [];
 
   return (
-    <div className="doctor-patient-history-page">
+    <div className="patient-subpage-page">
+      <PatientSubpageHeader
+        title="Vaccination History"
+        subtitle="Review your immunization records and access your vaccination certificates."
+      />
+      <div className="doctor-patient-history-page">
       {loading && (
         <div style={{ padding: "40px", textAlign: "center", color: "#475569" }}>
           Loading your vaccination history…
@@ -354,6 +360,7 @@ export default function VaccinationHistoryTab() {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

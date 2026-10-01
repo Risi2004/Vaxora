@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { authService } from "../../auth";
 import { appointmentService } from "../services/appointmentService";
 import { patientVaccinationService } from "../services/patientVaccinationService";
+import PatientSubpageHeader from './PatientSubpageHeader';
 
 // ---------- Helpers ----------
 const formatDate = (iso) => {
@@ -215,7 +216,12 @@ export default function PatientProfileTab() {
   });
 
   return (
-    <div
+    <div className="patient-subpage-page">
+      <PatientSubpageHeader
+        title="My Profile"
+        subtitle="View and update your personal details, appointments, and vaccination records."
+      />
+      <div
       className="manage-appointments-wrapper"
       style={{ flexDirection: "column", alignItems: "center", gap: "28px" }}
     >
@@ -634,6 +640,7 @@ export default function PatientProfileTab() {
             </table>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );
