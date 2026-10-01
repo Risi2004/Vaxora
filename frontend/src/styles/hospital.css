@@ -574,10 +574,48 @@
 .hospital-staff-toolbar {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: nowrap;
   margin: -8px 0 20px;
+}
+
+.hospital-staff-filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+}
+
+.hospital-staff-search {
+  width: min(360px, 34vw);
+  min-width: 260px;
+  min-height: 46px;
+  margin-left: auto;
+  padding: 10px 16px;
+  border: 2px solid #a8b6ca;
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(20, 45, 85, 0.08);
+  font-size: 0.95rem;
+}
+
+.hospital-staff-search:focus {
+  border-color: #19469d;
+  box-shadow: 0 0 0 3px rgba(25, 70, 157, 0.14);
+}
+
+@media (max-width: 760px) {
+  .hospital-staff-toolbar {
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+
+  .hospital-staff-search {
+    flex: 0 0 260px;
+    width: 260px;
+  }
 }
 
 .hospital-staff-hero-btn {
@@ -5006,6 +5044,357 @@ select.schedule-input-field {
   .shift-week-calendar-grid {
     grid-template-columns: 180px repeat(7, minmax(120px, 1fr)) 64px;
     min-width: 860px;
+  }
+}
+
+/* Shared visual language for hospital subpages. */
+.hospital-subpage-hero {
+  width: 100%;
+  margin-bottom: 24px;
+  padding: 28px 32px;
+  border: 1px solid rgba(21, 42, 85, 0.16);
+  border-radius: 16px;
+  background: linear-gradient(135deg, #f8fbff 0%, #eef5fb 100%);
+  box-shadow: 0 8px 24px -14px rgba(15, 23, 42, 0.18);
+}
+
+.hospital-subpage-hero h1 {
+  margin: 0 0 8px;
+  color: #152a55;
+  font-family: var(--font-heading);
+  font-size: clamp(1.65rem, 2.4vw, 2.15rem);
+  line-height: 1.15;
+  font-weight: 700;
+}
+
+.hospital-subpage-hero .hospital-hero-sub {
+  max-width: 720px;
+  margin: 0;
+}
+
+.hospital-manage-appointments-wrapper {
+  max-width: 1400px;
+  align-items: stretch;
+  padding: 0 0 40px;
+}
+
+.hospital-manage-appointments-card,
+.profile-top-card,
+.profile-bottom-card {
+  border-radius: 16px;
+  border: 1px solid #dce6f2;
+  box-shadow: 0 8px 24px -16px rgba(15, 23, 42, 0.22);
+  font-family: var(--font-body);
+}
+
+.hospital-manage-appointments-card {
+  padding: 28px 32px 34px;
+}
+
+.hospital-manage-title,
+.hospital-inner-facility-name,
+.hospital-profile-wrapper h2,
+.hospital-profile-wrapper h3,
+.schedule-create-title,
+.formulary-title {
+  font-family: var(--font-heading);
+  color: #152a55;
+  letter-spacing: 0;
+}
+
+.hospital-manage-title {
+  font-size: 1.55rem;
+  text-align: left;
+  margin: 0 0 20px;
+}
+
+.hospital-appointments-mockup-table thead tr th,
+.hospital-appointments-mockup-table tbody tr td {
+  font-family: var(--font-body);
+}
+
+.hospital-appointments-mockup-table thead tr th {
+  font-size: 0.82rem;
+  letter-spacing: 0;
+}
+
+.hospital-appointments-mockup-table tbody tr td {
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.hospital-profile-wrapper {
+  max-width: 1400px;
+  align-items: stretch;
+  gap: 24px;
+}
+
+.hospital-profile-wrapper .profile-top-card,
+.hospital-profile-wrapper .profile-bottom-card {
+  width: 100%;
+}
+
+.hospital-staff-heading {
+  font-family: var(--font-heading);
+  color: #152a55;
+  font-size: 1.15rem;
+}
+
+.hospital-profile-wrapper .profile-info-card {
+  border-radius: 12px;
+  box-shadow: none;
+}
+
+.hospital-profile-wrapper .profile-field-label,
+.hospital-profile-wrapper .profile-field-value,
+.hospital-profile-wrapper .profile-info-title,
+.hospital-profile-wrapper .profile-field-input {
+  font-family: var(--font-body);
+}
+
+/* Inventory keeps its operational color cues, softened to match Home and Staff. */
+.hospital-inventory-content {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  width: 100%;
+  font-family: var(--font-body);
+}
+
+.hospital-inventory-loading {
+  min-height: 180px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #dce6f2;
+  border-radius: 16px;
+  background: #ffffff;
+  color: #5e6e85;
+}
+
+.hospital-inventory-loading h3 {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: 1rem;
+  color: #1e3a5f;
+}
+
+.hospital-inventory-content .inventory-header-row {
+  align-items: center;
+  gap: 18px;
+  margin: 0;
+  padding: 0 0 16px;
+  border-bottom: 1px solid #e3eaf2;
+}
+
+.hospital-inventory-content .inventory-moh-tag {
+  background: #e8f4f4;
+  border-color: #c8e2e1;
+  color: #397a78;
+  letter-spacing: 0;
+}
+
+.hospital-inventory-content .inventory-subtitle {
+  margin-top: 8px;
+  color: #5e6e85;
+  font-size: 0.9rem;
+}
+
+.hospital-inventory-content .btn-inventory-action {
+  min-height: 40px;
+  padding: 9px 14px;
+  border-radius: 9px;
+  box-shadow: none;
+  font-size: 0.84rem;
+}
+
+.hospital-inventory-content .btn-restock-primary {
+  background: #3f659e;
+  border-color: #3f659e;
+}
+
+.hospital-inventory-content .btn-restock-primary:hover {
+  background: #345888;
+}
+
+.hospital-inventory-content .btn-wastage-secondary {
+  background: #fff7ed;
+  border-color: #f2d2b5;
+  color: #a65d26;
+}
+
+.hospital-inventory-content .btn-wastage-secondary:hover {
+  background: #fff1e3;
+  border-color: #e7bd99;
+}
+
+.hospital-inventory-content .btn-inventory-ai {
+  background: #f0ecf8;
+  border-color: #ded5ef;
+  color: #685b91;
+}
+
+.hospital-inventory-content .btn-inventory-ai:hover {
+  background: #e8e1f3;
+  border-color: #cfc3e6;
+}
+
+.hospital-inventory-content .btn-export-neutral {
+  background: #f7f9fc;
+  border-color: #dce4ee;
+  color: #52647b;
+}
+
+.hospital-inventory-content .vaccine-formulary-card,
+.hospital-inventory-content .cold-vaults-section {
+  margin: 0;
+  border-radius: 14px;
+  box-shadow: none;
+}
+
+.hospital-inventory-content .vaccine-formulary-card {
+  background: #ffffff;
+  border: 1px solid #dce6f2;
+}
+
+.hospital-inventory-content .formulary-title,
+.hospital-inventory-content .cold-vaults-title {
+  font-family: var(--font-heading);
+  color: #1e3a5f;
+  font-size: 1.02rem;
+  letter-spacing: 0;
+}
+
+.hospital-inventory-content .cold-vaults-section {
+  background: #f2f8f8;
+  border-color: #d5e7e6;
+}
+
+.hospital-inventory-content .cold-vault-card {
+  border-color: #dce9e8;
+  box-shadow: 0 2px 8px rgba(31, 83, 80, 0.04);
+}
+
+.hospital-inventory-content .vault-name,
+.hospital-inventory-content .vaccine-name-text {
+  font-family: var(--font-heading);
+  color: #1e3a5f;
+}
+
+.hospital-inventory-content .inventory-stat-card {
+  border-color: #dce6f2;
+  border-radius: 12px;
+  box-shadow: none;
+}
+
+.hospital-inventory-content .inventory-stat-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 5px 14px rgba(15, 42, 76, 0.06);
+}
+
+.hospital-inventory-content .inventory-stat-value {
+  color: #1e3a5f;
+}
+
+.hospital-inventory-content .inventory-toolbar {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid #dce6f2;
+  border-radius: 12px;
+  background: #f7f9fc;
+}
+
+.hospital-inventory-content .filter-pill.active {
+  background: #3f659e;
+  border-color: #3f659e;
+}
+
+.hospital-inventory-content .filter-pill.pill-alert.active {
+  background: #ba6a50;
+  border-color: #ba6a50;
+}
+
+.hospital-inventory-content .filter-pill.pill-warning.active {
+  background: #b47d3d;
+  border-color: #b47d3d;
+}
+
+.hospital-inventory-content .hospital-appointments-table-wrapper {
+  border: 1px solid #dce6f2;
+  border-radius: 12px;
+  box-shadow: none;
+}
+
+.hospital-inventory-content .inventory-custom-table thead tr th {
+  background: #edf3f8;
+  color: #41556e;
+  border-color: #ffffff;
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  letter-spacing: 0;
+}
+
+.hospital-inventory-content .inventory-custom-table tbody tr td {
+  background: #ffffff;
+  color: #40536a;
+  border-color: #edf1f5;
+  font-size: 0.84rem;
+}
+
+.hospital-inventory-content .inventory-custom-table tbody tr:hover td {
+  background: #f7f9fc;
+}
+
+.hospital-inventory-content .inventory-custom-table tbody tr.row-highlight-low td {
+  background: #fff7ed !important;
+}
+
+.hospital-inventory-content .inventory-custom-table tbody tr.row-highlight-low:hover td {
+  background: #fff1e3 !important;
+}
+
+.hospital-inventory-content .inventory-card-item {
+  border-color: #dce6f2;
+  border-radius: 12px;
+  box-shadow: none;
+}
+
+.hospital-inventory-content .inventory-footer-notice {
+  margin-top: 0;
+  border-radius: 12px;
+}
+
+@media (max-width: 700px) {
+  .hospital-subpage-hero {
+    padding: 22px 20px;
+  }
+
+  .hospital-manage-appointments-card {
+    padding: 22px 18px 26px;
+  }
+
+  .hospital-manage-title {
+    font-size: 1.35rem;
+  }
+
+  .hospital-inventory-content .inventory-header-row {
+    align-items: stretch;
+  }
+
+  .hospital-inventory-content .inventory-action-buttons {
+    width: 100%;
+  }
+
+  .hospital-inventory-content .btn-inventory-action {
+    flex: 1 1 145px;
+    justify-content: center;
+  }
+
+  .hospital-inventory-content .inventory-toolbar {
+    align-items: stretch;
+  }
+
+  .hospital-inventory-content .inventory-search-group {
+    min-width: 100%;
   }
 }
 

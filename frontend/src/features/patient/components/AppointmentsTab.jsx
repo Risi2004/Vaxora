@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { appointmentService } from '../services/appointmentService';
 import BookingAgentChat from './BookingAgentChat';
 import { IconCalendar, IconClock, IconDoctor, IconHospital, IconRefresh, IconShield } from '../../../shared/icons/AppIcons';
+import PatientSubpageHeader from './PatientSubpageHeader';
 
 const STEP_ICONS = {
   hospital: IconHospital,
@@ -586,14 +587,14 @@ export default function AppointmentsTab() {
   const isFormComplete = Boolean(formData.vaccine && formData.hospitalUserId && formData.date && formData.time);
 
   return (
-    <div className="manage-appointments-wrapper">
+    <div className="patient-subpage-page">
+      <PatientSubpageHeader
+        title="Appointments"
+        subtitle="Book vaccination visits and manage your upcoming appointments."
+      />
+      <div className="manage-appointments-wrapper">
       {/* Outer White Card Container */}
       <div className="manage-appointments-card">
-        {/* Main Heading */}
-        <h1 className="manage-appointments-title">
-          Manage Your Appointments
-        </h1>
-
         {/* Notification Alert */}
         {notification && (
           <div className="appointment-alert-pill" role="alert">
@@ -1289,6 +1290,7 @@ export default function AppointmentsTab() {
             </table>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );

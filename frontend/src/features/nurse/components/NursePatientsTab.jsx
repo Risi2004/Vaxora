@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import clinicalPatientService from '../services/clinicalPatientService';
 import { IconSearch } from '../../../shared/icons/AppIcons';
+import StaffSubpageHeader from '../../staff/components/StaffSubpageHeader';
 
 function mapPatientDetail(detail) {
   if (!detail) return null;
@@ -121,8 +122,13 @@ export default function NursePatientsTab() {
   };
 
   return (
-    <div className="doctor-manage-appointments-card" style={{ maxWidth: 1100, margin: '0 auto' }}>
-      <h1 className="doctor-manage-title">Patient History</h1>
+    <div className="staff-workspace-page">
+      <StaffSubpageHeader
+        eyebrow="Clinical records"
+        title="Patient records"
+        subtitle="Find a patient to review vaccination history and upcoming visits."
+      />
+      <div className="doctor-manage-appointments-card staff-workspace-panel">
 
       {notification && (
         <div className="appointment-alert-pill" role="status">
@@ -350,6 +356,7 @@ export default function NursePatientsTab() {
           </div>
         </>
       )}
+      </div>
     </div>
   );
 }

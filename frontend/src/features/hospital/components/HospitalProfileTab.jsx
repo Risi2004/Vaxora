@@ -3,6 +3,7 @@ import { authService } from '../../auth';
 import AddStaffRequestModal from './AddStaffRequestModal';
 import staffService from '../services/staffService';
 import { IconDoctor, IconFile, IconNurse } from './HospitalIcons';
+import HospitalSubpageHero from './HospitalSubpageHero';
 
 export default function HospitalProfileTab() {
   const fileInputRef = useRef(null);
@@ -171,6 +172,11 @@ export default function HospitalProfileTab() {
 
   return (
     <div className="hospital-profile-wrapper">
+      <HospitalSubpageHero
+        eyebrow="Hospital identity"
+        title="Hospital profile"
+        subtitle="Keep your facility details, verification information, and affiliated clinical team up to date."
+      />
       <AddStaffRequestModal
         isOpen={isInviteOpen}
         onClose={() => setIsInviteOpen(false)}

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import staffAppointmentService from '../services/staffAppointmentService';
 import { IconCalendar } from '../../../shared/icons/AppIcons';
+import StaffSubpageHeader from './StaffSubpageHeader';
 
 function toDateInputValue(date = new Date()) {
   const y = date.getFullYear();
@@ -94,7 +95,12 @@ export default function StaffAppointmentsPanel({
       : 'No affiliated hospital';
 
   return (
-    <div className="doctor-manage-appointments-wrapper">
+    <div className="staff-workspace-page staff-appointments-page">
+      <StaffSubpageHeader
+        eyebrow="Clinical workflow"
+        title="Appointments"
+        subtitle="Review upcoming vaccination visits at your affiliated hospital."
+      />
       {error && (
         <div
           className="appointment-alert-pill"
@@ -113,8 +119,6 @@ export default function StaffAppointmentsPanel({
       )}
 
       <div className="doctor-manage-appointments-card">
-        <h1 className="doctor-manage-title">Manage Your Appointments</h1>
-
         <div className="doctor-appointment-inner-card">
           <div
             style={{

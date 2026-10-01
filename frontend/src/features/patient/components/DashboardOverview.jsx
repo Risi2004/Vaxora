@@ -11,7 +11,6 @@ import {
   IconClock,
   IconDoctor,
   IconHospital,
-  IconRefresh,
   IconRocket,
   IconShield,
   IconStethoscope,
@@ -280,13 +279,6 @@ export default function DashboardOverview({ onNavigateTab, onOpenBookModal }) {
                   onClick={() => setCarePlanOpen(true)}
                 >
                   <IconBot size={16} /> View Care Plan
-                </button>
-                <button
-                  type="button"
-                  className="btn-banner-action"
-                  onClick={handleGenerateCarePlan}
-                >
-                  <IconRefresh size={16} /> Refresh Plan
                 </button>
               </>
             ) : (

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../../core/network/api_client.dart';
 import '../../../../core/services/storage_service.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -103,9 +104,8 @@ class _HospitalStaffScreenState extends State<HospitalStaffScreen> {
   }
 
   Future<void> _openShifts() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const HospitalShiftsScreen()),
-    );
+    await Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => const HospitalShiftsScreen()));
   }
 
   int get _onDutyCount => _staff.where((s) => s.isOnDutyNow).length;
@@ -204,7 +204,8 @@ class _HospitalStaffScreenState extends State<HospitalStaffScreen> {
                 padding: const EdgeInsets.symmetric(vertical: 48),
                 child: Center(
                   child: CircularProgressIndicator(
-                      color: StaffSurfaces.brandSoft),
+                    color: StaffSurfaces.brandSoft,
+                  ),
                 ),
               )
             else ...[
@@ -223,8 +224,7 @@ class _HospitalStaffScreenState extends State<HospitalStaffScreen> {
               ],
               if (_staff.isEmpty && _pending.isEmpty)
                 const StaffEmptyCard(
-                  message:
-                      'No affiliated staff yet. Invitations you send will appear here once accepted.',
+                  message: 'No affiliated staff yet. Invitations you send will appear here once accepted.',
                   icon: Icons.groups_outlined,
                 )
               else ...[
@@ -328,8 +328,8 @@ class _StaffMemberCard extends StatelessWidget {
         borderColor: member.isPending
             ? const Color(0xFFF5B168)
             : (member.isOnDutyNow
-                ? AppColors.success.withValues(alpha: 0.28)
-                : StaffSurfaces.cardBorder),
+                  ? AppColors.success.withValues(alpha: 0.28)
+                  : StaffSurfaces.cardBorder),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -375,7 +375,9 @@ class _StaffMemberCard extends StatelessWidget {
                       )
                     else
                       StaffStatusChip(
-                        label: member.isOnDutyNow ? 'On duty' : 'Off duty',
+                        label: member.isOnDutyNow
+                            ? 'On duty'
+                            : 'No active shift',
                         tone: member.isOnDutyNow
                             ? StaffChipTone.success
                             : StaffChipTone.neutral,

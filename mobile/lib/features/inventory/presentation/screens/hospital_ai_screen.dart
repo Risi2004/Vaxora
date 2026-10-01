@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+
+import '../../../../core/services/storage_service.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
+import '../../../staff/presentation/widgets/network_avatar.dart';
+import '../../../staff/presentation/widgets/staff_common_widgets.dart';
 import '../../data/models/inventory_agent_models.dart';
 import '../../data/repositories/inventory_agent_repository.dart';
 
@@ -15,6 +19,29 @@ class _HospitalAiScreenState extends State<HospitalAiScreen> {
   InventoryAgentRun? _run;
   String? _error;
   String? _success;
+  String _hospitalName = 'Hospital';
+  String? _logoUrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadHeader();
+  }
+
+  Future<void> _loadHeader() async {
+    final user = await StorageService.getUser();
+    if (!mounted || user == null) return;
+    setState(() {
+      _hospitalName = user['name']?.toString().trim().isNotEmpty == true
+          ? user['name'].toString().trim()
+          : 'Hospital';
+      _logoUrl = resolveMediaUrl(
+        user['profilePhotoUrl']?.toString() ??
+            user['logoUrl']?.toString() ??
+            user['photoUrl']?.toString(),
+      );
+    });
+  }
 
   Future<void> _runAgent(String targetAgent, String prompt) async {
     setState(() {
@@ -42,13 +69,17 @@ class _HospitalAiScreenState extends State<HospitalAiScreen> {
     if (run == null) return;
 
     // Build line_items from proposal.proposals (Python side returns them there)
-    final lineItems = run.proposals.map((p) => {
-          'vaccine_id': p['vaccine_id'],
-          'vaccine_name': p['vaccine_name'] ?? '',
-          'quantity': (p['recommended_quantity'] as num?)?.toInt() ?? 0,
-          'unit_price_lkr': 0,
-          'total_lkr': 0,
-        }).toList();
+    final lineItems = run.proposals
+        .map(
+          (p) => {
+            'vaccine_id': p['vaccine_id'],
+            'vaccine_name': p['vaccine_name'] ?? '',
+            'quantity': (p['recommended_quantity'] as num?)?.toInt() ?? 0,
+            'unit_price_lkr': 0,
+            'total_lkr': 0,
+          },
+        )
+        .toList();
 
     if (lineItems.isEmpty) {
       setState(() => _error = 'No proposals to approve.');
@@ -100,15 +131,14 @@ class _HospitalAiScreenState extends State<HospitalAiScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        title: const Text('AI Inventory Agent', style: AppTextStyles.h3),
-        centerTitle: false,
-        backgroundColor: Colors.white,
-        elevation: 0,
+      backgroundColor: StaffSurfaces.pageBg,
+      appBar: StaffScreenHeader.appBar(
+        displayName: _hospitalName,
+        subtitle: 'Hospital · Inventory AI',
+        photoUrl: _logoUrl,
       ),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 28),
         children: [
           _header(),
           const SizedBox(height: 20),
@@ -121,9 +151,9 @@ class _HospitalAiScreenState extends State<HospitalAiScreen> {
             onTap: _busy
                 ? null
                 : () => _runAgent(
-                      'RestockAgent',
-                      'Analyze current inventory and suggest restocks for anything at or below its minimum threshold.',
-                    ),
+                    'RestockAgent',
+                    'Analyze current inventory and suggest restocks for anything at or below its minimum threshold.',
+                  ),
           ),
           const SizedBox(height: 12),
           _actionCard(
@@ -135,9 +165,9 @@ class _HospitalAiScreenState extends State<HospitalAiScreen> {
             onTap: _busy
                 ? null
                 : () => _runAgent(
-                      'ExpiryAgent',
-                      'Scan batches expiring within 60 days and propose priority actions.',
-                    ),
+                    'ExpiryAgent',
+                    'Scan batches expiring within 60 days and propose priority actions.',
+                  ),
           ),
           if (_busy)
             const Padding(
@@ -145,11 +175,19 @@ class _HospitalAiScreenState extends State<HospitalAiScreen> {
               child: Center(child: CircularProgressIndicator()),
             ),
           if (_error != null)
-            _banner(_error!, const Color(0xFFDC2626),
-                const Color(0xFFFEF2F2), Icons.error_outline),
+            _banner(
+              _error!,
+              const Color(0xFFDC2626),
+              const Color(0xFFFEF2F2),
+              Icons.error_outline,
+            ),
           if (_success != null)
-            _banner(_success!, const Color(0xFF16A34A),
-                const Color(0xFFF0FDF4), Icons.check_circle_outline),
+            _banner(
+              _success!,
+              const Color(0xFF16A34A),
+              const Color(0xFFF0FDF4),
+              Icons.check_circle_outline,
+            ),
           if (_run != null) _runResult(_run!),
         ],
       ),
@@ -157,36 +195,37 @@ class _HospitalAiScreenState extends State<HospitalAiScreen> {
   }
 
   Widget _header() => Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF7C3AED), Color(0xFF4C1D95)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    padding: const EdgeInsets.all(20),
+    decoration: BoxDecoration(
+      color: const Color(0xFFEDE9F8),
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(color: const Color(0xFFDCD4F0)),
+    ),
+    child: const Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
           children: [
-            Row(children: [
-              Icon(Icons.smart_toy, color: Colors.white, size: 28),
-              SizedBox(width: 10),
-              Text('Inventory AI Assistant',
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700)),
-            ]),
-            SizedBox(height: 8),
+            Icon(Icons.smart_toy, color: Color(0xFF6D5BAE), size: 26),
+            SizedBox(width: 10),
             Text(
-              'Run an agent to draft purchase orders or rescue plans for expiring batches. All drafts require your approval before anything changes.',
-              style:
-                  TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
+              'Inventory AI Assistant',
+              style: TextStyle(
+                color: Color(0xFF3F356E),
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ],
         ),
-      );
+        SizedBox(height: 8),
+        Text(
+          'Run an agent to draft purchase orders or rescue plans for expiring batches. All drafts require your approval before anything changes.',
+          style: TextStyle(color: Color(0xFF685D86), fontSize: 13, height: 1.4),
+        ),
+      ],
+    ),
+  );
 
   Widget _actionCard({
     required IconData icon,
@@ -205,52 +244,64 @@ class _HospitalAiScreenState extends State<HospitalAiScreen> {
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: AppColors.borderLight),
         ),
-        child: Row(children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(10),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: color),
             ),
-            child: Icon(icon, color: color),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: AppTextStyles.bodyBold),
-                const SizedBox(height: 2),
-                Text(description, style: AppTextStyles.caption),
-              ],
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: AppTextStyles.bodyBold),
+                  const SizedBox(height: 2),
+                  Text(description, style: AppTextStyles.caption),
+                ],
+              ),
             ),
-          ),
-          const Icon(Icons.arrow_forward_ios,
-              size: 14, color: AppColors.textMuted),
-        ]),
+            const Icon(
+              Icons.arrow_forward_ios,
+              size: 14,
+              color: AppColors.textMuted,
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _banner(String msg, Color fg, Color bg, IconData icon) => Container(
-        margin: const EdgeInsets.only(top: 12),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: fg.withValues(alpha: 0.4)),
-        ),
-        child: Row(children: [
-          Icon(icon, color: fg, size: 20),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(msg,
-                style: TextStyle(
-                    color: fg, fontSize: 13, fontWeight: FontWeight.w600)),
+    margin: const EdgeInsets.only(top: 12),
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: bg,
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: fg.withValues(alpha: 0.4)),
+    ),
+    child: Row(
+      children: [
+        Icon(icon, color: fg, size: 20),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            msg,
+            style: TextStyle(
+              color: fg,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
           ),
-        ]),
-      );
+        ),
+      ],
+    ),
+  );
 
   Widget _runResult(InventoryAgentRun run) {
     return Column(
@@ -268,16 +319,23 @@ class _HospitalAiScreenState extends State<HospitalAiScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(children: [
-                const Icon(Icons.smart_toy_outlined,
-                    color: Color(0xFF7C3AED), size: 18),
-                const SizedBox(width: 8),
-                Text(run.agentName, style: AppTextStyles.bodyBold),
-              ]),
+              Row(
+                children: [
+                  const Icon(
+                    Icons.smart_toy_outlined,
+                    color: Color(0xFF7C3AED),
+                    size: 18,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(run.agentName, style: AppTextStyles.bodyBold),
+                ],
+              ),
               if (run.content.isNotEmpty) ...[
                 const SizedBox(height: 10),
-                Text(run.content,
-                    style: const TextStyle(fontSize: 13, height: 1.45)),
+                Text(
+                  run.content,
+                  style: const TextStyle(fontSize: 13, height: 1.45),
+                ),
               ],
             ],
           ),
@@ -296,16 +354,22 @@ class _HospitalAiScreenState extends State<HospitalAiScreen> {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: AppColors.borderLight),
             ),
-            child: const Row(children: [
-              Icon(Icons.check_circle_outline,
-                  color: Color(0xFF16A34A), size: 20),
-              SizedBox(width: 10),
-              Expanded(
-                child: Text('No action needed right now.',
-                    style:
-                        TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-              ),
-            ]),
+            child: const Row(
+              children: [
+                Icon(
+                  Icons.check_circle_outline,
+                  color: Color(0xFF16A34A),
+                  size: 20,
+                ),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'No action needed right now.',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ],
@@ -313,8 +377,8 @@ class _HospitalAiScreenState extends State<HospitalAiScreen> {
   }
 
   Widget _draftCard(InventoryAgentRun run) {
-    final isPo = run.proposals.isNotEmpty ||
-        (run.draft?.isPurchaseOrder ?? false);
+    final isPo =
+        run.proposals.isNotEmpty || (run.draft?.isPurchaseOrder ?? false);
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -330,72 +394,83 @@ class _HospitalAiScreenState extends State<HospitalAiScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(children: [
-            Icon(
-                isPo
-                    ? Icons.shopping_cart_outlined
-                    : Icons.event_note_outlined,
-                color:
-                    isPo ? AppColors.brandBlue : const Color(0xFFD97706)),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                isPo ? 'Draft Purchase Order' : 'Draft Expiry Memo',
-                style: AppTextStyles.bodyBold,
+          Row(
+            children: [
+              Icon(
+                isPo ? Icons.shopping_cart_outlined : Icons.event_note_outlined,
+                color: isPo ? AppColors.brandBlue : const Color(0xFFD97706),
               ),
-            ),
-          ]),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  isPo ? 'Draft Purchase Order' : 'Draft Expiry Memo',
+                  style: AppTextStyles.bodyBold,
+                ),
+              ),
+            ],
+          ),
 
           // Reference line
           if (run.draft?.documentNumber.isNotEmpty == true) ...[
             const SizedBox(height: 6),
-            Text('Ref: ${run.draft!.documentNumber}',
-                style: AppTextStyles.caption),
+            Text(
+              'Ref: ${run.draft!.documentNumber}',
+              style: AppTextStyles.caption,
+            ),
           ] else if (run.proposals.isNotEmpty) ...[
             const SizedBox(height: 6),
-            Text('Ref: AI purchase order — ${run.proposals.length} item(s)',
-                style: AppTextStyles.caption),
+            Text(
+              'Ref: AI purchase order — ${run.proposals.length} item(s)',
+              style: AppTextStyles.caption,
+            ),
           ],
 
           // Summary or proposal list
           if (run.draft?.summary.isNotEmpty == true) ...[
             const SizedBox(height: 10),
-            Text(run.draft!.summary,
-                style: const TextStyle(fontSize: 13, height: 1.4)),
+            Text(
+              run.draft!.summary,
+              style: const TextStyle(fontSize: 13, height: 1.4),
+            ),
           ] else if (run.proposals.isNotEmpty) ...[
             const SizedBox(height: 10),
-            ...run.proposals.map((p) => Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Text(
-                    '• ${p['vaccine_name']} — ${p['recommended_quantity']} vials',
-                    style: const TextStyle(fontSize: 13, height: 1.4),
-                  ),
-                )),
-          ],
-
-          const SizedBox(height: 16),
-          Row(children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: _busy ? null : _reject,
-                child: const Text('Reject'),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: _busy ? null : _approve,
-                icon: const Icon(Icons.check, size: 18),
-                label: const Text('Approve'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor:
-                      isPo ? AppColors.brandBlue : const Color(0xFFD97706),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
+            ...run.proposals.map(
+              (p) => Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Text(
+                  '• ${p['vaccine_name']} — ${p['recommended_quantity']} vials',
+                  style: const TextStyle(fontSize: 13, height: 1.4),
                 ),
               ),
             ),
-          ]),
+          ],
+
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: _busy ? null : _reject,
+                  child: const Text('Reject'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _busy ? null : _approve,
+                  icon: const Icon(Icons.check, size: 18),
+                  label: const Text('Approve'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: isPo
+                        ? AppColors.brandBlue
+                        : const Color(0xFFD97706),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );

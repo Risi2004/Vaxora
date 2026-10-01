@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { authService } from '../../auth';
 import { IconFile, IconShield } from '../../../shared/icons/AppIcons';
+import StaffSubpageHeader from '../../staff/components/StaffSubpageHeader';
 
 export default function DoctorProfileTab() {
   const fileInputRef = useRef(null);
@@ -158,7 +159,12 @@ export default function DoctorProfileTab() {
   };
 
   return (
-    <div className="doctor-profile-wrapper">
+    <div className="doctor-profile-wrapper staff-workspace-page">
+      <StaffSubpageHeader
+        eyebrow="Account"
+        title="Professional profile"
+        subtitle="Manage your contact details, credentials, and clinical information."
+      />
       {/* Success Notification Banner */}
       {notification && (
         <div

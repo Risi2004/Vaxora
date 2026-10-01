@@ -42,6 +42,12 @@ jobs:
         run: dotnet restore Vaxora.Api/Vaxora.Api.csproj
       - name: Build
         run: dotnet build Vaxora.Api/Vaxora.Api.csproj --configuration Release --no-restore
+      - name: Restore tests
+        run: dotnet restore Vaxora.Api.Tests/Vaxora.Api.Tests.csproj
+      - name: Build tests
+        run: dotnet build Vaxora.Api.Tests/Vaxora.Api.Tests.csproj --configuration Release --no-restore
+      - name: Run tests
+        run: dotnet test Vaxora.Api.Tests/Vaxora.Api.Tests.csproj --configuration Release --no-build --no-restore
 
   frontend:
     name: Frontend
