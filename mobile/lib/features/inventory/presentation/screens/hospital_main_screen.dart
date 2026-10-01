@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
-import '../../../../core/theme/app_colors.dart';
+import 'package:provider/provider.dart';
 import '../../../hospital_staff/presentation/screens/hospital_staff_screen.dart';
-import 'inventory_home_screen.dart';
-import 'hospital_alerts_screen.dart';
-import 'hospital_ai_screen.dart';
+import '../../../staff/presentation/widgets/staff_common_widgets.dart';
+import '../providers/inventory_provider.dart';
+import 'hospital_home_screen.dart';
 import 'hospital_profile_screen.dart';
+import 'inventory_home_screen.dart';
 
 class HospitalMainScreen extends StatefulWidget {
   const HospitalMainScreen({super.key});
@@ -16,51 +17,49 @@ class HospitalMainScreen extends StatefulWidget {
 class _HospitalMainScreenState extends State<HospitalMainScreen> {
   int _index = 0;
 
-  static const _screens = [
-    InventoryHomeScreen(),
-    HospitalStaffScreen(),
-    HospitalAlertsScreen(),
-    HospitalAiScreen(),
-    HospitalProfileScreen(),
-  ];
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: IndexedStack(index: _index, children: _screens),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: (i) => setState(() => _index = i),
-        backgroundColor: Colors.white,
-        indicatorColor: AppColors.brandBlue.withValues(alpha: 0.15),
-        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.inventory_2_outlined),
-            selectedIcon: Icon(Icons.inventory_2, color: AppColors.brandBlue),
-            label: 'Inventory',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.groups_outlined),
-            selectedIcon: Icon(Icons.groups, color: AppColors.brandBlue),
-            label: 'Staff',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.notifications_none),
-            selectedIcon: Icon(Icons.notifications, color: AppColors.brandBlue),
-            label: 'Alerts',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.smart_toy_outlined),
-            selectedIcon: Icon(Icons.smart_toy, color: AppColors.brandBlue),
-            label: 'AI Agent',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person, color: AppColors.brandBlue),
-            label: 'Profile',
-          ),
-        ],
+    return ChangeNotifierProvider(
+      create: (_) => InventoryProvider()..loadAll(),
+      child: Scaffold(
+        backgroundColor: StaffSurfaces.pageBg,
+        body: IndexedStack(
+          index: _index,
+          children: [
+            HospitalHomeScreen(
+              onNavigateTab: (i) => setState(() => _index = i),
+            ),
+            const HospitalStaffScreen(),
+            const InventoryHomeScreen(),
+            const HospitalProfileScreen(),
+          ],
+        ),
+        bottomNavigationBar: StaffBottomNav(
+          index: _index,
+          onSelect: (i) => setState(() => _index = i),
+          destinations: const [
+            StaffNavDestination(
+              icon: Icons.dashboard_outlined,
+              activeIcon: Icons.dashboard,
+              label: 'Home',
+            ),
+            StaffNavDestination(
+              icon: Icons.groups_outlined,
+              activeIcon: Icons.groups,
+              label: 'Staff',
+            ),
+            StaffNavDestination(
+              icon: Icons.inventory_2_outlined,
+              activeIcon: Icons.inventory_2,
+              label: 'Inventory',
+            ),
+            StaffNavDestination(
+              icon: Icons.person_outline,
+              activeIcon: Icons.person,
+              label: 'Profile',
+            ),
+          ],
+        ),
       ),
     );
   }

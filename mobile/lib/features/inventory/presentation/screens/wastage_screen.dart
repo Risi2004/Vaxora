@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_text_styles.dart';
+import '../../../staff/presentation/widgets/staff_common_widgets.dart';
 import '../../data/models/batch_model.dart';
 import '../../data/repositories/inventory_repository.dart';
 
@@ -47,6 +47,18 @@ class _WastageScreenState extends State<WastageScreen> {
       firstDate: DateTime(2020),
       lastDate: DateTime.now(),
       helpText: 'Select incident date',
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: ColorScheme.light(
+              primary: StaffSurfaces.cta,
+              onPrimary: Colors.white,
+              onSurface: StaffSurfaces.textPrimary,
+            ),
+          ),
+          child: child!,
+        );
+      },
     );
     if (picked != null) {
       setState(() => _incidentDate = picked);
@@ -93,194 +105,233 @@ class _WastageScreenState extends State<WastageScreen> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        title: const Text('Record Wastage', style: AppTextStyles.h3),
-        backgroundColor: Colors.white,
-        elevation: 0,
+  InputDecoration _field(String hint, IconData icon) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: const TextStyle(
+        color: StaffSurfaces.textMutedSoft,
+        fontSize: 13,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _buildBatchSummary(),
-              const SizedBox(height: 20),
-              if (_errorMessage != null) ...[
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppColors.errorBg,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
-                  ),
-                  child: Text(
-                    _errorMessage!,
-                    style: const TextStyle(
-                      color: AppColors.error,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 14),
-              ],
-              TextFormField(
-                controller: _quantityController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  hintText: 'Quantity wasted (vials)',
-                  prefixIcon: Icon(Icons.numbers),
-                ),
-                validator: (v) {
-                  if (v == null || v.trim().isEmpty) return 'Quantity is required';
-                  final n = int.tryParse(v.trim());
-                  if (n == null || n <= 0) return 'Enter a valid positive number';
-                  if (n > widget.batch.available) {
-                    return 'Max available is ${widget.batch.available} vials';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 14),
-              DropdownButtonFormField<String>(
-                initialValue: _reason,
-                decoration: const InputDecoration(
-                  hintText: 'Reason for wastage',
-                  prefixIcon: Icon(Icons.report_problem),
-                ),
-                items: _reasons
-                    .map((r) => DropdownMenuItem(
-                          value: r['value'],
-                          child: Text(r['label']!),
-                        ))
-                    .toList(),
-                onChanged: (v) => setState(() => _reason = v ?? 'vial_breakage'),
-              ),
-              const SizedBox(height: 14),
-
-              // ========== DATE PICKER — MANDATORY DEVICE FEATURE ==========
-              InkWell(
-                onTap: _pickDate,
-                borderRadius: BorderRadius.circular(10),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                  decoration: BoxDecoration(
-                    color: AppColors.inputAuthBg,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: AppColors.borderAuthInput, width: 1.5),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.calendar_month, color: AppColors.textBody),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'INCIDENT DATE',
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.textMuted,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              _formattedDate,
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.textTitle,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const Icon(Icons.edit, size: 16, color: AppColors.textMuted),
-                    ],
-                  ),
-                ),
-              ),
-              // =============================================================
-
-              const SizedBox(height: 14),
-              TextFormField(
-                controller: _reportedByController,
-                decoration: const InputDecoration(
-                  hintText: 'Reported by (your name)',
-                  prefixIcon: Icon(Icons.person),
-                ),
-                validator: (v) =>
-                    (v == null || v.trim().isEmpty) ? 'Reporter name is required' : null,
-              ),
-              const SizedBox(height: 14),
-              TextFormField(
-                controller: _notesController,
-                maxLines: 3,
-                decoration: const InputDecoration(
-                  hintText: 'Notes (optional)',
-                  prefixIcon: Icon(Icons.notes),
-                ),
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: _isLoading ? null : _handleSubmit,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFDC2626),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-                child: _isLoading
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                        ),
-                      )
-                    : const Text(
-                        'Confirm Wastage',
-                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-                      ),
-              ),
-            ],
-          ),
-        ),
+      prefixIcon: Icon(icon, color: StaffSurfaces.brandSoft),
+      filled: true,
+      fillColor: StaffSurfaces.cardBg,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: StaffSurfaces.cardBorder),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: StaffSurfaces.cardBorder),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: StaffSurfaces.brandSoft),
       ),
     );
   }
 
-  Widget _buildBatchSummary() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderLight),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: StaffSurfaces.pageBg,
+      appBar: StaffSurfaces.appBar(title: 'Record wastage'),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 28),
         children: [
-          Text(widget.batch.name, style: AppTextStyles.bodyBold),
-          const SizedBox(height: 4),
-          Text('Lot: ${widget.batch.lotNumber}', style: AppTextStyles.caption),
-          const SizedBox(height: 6),
-          Text(
-            'Available: ${widget.batch.available} vials',
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: AppColors.brandBlue,
+          const StaffPageIntro(
+            eyebrow: 'Loss report',
+            title: 'Log wastage',
+            subtitle: 'Record vials that cannot be administered from this lot.',
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: StaffSurfaces.card(
+              color: AppColors.errorBg,
+              borderColor: AppColors.error.withValues(alpha: 0.28),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  widget.batch.name,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: StaffSurfaces.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Lot ${widget.batch.lotNumber}',
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    color: StaffSurfaces.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '${widget.batch.available} vials on hand',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.error,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (_errorMessage != null) ...[
+                  StaffErrorBanner(
+                    message: _errorMessage!,
+                    onDismiss: () => setState(() => _errorMessage = null),
+                  ),
+                  const SizedBox(height: 14),
+                ],
+                TextFormField(
+                  controller: _quantityController,
+                  keyboardType: TextInputType.number,
+                  decoration:
+                      _field('Quantity wasted (vials)', Icons.numbers),
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) {
+                      return 'Quantity is required';
+                    }
+                    final n = int.tryParse(v.trim());
+                    if (n == null || n <= 0) {
+                      return 'Enter a valid positive number';
+                    }
+                    if (n > widget.batch.available) {
+                      return 'Max available is ${widget.batch.available} vials';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 14),
+                DropdownButtonFormField<String>(
+                  initialValue: _reason,
+                  decoration: _field(
+                    'Reason for wastage',
+                    Icons.report_problem_outlined,
+                  ),
+                  dropdownColor: StaffSurfaces.cardBg,
+                  items: _reasons
+                      .map(
+                        (r) => DropdownMenuItem(
+                          value: r['value'],
+                          child: Text(
+                            r['label']!,
+                            style: const TextStyle(
+                              color: StaffSurfaces.textPrimary,
+                            ),
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (v) =>
+                      setState(() => _reason = v ?? 'vial_breakage'),
+                ),
+                const SizedBox(height: 14),
+                InkWell(
+                  onTap: _pickDate,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
+                    decoration: StaffSurfaces.card(),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.calendar_month_outlined,
+                          color: StaffSurfaces.brandSoft,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'INCIDENT DATE',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: StaffSurfaces.textSecondary,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                _formattedDate,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: StaffSurfaces.textPrimary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Icon(
+                          Icons.edit_outlined,
+                          size: 16,
+                          color: StaffSurfaces.textMutedSoft,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                TextFormField(
+                  controller: _reportedByController,
+                  decoration: _field(
+                    'Reported by (your name)',
+                    Icons.person_outline,
+                  ),
+                  validator: (v) => (v == null || v.trim().isEmpty)
+                      ? 'Reporter name is required'
+                      : null,
+                ),
+                const SizedBox(height: 14),
+                TextFormField(
+                  controller: _notesController,
+                  maxLines: 3,
+                  decoration: _field('Notes (optional)', Icons.notes_outlined),
+                ),
+                const SizedBox(height: 24),
+                FilledButton(
+                  onPressed: _isLoading ? null : _handleSubmit,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.error,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    textStyle: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : const Text('Confirm wastage'),
+                ),
+              ],
             ),
           ),
         ],
