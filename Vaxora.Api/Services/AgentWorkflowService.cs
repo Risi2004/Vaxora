@@ -63,6 +63,8 @@ public class AgentWorkflowService : IAgentWorkflowService
                 Objective = objective,
                 ProposalsJson = "[]",
                 ResultSummary = Truncate(gatewayResult.Error ?? "Agent request failed.", 4000),
+                ErrorDetails = Truncate(gatewayResult.Error ?? "Agent request failed.", 4000),
+                FinalOutcome = "Failed",
                 Status = AgentWorkflowStatus.Failed,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
@@ -87,6 +89,12 @@ public class AgentWorkflowService : IAgentWorkflowService
             proposalsJson = proposalsEl.GetRawText();
         }
 
+        var planJson = GetStructuredJson(root, "plan", "{}");
+        var completedStepsJson = GetStructuredJson(root, "completedSteps", "[]", "completed_steps");
+        var toolResultsJson = GetStructuredJson(root, "toolResults", "[]", "tool_results");
+        var validationResultsJson = GetStructuredJson(root, "validation", "{}", "validationResults", "validation_results");
+        var errorDetails = GetString(root, "error", "errorDetails", "error_details");
+
         var hasProposals = proposalsJson != "[]" && proposalsJson.Length > 2;
         var workflow = new AgentWorkflow
         {
@@ -96,7 +104,13 @@ public class AgentWorkflowService : IAgentWorkflowService
                 : agentName,
             Objective = objective,
             ProposalsJson = proposalsJson,
+            PlanJson = planJson,
+            CompletedStepsJson = completedStepsJson,
+            ToolResultsJson = toolResultsJson,
+            ValidationResultsJson = validationResultsJson,
             ResultSummary = summary,
+            ErrorDetails = Truncate(errorDetails, 4000),
+            FinalOutcome = hasProposals ? "AwaitingApproval" : "Completed",
             Status = hasProposals ? AgentWorkflowStatus.AwaitingApproval : AgentWorkflowStatus.Completed,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -131,6 +145,7 @@ public class AgentWorkflowService : IAgentWorkflowService
         workflow.Status = decision.Approved ? AgentWorkflowStatus.Approved : AgentWorkflowStatus.Rejected;
         workflow.DecidedAt = DateTime.UtcNow;
         workflow.DecisionNote = string.IsNullOrWhiteSpace(decision.Note) ? null : Truncate(decision.Note.Trim(), 500);
+        workflow.FinalOutcome = decision.Approved ? "Approved" : "Rejected";
         workflow.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
@@ -159,6 +174,12 @@ public class AgentWorkflowService : IAgentWorkflowService
         Status = workflow.Status.ToString(),
         ResultSummary = workflow.ResultSummary,
         ProposalsJson = workflow.ProposalsJson,
+        PlanJson = workflow.PlanJson,
+        CompletedStepsJson = workflow.CompletedStepsJson,
+        ToolResultsJson = workflow.ToolResultsJson,
+        ValidationResultsJson = workflow.ValidationResultsJson,
+        ErrorDetails = workflow.ErrorDetails,
+        FinalOutcome = workflow.FinalOutcome,
         CreatedAt = workflow.CreatedAt,
         DecidedAt = workflow.DecidedAt,
         DecisionNote = workflow.DecisionNote
@@ -168,5 +189,31 @@ public class AgentWorkflowService : IAgentWorkflowService
     {
         if (string.IsNullOrEmpty(value)) return value;
         return value.Length <= max ? value : value[..max];
+    }
+
+    private static string GetStructuredJson(JsonElement root, string primaryName, string fallback, params string[] aliases)
+    {
+        var names = new[] { primaryName }.Concat(aliases);
+        foreach (var name in names)
+        {
+            if (root.TryGetProperty(name, out var property) &&
+                property.ValueKind is not JsonValueKind.Null and not JsonValueKind.Undefined)
+            {
+                return property.GetRawText();
+            }
+        }
+
+        return fallback;
+    }
+
+    private static string? GetString(JsonElement root, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            if (root.TryGetProperty(name, out var property) && property.ValueKind == JsonValueKind.String)
+                return property.GetString();
+        }
+
+        return null;
     }
 }

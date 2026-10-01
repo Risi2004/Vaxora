@@ -137,6 +137,45 @@ public class StaffManagementServiceTests
         Assert.Equal(1, report.DaysWithLowCoverage);
     }
 
+    [Fact]
+    public async Task AgentWorkflowService_persists_structured_execution_evidence()
+    {
+        await using var context = CreateContext();
+        var hospital = AddHospital(context);
+        await context.SaveChangesAsync();
+        var service = new AgentWorkflowService(
+            context,
+            NullLogger<AgentWorkflowService>.Instance);
+
+        var workflow = await service.RecordChatAsync(
+            hospital.Id,
+            new AgentChatRequestDto
+            {
+                TargetAgent = "StaffSchedulingAgent",
+                Messages = new List<AgentMessageDto>
+                {
+                    new() { Role = "user", Content = "Staff the rest of the week" }
+                }
+            },
+            AgentGatewayResult.Ok("""
+                {
+                  "agent": "StaffSchedulingAgent",
+                  "content": "I prepared shift suggestions.",
+                  "plan": {"steps": ["analyze", "validate", "propose"]},
+                  "completedSteps": ["analyze", "validate"],
+                  "toolResults": [{"tool": "get_coverage", "success": true}],
+                  "validation": {"businessRulesPassed": true},
+                  "proposals": [{"affiliationId": "staff-1"}]
+                }
+                """));
+
+        var stored = await context.AgentWorkflows.SingleAsync();
+        Assert.Equal("{\"steps\":[\"analyze\",\"validate\",\"propose\"]}", stored.PlanJson);
+        Assert.Contains("businessRulesPassed", stored.ValidationResultsJson);
+        Assert.Equal("AwaitingApproval", stored.FinalOutcome);
+        Assert.Equal("AwaitingApproval", workflow.Status);
+    }
+
     private static StaffManagementService CreateService(ApplicationDbContext context) =>
         new(context, NullLogger<StaffManagementService>.Instance);
 
