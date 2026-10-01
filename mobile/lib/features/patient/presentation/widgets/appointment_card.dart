@@ -66,7 +66,14 @@ class AppointmentCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
-      decoration: StaffSurfaces.card(),
+      decoration: StaffSurfaces.card(
+        borderColor: switch (_tone) {
+          StaffChipTone.success => AppColors.success.withValues(alpha: 0.28),
+          StaffChipTone.danger => AppColors.error.withValues(alpha: 0.28),
+          StaffChipTone.warning => const Color(0xFFF5B168),
+          _ => StaffSurfaces.cardBorder,
+        },
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

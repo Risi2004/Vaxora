@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../core/theme/app_colors.dart';
 import '../../../staff/presentation/widgets/staff_common_widgets.dart';
 
 class ImmunizationTimelineItem extends StatelessWidget {
@@ -43,11 +44,25 @@ class ImmunizationTimelineItem extends StatelessWidget {
             width: 36,
             height: 36,
             decoration: BoxDecoration(
-              color: StaffSurfaces.softPanelDeep,
+              color: switch (_tone) {
+                StaffChipTone.success => AppColors.successBg,
+                StaffChipTone.warning => const Color(0xFFFFF4E5),
+                StaffChipTone.danger => AppColors.errorBg,
+                _ => StaffSurfaces.softPanelDeep,
+              },
               borderRadius: BorderRadius.circular(10),
             ),
             alignment: Alignment.center,
-            child: Icon(icon, size: 18, color: StaffSurfaces.brandSoft),
+            child: Icon(
+              icon,
+              size: 18,
+              color: switch (_tone) {
+                StaffChipTone.success => AppColors.success,
+                StaffChipTone.warning => const Color(0xFFB2660A),
+                StaffChipTone.danger => AppColors.error,
+                _ => StaffSurfaces.brandSoft,
+              },
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
