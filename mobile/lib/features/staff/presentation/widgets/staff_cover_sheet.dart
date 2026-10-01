@@ -191,7 +191,7 @@ class _StaffCoverSheetState extends State<StaffCoverSheet> {
                                   title: 'Your requests',
                                   hint: 'Cover you asked the hospital to find',
                                   count: _outgoing.length,
-                                  accent: StaffSurfaces.brandSoft,
+                                  accent: const Color(0xFFB2660A),
                                 ),
                                 const SizedBox(height: 8),
                                 if (_outgoing.isEmpty)

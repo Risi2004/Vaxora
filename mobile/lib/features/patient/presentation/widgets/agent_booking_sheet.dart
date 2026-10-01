@@ -231,11 +231,11 @@ class _AgentBookingSheetState extends State<AgentBookingSheet> {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: StaffSurfaces.softPanelDeep,
+                    color: const Color(0xFFEDE9F8),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   alignment: Alignment.center,
-                  child: Icon(Icons.auto_awesome, color: StaffSurfaces.brandSoft),
+                  child: const Icon(Icons.auto_awesome, color: Color(0xFF6D5BAE)),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -749,13 +749,16 @@ class _AgentBookingSheetState extends State<AgentBookingSheet> {
     return Container(
       margin: const EdgeInsets.only(left: 38, top: 4),
       padding: const EdgeInsets.all(14),
-      decoration: StaffSurfaces.card(),
+      decoration: StaffSurfaces.card(
+        color: AppColors.successBg,
+        borderColor: AppColors.success.withValues(alpha: 0.28),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.event_available, color: StaffSurfaces.brandSoft, size: 18),
+              Icon(Icons.event_available, color: AppColors.success, size: 18),
               const SizedBox(width: 6),
               const Text(
                 'Proposed slot',
@@ -845,7 +848,8 @@ class _AgentBookingSheetState extends State<AgentBookingSheet> {
       margin: const EdgeInsets.only(left: 38, top: 4),
       padding: const EdgeInsets.all(14),
       decoration: StaffSurfaces.card(
-        borderColor: AppColors.error.withValues(alpha: 0.3),
+        color: AppColors.errorBg,
+        borderColor: AppColors.error.withValues(alpha: 0.28),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -959,7 +963,10 @@ class _AgentBookingSheetState extends State<AgentBookingSheet> {
     return Container(
       margin: const EdgeInsets.only(left: 38, top: 4),
       padding: const EdgeInsets.all(14),
-      decoration: StaffSurfaces.card(),
+      decoration: StaffSurfaces.card(
+        color: AppColors.successBg,
+        borderColor: AppColors.success.withValues(alpha: 0.28),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

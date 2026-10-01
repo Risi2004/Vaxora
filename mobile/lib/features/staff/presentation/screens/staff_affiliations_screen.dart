@@ -241,16 +241,21 @@ class _StaffAffiliationsScreenState extends State<StaffAffiliationsScreen> {
                   label: 'Active',
                   value: '${_affiliations.length}',
                   icon: Icons.verified_outlined,
+                  accent: AppColors.success,
                 ),
                 StaffIntroStat(
                   label: 'On duty now',
                   value: '$onDutyCount',
                   icon: Icons.medical_services_outlined,
+                  accent: AppColors.success,
                 ),
                 StaffIntroStat(
                   label: 'Pending',
                   value: '${_invitations.length}',
                   icon: Icons.mark_email_unread_outlined,
+                  accent: _invitations.isNotEmpty
+                      ? const Color(0xFFB2660A)
+                      : AppColors.success,
                 ),
               ],
             ),
@@ -350,7 +355,9 @@ class _InvitationCard extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: StaffSurfaces.card(),
+      decoration: StaffSurfaces.card(
+        borderColor: const Color(0xFFF5B168),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -442,7 +449,11 @@ class _AffiliationCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: StaffSurfaces.card(),
+      decoration: StaffSurfaces.card(
+        borderColor: item.isOnDutyNow
+            ? AppColors.success.withValues(alpha: 0.28)
+            : StaffSurfaces.cardBorder,
+      ),
       child: Row(
         children: [
           StaffHospitalAvatar(logoUrl: item.hospitalLogoUrl),

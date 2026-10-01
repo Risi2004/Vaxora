@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../auth/presentation/screens/login_screen.dart';
 import '../../../auth/data/repositories/auth_repository.dart';
+import '../../../staff/presentation/widgets/network_avatar.dart';
 import '../../../staff/presentation/widgets/staff_common_widgets.dart';
 
 class PatientProfileScreen extends StatefulWidget {
@@ -26,6 +27,7 @@ class _PatientProfileScreenState extends State<PatientProfileScreen> {
 
   String _registrationNumber = 'VAX-P-PENDING';
   String _status = 'ACTIVE';
+  String? _photoUrl;
 
   @override
   void initState() {
@@ -47,6 +49,7 @@ class _PatientProfileScreenState extends State<PatientProfileScreen> {
         }
         _registrationNumber = user.registrationNumber ?? 'VAX-P-PENDING';
         _status = user.status;
+        _photoUrl = resolveMediaUrl(user.profilePhotoUrl);
         _isLoading = false;
       });
     } else {
@@ -205,13 +208,28 @@ class _PatientProfileScreenState extends State<PatientProfileScreen> {
                       children: [
                         Stack(
                           children: [
-                            CircleAvatar(
-                              radius: 44,
-                              backgroundColor: StaffSurfaces.softPanelDeep,
-                              child: Icon(
-                                Icons.person,
-                                size: 54,
-                                color: StaffSurfaces.brandSoft,
+                            Container(
+                              width: 88,
+                              height: 88,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: StaffSurfaces.cardBorder,
+                                ),
+                              ),
+                              clipBehavior: Clip.antiAlias,
+                              child: NetworkAvatar(
+                                url: _photoUrl,
+                                size: 88,
+                                fallback: Container(
+                                  color: StaffSurfaces.softPanelDeep,
+                                  alignment: Alignment.center,
+                                  child: Icon(
+                                    Icons.person,
+                                    size: 54,
+                                    color: StaffSurfaces.brandSoft,
+                                  ),
+                                ),
                               ),
                             ),
                             if (_isEditing)
@@ -220,7 +238,7 @@ class _PatientProfileScreenState extends State<PatientProfileScreen> {
                                 right: 0,
                                 child: Container(
                                   padding: const EdgeInsets.all(6),
-                                  decoration: BoxDecoration(
+                                  decoration: const BoxDecoration(
                                     color: StaffSurfaces.cta,
                                     shape: BoxShape.circle,
                                   ),
@@ -279,6 +297,7 @@ class _PatientProfileScreenState extends State<PatientProfileScreen> {
                   _buildSectionCard(
                     title: 'Medical & Clinical Registry',
                     icon: Icons.medical_services_outlined,
+                    iconColor: AppColors.accentTeal,
                     children: [
                       _buildStaticRow('Registry ID', _registrationNumber),
                       const Divider(color: StaffSurfaces.divider, height: 16),
@@ -295,6 +314,7 @@ class _PatientProfileScreenState extends State<PatientProfileScreen> {
             _buildSectionCard(
               title: 'Emergency Contact',
               icon: Icons.contact_phone_outlined,
+              iconColor: const Color(0xFFB2660A),
               children: [
                 _buildField(label: 'Contact Name & Relationship', controller: _emergencyNameController, enabled: _isEditing),
                 const SizedBox(height: 12),
@@ -350,6 +370,7 @@ class _PatientProfileScreenState extends State<PatientProfileScreen> {
     required String title,
     required IconData icon,
     required List<Widget> children,
+    Color? iconColor,
   }) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -359,7 +380,7 @@ class _PatientProfileScreenState extends State<PatientProfileScreen> {
         children: [
           Row(
             children: [
-              Icon(icon, size: 18, color: StaffSurfaces.brandSoft),
+              Icon(icon, size: 18, color: iconColor ?? StaffSurfaces.brandSoft),
               const SizedBox(width: 8),
               Text(
                 title,

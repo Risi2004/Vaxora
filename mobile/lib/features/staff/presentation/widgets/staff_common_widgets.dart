@@ -380,11 +380,13 @@ class StaffIntroStat {
   final String label;
   final String value;
   final IconData? icon;
+  final Color? accent;
 
   const StaffIntroStat({
     required this.label,
     required this.value,
     this.icon,
+    this.accent,
   });
 }
 
@@ -395,12 +397,19 @@ class _StatTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final accent = stat.accent ?? StaffSurfaces.brandSoft;
+    final tinted = stat.accent != null;
+
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
       decoration: BoxDecoration(
-        color: StaffSurfaces.softPanel,
+        color: tinted ? accent.withValues(alpha: 0.08) : StaffSurfaces.softPanel,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: StaffSurfaces.cardBorder),
+        border: Border.all(
+          color: tinted
+              ? accent.withValues(alpha: 0.22)
+              : StaffSurfaces.cardBorder,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -408,7 +417,7 @@ class _StatTile extends StatelessWidget {
           Row(
             children: [
               if (stat.icon != null) ...[
-                Icon(stat.icon, size: 14, color: StaffSurfaces.brandSoft),
+                Icon(stat.icon, size: 14, color: accent),
                 const SizedBox(width: 6),
               ],
               Expanded(
@@ -432,7 +441,7 @@ class _StatTile extends StatelessWidget {
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w700,
-              color: StaffSurfaces.brandSoft,
+              color: accent,
               height: 1.1,
             ),
           ),

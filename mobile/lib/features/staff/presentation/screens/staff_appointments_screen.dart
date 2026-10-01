@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/services/storage_service.dart';
+import '../../../../core/theme/app_colors.dart';
 import '../../../auth/presentation/utils/home_route_utils.dart';
 import '../../data/models/affiliation_model.dart';
 import '../../data/models/staff_appointment_model.dart';
@@ -213,11 +214,15 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
                   label: 'Waiting',
                   value: '$_waitingCount',
                   icon: Icons.pending_outlined,
+                  accent: _waitingCount > 0
+                      ? const Color(0xFFB2660A)
+                      : AppColors.success,
                 ),
                 StaffIntroStat(
                   label: 'Done',
                   value: '$_completedCount',
                   icon: Icons.check_circle_outline,
+                  accent: AppColors.success,
                 ),
               ],
             ),
@@ -420,9 +425,21 @@ class _AppointmentCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final a = appointment;
 
+    final tone = _toneFor(a.uiStatus);
+    final barColor = switch (tone) {
+      StaffChipTone.success => AppColors.success,
+      StaffChipTone.warning => const Color(0xFFB2660A),
+      _ => StaffSurfaces.accentBar,
+    };
+    final borderColor = switch (tone) {
+      StaffChipTone.success => AppColors.success.withValues(alpha: 0.28),
+      StaffChipTone.warning => const Color(0xFFF5B168),
+      _ => StaffSurfaces.cardBorder,
+    };
+
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: StaffSurfaces.card(),
+      decoration: StaffSurfaces.card(borderColor: borderColor),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -430,7 +447,7 @@ class _AppointmentCard extends StatelessWidget {
             width: 4,
             height: 60,
             decoration: BoxDecoration(
-              color: StaffSurfaces.accentBar,
+              color: barColor,
               borderRadius: BorderRadius.circular(4),
             ),
           ),

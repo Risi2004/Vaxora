@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../core/theme/app_colors.dart';
 import '../../../auth/data/repositories/auth_repository.dart';
 import '../../../staff/presentation/widgets/network_avatar.dart';
 import '../../../staff/presentation/widgets/staff_common_widgets.dart';
@@ -119,12 +120,15 @@ class _PatientFeedbackScreenState extends State<PatientFeedbackScreen> {
                         width: 48,
                         height: 48,
                         decoration: BoxDecoration(
-                          color: StaffSurfaces.softPanelDeep,
+                          color: AppColors.successBg,
                           borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: AppColors.success.withValues(alpha: 0.28),
+                          ),
                         ),
-                        child: Icon(
+                        child: const Icon(
                           Icons.check_circle_outline,
-                          color: StaffSurfaces.brandSoft,
+                          color: AppColors.success,
                         ),
                       ),
                       const SizedBox(height: 12),

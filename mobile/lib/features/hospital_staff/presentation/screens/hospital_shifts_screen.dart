@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/services/storage_service.dart';
+import '../../../../core/theme/app_colors.dart';
 import '../../../auth/presentation/utils/home_route_utils.dart';
 import '../../../staff/data/models/shift_model.dart';
 import '../../../staff/presentation/utils/staff_date_utils.dart';
@@ -316,11 +317,19 @@ class _HospitalShiftCard extends StatelessWidget {
     final booth = (shift.boothOrStation?.trim().isNotEmpty ?? false)
         ? shift.boothOrStation!
         : 'Unassigned booth';
+    final cover = shift.coverStatus?.toLowerCase();
     final role = staffRoleLabel(shift.staffRole);
 
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: StaffSurfaces.card(),
+      decoration: StaffSurfaces.card(
+        borderColor: switch (cover) {
+          'requested' => const Color(0xFFF5B168),
+          'declined' => AppColors.error.withValues(alpha: 0.28),
+          'covering' => AppColors.success.withValues(alpha: 0.28),
+          _ => StaffSurfaces.cardBorder,
+        },
+      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

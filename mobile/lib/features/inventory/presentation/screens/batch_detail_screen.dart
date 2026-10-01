@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_text_styles.dart';
+import '../../../staff/presentation/widgets/staff_common_widgets.dart';
 import '../../data/models/batch_model.dart';
 import '../../data/repositories/inventory_repository.dart';
 import '../../data/models/audit_entry_model.dart';
@@ -37,300 +37,224 @@ class _BatchDetailScreenState extends State<BatchDetailScreen> {
   }
 
   Color get _statusColor {
-    if (batch.isLowStock) return const Color(0xFFDC2626);
-    if (batch.isExpiringSoon) return const Color(0xFFD97706);
-    return const Color(0xFF16A34A);
+    if (batch.isExpired || batch.isLowStock) return AppColors.error;
+    if (batch.isExpiringSoon) return const Color(0xFFB2660A);
+    return AppColors.success;
+  }
+
+  StaffChipTone get _tone {
+    if (batch.isExpired || batch.isLowStock) return StaffChipTone.danger;
+    if (batch.isExpiringSoon) return StaffChipTone.warning;
+    return StaffChipTone.success;
+  }
+
+  String get _statusLabel {
+    if (batch.isExpired) return 'Expired';
+    if (batch.isLowStock) return 'Low stock';
+    if (batch.isExpiringSoon) return 'Expiring';
+    return 'Healthy';
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        title: const Text('Batch Details', style: AppTextStyles.h3),
-        backgroundColor: Colors.white,
-        elevation: 0,
-      ),
+      backgroundColor: StaffSurfaces.pageBg,
+      appBar: StaffSurfaces.appBar(title: 'Batch details'),
       body: RefreshIndicator(
         onRefresh: _loadAudit,
-        color: AppColors.brandBlue,
+        color: StaffSurfaces.brandSoft,
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 40),
           children: [
-            _buildHeaderCard(),
-            const SizedBox(height: 16),
-            _buildInfoCard(),
-            const SizedBox(height: 16),
-            _buildActionButtons(),
-            const SizedBox(height: 24),
-            _buildAuditTrail(),
-            const SizedBox(height: 40),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeaderCard() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [AppColors.brandBlue, Color(0xFF2054B8)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  batch.name,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                  ),
+            StaffPageIntro(
+              eyebrow: 'Lot ${batch.lotNumber}',
+              title: batch.name,
+              subtitle: batch.manufacturer,
+              stats: [
+                StaffIntroStat(
+                  label: 'Available',
+                  value: '${batch.available}',
+                  icon: Icons.inventory_2_outlined,
+                  accent: _statusColor,
                 ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: _statusColor.withValues(alpha: 0.9),
-                  borderRadius: BorderRadius.circular(8),
+                StaffIntroStat(
+                  label: 'Received',
+                  value: '${batch.capacity}',
+                  icon: Icons.move_to_inbox_outlined,
                 ),
-                child: Text(
-                  batch.isLowStock ? 'LOW' : (batch.isExpiringSoon ? 'EXPIRING' : 'OK'),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                  ),
+                StaffIntroStat(
+                  label: 'Threshold',
+                  value: '${batch.minThreshold}',
+                  icon: Icons.flag_outlined,
+                  accent: batch.isLowStock
+                      ? AppColors.error
+                      : StaffSurfaces.brandSoft,
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            batch.manufacturer,
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.85),
-              fontSize: 13,
+              ],
             ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              _buildStat('Available', '${batch.available}', 'vials'),
-              const SizedBox(width: 24),
-              _buildStat('Received', '${batch.capacity}', 'vials'),
-              const SizedBox(width: 24),
-              _buildStat('Threshold', '${batch.minThreshold}', 'min'),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStat(String label, String value, String unit) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label.toUpperCase(),
-          style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.7),
-            fontSize: 10,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.5,
-          ),
-        ),
-        const SizedBox(height: 2),
-        RichText(
-          text: TextSpan(
-            children: [
-              TextSpan(
-                text: value,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                ),
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: StaffStatusChip(label: _statusLabel, tone: _tone),
+            ),
+            const SizedBox(height: 18),
+            const StaffSectionHeader(title: 'Lot details'),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: StaffSurfaces.card(),
+              child: Column(
+                children: [
+                  _infoRow(Icons.qr_code_2, 'Lot number', batch.lotNumber),
+                  const Divider(color: StaffSurfaces.divider, height: 16),
+                  _infoRow(Icons.calendar_today_outlined, 'Expiry', batch.expiry),
+                  const Divider(color: StaffSurfaces.divider, height: 16),
+                  _infoRow(
+                    Icons.thermostat_outlined,
+                    'Storage',
+                    '${batch.storageUnit} · ${batch.temp}',
+                  ),
+                  const Divider(color: StaffSurfaces.divider, height: 16),
+                  _infoRow(
+                    Icons.vaccines_outlined,
+                    'Doses per vial',
+                    '${batch.dosesPerVial}',
+                  ),
+                  if (batch.lastRestocked.isNotEmpty) ...[
+                    const Divider(color: StaffSurfaces.divider, height: 16),
+                    _infoRow(
+                      Icons.history,
+                      'Last restocked',
+                      batch.lastRestocked,
+                    ),
+                  ],
+                ],
               ),
-              TextSpan(
-                text: ' $unit',
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.7),
-                  fontSize: 11,
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: batch.available == 0
+                        ? null
+                        : () async {
+                            final nav = Navigator.of(context);
+                            final result = await nav.push(
+                              MaterialPageRoute(
+                                builder: (_) => IssueStockScreen(batch: batch),
+                              ),
+                            );
+                            if (result == true && mounted) {
+                              nav.pop(true);
+                            }
+                          },
+                    icon: const Icon(Icons.arrow_forward, size: 18),
+                    label: const Text('Issue'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: StaffSurfaces.cta,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildInfoCard() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.borderLight),
-      ),
-      child: Column(
-        children: [
-          _infoRow(Icons.qr_code_2, 'Lot Number', batch.lotNumber),
-          _divider(),
-          _infoRow(Icons.calendar_today, 'Expiry Date', batch.expiry),
-          _divider(),
-          _infoRow(Icons.thermostat, 'Storage', '${batch.storageUnit} • ${batch.temp}'),
-          _divider(),
-          _infoRow(Icons.warning_amber, 'Doses per Vial', '${batch.dosesPerVial}'),
-          if (batch.lastRestocked.isNotEmpty) ...[
-            _divider(),
-            _infoRow(Icons.history, 'Last Restocked', batch.lastRestocked),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: batch.available == 0
+                        ? null
+                        : () async {
+                            final nav = Navigator.of(context);
+                            final result = await nav.push(
+                              MaterialPageRoute(
+                                builder: (_) => WastageScreen(batch: batch),
+                              ),
+                            );
+                            if (result == true && mounted) {
+                              nav.pop(true);
+                            }
+                          },
+                    icon: const Icon(Icons.warning_amber_rounded, size: 18),
+                    label: const Text('Wastage'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.error,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            StaffSectionHeader(
+              title: 'Audit trail',
+              count: _auditEntries.isEmpty ? null : _auditEntries.length,
+            ),
+            if (_loadingAudit)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 24),
+                child: Center(
+                  child: CircularProgressIndicator(
+                    color: StaffSurfaces.brandSoft,
+                  ),
+                ),
+              )
+            else if (_auditEntries.isEmpty)
+              const StaffEmptyCard(
+                message: 'No transactions recorded for this lot yet.',
+                icon: Icons.history,
+              )
+            else
+              ..._auditEntries.map(_buildAuditEntry),
           ],
-        ],
+        ),
       ),
     );
   }
 
   Widget _infoRow(IconData icon, String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: [
-          Icon(icon, size: 18, color: AppColors.brandBlue),
-          const SizedBox(width: 12),
-          Text(label, style: AppTextStyles.caption),
-          const Spacer(),
-          Flexible(
-            child: Text(
-              value,
-              textAlign: TextAlign.right,
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textTitle,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _divider() => const Divider(height: 1, color: AppColors.borderLight);
-
-  Widget _buildActionButtons() {
     return Row(
       children: [
-        Expanded(
-          child: ElevatedButton.icon(
-            onPressed: batch.available == 0
-                ? null
-                : () async {
-                    final result = await Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => IssueStockScreen(batch: batch),
-                      ),
-                    );
-                    if (result == true && mounted) {
-                      Navigator.pop(context, true);
-                    }
-                  },
-            icon: const Icon(Icons.arrow_forward, size: 18),
-            label: const Text('Issue'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.brandBlue,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-          ),
-        ),
+        Icon(icon, size: 18, color: StaffSurfaces.brandSoft),
         const SizedBox(width: 12),
-        Expanded(
-          child: ElevatedButton.icon(
-            onPressed: batch.available == 0
-                ? null
-                : () async {
-                    final result = await Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => WastageScreen(batch: batch),
-                      ),
-                    );
-                    if (result == true && mounted) {
-                      Navigator.pop(context, true);
-                    }
-                  },
-            icon: const Icon(Icons.warning_amber_rounded, size: 18),
-            label: const Text('Wastage'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFDC2626),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 12.5,
+            color: StaffSurfaces.textSecondary,
+          ),
+        ),
+        const Spacer(),
+        Flexible(
+          child: Text(
+            value,
+            textAlign: TextAlign.right,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: StaffSurfaces.textPrimary,
             ),
           ),
         ),
-      ],
-    );
-  }
-
-  Widget _buildAuditTrail() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('Audit Trail', style: AppTextStyles.h3),
-        const SizedBox(height: 12),
-        if (_loadingAudit)
-          const Padding(
-            padding: EdgeInsets.all(24),
-            child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-          )
-        else if (_auditEntries.isEmpty)
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.borderLight),
-            ),
-            child: Column(
-              children: [
-                const Icon(Icons.history, color: AppColors.textMuted, size: 32),
-                const SizedBox(height: 8),
-                Text('No transactions yet', style: AppTextStyles.caption),
-              ],
-            ),
-          )
-        else
-          ..._auditEntries.map((e) => _buildAuditEntry(e)),
       ],
     );
   }
 
   Widget _buildAuditEntry(AuditEntryModel entry) {
     final color = _colorForType(entry.type);
+    final well = _wellForType(entry.type);
     final icon = _iconForType(entry.type);
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderLight),
-      ),
+      decoration: StaffSurfaces.card(),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -338,7 +262,7 @@ class _BatchDetailScreenState extends State<BatchDetailScreen> {
             width: 32,
             height: 32,
             decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.15),
+              color: well,
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(icon, color: color, size: 16),
@@ -353,13 +277,16 @@ class _BatchDetailScreenState extends State<BatchDetailScreen> {
                   style: const TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: AppColors.textTitle,
+                    color: StaffSurfaces.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '${entry.timestamp} • ${entry.actor}',
-                  style: AppTextStyles.caption,
+                  '${entry.timestamp}  ·  ${entry.actor}',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: StaffSurfaces.textSecondary,
+                  ),
                 ),
               ],
             ),
@@ -372,28 +299,42 @@ class _BatchDetailScreenState extends State<BatchDetailScreen> {
   Color _colorForType(String type) {
     switch (type) {
       case 'restock':
-        return const Color(0xFF2563EB);
+        return StaffSurfaces.brandSoft;
       case 'dispense':
-        return const Color(0xFF7C3AED);
+        return const Color(0xFF6D5BAE);
       case 'sensor':
-        return const Color(0xFF10B981);
+        return AppColors.success;
       case 'qa':
       default:
-        return const Color(0xFF6366F1);
+        return const Color(0xFF5B6BB0);
+    }
+  }
+
+  Color _wellForType(String type) {
+    switch (type) {
+      case 'restock':
+        return StaffSurfaces.softPanelDeep;
+      case 'dispense':
+        return const Color(0xFFEDE9F8);
+      case 'sensor':
+        return AppColors.successBg;
+      case 'qa':
+      default:
+        return const Color(0xFFEEF0FA);
     }
   }
 
   IconData _iconForType(String type) {
     switch (type) {
       case 'restock':
-        return Icons.add_box;
+        return Icons.add_box_outlined;
       case 'dispense':
-        return Icons.outbox;
+        return Icons.outbox_outlined;
       case 'sensor':
         return Icons.tune;
       case 'qa':
       default:
-        return Icons.assignment_turned_in;
+        return Icons.assignment_turned_in_outlined;
     }
   }
 }

@@ -346,11 +346,15 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen> {
                   label: 'Upcoming',
                   value: '${upcomingList.length}',
                   icon: Icons.event_note_outlined,
+                  accent: upcomingList.isNotEmpty
+                      ? const Color(0xFFB2660A)
+                      : StaffSurfaces.brandSoft,
                 ),
                 StaffIntroStat(
                   label: 'Past',
                   value: '${pastList.length}',
                   icon: Icons.history,
+                  accent: AppColors.success,
                 ),
               ],
             ),
