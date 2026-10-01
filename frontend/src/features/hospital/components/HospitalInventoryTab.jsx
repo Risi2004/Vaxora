@@ -4,6 +4,7 @@ import VaccineWastageModal from './VaccineWastageModal';
 import BatchAuditModal from './BatchAuditModal';
 import inventoryService from '../services/inventoryService';
 import InventoryAIInventoryWorkflow from './InventoryAIInventoryWorkflow';
+import HospitalSubpageHero from './HospitalSubpageHero';
 import {
   IconClock,
   IconShield,
@@ -189,6 +190,11 @@ export default function HospitalInventoryTab() {
   if (loading) {
     return (
       <div className="hospital-manage-appointments-wrapper">
+        <HospitalSubpageHero
+          eyebrow="Cold-chain operations"
+          title="Vaccine inventory"
+          subtitle="Monitor stock, cold storage, expiry risk, and restock activity from one operational workspace."
+        />
         <div className="hospital-manage-appointments-card" style={{ maxWidth: '1240px', padding: '60px', textAlign: 'center' }}>
           <h3>Loading inventory…</h3>
         </div>
@@ -198,6 +204,11 @@ export default function HospitalInventoryTab() {
 
   return (
     <div className="hospital-manage-appointments-wrapper">
+      <HospitalSubpageHero
+        eyebrow="Cold-chain operations"
+        title="Vaccine inventory"
+        subtitle="Monitor stock, cold storage, expiry risk, and restock activity from one operational workspace."
+      />
       <div className="hospital-manage-appointments-card" style={{ maxWidth: '1240px' }}>
         {toastMessage && (
           <div className="inventory-toast-banner">

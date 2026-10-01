@@ -3,6 +3,7 @@ import { inventoryService } from '../services/inventoryService';
 import { scheduleService } from '../services/scheduleService';
 import { staffService } from '../services/staffService';
 import { appointmentService } from '../../patient/services/appointmentService';
+import HospitalSubpageHero from './HospitalSubpageHero';
 
 const DAYS_OF_WEEK = [
   { key: 'Monday', label: 'Mon' },
@@ -351,6 +352,11 @@ export default function HospitalAppointmentsTab() {
 
   return (
     <div className="hospital-manage-appointments-wrapper">
+      <HospitalSubpageHero
+        eyebrow="Appointment operations"
+        title="Schedules & appointments"
+        subtitle="Publish vaccination sessions, manage recurring availability, and monitor today’s hospital appointments."
+      />
       {notification && (
         <div
           className="appointment-alert-pill"

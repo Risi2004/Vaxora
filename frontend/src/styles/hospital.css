@@ -5009,4 +5009,123 @@ select.schedule-input-field {
   }
 }
 
+/* Shared visual language for hospital subpages. */
+.hospital-subpage-hero {
+  width: 100%;
+  margin-bottom: 24px;
+  padding: 28px 32px;
+  border: 1px solid rgba(21, 42, 85, 0.16);
+  border-radius: 16px;
+  background: linear-gradient(135deg, #f8fbff 0%, #eef5fb 100%);
+  box-shadow: 0 8px 24px -14px rgba(15, 23, 42, 0.18);
+}
+
+.hospital-subpage-hero h1 {
+  margin: 0 0 8px;
+  color: #152a55;
+  font-family: var(--font-heading);
+  font-size: clamp(1.65rem, 2.4vw, 2.15rem);
+  line-height: 1.15;
+  font-weight: 700;
+}
+
+.hospital-subpage-hero .hospital-hero-sub {
+  max-width: 720px;
+  margin: 0;
+}
+
+.hospital-manage-appointments-wrapper {
+  max-width: 1400px;
+  align-items: stretch;
+  padding: 0 0 40px;
+}
+
+.hospital-manage-appointments-card,
+.profile-top-card,
+.profile-bottom-card {
+  border-radius: 16px;
+  border: 1px solid #dce6f2;
+  box-shadow: 0 8px 24px -16px rgba(15, 23, 42, 0.22);
+  font-family: var(--font-body);
+}
+
+.hospital-manage-appointments-card {
+  padding: 28px 32px 34px;
+}
+
+.hospital-manage-title,
+.hospital-inner-facility-name,
+.hospital-profile-wrapper h2,
+.hospital-profile-wrapper h3,
+.schedule-create-title,
+.formulary-title {
+  font-family: var(--font-heading);
+  color: #152a55;
+  letter-spacing: 0;
+}
+
+.hospital-manage-title {
+  font-size: 1.55rem;
+  text-align: left;
+  margin: 0 0 20px;
+}
+
+.hospital-appointments-mockup-table thead tr th,
+.hospital-appointments-mockup-table tbody tr td {
+  font-family: var(--font-body);
+}
+
+.hospital-appointments-mockup-table thead tr th {
+  font-size: 0.82rem;
+  letter-spacing: 0;
+}
+
+.hospital-appointments-mockup-table tbody tr td {
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.hospital-profile-wrapper {
+  max-width: 1400px;
+  align-items: stretch;
+  gap: 24px;
+}
+
+.hospital-profile-wrapper .profile-top-card,
+.hospital-profile-wrapper .profile-bottom-card {
+  width: 100%;
+}
+
+.hospital-staff-heading {
+  font-family: var(--font-heading);
+  color: #152a55;
+  font-size: 1.15rem;
+}
+
+.hospital-profile-wrapper .profile-info-card {
+  border-radius: 12px;
+  box-shadow: none;
+}
+
+.hospital-profile-wrapper .profile-field-label,
+.hospital-profile-wrapper .profile-field-value,
+.hospital-profile-wrapper .profile-info-title,
+.hospital-profile-wrapper .profile-field-input {
+  font-family: var(--font-body);
+}
+
+@media (max-width: 700px) {
+  .hospital-subpage-hero {
+    padding: 22px 20px;
+  }
+
+  .hospital-manage-appointments-card {
+    padding: 22px 18px 26px;
+  }
+
+  .hospital-manage-title {
+    font-size: 1.35rem;
+  }
+}
+
 
