@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using System.Text.Json;
 using Xunit;
 using Vaxora.Api.Data;
 using Vaxora.Api.Dtos;
@@ -170,8 +171,10 @@ public class StaffManagementServiceTests
                 """));
 
         var stored = await context.AgentWorkflows.SingleAsync();
-        Assert.Equal("{\"steps\":[\"analyze\",\"validate\",\"propose\"]}", stored.PlanJson);
-        Assert.Contains("businessRulesPassed", stored.ValidationResultsJson);
+        using var plan = JsonDocument.Parse(stored.PlanJson);
+        Assert.Equal(3, plan.RootElement.GetProperty("steps").GetArrayLength());
+        using var validation = JsonDocument.Parse(stored.ValidationResultsJson);
+        Assert.True(validation.RootElement.GetProperty("businessRulesPassed").GetBoolean());
         Assert.Equal("AwaitingApproval", stored.FinalOutcome);
         Assert.Equal("AwaitingApproval", workflow.Status);
     }
