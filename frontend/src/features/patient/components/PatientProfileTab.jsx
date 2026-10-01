@@ -178,21 +178,23 @@ export default function PatientProfileTab() {
     }
   };
 
-  const handlePhotoUpload = (e) => {
+  const handlePhotoUpload = async (e) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = async () => {
-        const photoData = reader.result;
-        setProfileData((prev) => ({ ...prev, profilePhotoUrl: photoData }));
-        try {
-          await authService.updateProfile({ profilePhotoUrl: photoData });
-          showNotification("Profile avatar updated successfully!");
-        } catch {
-          showNotification("Updated photo preview locally.", "success");
-        }
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+
+    try {
+      const updatedUser = await authService.updateProfilePhoto(file);
+      const details = updatedUser?.profileDetails || {};
+      const profilePhotoUrl =
+        updatedUser?.profilePhotoUrl || details.profilePhotoUrl || null;
+
+      setProfileData((prev) => ({ ...prev, profilePhotoUrl }));
+      showNotification("Profile photo updated successfully!");
+    } catch (err) {
+      showNotification(err.message || "Failed to upload profile photo.", "error");
+    } finally {
+      // Let the same file be selected again after a failed upload.
+      e.target.value = "";
     }
   };
 
