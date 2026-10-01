@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/services/storage_service.dart';
+import '../../../../core/theme/app_colors.dart';
 import '../../../auth/presentation/utils/home_route_utils.dart';
 import '../../data/models/affiliation_model.dart';
 import '../../data/models/shift_model.dart';
@@ -360,16 +361,19 @@ class _StaffShiftsScreenState extends State<StaffShiftsScreen> {
                   label: 'Shifts',
                   value: '${_shifts.length}',
                   icon: Icons.event_note_outlined,
+                  accent: StaffSurfaces.brandSoft,
                 ),
                 StaffIntroStat(
                   label: 'In calendar',
                   value: '$_syncedCount',
                   icon: Icons.event_available_outlined,
+                  accent: AppColors.info,
                 ),
                 StaffIntroStat(
                   label: 'Hospitals',
                   value: '${_affiliationsById.length}',
                   icon: Icons.local_hospital_outlined,
+                  accent: AppColors.accentTeal,
                 ),
               ],
             ),
@@ -736,6 +740,21 @@ class _ShiftCard extends StatelessWidget {
     final booth = (shift.boothOrStation?.trim().isNotEmpty ?? false)
         ? shift.boothOrStation!
         : 'Unassigned booth';
+    final cover = shift.coverStatus?.toLowerCase();
+    final barColor = switch (cover) {
+      'requested' => const Color(0xFFB2660A),
+      'declined' => AppColors.error,
+      'covering' => AppColors.success,
+      _ => StaffSurfaces.accentBar,
+    };
+    final borderColor = selected
+        ? StaffSurfaces.cta
+        : switch (cover) {
+            'requested' => const Color(0xFFF5B168),
+            'declined' => AppColors.error.withValues(alpha: 0.28),
+            'covering' => AppColors.success.withValues(alpha: 0.28),
+            _ => StaffSurfaces.cardBorder,
+          };
 
     return Material(
       color: Colors.transparent,
@@ -746,7 +765,7 @@ class _ShiftCard extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(14),
           decoration: StaffSurfaces.card(
-            borderColor: selected ? StaffSurfaces.cta : null,
+            borderColor: borderColor,
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -769,7 +788,7 @@ class _ShiftCard extends StatelessWidget {
                   width: 4,
                   height: 58,
                   decoration: BoxDecoration(
-                    color: StaffSurfaces.accentBar,
+                    color: barColor,
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),

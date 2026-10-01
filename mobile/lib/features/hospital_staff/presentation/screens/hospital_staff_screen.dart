@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/services/storage_service.dart';
+import '../../../../core/theme/app_colors.dart';
 import '../../../auth/presentation/utils/home_route_utils.dart';
 import '../../../staff/presentation/widgets/network_avatar.dart';
 import '../../../staff/presentation/widgets/staff_common_widgets.dart';
@@ -169,16 +170,21 @@ class _HospitalStaffScreenState extends State<HospitalStaffScreen> {
                   label: 'Active',
                   value: '${_staff.length}',
                   icon: Icons.groups_outlined,
+                  accent: AppColors.success,
                 ),
                 StaffIntroStat(
                   label: 'On duty',
                   value: '$_onDutyCount',
                   icon: Icons.medical_services_outlined,
+                  accent: AppColors.success,
                 ),
                 StaffIntroStat(
                   label: 'Pending',
                   value: '${_pending.length}',
                   icon: Icons.mark_email_unread_outlined,
+                  accent: _pending.isNotEmpty
+                      ? const Color(0xFFB2660A)
+                      : AppColors.success,
                 ),
               ],
             ),
@@ -318,7 +324,13 @@ class _StaffMemberCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: StaffSurfaces.card(),
+      decoration: StaffSurfaces.card(
+        borderColor: member.isPending
+            ? const Color(0xFFF5B168)
+            : (member.isOnDutyNow
+                ? AppColors.success.withValues(alpha: 0.28)
+                : StaffSurfaces.cardBorder),
+      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
