@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../../core/network/api_client.dart';
 import '../../../../core/services/storage_service.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -76,8 +77,7 @@ class _StaffAffiliationsScreenState extends State<StaffAffiliationsScreen> {
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _error =
-            e is ApiException ? e.message : 'Failed to load affiliations.';
+        _error = e is ApiException ? e.message : 'Failed to load affiliations.';
         _invitations = [];
         _affiliations = [];
       });
@@ -234,8 +234,7 @@ class _StaffAffiliationsScreenState extends State<StaffAffiliationsScreen> {
             StaffPageIntro(
               eyebrow: 'Hospital network',
               title: 'Your affiliations',
-              subtitle:
-                  'Accept invitations to join a hospital roster and manage where you work.',
+              subtitle: 'Accept invitations to join a hospital roster and manage where you work.',
               stats: [
                 StaffIntroStat(
                   label: 'Active',
@@ -272,7 +271,8 @@ class _StaffAffiliationsScreenState extends State<StaffAffiliationsScreen> {
                 padding: const EdgeInsets.symmetric(vertical: 48),
                 child: Center(
                   child: CircularProgressIndicator(
-                      color: StaffSurfaces.brandSoft),
+                    color: StaffSurfaces.brandSoft,
+                  ),
                 ),
               )
             else ...[
@@ -300,8 +300,7 @@ class _StaffAffiliationsScreenState extends State<StaffAffiliationsScreen> {
               ),
               if (_affiliations.isEmpty)
                 const StaffEmptyCard(
-                  message:
-                      'You are not affiliated with any hospital yet. Accept an invitation to join a roster.',
+                  message: 'You are not affiliated with any hospital yet. Accept an invitation to join a roster.',
                   icon: Icons.local_hospital_outlined,
                   compact: true,
                 )
@@ -314,10 +313,7 @@ class _StaffAffiliationsScreenState extends State<StaffAffiliationsScreen> {
                 ),
               if (_invitations.isEmpty) ...[
                 const SizedBox(height: 8),
-                StaffSectionHeader(
-                  title: 'Pending invitations',
-                  count: 0,
-                ),
+                StaffSectionHeader(title: 'Pending invitations', count: 0),
                 const StaffEmptyCard(
                   message: 'No pending hospital invitations.',
                   icon: Icons.mail_outline,
@@ -355,9 +351,7 @@ class _InvitationCard extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: StaffSurfaces.card(
-        borderColor: const Color(0xFFF5B168),
-      ),
+      decoration: StaffSurfaces.card(borderColor: const Color(0xFFF5B168)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -409,7 +403,9 @@ class _InvitationCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(10),
                     ),
                     textStyle: const TextStyle(
-                        fontSize: 13.5, fontWeight: FontWeight.w700),
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                   child: Text(rejecting ? 'Rejecting…' : 'Reject'),
                 ),
@@ -427,7 +423,9 @@ class _InvitationCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(10),
                     ),
                     textStyle: const TextStyle(
-                        fontSize: 13.5, fontWeight: FontWeight.w700),
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                   child: Text(accepting ? 'Accepting…' : 'Accept'),
                 ),
@@ -485,13 +483,11 @@ class _AffiliationCard extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           StaffStatusChip(
-            label: item.isOnDutyNow ? 'On duty' : 'Off duty',
+            label: item.isOnDutyNow ? 'On duty' : 'No active shift',
             tone: item.isOnDutyNow
                 ? StaffChipTone.success
                 : StaffChipTone.neutral,
-            icon: item.isOnDutyNow
-                ? Icons.circle
-                : Icons.circle_outlined,
+            icon: item.isOnDutyNow ? Icons.circle : Icons.circle_outlined,
           ),
         ],
       ),
