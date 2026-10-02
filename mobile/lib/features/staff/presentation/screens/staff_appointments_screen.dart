@@ -416,6 +416,8 @@ class _AppointmentCard extends StatelessWidget {
         return StaffChipTone.success;
       case 'waiting':
         return StaffChipTone.warning;
+      case 'cancelled':
+        return StaffChipTone.danger;
       default:
         return StaffChipTone.brand;
     }
@@ -429,11 +431,13 @@ class _AppointmentCard extends StatelessWidget {
     final barColor = switch (tone) {
       StaffChipTone.success => AppColors.success,
       StaffChipTone.warning => const Color(0xFFB2660A),
+      StaffChipTone.danger => AppColors.error,
       _ => StaffSurfaces.accentBar,
     };
     final borderColor = switch (tone) {
       StaffChipTone.success => AppColors.success.withValues(alpha: 0.28),
       StaffChipTone.warning => const Color(0xFFF5B168),
+      StaffChipTone.danger => AppColors.error.withValues(alpha: 0.28),
       _ => StaffSurfaces.cardBorder,
     };
 

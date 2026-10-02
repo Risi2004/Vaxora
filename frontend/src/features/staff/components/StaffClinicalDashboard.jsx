@@ -43,7 +43,7 @@ function mapDbStatusToUi(status) {
   if (s === 'completed') return 'completed';
   if (s === 'observation') return 'observation';
   if (s === 'administering') return 'consulting';
-  if (s === 'cancelled' || s === 'rejected') return 'completed';
+  if (s === 'cancelled' || s === 'rejected') return 'cancelled';
   return 'waiting';
 }
 
@@ -848,7 +848,9 @@ export default function StaffClinicalDashboard({
                                 ? 'In Queue'
                                 : p.status === 'observation'
                                   ? 'Observation'
-                                  : 'Completed'}
+                                  : p.status === 'cancelled'
+                                    ? 'Cancelled'
+                                    : 'Completed'}
                           </span>
                         </td>
                         <td>
