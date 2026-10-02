@@ -195,10 +195,12 @@ class _LoginScreenState extends State<LoginScreen> {
                               hintText: 'Email address',
                             ),
                             validator: (v) {
-                              if (v == null || v.trim().isEmpty)
+                              if (v == null || v.trim().isEmpty) {
                                 return 'Please enter your email address';
-                              if (!v.contains('@'))
+                              }
+                              if (!v.contains('@')) {
                                 return 'Enter a valid email address';
+                              }
                               return null;
                             },
                           ),
@@ -222,8 +224,9 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                             ),
                             validator: (v) {
-                              if (v == null || v.isEmpty)
+                              if (v == null || v.isEmpty) {
                                 return 'Please enter your password';
+                              }
                               return null;
                             },
                           ),

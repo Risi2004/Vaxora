@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:printing/printing.dart';
 import 'package:flutter/foundation.dart';

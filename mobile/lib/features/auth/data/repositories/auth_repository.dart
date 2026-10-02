@@ -9,7 +9,7 @@ class AuthRepository {
     UserModel user, [
     Map<String, dynamic>? raw,
   ]) async {
-    final merged = <String, dynamic>{if (raw != null) ...raw, ...user.toJson()};
+    final merged = <String, dynamic>{...?raw, ...user.toJson()};
 
     // Never let a null model field wipe a photo URL that came from the API payload.
     final fromModel = user.profilePhotoUrl?.trim();
@@ -143,8 +143,9 @@ class AuthRepository {
     final body = <String, dynamic>{};
     if (fullName != null) body['fullName'] = fullName.trim();
     if (phoneNumber != null) body['phoneNumber'] = phoneNumber.trim();
-    if (dateOfBirth != null)
+    if (dateOfBirth != null) {
       body['dateOfBirth'] = dateOfBirth.toIso8601String();
+    }
 
     final response = await ApiClient.put(
       ApiConstants.updateProfile,
@@ -182,8 +183,9 @@ class AuthRepository {
       final merged = Map<String, dynamic>.from(cached);
       if (fullName != null) merged['name'] = fullName.trim();
       if (phoneNumber != null) merged['phoneNumber'] = phoneNumber.trim();
-      if (dateOfBirth != null)
+      if (dateOfBirth != null) {
         merged['dateOfBirth'] = dateOfBirth.toIso8601String();
+      }
       await StorageService.saveUser(merged);
       return UserModel.fromJson(merged);
     }
