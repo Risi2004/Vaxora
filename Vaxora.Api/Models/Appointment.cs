@@ -9,8 +9,8 @@ public class Appointment
     [Key]
     public Guid Id { get; set; } = Guid.NewGuid();
 
-    [Required]
-    public Guid PatientUserId { get; set; }
+    /// <summary>Null for guest walk-ins that have no Vaxora patient account.</summary>
+    public Guid? PatientUserId { get; set; }
 
     public Guid? PatientProfileId { get; set; }
 

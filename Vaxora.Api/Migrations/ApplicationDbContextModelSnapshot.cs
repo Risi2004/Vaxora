@@ -188,7 +188,7 @@ namespace Vaxora.Api.Migrations
                     b.Property<Guid?>("PatientProfileId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("PatientUserId")
+                    b.Property<Guid?>("PatientUserId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("PaymentMethod")
@@ -1441,8 +1441,7 @@ namespace Vaxora.Api.Migrations
                     b.HasOne("Vaxora.Api.Models.User", "PatientUser")
                         .WithMany()
                         .HasForeignKey("PatientUserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("Vaxora.Api.Models.VaccineSchedule", "VaccineSchedule")
                         .WithMany()

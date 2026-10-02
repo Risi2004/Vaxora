@@ -459,6 +459,9 @@ public class AppointmentService : IAppointmentService
         if (string.IsNullOrWhiteSpace(vaccineName))
             throw new InvalidOperationException("Vaccine name is required.");
 
+        var presentedName = (dto.PatientName ?? string.Empty).Trim();
+
+        // Prefer linking a registered patient when NIC matches; otherwise allow guest walk-in.
         var patient = await _context.Users
             .Include(u => u.PatientProfile)
             .FirstOrDefaultAsync(u =>
@@ -466,8 +469,15 @@ public class AppointmentService : IAppointmentService
                 u.PatientProfile != null &&
                 u.PatientProfile.NicNumber == nic);
 
-        if (patient?.PatientProfile == null)
-            throw new KeyNotFoundException($"No registered patient found with NIC '{nic}'. Ask the patient to create a Vaxora account first.");
+        var isGuest = patient?.PatientProfile == null;
+        if (isGuest && string.IsNullOrWhiteSpace(presentedName))
+            throw new InvalidOperationException("Patient full name is required for walk-ins without a Vaxora account.");
+
+        var resolvedName = isGuest
+            ? presentedName
+            : (string.IsNullOrWhiteSpace(presentedName)
+                ? patient!.PatientProfile!.FullName
+                : presentedName);
 
         var hospitalNow = DateTime.UtcNow.AddHours(5.5);
         var today = DateOnly.FromDateTime(hospitalNow);
@@ -495,26 +505,30 @@ public class AppointmentService : IAppointmentService
                  (hospital.HospitalProfile != null && s.HospitalProfileId == hospital.HospitalProfile.Id)) &&
                 (s.VaccineName.ToLower() == vName || s.VaccineName.ToLower().Contains(vName)));
 
-        var noteParts = new List<string> { "Walk-in registration" };
+        var noteParts = new List<string>
+        {
+            isGuest ? "Walk-in registration (guest — no Vaxora account)" : "Walk-in registration"
+        };
         if (!string.IsNullOrWhiteSpace(dto.Dose)) noteParts.Add($"Dose: {dto.Dose.Trim()}");
         if (!string.IsNullOrWhiteSpace(dto.BoothLabel)) noteParts.Add($"Booth: {dto.BoothLabel.Trim()}");
         if (dto.Age.HasValue) noteParts.Add($"Age: {dto.Age.Value}");
         if (!string.IsNullOrWhiteSpace(dto.Gender)) noteParts.Add($"Gender: {dto.Gender.Trim()}");
-        if (!string.IsNullOrWhiteSpace(dto.PatientName) &&
-            !string.Equals(dto.PatientName.Trim(), patient.PatientProfile.FullName, StringComparison.OrdinalIgnoreCase))
+        if (!isGuest &&
+            !string.IsNullOrWhiteSpace(presentedName) &&
+            !string.Equals(presentedName, patient!.PatientProfile!.FullName, StringComparison.OrdinalIgnoreCase))
         {
-            noteParts.Add($"Presented as: {dto.PatientName.Trim()}");
+            noteParts.Add($"Presented as: {presentedName}");
         }
 
         var appointment = new Appointment
         {
             Id = Guid.NewGuid(),
-            PatientUserId = patient.Id,
-            PatientProfileId = patient.PatientProfile.Id,
-            PatientName = patient.PatientProfile.FullName,
-            PatientNic = patient.PatientProfile.NicNumber,
-            PatientPhone = patient.PatientProfile.PhoneNumber ?? patient.PhoneNumber,
-            PatientEmail = patient.Email,
+            PatientUserId = isGuest ? null : patient!.Id,
+            PatientProfileId = isGuest ? null : patient!.PatientProfile!.Id,
+            PatientName = resolvedName,
+            PatientNic = isGuest ? nic : patient!.PatientProfile!.NicNumber,
+            PatientPhone = isGuest ? null : (patient!.PatientProfile!.PhoneNumber ?? patient.PhoneNumber),
+            PatientEmail = isGuest ? null : patient!.Email,
             HospitalUserId = hospital.Id,
             HospitalProfileId = hospital.HospitalProfile?.Id,
             HospitalName = hospital.HospitalProfile?.HospitalName ?? "Hospital Center",
@@ -542,8 +556,8 @@ public class AppointmentService : IAppointmentService
         await _context.SaveChangesAsync();
 
         _logger.LogInformation(
-            "Walk-in appointment {AppId} created for Patient {Patient} (NIC {Nic}) at hospital {Hospital}",
-            appointment.Id, appointment.PatientName, nic, appointment.HospitalName);
+            "Walk-in appointment {AppId} created for {Patient} (NIC {Nic}, guest={IsGuest}) at hospital {Hospital}",
+            appointment.Id, appointment.PatientName, nic, isGuest, appointment.HospitalName);
 
         return MapToDto(appointment);
     }

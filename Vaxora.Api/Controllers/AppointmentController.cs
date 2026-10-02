@@ -167,7 +167,8 @@ public class AppointmentsController : ControllerBase
     }
 
     /// <summary>
-    /// Hospital walk-in: enqueue a registered patient (matched by NIC) for today.
+    /// Hospital walk-in: enqueue a patient for today. Links a Vaxora account when NIC
+    /// matches; otherwise creates a guest appointment (no patient account required).
     /// </summary>
     [HttpPost("hospital/walk-in")]
     [Authorize(Roles = "HOSPITAL")]

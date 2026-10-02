@@ -53,7 +53,7 @@ public class BookAppointmentRequestDto
 public class AppointmentResponseDto
 {
     public Guid Id { get; set; }
-    public Guid PatientUserId { get; set; }
+    public Guid? PatientUserId { get; set; }
     public string PatientName { get; set; } = string.Empty;
     public string? PatientNic { get; set; }
     public string? PatientPhone { get; set; }

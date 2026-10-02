@@ -104,7 +104,7 @@ export const appointmentService = {
     });
   },
 
-  // 5b. Hospital walk-in registration (patient must already exist by NIC)
+  // 5b. Hospital walk-in registration (links Vaxora account by NIC when found; otherwise guest)
   createWalkIn(payload) {
     return apiRequest('/appointments/hospital/walk-in', {
       method: 'POST',
