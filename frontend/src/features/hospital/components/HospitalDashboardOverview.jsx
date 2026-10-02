@@ -383,6 +383,8 @@ export default function HospitalDashboardOverview() {
     await appointmentService.createWalkIn({
       patientNic: payload.patientNic,
       patientName: payload.patientName,
+      patientEmail: payload.patientEmail,
+      patientPhone: payload.patientPhone,
       vaccineName: payload.vaccineName,
       dose: payload.dose,
       boothLabel: payload.boothLabel,
@@ -390,7 +392,9 @@ export default function HospitalDashboardOverview() {
       gender: payload.gender,
     });
     await loadAppointmentsQueue();
-    showToast(`Walk-in patient ${payload.patientName} added to the active queue.`);
+    showToast(
+      `Guest ${payload.patientName} queued. Login email is theirs; guest password is their NIC.`
+    );
   };
 
   // 2. Real Database Restock Batch

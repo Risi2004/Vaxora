@@ -486,8 +486,33 @@ public class AppointmentService : IAppointmentService
             if (string.IsNullOrWhiteSpace(presentedName))
                 throw new InvalidOperationException("Patient full name is required to create a walk-in account.");
 
-            (patient, _) = await CreateWalkInPatientAccountAsync(nic, presentedName, dto.Age);
+            var email = (dto.PatientEmail ?? string.Empty).Trim().ToLowerInvariant();
+            var phone = (dto.PatientPhone ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(email))
+                throw new InvalidOperationException("Patient email is required to create a walk-in account.");
+            if (string.IsNullOrWhiteSpace(phone))
+                throw new InvalidOperationException("Patient phone is required to create a walk-in account.");
+
+            (patient, _) = await CreateWalkInPatientAccountAsync(nic, presentedName, dto.Age, email, phone);
             createdAccount = true;
+        }
+        else
+        {
+            // Refresh contact details on the linked profile when the desk captures newer data.
+            var phone = (dto.PatientPhone ?? string.Empty).Trim();
+            if (!string.IsNullOrWhiteSpace(phone))
+            {
+                patient.PhoneNumber = phone;
+                patient.PatientProfile!.PhoneNumber = phone;
+            }
+
+            var email = (dto.PatientEmail ?? string.Empty).Trim().ToLowerInvariant();
+            if (!string.IsNullOrWhiteSpace(email) &&
+                !string.Equals(patient.Email, email, StringComparison.OrdinalIgnoreCase) &&
+                !await _context.Users.AnyAsync(u => u.Email == email && u.Id != patient.Id))
+            {
+                patient.Email = email;
+            }
         }
 
         var resolvedName = string.IsNullOrWhiteSpace(presentedName)
@@ -545,7 +570,7 @@ public class AppointmentService : IAppointmentService
             PatientProfileId = patient.PatientProfile!.Id,
             PatientName = resolvedName,
             PatientNic = patient.PatientProfile.NicNumber,
-            PatientPhone = patient.PatientProfile.PhoneNumber ?? patient.PhoneNumber,
+            PatientPhone = patient.PatientProfile.PhoneNumber ?? patient.PhoneNumber ?? (dto.PatientPhone ?? string.Empty).Trim(),
             PatientEmail = patient.Email,
             HospitalUserId = hospital.Id,
             HospitalProfileId = hospital.HospitalProfile?.Id,
@@ -581,29 +606,31 @@ public class AppointmentService : IAppointmentService
     }
 
     /// <summary>
-    /// Provisions a PATIENT user + profile for desk walk-ins so doses can be stored
-    /// on vaccination history. Login email is synthetic; password is a random secret
-    /// (patient can later claim/update via normal signup flows if needed).
+    /// Provisions a PATIENT user + profile for desk walk-ins using the real email/phone
+    /// collected at the counter so vaccination history and contact data stay accurate.
     /// </summary>
     private async Task<(User user, PatientProfile profile)> CreateWalkInPatientAccountAsync(
         string nic,
         string fullName,
-        int? age)
+        int? age,
+        string email,
+        string phone)
     {
-        var nicKey = new string(nic.Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant();
-        if (string.IsNullOrWhiteSpace(nicKey))
-            nicKey = Guid.NewGuid().ToString("N")[..8];
-
-        var email = $"walkin.{nicKey}@vaxora.local";
-        var suffix = 0;
-        while (await _context.Users.AnyAsync(u => u.Email == email))
+        if (await _context.Users.AnyAsync(u => u.Email == email))
         {
-            suffix++;
-            email = $"walkin.{nicKey}.{suffix}@vaxora.local";
+            throw new InvalidOperationException(
+                $"An account with email '{email}' already exists. Use that patient's NIC, or a different email.");
+        }
+
+        if (await _context.PatientProfiles.AnyAsync(p => p.NicNumber == nic.Trim()))
+        {
+            throw new InvalidOperationException(
+                "A patient profile with this NIC already exists but could not be linked. Check the NIC and try again.");
         }
 
         var regNumber = await _registrationNumberService.GenerateRegistrationNumberAsync(UserRole.PATIENT);
-        var tempPassword = $"Wx{Guid.NewGuid():N}!9";
+        // Desk walk-in default password = NIC / national ID (patient is reminded on login).
+        var defaultPassword = nic.Trim();
 
         DateTime? dateOfBirth = null;
         if (age is >= 0 and <= 120)
@@ -617,9 +644,10 @@ public class AppointmentService : IAppointmentService
         {
             Id = Guid.NewGuid(),
             Email = email,
-            PasswordHash = _passwordHasher.HashPassword(tempPassword),
+            PasswordHash = _passwordHasher.HashPassword(defaultPassword),
             Role = UserRole.PATIENT,
             Status = UserStatus.Active,
+            PhoneNumber = phone,
             RegistrationNumber = regNumber,
             CreatedAt = DateTime.UtcNow
         };
@@ -631,6 +659,7 @@ public class AppointmentService : IAppointmentService
             FullName = fullName.Trim(),
             NicNumber = nic.Trim(),
             DateOfBirth = dateOfBirth,
+            PhoneNumber = phone,
             CreatedAt = DateTime.UtcNow
         };
 
@@ -642,11 +671,11 @@ public class AppointmentService : IAppointmentService
             UserEmail = user.Email,
             Role = "PATIENT",
             Action = "PATIENT_WALKIN_PROVISION",
-            Details = $"Auto-created patient account from hospital walk-in (NIC {profile.NicNumber}, Reg #{regNumber})",
+            Details =
+                $"Auto-created patient account from hospital walk-in (NIC {profile.NicNumber}, email {email}, Reg #{regNumber}). Default password set to NIC.",
             Timestamp = DateTime.UtcNow
         });
 
-        // Navigation must be available before SaveChanges for appointment linking.
         user.PatientProfile = profile;
         return (user, profile);
     }

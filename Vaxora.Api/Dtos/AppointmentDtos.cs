@@ -127,6 +127,15 @@ public class CreateWalkInAppointmentDto
     [MaxLength(200)]
     public string? PatientName { get; set; }
 
+    /// <summary>Required when auto-creating a patient account (NIC not already registered).</summary>
+    [EmailAddress]
+    [MaxLength(256)]
+    public string? PatientEmail { get; set; }
+
+    /// <summary>Required when auto-creating a patient account (NIC not already registered).</summary>
+    [MaxLength(20)]
+    public string? PatientPhone { get; set; }
+
     [Required]
     [MaxLength(200)]
     public string VaccineName { get; set; } = string.Empty;
