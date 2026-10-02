@@ -259,6 +259,7 @@ export default function HospitalDashboardOverview() {
     setQueueError('');
     try {
       const todayStr = hospitalToday();
+      // Load full hospital list; metric cards + "Today" scope filter to hospital-local today.
       const data = await appointmentService.getHospitalAppointments();
       const rawList = Array.isArray(data) ? data : [];
 
@@ -316,7 +317,18 @@ export default function HospitalDashboardOverview() {
       const shifts = Array.isArray(shiftList) ? shiftList : [];
       const staff = Array.isArray(staffList) ? staffList : [];
 
-      setOnDutyCount(staff.filter((s) => s.isOnDutyNow).length);
+      // Live on-duty = unique affiliations with a shift covering hospital-local now
+      // (same clock as booth cards — don't rely only on roster flag).
+      const liveAffiliationIds = new Set();
+      shifts.forEach((s) => {
+        const start = timeToMinutes(s.startTime);
+        const end = timeToMinutes(s.endTime);
+        if (start != null && end != null && start <= nowMinutes && nowMinutes < end) {
+          if (s.affiliationId) liveAffiliationIds.add(s.affiliationId);
+        }
+      });
+      const rosterLive = staff.filter((s) => s.isOnDutyNow).length;
+      setOnDutyCount(Math.max(liveAffiliationIds.size, rosterLive));
 
       const photoByAffiliation = new Map(
         staff.map((s) => [s.affiliationId, s.staffProfilePhotoUrl || null])
@@ -454,13 +466,30 @@ export default function HospitalDashboardOverview() {
     return inventory.reduce((acc, curr) => acc + (curr.available || 0), 0);
   }, [inventory]);
 
+  const todayPatients = useMemo(
+    () => queuePatients.filter((p) => !p.date || p.date === todayStr),
+    [queuePatients, todayStr]
+  );
+
   const completedTodayCount = useMemo(() => {
-    return queuePatients.filter((p) => p.status === 'completed').length;
-  }, [queuePatients]);
+    return todayPatients.filter((p) => p.status === 'completed').length;
+  }, [todayPatients]);
 
   const activeQueueCount = useMemo(() => {
-    return queuePatients.filter((p) => p.status !== 'completed' && p.status !== 'cancelled').length;
-  }, [queuePatients]);
+    return todayPatients.filter(
+      (p) => p.status !== 'completed' && p.status !== 'cancelled'
+    ).length;
+  }, [todayPatients]);
+
+  const observationCount = useMemo(
+    () => todayPatients.filter((p) => p.status === 'observation').length,
+    [todayPatients]
+  );
+
+  const liveBoothCount = useMemo(
+    () => boothCards.filter((b) => b.status === 'On duty').length,
+    [boothCards]
+  );
 
   const staffedBoothCount = useMemo(
     () => boothCards.filter((b) => b.shiftCount > 0).length,
@@ -567,7 +596,7 @@ export default function HospitalDashboardOverview() {
             <span className="hospital-stat-label">Active Patient Queue</span>
             <span className="hospital-stat-value">{activeQueueCount}</span>
             <span className="hospital-stat-meta">
-              {queuePatients.filter((p) => p.status === 'observation').length} in observation
+              {observationCount} in observation
             </span>
           </div>
         </div>
@@ -603,7 +632,7 @@ export default function HospitalDashboardOverview() {
               {inventoryLoading ? '...' : totalStock.toLocaleString()}
             </span>
             <span className="hospital-stat-meta">
-              {inventory.length} formulation{inventory.length === 1 ? '' : 's'}
+              {inventory.length} formulation{inventory.length === 1 ? '' : 's'} · vials on hand
             </span>
           </div>
         </div>
@@ -616,7 +645,11 @@ export default function HospitalDashboardOverview() {
             <span className="hospital-stat-label">On-Duty Medical Staff</span>
             <span className="hospital-stat-value">{onDutyCount}</span>
             <span className="hospital-stat-meta">
-              {staffedBoothCount} active booth{staffedBoothCount === 1 ? '' : 's'}
+              {liveBoothCount > 0
+                ? `${liveBoothCount} booth${liveBoothCount === 1 ? '' : 's'} live now`
+                : staffedBoothCount > 0
+                  ? `${staffedBoothCount} booth${staffedBoothCount === 1 ? '' : 's'} scheduled today`
+                  : 'No booths scheduled'}
             </span>
           </div>
         </div>
