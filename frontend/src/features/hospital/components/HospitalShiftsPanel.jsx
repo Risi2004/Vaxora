@@ -1,10 +1,10 @@
+import { deferEffectCallback } from '../../../shared/utils/deferEffectCallback.js';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import staffService from '../services/staffService';
 import agentService from '../../patient/services/agentService';
 import StaffSchedulingAgentChat from './StaffSchedulingAgentChat';
-import SuggestWeekCalendarModal, {
-  proposalIdentity as modalProposalIdentity,
-} from './SuggestWeekCalendarModal';
+import SuggestWeekCalendarModal from './SuggestWeekCalendarModal';
+import { proposalIdentity } from './proposalIdentity';
 import { hospitalMinutesNow, hospitalToday } from '../utils/hospitalDate';
 import { IconCalendar, RoleAvatarIcon } from './HospitalIcons';
 import { IconBot } from '../../../shared/icons/AppIcons';
@@ -128,10 +128,6 @@ function normalizeProposalTime(value) {
   return s;
 }
 
-function proposalIdentity(p) {
-  return modalProposalIdentity(p);
-}
-
 function shiftPayloadFromProposal(proposal) {
   return {
     affiliationId: proposal.affiliationId,
@@ -226,9 +222,9 @@ export default function HospitalShiftsPanel() {
     }
   }, [weekStart, weekEnd]);
 
-  useEffect(() => {
+  useEffect(() => deferEffectCallback(() => {
     loadData();
-  }, [loadData]);
+  }), [loadData]);
 
   /** Refresh shifts + coverage without blanking the calendar. */
   const refreshRosterQuietly = useCallback(async () => {

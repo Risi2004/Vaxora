@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { deferEffectCallback } from '../../../shared/utils/deferEffectCallback.js';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { authService } from '../../auth';
 import AddStaffRequestModal from './AddStaffRequestModal';
 import staffService from '../services/staffService';
@@ -41,7 +42,7 @@ export default function HospitalProfileTab() {
     setTimeout(() => setNotification(''), 3500);
   };
 
-  const populateState = (user) => {
+  const populateState = useCallback((user) => {
     const details = user.profileDetails || {};
     setHospitalInfo({
       id: user.registrationNumber || details.registrationNumber || 'VAX-H-000000',
@@ -59,9 +60,9 @@ export default function HospitalProfileTab() {
       registrationDocKey: details.registrationDocKey || null,
       mohDocKey: details.mohDocKey || null,
     });
-  };
+  }, []);
 
-  const applyStaffList = (list) => {
+  const applyStaffList = useCallback((list) => {
     const active = (Array.isArray(list) ? list : []).filter((item) => item.status === 'Active');
     setDoctors(
       active
@@ -81,9 +82,9 @@ export default function HospitalProfileTab() {
           photoUrl: item.staffProfilePhotoUrl || null,
         }))
     );
-  };
+  }, []);
 
-  const loadHospitalProfile = async () => {
+  const loadHospitalProfile = useCallback(async () => {
     try {
       const cached = authService.getUser();
       if (cached) populateState(cached);
@@ -99,11 +100,11 @@ export default function HospitalProfileTab() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [populateState, applyStaffList]);
 
-  useEffect(() => {
+  useEffect(() => deferEffectCallback(() => {
     loadHospitalProfile();
-  }, []);
+  }), [loadHospitalProfile]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;

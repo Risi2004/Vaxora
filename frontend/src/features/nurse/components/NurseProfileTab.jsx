@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { deferEffectCallback } from '../../../shared/utils/deferEffectCallback.js';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { authService } from '../../auth';
 import { IconFile, IconShield } from '../../../shared/icons/AppIcons';
 import StaffSubpageHeader from '../../staff/components/StaffSubpageHeader';
@@ -43,7 +44,7 @@ export default function NurseProfileTab() {
     setTimeout(() => setNotification(''), 3500);
   };
 
-  const populateState = (user) => {
+  const populateState = useCallback((user) => {
     const details = user.profileDetails || {};
     const createdDate = details.createdAt || user.createdAt
       ? new Date(details.createdAt || user.createdAt).toLocaleDateString()
@@ -61,9 +62,9 @@ export default function NurseProfileTab() {
       supportingDocKey: details.supportingDocKey || null,
       createdAt: createdDate,
     });
-  };
+  }, []);
 
-  const loadNurseProfile = async () => {
+  const loadNurseProfile = useCallback(async () => {
     try {
       const cached = authService.getUser();
       if (cached) populateState(cached);
@@ -75,11 +76,11 @@ export default function NurseProfileTab() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [populateState]);
 
-  useEffect(() => {
+  useEffect(() => deferEffectCallback(() => {
     loadNurseProfile();
-  }, []);
+  }), [loadNurseProfile]);
 
   const handlePersonalChange = (e) => {
     const { name, value } = e.target;

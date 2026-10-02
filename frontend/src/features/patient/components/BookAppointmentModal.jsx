@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { IconClose, IconSyringe } from '../../../shared/icons/AppIcons';
 
 export default function BookAppointmentModal({ isOpen, onClose, onBookSuccess }) {

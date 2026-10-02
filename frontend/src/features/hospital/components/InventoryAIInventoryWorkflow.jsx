@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { aiAgentService, inventoryDraftService } from '../services/inventoryAiAgentService';
 import InventoryDraftDocument from './InventoryDraftDocument';
 

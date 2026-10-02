@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import { deferEffectCallback } from '../../../shared/utils/deferEffectCallback.js';
+import { useCallback, useEffect, useState } from 'react';
 import clinicalPatientService from '../services/clinicalPatientService';
 import staffService from '../../hospital/services/staffService';
 import staffAppointmentService from '../../staff/services/staffAppointmentService';
@@ -110,19 +111,19 @@ export default function DoctorPatientsTab() {
     }
   }, []);
 
-  useEffect(() => {
+  useEffect(() => deferEffectCallback(() => {
     loadRecent();
     loadDutyStatus();
-  }, [loadRecent, loadDutyStatus]);
+  }), [loadRecent, loadDutyStatus]);
 
-  useEffect(() => {
+  useEffect(() => deferEffectCallback(() => {
     if (!isOnDuty && editingDosageId) {
       setEditingDosageId(null);
       setDosageInput('');
     }
-  }, [isOnDuty, editingDosageId]);
+  }), [isOnDuty, editingDosageId]);
 
-  useEffect(() => {
+  useEffect(() => deferEffectCallback(() => {
     const q = searchQuery.trim();
     if (selectedPatient || q.length < 2) {
       setSearchResults([]);
@@ -150,7 +151,7 @@ export default function DoctorPatientsTab() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [searchQuery, selectedPatient]);
+  }), [searchQuery, selectedPatient]);
 
   const clearSelection = () => {
     setSelectedPatient(null);

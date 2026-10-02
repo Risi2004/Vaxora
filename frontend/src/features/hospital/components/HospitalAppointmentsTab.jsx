@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { deferEffectCallback } from '../../../shared/utils/deferEffectCallback.js';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { inventoryService } from '../services/inventoryService';
 import { scheduleService } from '../services/scheduleService';
 import { staffService } from '../services/staffService';
@@ -137,11 +138,11 @@ export default function HospitalAppointmentsTab() {
     }
   }, []);
 
-  useEffect(() => {
+  useEffect(() => deferEffectCallback(() => {
     loadOptions();
     loadSchedules();
     loadHospitalAppointments();
-  }, [loadOptions, loadSchedules, loadHospitalAppointments]);
+  }), [loadOptions, loadSchedules, loadHospitalAppointments]);
 
   const selectedVaccine = useMemo(
     () => vaccines.find((v) => v.name === scheduleForm.vaccineType) || null,
@@ -165,7 +166,7 @@ export default function HospitalAppointmentsTab() {
     });
   }, [booths, selectedVaccine]);
 
-  useEffect(() => {
+  useEffect(() => deferEffectCallback(() => {
     if (!scheduleForm.vaccineType) {
       if (scheduleForm.boothId) {
         setScheduleForm((prev) => ({ ...prev, boothId: '' }));
@@ -183,7 +184,7 @@ export default function HospitalAppointmentsTab() {
         ? String(matchingBooths[0].boothId || matchingBooths[0].id)
         : '';
     setScheduleForm((prev) => ({ ...prev, boothId: autoId }));
-  }, [scheduleForm.vaccineType, scheduleForm.boothId, matchingBooths]);
+  }), [scheduleForm.vaccineType, scheduleForm.boothId, matchingBooths]);
 
   const handleScheduleChange = (e) => {
     const { name, value } = e.target;

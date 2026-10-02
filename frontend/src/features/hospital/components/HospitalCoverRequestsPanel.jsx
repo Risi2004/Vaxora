@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { deferEffectCallback } from '../../../shared/utils/deferEffectCallback.js';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import staffService from '../services/staffService';
 import { RoleAvatarIcon } from './HospitalIcons';
 
@@ -191,9 +192,9 @@ export default function HospitalCoverRequestsPanel({ onPendingCountChange }) {
     }
   }, [onPendingCountChange]);
 
-  useEffect(() => {
+  useEffect(() => deferEffectCallback(() => {
     load();
-  }, [load]);
+  }), [load]);
 
   const pending = useMemo(
     () => requests.filter((r) => String(r.status || '').toLowerCase() === 'pending'),

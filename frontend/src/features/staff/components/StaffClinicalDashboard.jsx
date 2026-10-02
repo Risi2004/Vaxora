@@ -187,7 +187,7 @@ export default function StaffClinicalDashboard({
     } finally {
       setStatsLoading(false);
     }
-  }, [allowHospitalSwitch, selectedHospitalUserId]);
+  }, [selectedHospitalUserId]);
 
   useEffect(() => {
     let cancelled = false;

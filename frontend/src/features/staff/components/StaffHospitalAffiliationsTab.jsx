@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { deferEffectCallback } from '../../../shared/utils/deferEffectCallback.js';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import staffService from '../../hospital/services/staffService';
 import { addHospitalDays, hospitalToday } from '../../hospital/utils/hospitalDate';
 import { IconHospital } from '../../../shared/icons/AppIcons';
@@ -118,7 +119,7 @@ function localQuotaFallback(shift, today) {
   };
 }
 
-function HospitalAvatar({ name, logoUrl }) {
+function HospitalAvatar({ logoUrl }) {
   if (logoUrl) {
     return <img src={logoUrl} alt="" className="staff-affil-hospital-avatar" />;
   }
@@ -227,9 +228,9 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff' }) {
     }
   }, [weekStart, weekEnd]);
 
-  useEffect(() => {
+  useEffect(() => deferEffectCallback(() => {
     loadData();
-  }, [loadData]);
+  }), [loadData]);
 
   const handleRespond = async (affiliationId, decision) => {
     setActionId(`${affiliationId}-${decision}`);
@@ -379,7 +380,7 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff' }) {
             {affiliations.map((item) => (
               <div key={item.affiliationId} className="staff-affil-item-card">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0, flex: 1 }}>
-                  <HospitalAvatar name={item.hospitalName} logoUrl={item.hospitalLogoUrl} />
+                  <HospitalAvatar logoUrl={item.hospitalLogoUrl} />
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontWeight: 700, color: '#0f172a', lineHeight: 1.4 }}>
                       {item.hospitalName || 'Hospital'}
@@ -646,7 +647,7 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff' }) {
             {invitations.map((item) => (
               <div key={item.affiliationId} className="staff-affil-item-card">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
-                  <HospitalAvatar name={item.hospitalName} logoUrl={item.hospitalLogoUrl} />
+                  <HospitalAvatar logoUrl={item.hospitalLogoUrl} />
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontWeight: 700, color: '#0f172a', lineHeight: 1.4 }}>
                       {item.hospitalName || 'Hospital invitation'}

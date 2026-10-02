@@ -1,3 +1,4 @@
+import { deferEffectCallback } from '../../../shared/utils/deferEffectCallback.js';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { appointmentService } from '../services/appointmentService';
 import BookingAgentChat from './BookingAgentChat';
@@ -14,6 +15,12 @@ const STEP_ICONS = {
   clock: IconClock,
   shield: IconShield,
 };
+
+function registerPayHereCallbacks(payhere, callbacks) {
+  payhere.onCompleted = callbacks.onCompleted;
+  payhere.onDismissed = callbacks.onDismissed;
+  payhere.onError = callbacks.onError;
+}
 
 export default function AppointmentsTab() {
   const [showAgentModal, setShowAgentModal] = useState(false);
@@ -119,9 +126,9 @@ export default function AppointmentsTab() {
     }, 250);
   }, [loadMyAppointments]);
 
-  useEffect(() => {
+  useEffect(() => deferEffectCallback(() => {
     loadMyAppointments();
-  }, [loadMyAppointments]);
+  }), [loadMyAppointments]);
 
   // Auto-refresh appointments whenever user focuses or switches back to tab
   useEffect(() => {
@@ -133,7 +140,7 @@ export default function AppointmentsTab() {
   }, [loadMyAppointments]);
 
   // 2. Listen for PayHere return URL query parameters (success or cancel)
-  useEffect(() => {
+  useEffect(() => deferEffectCallback(() => {
     const query = new URLSearchParams(window.location.search);
     const paymentParam = query.get('payment');
     const aptId = query.get('apt_id');
@@ -149,7 +156,7 @@ export default function AppointmentsTab() {
       window.history.replaceState({}, document.title, window.location.pathname);
       loadMyAppointments();
     }
-  }, [loadMyAppointments, syncPayHereConfirmation]);
+  }), [loadMyAppointments, syncPayHereConfirmation]);
 
   // 3. Fetch available vaccines and hospitals from database
   useEffect(() => {
@@ -391,11 +398,6 @@ export default function AppointmentsTab() {
     }
   };
 
-  // Fallback for native select change if needed
-  const handleDateChange = (e) => {
-    handleSelectDate(e.target.value);
-  };
-
   // 6. Handle Time Slot Selection
   const handleTimeChange = (e) => {
     setFormData((prev) => ({
@@ -483,27 +485,27 @@ export default function AppointmentsTab() {
       return;
     }
 
-    window.payhere.onCompleted = async function onCompleted(orderId) {
-      console.log('PayHere payment completed. OrderID:', orderId);
-      try {
-        await syncPayHereConfirmation(aptId);
-      } catch (err) {
-        console.error('Failed to sync PayHere payment:', err);
-        showToast(err.message || 'Could not sync payment status. Please refresh.');
-        await loadMyAppointments();
-      }
-    };
-
-    window.payhere.onDismissed = function onDismissed() {
-      showToast('PayHere checkout closed. You can complete payment anytime by clicking "Pay Now" on your appointment.');
-      loadMyAppointments();
-    };
-
-    window.payhere.onError = function onError(error) {
-      console.error('PayHere error:', error);
-      alert(`PayHere error: ${error}`);
-      loadMyAppointments();
-    };
+    registerPayHereCallbacks(window.payhere, {
+      onCompleted: async function onCompleted(orderId) {
+        console.log('PayHere payment completed. OrderID:', orderId);
+        try {
+          await syncPayHereConfirmation(aptId);
+        } catch (err) {
+          console.error('Failed to sync PayHere payment:', err);
+          showToast(err.message || 'Could not sync payment status. Please refresh.');
+          await loadMyAppointments();
+        }
+      },
+      onDismissed: function onDismissed() {
+        showToast('PayHere checkout closed. You can complete payment anytime by clicking "Pay Now" on your appointment.');
+        loadMyAppointments();
+      },
+      onError: function onError(error) {
+        console.error('PayHere error:', error);
+        alert(`PayHere error: ${error}`);
+        loadMyAppointments();
+      },
+    });
 
     const payment = {
       sandbox: true,

@@ -1,4 +1,4 @@
-import React from 'react';
+
 
 // Renders a formal draft document (Purchase Order or Expiry Memo)
 export default function DraftDocument({ draft, onApprove, onReject, disabled }) {

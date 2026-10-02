@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import { deferEffectCallback } from '../../../shared/utils/deferEffectCallback.js';
+import { useCallback, useEffect, useState } from 'react';
 import clinicalPatientService from '../services/clinicalPatientService';
 import staffAppointmentService from '../../staff/services/staffAppointmentService';
 import { IconClose, IconSearch } from '../../../shared/icons/AppIcons';
@@ -95,11 +96,11 @@ export default function NursePatientsTab() {
     }
   }, []);
 
-  useEffect(() => {
+  useEffect(() => deferEffectCallback(() => {
     loadRecent();
-  }, [loadRecent]);
+  }), [loadRecent]);
 
-  useEffect(() => {
+  useEffect(() => deferEffectCallback(() => {
     const q = searchQuery.trim();
     if (selectedPatient || q.length < 2) {
       setSearchResults([]);
@@ -127,7 +128,7 @@ export default function NursePatientsTab() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [searchQuery, selectedPatient]);
+  }), [searchQuery, selectedPatient]);
 
   const clearSelection = () => {
     setSelectedPatient(null);

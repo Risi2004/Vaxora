@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { deferEffectCallback } from '../../../shared/utils/deferEffectCallback.js';
+import { useEffect, useMemo, useState } from 'react';
 
 /** Blank administration record. Confirmations start unticked so the clinician must sign off. */
 const emptyAdministration = {
@@ -37,7 +38,7 @@ export default function ClinicalAdministerModal({
   }, [lotOptions, patient?.vaccine]);
 
   // Reset per patient so one patient's entries can never be certified against another.
-  useEffect(() => {
+  useEffect(() => deferEffectCallback(() => {
     if (!isOpen) return;
     const firstLot = usableLots[0];
     setSubmitting(false);
@@ -47,7 +48,7 @@ export default function ClinicalAdministerModal({
       batchId: firstLot?.id || '',
       lotNumber: firstLot?.lotNumber || '',
     });
-  }, [isOpen, patient?.id, patient?.dose, patient?.hasDosage, usableLots]);
+  }), [isOpen, patient?.id, patient?.dose, patient?.hasDosage, usableLots]);
 
   if (!isOpen || !patient) return null;
 

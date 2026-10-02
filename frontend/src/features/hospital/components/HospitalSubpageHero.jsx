@@ -1,4 +1,4 @@
-import React from 'react';
+
 
 export default function HospitalSubpageHero({ eyebrow, title, subtitle }) {
   return (

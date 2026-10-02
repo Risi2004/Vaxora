@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { Outlet } from 'react-router-dom';
 import { HospitalNavbar } from '../components';
 import '../../../styles/hospital.css';

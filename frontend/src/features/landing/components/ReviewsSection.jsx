@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import previousIcon from '../../../assets/icons/previous.svg';
 import nextIcon from '../../../assets/icons/next.svg';
 
@@ -53,9 +53,9 @@ export default function ReviewsSection() {
   }
   const maxPages = pages.length;
 
-  const handleNextReview = () => {
+  const handleNextReview = useCallback(() => {
     setReviewIndex((prev) => (prev + 1) % maxPages);
-  };
+  }, [maxPages]);
 
   const handlePrevReview = () => {
     setReviewIndex((prev) => (prev - 1 + maxPages) % maxPages);
@@ -68,7 +68,7 @@ export default function ReviewsSection() {
       handleNextReview();
     }, 6000);
     return () => clearInterval(timer);
-  }, [isPaused, maxPages]);
+  }, [isPaused, handleNextReview]);
 
   return (
     <section id="reviews" className="reviews-section">

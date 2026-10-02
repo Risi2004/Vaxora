@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { deferEffectCallback } from '../../../shared/utils/deferEffectCallback.js';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { authService } from '../../auth';
 import { IconClipboard, IconClock, IconClose, IconRefresh, IconSearch, IconShield, IconUsers } from '../../../shared/icons/AppIcons';
 
@@ -71,9 +72,9 @@ export default function AdminAuditLogsTab() {
   }, []);
 
   // Initial load
-  useEffect(() => {
+  useEffect(() => deferEffectCallback(() => {
     loadAuditLogs(false);
-  }, [loadAuditLogs]);
+  }), [loadAuditLogs]);
 
   // Live auto-streaming polling interval
   useEffect(() => {
