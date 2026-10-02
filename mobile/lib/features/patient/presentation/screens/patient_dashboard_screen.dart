@@ -166,12 +166,37 @@ class _PatientDashboardScreenState extends State<PatientDashboardScreen> {
         return StaffChipTone.success;
       case 'cancelled':
       case 'declined':
+      case 'rejected':
         return StaffChipTone.danger;
       case 'due soon':
       case 'pending':
+      case 'pendingpayment':
         return StaffChipTone.warning;
+      case 'administering':
+      case 'observation':
+        return StaffChipTone.brand;
       default:
         return StaffChipTone.brand;
+    }
+  }
+
+  String _statusLabel(String status) {
+    switch (status.toLowerCase()) {
+      case 'pendingpayment':
+        return 'Awaiting payment';
+      case 'administering':
+        return 'In session';
+      case 'observation':
+        return 'Observation';
+      case 'completed':
+        return 'Completed';
+      case 'cancelled':
+      case 'rejected':
+        return 'Cancelled';
+      case 'confirmed':
+        return 'Confirmed';
+      default:
+        return status;
     }
   }
 
@@ -342,7 +367,7 @@ class _PatientDashboardScreenState extends State<PatientDashboardScreen> {
                           ),
                         ),
                         StaffStatusChip(
-                          label: nextAppointment.status,
+                          label: _statusLabel(nextAppointment.status),
                           tone: _chipTone(nextAppointment.status),
                         ),
                       ],

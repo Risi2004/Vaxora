@@ -3,6 +3,10 @@ import { appointmentService } from '../services/appointmentService';
 import BookingAgentChat from './BookingAgentChat';
 import { IconCalendar, IconClock, IconDoctor, IconHospital, IconRefresh, IconShield } from '../../../shared/icons/AppIcons';
 import PatientSubpageHeader from './PatientSubpageHeader';
+import {
+  canPatientCancelByStatus,
+  getPatientAppointmentStatusDisplay,
+} from '../utils/appointmentStatusDisplay';
 
 const STEP_ICONS = {
   hospital: IconHospital,
@@ -1159,9 +1163,9 @@ export default function AppointmentsTab() {
                 ) : (
                   appointments.map((apt) => {
                     const feeNum = Number(apt.fee ?? apt.Fee ?? 0);
-                    const payMethod = apt.paymentMethod || apt.PaymentMethod || 'Free';
                     const payStatus = apt.paymentStatus || apt.PaymentStatus || 'Paid';
-                    const isPendingPayment = (apt.status || '').toLowerCase() === 'pendingpayment' || payStatus === 'PendingOnline';
+                    const statusDisplay = getPatientAppointmentStatusDisplay(apt.status);
+                    const canCancelByStatus = canPatientCancelByStatus(apt.status);
 
                     return (
                       <tr key={apt.id || apt.Id}>
@@ -1229,30 +1233,15 @@ export default function AppointmentsTab() {
                               borderRadius: '12px',
                               fontSize: '0.78rem',
                               fontWeight: 700,
-                              textTransform: 'uppercase',
-                              backgroundColor:
-                                (apt.status || '').toLowerCase() === 'confirmed'
-                                  ? '#dcfce7'
-                                  : (apt.status || '').toLowerCase() === 'cancelled'
-                                  ? '#fee2e2'
-                                  : (apt.status || '').toLowerCase() === 'pendingpayment'
-                                  ? '#fef3c7'
-                                  : '#e0f2fe',
-                              color:
-                                (apt.status || '').toLowerCase() === 'confirmed'
-                                  ? '#15803d'
-                                  : (apt.status || '').toLowerCase() === 'cancelled'
-                                  ? '#b91c1c'
-                                  : (apt.status || '').toLowerCase() === 'pendingpayment'
-                                  ? '#b45309'
-                                  : '#0369a1',
+                              backgroundColor: statusDisplay.backgroundColor,
+                              color: statusDisplay.color,
                             }}
                           >
-                            {apt.status || 'Confirmed'}
+                            {statusDisplay.label}
                           </span>
                         </td>
                         <td className="td-action">
-                          {(apt.status || '').toLowerCase() !== 'cancelled' ? (
+                          {canCancelByStatus ? (
                             isEligibleForCancellation(apt.appointmentDate || apt.date) ? (
                               <button
                                 type="button"
@@ -1278,8 +1267,13 @@ export default function AppointmentsTab() {
                                 Locked (Same-Day)
                               </span>
                             )
-                          ) : (
+                          ) : (apt.status || '').toLowerCase() === 'cancelled' ||
+                            (apt.status || '').toLowerCase() === 'rejected' ? (
                             <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Cancelled</span>
+                          ) : (apt.status || '').toLowerCase() === 'completed' ? (
+                            <span style={{ fontSize: '0.8rem', color: '#15803d', fontWeight: 600 }}>Done</span>
+                          ) : (
+                            <span style={{ fontSize: '0.76rem', color: '#64748b' }}>In progress</span>
                           )}
                         </td>
                       </tr>
