@@ -8,7 +8,6 @@ import { authService } from '../../auth';
 import { hospitalMinutesNow, hospitalToday } from '../utils/hospitalDate';
 import {
   mapDbStatusToQueueStatus,
-  mapQueueStatusToDbStatus,
   queueStatusLabel,
 } from '../utils/appointmentStatus';
 import hospitalHeroImage from '../../../assets/images/hospital-hero-vaccine.webp';
@@ -393,45 +392,6 @@ export default function HospitalDashboardOverview() {
     }
   };
 
-  // 3. Status Transition with Database Sync
-  const updatePatientStatus = async (id, newStatus) => {
-    const previousPatients = [...queuePatients];
-    const targetId = String(id);
-    const patient = queuePatients.find((p) => String(p.id) === targetId);
-    const clinicalStatuses = new Set(['administering', 'observation', 'completed']);
-
-    if (
-      clinicalStatuses.has(newStatus) &&
-      String(patient?.paymentStatus || '').toLowerCase() !== 'paid'
-    ) {
-      alert('Payment must be settled before clinical administration.');
-      return;
-    }
-
-    if (clinicalStatuses.has(newStatus) && onDutyCount < 1) {
-      alert('At least one affiliated doctor or nurse must be on duty before clinical administration.');
-      return;
-    }
-
-    // Optimistically update UI
-    setQueuePatients((prev) =>
-      prev.map((p) => (String(p.id) === targetId ? { ...p, status: newStatus } : p))
-    );
-
-    try {
-      const dbStatus = mapQueueStatusToDbStatus(newStatus);
-      await appointmentService.updateAppointmentStatus(id, { status: dbStatus });
-      showToast(`Updated patient status to "${newStatus.toUpperCase()}".`);
-      // Re-fetch so refresh / other clients stay in sync with DB
-      await loadAppointmentsQueue();
-    } catch (err) {
-      console.error('Failed to persist appointment status update:', err);
-      // Revert on failure
-      setQueuePatients(previousPatients);
-      alert('Failed to update status in database: ' + err.message);
-    }
-  };
-
   // ==================== FILTERING & COMPUTED STATS ====================
   const todayStr = hospitalToday();
 
@@ -647,7 +607,7 @@ export default function HospitalDashboardOverview() {
                 <span className="section-title-icon icon-shade-purple"><IconClipboard size={22} /></span> Live Vaccination Queue
               </h2>
               <p className="section-title-desc">
-                Real-time patient flow, booth assignments, and dose verification from database
+                Live patient flow for monitoring — Call Next, administer, and discharge are handled by on-duty clinical staff
               </p>
             </div>
           </div>
@@ -722,7 +682,6 @@ export default function HospitalDashboardOverview() {
                 <col className="col-vaccine" />
                 <col className="col-booth" />
                 <col className="col-status" />
-                <col className="col-actions" />
               </colgroup>
               <thead>
                 <tr>
@@ -731,25 +690,24 @@ export default function HospitalDashboardOverview() {
                   <th>Vaccine &amp; Dose</th>
                   <th>Booth Station</th>
                   <th>Status</th>
-                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {queueLoading ? (
                   <tr>
-                    <td colSpan={6} style={{ textAlign: 'center', padding: '32px', color: '#64748b' }}>
+                    <td colSpan={5} style={{ textAlign: 'center', padding: '32px', color: '#64748b' }}>
                       Loading live queue from database...
                     </td>
                   </tr>
                 ) : queueError ? (
                   <tr>
-                    <td colSpan={6} style={{ textAlign: 'center', padding: '32px', color: '#dc2626' }}>
+                    <td colSpan={5} style={{ textAlign: 'center', padding: '32px', color: '#dc2626' }}>
                       {queueError}
                     </td>
                   </tr>
                 ) : filteredQueue.length === 0 ? (
                   <tr>
-                    <td colSpan={6} style={{ textAlign: 'center', padding: '32px', color: '#94a3b8' }}>
+                    <td colSpan={5} style={{ textAlign: 'center', padding: '32px', color: '#94a3b8' }}>
                       No patients in queue for {viewScope === 'today' ? "today's session" : 'selected filters'}.
                       {viewScope === 'today' && (
                         <button
@@ -802,76 +760,6 @@ export default function HospitalDashboardOverview() {
                         <span className={`queue-status-badge status-${patient.status}`}>
                           {queueStatusLabel(patient.status)}
                         </span>
-                      </td>
-                      <td>
-                        <div className="queue-action-btns">
-                          {patient.status === 'waiting' && (
-                            <button
-                              type="button"
-                              className="btn-queue-action"
-                              onClick={() => updatePatientStatus(patient.id, 'administering')}
-                              title={
-                                onDutyCount < 1
-                                  ? 'No staff on duty — schedule a live shift first'
-                                  : String(patient.paymentStatus || '').toLowerCase() !== 'paid'
-                                  ? 'Payment must be settled first'
-                                  : 'Call patient into booth'
-                              }
-                              disabled={
-                                onDutyCount < 1 ||
-                                String(patient.paymentStatus || '').toLowerCase() !== 'paid'
-                              }
-                            >
-                              Call Now
-                            </button>
-                          )}
-                          {patient.status === 'administering' && (
-                            <button
-                              type="button"
-                              className="btn-queue-action btn-queue-action--session"
-                              onClick={() => updatePatientStatus(patient.id, 'observation')}
-                              title={
-                                onDutyCount < 1
-                                  ? 'No staff on duty — schedule a live shift first'
-                                  : String(patient.paymentStatus || '').toLowerCase() !== 'paid'
-                                  ? 'Payment must be settled first'
-                                  : 'Move to 15-min post vaccination observation'
-                              }
-                              disabled={
-                                onDutyCount < 1 ||
-                                String(patient.paymentStatus || '').toLowerCase() !== 'paid'
-                              }
-                            >
-                              To Observation
-                            </button>
-                          )}
-                          {patient.status === 'observation' && (
-                            <button
-                              type="button"
-                              className="btn-queue-action btn-queue-action--release"
-                              onClick={() => updatePatientStatus(patient.id, 'completed')}
-                              title={
-                                onDutyCount < 1
-                                  ? 'No staff on duty — schedule a live shift first'
-                                  : String(patient.paymentStatus || '').toLowerCase() !== 'paid'
-                                  ? 'Payment must be settled first'
-                                  : 'Complete and issue digital pass'
-                              }
-                              disabled={
-                                onDutyCount < 1 ||
-                                String(patient.paymentStatus || '').toLowerCase() !== 'paid'
-                              }
-                            >
-                              Release &amp; Pass
-                            </button>
-                          )}
-                          {patient.status === 'completed' && (
-                            <span className="queue-pass-note">Pass generated</span>
-                          )}
-                          {patient.status === 'cancelled' && (
-                            <span className="queue-action-empty">—</span>
-                          )}
-                        </div>
                       </td>
                     </tr>
                   ))

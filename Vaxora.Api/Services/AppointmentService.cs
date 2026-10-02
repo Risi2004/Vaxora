@@ -680,23 +680,19 @@ public class AppointmentService : IAppointmentService
             throw new InvalidOperationException("Cannot update status for cancelled or rejected appointments.");
         }
 
-        // Clinical transitions need live coverage: the acting clinician's own shift,
-        // or (for hospital owners) at least one affiliated staff member on duty.
+        // Clinical session transitions are doctor/nurse only — hospital can monitor, not administer.
         if (OnDutyRequiredStatuses.Contains(nextStatus))
         {
             if (isHospitalOwner)
             {
-                await StaffDutyHelper.EnsureHospitalHasOnDutyStaffAsync(
-                    _context,
-                    appointment.HospitalUserId);
+                throw new UnauthorizedAccessException(
+                    "Clinical status changes (Administering, Observation, Completed) must be performed by on-duty clinical staff.");
             }
-            else
-            {
-                await StaffDutyHelper.EnsureStaffOnDutyAsync(
-                    _context,
-                    actorUserId,
-                    appointment.HospitalUserId);
-            }
+
+            await StaffDutyHelper.EnsureStaffOnDutyAsync(
+                _context,
+                actorUserId,
+                appointment.HospitalUserId);
         }
 
         // Dose/session transitions require settled payment (free bookings are Paid at create).
