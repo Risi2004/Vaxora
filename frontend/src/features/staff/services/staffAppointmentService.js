@@ -94,14 +94,19 @@ export const staffAppointmentService = {
   },
 
   reportAefi(appointmentId, payload) {
+    const followUpDate = payload.followUpAt
+      ? new Date(`${payload.followUpAt}T09:00:00.000Z`).toISOString()
+      : undefined;
     return apiRequest(`/appointments/${appointmentId}/aefi`, {
       method: 'POST',
       body: JSON.stringify({
         severity: payload.severity || 'Mild',
         description: payload.reactionType || payload.description || '',
         treatmentGiven: payload.treatmentGiven || '',
-        notifyMOH: !!payload.notifyMOH,
+        followUpAt: followUpDate,
+        followUpPlan: payload.followUpPlan || '',
         notifyDoctor: payload.notifyDoctor !== false,
+        notifyMOH: false,
       }),
     });
   },

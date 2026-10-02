@@ -438,21 +438,18 @@ export default function StaffClinicalDashboard({
     }
 
     const severity = data.severity || 'Mild';
-    const notifyMOH = severity === 'Severe' ? true : !!data.notifyMOH;
 
     try {
       setStatusUpdating(true);
       const result = await staffAppointmentService.reportAefi(activePatient.id, {
         ...data,
         severity,
-        notifyMOH,
         notifyDoctor: data.notifyDoctor !== false,
       });
       await loadDashboardData(selectedHospitalUserId);
       const bits = [];
       if (result?.documentedOnDose) bits.push('documented on dose');
-      if (result?.notifiedMoh) bits.push('MOH alerted');
-      else if (notifyMOH) bits.push('MOH notify recorded');
+      if (result?.followUpScheduled) bits.push('follow-up scheduled');
       if (result?.notifiedDoctor) bits.push('physician alerted');
       showToast(
         result?.message ||

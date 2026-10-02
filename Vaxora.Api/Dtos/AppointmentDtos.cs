@@ -211,19 +211,31 @@ public class ReportAefiDto
     [MaxLength(2000)]
     public string TreatmentGiven { get; set; } = string.Empty;
 
-    /// <summary>When true (or severity is Severe), surveillance / MOH notification intent is recorded and emailed.</summary>
+    /// <summary>Optional physician alert (nurse reports).</summary>
+    public bool NotifyDoctor { get; set; } = true;
+
+    /// <summary>Kept for older clients; ignored for workflow (no MOH integration).</summary>
     public bool NotifyMOH { get; set; }
 
-    public bool NotifyDoctor { get; set; } = true;
+    /// <summary>When the patient should be contacted / reviewed again.</summary>
+    [Required]
+    public DateTime FollowUpAt { get; set; }
+
+    /// <summary>What follow-up care or contact is planned.</summary>
+    [Required]
+    [MaxLength(2000)]
+    public string FollowUpPlan { get; set; } = string.Empty;
 }
 
 public class AefiReportResponseDto
 {
     public Guid AppointmentId { get; set; }
     public Guid? VaccinationRecordId { get; set; }
+    public Guid? FollowUpVisitId { get; set; }
     public string Severity { get; set; } = string.Empty;
     public bool DocumentedOnDose { get; set; }
-    public bool NotifiedMoh { get; set; }
+    public bool FollowUpScheduled { get; set; }
+    public DateTime? FollowUpAt { get; set; }
     public bool NotifiedDoctor { get; set; }
     public string Message { get; set; } = string.Empty;
 }
