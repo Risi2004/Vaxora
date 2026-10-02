@@ -30,6 +30,7 @@ public static class DbInitializer
                     ALTER TABLE ""Appointments"" ADD COLUMN IF NOT EXISTS ""PrescribedByDoctorUserId"" UUID NULL;
                     ALTER TABLE ""Appointments"" ADD COLUMN IF NOT EXISTS ""PrescribedByDoctorName"" VARCHAR(200) NULL;
                     ALTER TABLE ""Appointments"" ADD COLUMN IF NOT EXISTS ""DosageUpdatedAt"" TIMESTAMPTZ NULL;
+                    ALTER TABLE ""Batches"" ADD COLUMN IF NOT EXISTS ""OpenVialDosesRemaining"" INTEGER NULL;
 
                     CREATE TABLE IF NOT EXISTS ""PatientMedicalHistories"" (
                         ""Id"" UUID PRIMARY KEY,

@@ -30,6 +30,13 @@ public class Batch
     [Range(0, int.MaxValue)]
     public int QuantityAvailable { get; set; }
 
+    /// <summary>
+    /// Doses left in the currently opened multi-dose vial. Null when no vial is open.
+    /// Sealed stock remains in <see cref="QuantityAvailable"/>.
+    /// </summary>
+    [Range(0, int.MaxValue)]
+    public int? OpenVialDosesRemaining { get; set; }
+
     [MaxLength(200)]
     public string? StorageUnit { get; set; }
 

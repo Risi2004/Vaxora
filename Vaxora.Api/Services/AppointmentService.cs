@@ -1029,9 +1029,10 @@ public class AppointmentService : IAppointmentService
                 b.HospitalProfileId == hospital.Id &&
                 b.VaccineId == vaccine.Id &&
                 b.Status == BatchStatus.Active &&
-                b.QuantityAvailable > 0 &&
-                b.ExpiryDate >= now)
-            .OrderBy(b => b.ExpiryDate)
+                b.ExpiryDate >= now &&
+                ((b.OpenVialDosesRemaining ?? 0) > 0 || b.QuantityAvailable > 0))
+            .OrderByDescending(b => (b.OpenVialDosesRemaining ?? 0) > 0)
+            .ThenBy(b => b.ExpiryDate)
             .ThenBy(b => b.CreatedAt)
             .FirstOrDefaultAsync();
 
@@ -1054,17 +1055,14 @@ public class AppointmentService : IAppointmentService
             ?? actor?.Email
             ?? "Clinical staff";
 
-        batch.QuantityAvailable -= 1;
-        batch.UpdatedAt = DateTime.UtcNow;
-        if (batch.QuantityAvailable == 0)
-            batch.Status = BatchStatus.Depleted;
+        InventoryDoseHelper.ConsumeOneDose(batch, vaccine);
 
         _context.InventoryTransactions.Add(new InventoryTransaction
         {
             BatchId = batch.Id,
             Type = TransactionType.Issue,
             Quantity = 1,
-            Reason = $"Administered {vaccine.Name} for appointment {appointment.Id}",
+            Reason = $"Administered 1 dose of {vaccine.Name} for appointment {appointment.Id}",
             PerformedByUserId = actorUserId,
             PerformedByName = actorName
         });
@@ -1075,7 +1073,8 @@ public class AppointmentService : IAppointmentService
             UserEmail = actor?.Email,
             Role = actor?.Role.ToString() ?? "STAFF",
             Action = "INVENTORY_ISSUE",
-            Details = $"Issued 1 vial of {vaccine.Name} (Lot {batch.BatchNumber}) for appointment {appointment.Id}",
+            Details =
+                $"Issued 1 dose of {vaccine.Name} (Lot {batch.BatchNumber}, {InventoryDoseHelper.ResolveDosesPerVial(vaccine)} doses/vial) for appointment {appointment.Id}",
             Timestamp = DateTime.UtcNow
         });
 

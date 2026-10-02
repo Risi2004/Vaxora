@@ -320,6 +320,9 @@ namespace Vaxora.Api.Migrations
                     b.Property<int>("QuantityAvailable")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("OpenVialDosesRemaining")
+                        .HasColumnType("integer");
+
                     b.Property<int>("QuantityReceived")
                         .HasColumnType("integer");
 

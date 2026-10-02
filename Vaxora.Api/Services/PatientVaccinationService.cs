@@ -98,19 +98,17 @@ public class PatientVaccinationService : IPatientVaccinationService
             if (batch.ExpiryDate < DateTime.UtcNow)
                 throw new InvalidOperationException($"Batch {batch.BatchNumber} has expired.");
 
-            if (batch.QuantityAvailable < 1)
-                throw new InvalidOperationException($"Batch {batch.BatchNumber} has no vials remaining.");
+            if (!InventoryDoseHelper.HasUsableDose(batch))
+                throw new InvalidOperationException($"Batch {batch.BatchNumber} has no doses remaining.");
 
-            batch.QuantityAvailable -= 1;
-            batch.UpdatedAt = DateTime.UtcNow;
-            if (batch.QuantityAvailable == 0) batch.Status = BatchStatus.Depleted;
+            InventoryDoseHelper.ConsumeOneDose(batch, vaccine);
 
             _context.InventoryTransactions.Add(new InventoryTransaction
             {
                 BatchId = batch.Id,
                 Type = TransactionType.Issue,
                 Quantity = 1,
-                Reason = $"Administered to patient {patient.NicNumber} ({patient.FullName})",
+                Reason = $"Administered 1 dose to patient {patient.NicNumber} ({patient.FullName})",
                 PerformedByUserId = actorUserId,
                 PerformedByName = actorName
             });

@@ -120,6 +120,7 @@ public class InventoryService : IInventoryService
     {
         var minThreshold = v.DefaultMinThreshold;
         var lastRestock = b.LastRestockedAt ?? b.CreatedAt;
+        var openDoses = Math.Max(0, b.OpenVialDosesRemaining ?? 0);
         return new InventoryItemDto
         {
             Id = b.Id,
@@ -132,6 +133,8 @@ public class InventoryService : IInventoryService
             Capacity = b.QuantityReceived,
             MinThreshold = minThreshold,
             DosesPerVial = v.DosesPerVial,
+            OpenVialDosesRemaining = openDoses,
+            AvailableDoses = InventoryDoseHelper.AvailableDoseCount(b, v),
             Expiry = b.ExpiryDate.ToString("yyyy-MM-dd"),
             ExpiryStatus = ComputeExpiryStatus(b.ExpiryDate),
             Temp = v.RequiredTemp,
@@ -726,7 +729,7 @@ public class InventoryService : IInventoryService
             .ToListAsync();
 
         var totalVials = batches.Sum(b => b.QuantityAvailable);
-        var totalDoses = batches.Sum(b => b.QuantityAvailable * b.Vaccine.DosesPerVial);
+        var totalDoses = batches.Sum(b => InventoryDoseHelper.AvailableDoseCount(b, b.Vaccine));
         var lowStock = batches.Count(b => b.QuantityAvailable <= b.Vaccine.DefaultMinThreshold);
         var expiring = batches.Count(b => b.ExpiryDate <= DateTime.UtcNow.AddDays(60) && b.ExpiryDate >= DateTime.UtcNow);
         var formulations = batches.Select(b => b.VaccineId).Distinct().Count();
