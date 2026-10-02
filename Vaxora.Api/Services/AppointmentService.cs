@@ -666,13 +666,23 @@ public class AppointmentService : IAppointmentService
             throw new InvalidOperationException("Cannot update status for cancelled or rejected appointments.");
         }
 
-        // Clinical staff must be on a live shift for dose/session transitions.
-        if (!isHospitalOwner && OnDutyRequiredStatuses.Contains(nextStatus))
+        // Clinical transitions need live coverage: the acting clinician's own shift,
+        // or (for hospital owners) at least one affiliated staff member on duty.
+        if (OnDutyRequiredStatuses.Contains(nextStatus))
         {
-            await StaffDutyHelper.EnsureStaffOnDutyAsync(
-                _context,
-                actorUserId,
-                appointment.HospitalUserId);
+            if (isHospitalOwner)
+            {
+                await StaffDutyHelper.EnsureHospitalHasOnDutyStaffAsync(
+                    _context,
+                    appointment.HospitalUserId);
+            }
+            else
+            {
+                await StaffDutyHelper.EnsureStaffOnDutyAsync(
+                    _context,
+                    actorUserId,
+                    appointment.HospitalUserId);
+            }
         }
 
         // Dose/session transitions require settled payment (free bookings are Paid at create).

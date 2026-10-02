@@ -408,6 +408,11 @@ export default function HospitalDashboardOverview() {
       return;
     }
 
+    if (clinicalStatuses.has(newStatus) && onDutyCount < 1) {
+      alert('At least one affiliated doctor or nurse must be on duty before clinical administration.');
+      return;
+    }
+
     // Optimistically update UI
     setQueuePatients((prev) =>
       prev.map((p) => (String(p.id) === targetId ? { ...p, status: newStatus } : p))
@@ -806,11 +811,16 @@ export default function HospitalDashboardOverview() {
                               className="btn-queue-action"
                               onClick={() => updatePatientStatus(patient.id, 'administering')}
                               title={
-                                String(patient.paymentStatus || '').toLowerCase() !== 'paid'
+                                onDutyCount < 1
+                                  ? 'No staff on duty — schedule a live shift first'
+                                  : String(patient.paymentStatus || '').toLowerCase() !== 'paid'
                                   ? 'Payment must be settled first'
                                   : 'Call patient into booth'
                               }
-                              disabled={String(patient.paymentStatus || '').toLowerCase() !== 'paid'}
+                              disabled={
+                                onDutyCount < 1 ||
+                                String(patient.paymentStatus || '').toLowerCase() !== 'paid'
+                              }
                             >
                               Call Now
                             </button>
@@ -821,11 +831,16 @@ export default function HospitalDashboardOverview() {
                               className="btn-queue-action btn-queue-action--session"
                               onClick={() => updatePatientStatus(patient.id, 'observation')}
                               title={
-                                String(patient.paymentStatus || '').toLowerCase() !== 'paid'
+                                onDutyCount < 1
+                                  ? 'No staff on duty — schedule a live shift first'
+                                  : String(patient.paymentStatus || '').toLowerCase() !== 'paid'
                                   ? 'Payment must be settled first'
                                   : 'Move to 15-min post vaccination observation'
                               }
-                              disabled={String(patient.paymentStatus || '').toLowerCase() !== 'paid'}
+                              disabled={
+                                onDutyCount < 1 ||
+                                String(patient.paymentStatus || '').toLowerCase() !== 'paid'
+                              }
                             >
                               To Observation
                             </button>
@@ -836,11 +851,16 @@ export default function HospitalDashboardOverview() {
                               className="btn-queue-action btn-queue-action--release"
                               onClick={() => updatePatientStatus(patient.id, 'completed')}
                               title={
-                                String(patient.paymentStatus || '').toLowerCase() !== 'paid'
+                                onDutyCount < 1
+                                  ? 'No staff on duty — schedule a live shift first'
+                                  : String(patient.paymentStatus || '').toLowerCase() !== 'paid'
                                   ? 'Payment must be settled first'
                                   : 'Complete and issue digital pass'
                               }
-                              disabled={String(patient.paymentStatus || '').toLowerCase() !== 'paid'}
+                              disabled={
+                                onDutyCount < 1 ||
+                                String(patient.paymentStatus || '').toLowerCase() !== 'paid'
+                              }
                             >
                               Release &amp; Pass
                             </button>

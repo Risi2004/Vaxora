@@ -54,4 +54,40 @@ public static class StaffDutyHelper
                 "You must have an active shift at this hospital to perform this action.");
         }
     }
+
+    /// <summary>
+    /// True when any Active affiliated doctor/nurse has a live shift at the hospital now.
+    /// Used so hospital owners cannot advance clinical statuses with an empty booth floor.
+    /// </summary>
+    public static async Task<bool> HasAnyStaffOnDutyAsync(
+        ApplicationDbContext context,
+        Guid hospitalUserId,
+        CancellationToken cancellationToken = default)
+    {
+        var today = HospitalToday();
+        var now = TimeOnly.FromDateTime(HospitalNow());
+
+        return await context.StaffShifts
+            .AsNoTracking()
+            .AnyAsync(s =>
+                    s.Affiliation.HospitalUserId == hospitalUserId &&
+                    s.Affiliation.Status == AffiliationStatus.Active &&
+                    s.ShiftDate == today &&
+                    s.StartTime <= now &&
+                    s.EndTime > now,
+                cancellationToken);
+    }
+
+    public static async Task EnsureHospitalHasOnDutyStaffAsync(
+        ApplicationDbContext context,
+        Guid hospitalUserId,
+        CancellationToken cancellationToken = default)
+    {
+        var onDuty = await HasAnyStaffOnDutyAsync(context, hospitalUserId, cancellationToken);
+        if (!onDuty)
+        {
+            throw new InvalidOperationException(
+                "At least one affiliated doctor or nurse must be on an active shift before clinical administration.");
+        }
+    }
 }
