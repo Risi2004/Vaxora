@@ -691,29 +691,6 @@ export default function StaffClinicalDashboard({
             </button>
             <button
               type="button"
-              className="doctor-btn-observe"
-              onClick={() => {
-                handleCertifyAdministration({
-                  ...activePatient,
-                  administeredAt: new Date().toLocaleTimeString([], {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  }),
-                });
-              }}
-              disabled={statusUpdating || !isOnDuty || !activePaymentSettled}
-              title={
-                !isOnDuty
-                  ? 'You need an active shift to transfer patients'
-                  : !activePaymentSettled
-                    ? 'Payment must be settled first'
-                    : undefined
-              }
-            >
-              Transfer to Observation
-            </button>
-            <button
-              type="button"
               className="doctor-btn-certify"
               onClick={() => setIsAdministerModalOpen(true)}
               disabled={statusUpdating || !isOnDuty || !activePaymentSettled}
@@ -722,10 +699,10 @@ export default function StaffClinicalDashboard({
                   ? 'You need an active shift to certify administration'
                   : !activePaymentSettled
                     ? 'Payment must be settled first'
-                    : undefined
+                    : 'Record administration details, then transfer to observation'
               }
             >
-              Certify &amp; Record Administration
+              Certify &amp; Transfer to Observation
             </button>
           </div>
           {!isOnDuty ? (
