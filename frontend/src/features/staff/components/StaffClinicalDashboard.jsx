@@ -203,6 +203,7 @@ export default function StaffClinicalDashboard({
   const displayTitle = formatTitle(user);
   const greeting = greetingForNow();
   const dutyText = presenceLabel(primaryAffiliation);
+  const isOnDuty = Boolean(primaryAffiliation?.isOnDutyNow);
 
   const todayTotal = todayAppointments.length;
   const todayCompleted = todayAppointments.filter((a) => a.status === 'Completed').length;
@@ -272,6 +273,11 @@ export default function StaffClinicalDashboard({
   };
 
   const handleCallNext = async () => {
+    if (!isOnDuty) {
+      showToast('You must have an active shift to call the next patient.');
+      return;
+    }
+
     const nextWaiting = patients.find((p) => p.status === 'waiting');
     if (!nextWaiting) {
       showToast("No more waiting patients in today's queue.");
@@ -280,12 +286,17 @@ export default function StaffClinicalDashboard({
 
     const current = activePatientId
       ? patients.find((p) => p.id === activePatientId)
-      : null;
+      : patients.find((p) => p.status === 'consulting');
+
+    // Do not silently move consulting → Observation (that consumes inventory).
+    if (current?.status === 'consulting') {
+      showToast(
+        `Finish ${current.name} (certify to observation) before calling the next patient.`
+      );
+      return;
+    }
 
     try {
-      if (current?.status === 'consulting') {
-        await staffAppointmentService.updateAppointmentStatus(current.id, 'Observation');
-      }
       await staffAppointmentService.updateAppointmentStatus(nextWaiting.id, 'Administering');
       setActivePatientId(nextWaiting.id);
       showToast(`Calling ${nextWaiting.name} (${nextWaiting.token})`);
@@ -298,6 +309,10 @@ export default function StaffClinicalDashboard({
   const handleSelectPatient = async (patient) => {
     setActivePatientId(patient.id);
     if (patient.status === 'waiting') {
+      if (!isOnDuty) {
+        showToast('You must have an active shift to start consultation.');
+        return;
+      }
       try {
         await persistStatus(patient.id, 'Administering');
       } catch (err) {
@@ -307,6 +322,10 @@ export default function StaffClinicalDashboard({
   };
 
   const handleCertifyAdministration = async (certifiedData) => {
+    if (!isOnDuty) {
+      showToast('You must have an active shift to record administration.');
+      return;
+    }
     try {
       await persistStatus(certifiedData.id, 'Observation');
       showToast(`Recorded administration for ${certifiedData.name}`);
@@ -326,6 +345,10 @@ export default function StaffClinicalDashboard({
   };
 
   const handleDischargeObservation = async (id, name) => {
+    if (!isOnDuty) {
+      showToast('You must have an active shift to discharge a patient.');
+      return;
+    }
     try {
       await persistStatus(id, 'Completed');
       if (activePatientId === id) setActivePatientId(null);
@@ -470,7 +493,8 @@ export default function StaffClinicalDashboard({
               type="button"
               className="doctor-btn-call-next"
               onClick={handleCallNext}
-              disabled={statusUpdating || statsLoading || !selectedHospitalUserId}
+              disabled={statusUpdating || statsLoading || !selectedHospitalUserId || !isOnDuty}
+              title={!isOnDuty ? 'You need an active shift to call patients' : undefined}
             >
               Call Next Patient
             </button>
@@ -646,7 +670,8 @@ export default function StaffClinicalDashboard({
                   }),
                 });
               }}
-              disabled={statusUpdating}
+              disabled={statusUpdating || !isOnDuty}
+              title={!isOnDuty ? 'You need an active shift to transfer patients' : undefined}
             >
               Transfer to Observation
             </button>
@@ -654,11 +679,17 @@ export default function StaffClinicalDashboard({
               type="button"
               className="doctor-btn-certify"
               onClick={() => setIsAdministerModalOpen(true)}
-              disabled={statusUpdating}
+              disabled={statusUpdating || !isOnDuty}
+              title={!isOnDuty ? 'You need an active shift to certify administration' : undefined}
             >
               Certify &amp; Record Administration
             </button>
           </div>
+          {!isOnDuty ? (
+            <p className="doctor-off-duty-hint" style={{ marginTop: '10px', color: '#b45309', fontSize: '0.85rem', fontWeight: 600 }}>
+              No active shift — clinical actions are disabled until your scheduled shift starts.
+            </p>
+          ) : null}
         </section>
       )}
 
@@ -835,7 +866,12 @@ export default function StaffClinicalDashboard({
                               <button
                                 type="button"
                                 className="btn-queue-action btn-queue-action--session"
-                                onClick={() => setIsAdministerModalOpen(true)}
+                                onClick={() => {
+                                  setActivePatientId(p.id);
+                                  setIsAdministerModalOpen(true);
+                                }}
+                                disabled={!isOnDuty || statusUpdating}
+                                title={!isOnDuty ? 'You need an active shift to administer' : undefined}
                               >
                                 Administer
                               </button>
@@ -845,6 +881,8 @@ export default function StaffClinicalDashboard({
                                 type="button"
                                 className="btn-queue-action btn-queue-action--release"
                                 onClick={() => handleDischargeObservation(p.id, p.name)}
+                                disabled={!isOnDuty || statusUpdating}
+                                title={!isOnDuty ? 'You need an active shift to discharge' : undefined}
                               >
                                 Discharge
                               </button>
@@ -921,6 +959,8 @@ export default function StaffClinicalDashboard({
                         type="button"
                         className="doctor-obs-btn-discharge"
                         onClick={() => handleDischargeObservation(obs.id, obs.name)}
+                        disabled={!isOnDuty || statusUpdating}
+                        title={!isOnDuty ? 'You need an active shift to discharge' : undefined}
                       >
                         Discharge Patient
                       </button>

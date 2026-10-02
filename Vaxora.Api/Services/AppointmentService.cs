@@ -43,6 +43,18 @@ public class AppointmentService : IAppointmentService
             ["Rejected"] = "Rejected",
         };
 
+    /// <summary>
+    /// Clinical transitions that require the doctor/nurse to be on an active shift.
+    /// Hospital owners are exempt (they update without a staff shift).
+    /// </summary>
+    private static readonly HashSet<string> OnDutyRequiredStatuses =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            "Administering",
+            "Observation",
+            "Completed",
+        };
+
     private readonly ApplicationDbContext _context;
     private readonly IEmailService _emailService;
     private readonly ILogger<AppointmentService> _logger;
@@ -654,8 +666,28 @@ public class AppointmentService : IAppointmentService
             throw new InvalidOperationException("Cannot update status for cancelled or rejected appointments.");
         }
 
+        // Clinical staff must be on a live shift for dose/session transitions.
+        if (!isHospitalOwner && OnDutyRequiredStatuses.Contains(nextStatus))
+        {
+            await StaffDutyHelper.EnsureStaffOnDutyAsync(
+                _context,
+                actorUserId,
+                appointment.HospitalUserId);
+        }
+
+        var previousStatus = appointment.Status;
         appointment.Status = nextStatus;
         appointment.UpdatedAt = DateTime.UtcNow;
+
+        var doseIsBeingGiven =
+            (nextStatus is "Observation" or "Completed") &&
+            !string.Equals(previousStatus, "Observation", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(previousStatus, "Completed", StringComparison.OrdinalIgnoreCase);
+
+        if (doseIsBeingGiven)
+        {
+            await ConsumeVialForAppointmentAsync(actorUserId, appointment);
+        }
 
         await _context.SaveChangesAsync();
 
@@ -939,6 +971,129 @@ public class AppointmentService : IAppointmentService
         var endLine = rest.IndexOfAny(['\r', '\n']);
         if (endLine >= 0) rest = rest[..endLine].Trim();
         return rest;
+    }
+
+    private async Task ConsumeVialForAppointmentAsync(Guid actorUserId, Appointment appointment)
+    {
+        var appointmentKey = appointment.Id.ToString();
+        var alreadyIssued = await _context.InventoryTransactions.AnyAsync(t =>
+            t.Type == TransactionType.Issue &&
+            t.Reason != null &&
+            t.Reason.Contains(appointmentKey));
+
+        if (alreadyIssued)
+            return;
+
+        var hospital = await _context.HospitalProfiles
+            .FirstOrDefaultAsync(h =>
+                h.UserId == appointment.HospitalUserId ||
+                (appointment.HospitalProfileId.HasValue && h.Id == appointment.HospitalProfileId.Value));
+
+        if (hospital == null)
+        {
+            throw new InvalidOperationException(
+                "Cannot record this dose: the hospital inventory profile was not found.");
+        }
+
+        Vaccine? vaccine = null;
+        if (appointment.VaccineId.HasValue)
+        {
+            vaccine = await _context.Vaccines.FirstOrDefaultAsync(v => v.Id == appointment.VaccineId.Value);
+        }
+
+        if (vaccine == null && !string.IsNullOrWhiteSpace(appointment.VaccineName))
+        {
+            var name = appointment.VaccineName.Trim().ToLower();
+            vaccine = await _context.Vaccines.FirstOrDefaultAsync(v => v.Name.ToLower() == name)
+                ?? await _context.Vaccines.FirstOrDefaultAsync(v => v.Name.ToLower().Contains(name));
+        }
+
+        if (vaccine == null)
+        {
+            throw new InvalidOperationException(
+                $"Cannot record this dose: no inventory product matches '{appointment.VaccineName}'.");
+        }
+
+        var now = DateTime.UtcNow;
+        var batch = await _context.Batches
+            .Include(b => b.Vaccine)
+            .Where(b =>
+                b.HospitalProfileId == hospital.Id &&
+                b.VaccineId == vaccine.Id &&
+                b.Status == BatchStatus.Active &&
+                b.QuantityAvailable > 0 &&
+                b.ExpiryDate >= now)
+            .OrderBy(b => b.ExpiryDate)
+            .ThenBy(b => b.CreatedAt)
+            .FirstOrDefaultAsync();
+
+        if (batch == null)
+        {
+            throw new InvalidOperationException(
+                $"No usable {vaccine.Name} stock at this hospital. Restock a batch before completing the dose.");
+        }
+
+        var actor = await _context.Users
+            .AsNoTracking()
+            .Include(u => u.DoctorProfile)
+            .Include(u => u.NurseProfile)
+            .Include(u => u.HospitalProfile)
+            .FirstOrDefaultAsync(u => u.Id == actorUserId);
+
+        var actorName = actor?.DoctorProfile?.FullName is { Length: > 0 } docName ? $"Dr. {docName}"
+            : actor?.NurseProfile?.FullName is { Length: > 0 } nurseName ? $"Nurse {nurseName}"
+            : actor?.HospitalProfile?.HospitalName
+            ?? actor?.Email
+            ?? "Clinical staff";
+
+        batch.QuantityAvailable -= 1;
+        batch.UpdatedAt = DateTime.UtcNow;
+        if (batch.QuantityAvailable == 0)
+            batch.Status = BatchStatus.Depleted;
+
+        _context.InventoryTransactions.Add(new InventoryTransaction
+        {
+            BatchId = batch.Id,
+            Type = TransactionType.Issue,
+            Quantity = 1,
+            Reason = $"Administered {vaccine.Name} for appointment {appointment.Id}",
+            PerformedByUserId = actorUserId,
+            PerformedByName = actorName
+        });
+
+        _context.AuditLogs.Add(new AuditLog
+        {
+            UserId = actorUserId,
+            UserEmail = actor?.Email,
+            Role = actor?.Role.ToString() ?? "STAFF",
+            Action = "INVENTORY_ISSUE",
+            Details = $"Issued 1 vial of {vaccine.Name} (Lot {batch.BatchNumber}) for appointment {appointment.Id}",
+            Timestamp = DateTime.UtcNow
+        });
+
+        if (appointment.PatientProfileId is Guid patientProfileId)
+        {
+            var patientExists = await _context.PatientProfiles.AnyAsync(p => p.Id == patientProfileId);
+            if (patientExists)
+            {
+                var priorDoses = await _context.PatientVaccinationRecords.CountAsync(r =>
+                    r.PatientProfileId == patientProfileId && r.VaccineId == vaccine.Id);
+
+                _context.PatientVaccinationRecords.Add(new PatientVaccinationRecord
+                {
+                    PatientProfileId = patientProfileId,
+                    VaccineId = vaccine.Id,
+                    BatchId = batch.Id,
+                    AdministeredByUserId = actorUserId,
+                    AdministeredByName = actorName,
+                    AdministeredAt = DateTime.UtcNow,
+                    DoseNumber = priorDoses + 1,
+                    Route = VaccineRoute.Intramuscular,
+                    LotNumber = batch.BatchNumber,
+                    Notes = $"Linked to appointment {appointment.Id}"
+                });
+            }
+        }
     }
 
     private static AppointmentResponseDto MapToDto(Appointment a)
