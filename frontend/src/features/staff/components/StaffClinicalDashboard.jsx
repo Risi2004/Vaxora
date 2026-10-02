@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getUser } from '../../auth/services/authService';
+import inventoryService from '../../hospital/services/inventoryService';
 import staffService from '../../hospital/services/staffService';
 import staffAppointmentService from '../services/staffAppointmentService';
 import {
@@ -91,6 +92,7 @@ export default function StaffClinicalDashboard({
   const [affiliations, setAffiliations] = useState([]);
   const [selectedHospitalUserId, setSelectedHospitalUserId] = useState('');
   const [todayAppointments, setTodayAppointments] = useState([]);
+  const [inventoryLots, setInventoryLots] = useState([]);
   const [statsLoading, setStatsLoading] = useState(true);
   const [statusUpdating, setStatusUpdating] = useState(false);
   const [activePatientId, setActivePatientId] = useState(null);
@@ -152,16 +154,18 @@ export default function StaffClinicalDashboard({
 
       if (!hospitalId) {
         setTodayAppointments([]);
+        setInventoryLots([]);
         setActivePatientId(null);
         return;
       }
 
-      const appts = await staffAppointmentService.getHospitalAppointments(
-        hospitalId,
-        toDateInputValue()
-      );
+      const [appts, lots] = await Promise.all([
+        staffAppointmentService.getHospitalAppointments(hospitalId, toDateInputValue()),
+        inventoryService.getInventory(hospitalId).catch(() => []),
+      ]);
       const rows = Array.isArray(appts) ? appts : [];
       setTodayAppointments(rows);
+      setInventoryLots(Array.isArray(lots) ? lots : []);
 
       const administering = rows.find((a) => mapDbStatusToUi(a.status) === 'consulting');
       setActivePatientId((prev) => {
@@ -174,6 +178,7 @@ export default function StaffClinicalDashboard({
       setLoadError(err?.message || 'Could not load your clinical session. Check your connection and retry.');
       setAffiliations([]);
       setTodayAppointments([]);
+      setInventoryLots([]);
       setSelectedHospitalUserId('');
       setActivePatientId(null);
     } finally {
@@ -352,11 +357,29 @@ export default function StaffClinicalDashboard({
       showToast('Payment must be settled before recording administration.');
       return;
     }
+    const details = certifiedData.administrationDetails || {};
     try {
-      await persistStatus(certifiedData.id, 'Observation');
+      setStatusUpdating(true);
+      await staffAppointmentService.updateAppointmentStatus(
+        certifiedData.id,
+        'Observation',
+        undefined,
+        {
+          batchId: details.batchId || undefined,
+          lotNumber: details.lotNumber || undefined,
+          injectionSite: details.injectionSite || undefined,
+          route: details.route || undefined,
+          administrationNotes: details.notes || undefined,
+          consentConfirmed: details.consentConfirmed,
+          vitalsConfirmed: details.vitalsConfirmed,
+        }
+      );
       showToast(`Recorded administration for ${certifiedData.name}`);
+      await loadDashboardData(selectedHospitalUserId);
     } catch (err) {
       showToast(err.message || 'Failed to move patient to observation.');
+    } finally {
+      setStatusUpdating(false);
     }
   };
 
@@ -1069,6 +1092,7 @@ export default function StaffClinicalDashboard({
         onClose={() => setIsAdministerModalOpen(false)}
         patient={activePatient}
         onCertify={handleCertifyAdministration}
+        lotOptions={inventoryLots}
       />
 
       <AefiModal

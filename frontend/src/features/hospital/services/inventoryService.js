@@ -68,8 +68,11 @@ export const inventoryService = {
   },
 
   // ---------- BATCHES (INVENTORY STOCK) ----------
-  async getInventory() {
-    return await apiRequest('/inventory/batches', { method: 'GET' });
+  async getInventory(hospitalUserId) {
+    const qs = hospitalUserId
+      ? `?hospitalUserId=${encodeURIComponent(hospitalUserId)}`
+      : '';
+    return await apiRequest(`/inventory/batches${qs}`, { method: 'GET' });
   },
 
   async restockBatch({ vaccineName, lotNumber, quantity, storageUnit, expiryDate, supplier }) {

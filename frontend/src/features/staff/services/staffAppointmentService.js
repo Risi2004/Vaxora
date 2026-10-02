@@ -70,12 +70,25 @@ export const staffAppointmentService = {
     );
   },
 
-  updateAppointmentStatus(id, status, remarks) {
+  updateAppointmentStatus(id, status, remarks, administration) {
     return apiRequest(`/appointments/${id}/status`, {
       method: 'PATCH',
       body: JSON.stringify({
         status,
         ...(remarks ? { remarks } : {}),
+        ...(administration?.batchId ? { batchId: administration.batchId } : {}),
+        ...(administration?.lotNumber ? { lotNumber: administration.lotNumber } : {}),
+        ...(administration?.injectionSite ? { injectionSite: administration.injectionSite } : {}),
+        ...(administration?.route ? { route: administration.route } : {}),
+        ...(administration?.administrationNotes
+          ? { administrationNotes: administration.administrationNotes }
+          : {}),
+        ...(administration?.consentConfirmed != null
+          ? { consentConfirmed: administration.consentConfirmed }
+          : {}),
+        ...(administration?.vitalsConfirmed != null
+          ? { vitalsConfirmed: administration.vitalsConfirmed }
+          : {}),
       }),
     });
   },

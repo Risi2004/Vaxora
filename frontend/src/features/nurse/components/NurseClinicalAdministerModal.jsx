@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 
 /** Blank administration record. Confirmations start unticked so the nurse must sign off. */
 const emptyAdministration = {
+  batchId: '',
   lotNumber: '',
   injectionSite: 'Left Deltoid',
   route: 'Intramuscular (IM)',
@@ -11,24 +12,60 @@ const emptyAdministration = {
   vitalsConfirmed: false,
 };
 
-export default function NurseClinicalAdministerModal({ isOpen, onClose, patient, onCertify }) {
+export default function NurseClinicalAdministerModal({
+  isOpen,
+  onClose,
+  patient,
+  onCertify,
+  lotOptions = [],
+}) {
   const [formData, setFormData] = useState(emptyAdministration);
+
+  const usableLots = useMemo(() => {
+    const vaccineName = String(patient?.vaccine || '').trim().toLowerCase();
+    return (lotOptions || []).filter((lot) => {
+      const doses = Number(lot.availableDoses ?? 0);
+      const vials = Number(lot.available ?? 0);
+      const open = Number(lot.openVialDosesRemaining ?? 0);
+      if (doses <= 0 && vials <= 0 && open <= 0) return false;
+      if (!vaccineName) return true;
+      return String(lot.name || '').trim().toLowerCase() === vaccineName
+        || String(lot.name || '').toLowerCase().includes(vaccineName)
+        || vaccineName.includes(String(lot.name || '').trim().toLowerCase());
+    });
+  }, [lotOptions, patient?.vaccine]);
 
   // Reset per patient so one patient's entries can never be certified against another.
   useEffect(() => {
     if (!isOpen) return;
+    const firstLot = usableLots[0];
     setFormData({
       ...emptyAdministration,
       dosage: patient?.hasDosage ? patient.dose : '',
+      batchId: firstLot?.id || '',
+      lotNumber: firstLot?.lotNumber || '',
     });
-  }, [isOpen, patient?.id, patient?.dose, patient?.hasDosage]);
+  }, [isOpen, patient?.id, patient?.dose, patient?.hasDosage, usableLots]);
 
   if (!isOpen || !patient) return null;
+
+  const handleLotChange = (batchId) => {
+    const selected = usableLots.find((lot) => String(lot.id) === String(batchId));
+    setFormData((prev) => ({
+      ...prev,
+      batchId: selected?.id || '',
+      lotNumber: selected?.lotNumber || '',
+    }));
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!formData.consentConfirmed || !formData.vitalsConfirmed) {
       alert('Please confirm informed consent and pre-vaccination vitals checklist.');
+      return;
+    }
+    if (!formData.batchId && !formData.lotNumber) {
+      alert('Select the vaccine lot being administered from hospital inventory.');
       return;
     }
     onCertify({
@@ -56,7 +93,6 @@ export default function NurseClinicalAdministerModal({ isOpen, onClose, patient,
 
         <form onSubmit={handleSubmit}>
           <div className="doctor-modal-body">
-            {/* Patient Spotlight Box */}
             <div style={{
               background: '#f0f9ff',
               border: '1.5px solid #bae6fd',
@@ -86,22 +122,27 @@ export default function NurseClinicalAdministerModal({ isOpen, onClose, patient,
               </div>
             </div>
 
-            {/* Vaccine Lot & Dosage */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
               <div className="doctor-form-group">
                 <label className="doctor-form-label">Cold-Box Lot / Batch #</label>
                 <select
                   className="doctor-form-select"
-                  value={formData.lotNumber}
-                  onChange={(e) => setFormData({ ...formData, lotNumber: e.target.value })}
+                  value={formData.batchId}
+                  onChange={(e) => handleLotChange(e.target.value)}
                   required
                 >
                   <option value="">Select the lot being administered</option>
-                  <option value="HB-8821">Lot #HB-8821 (Exp: Nov 2027)</option>
-                  <option value="PF-9082">Lot #PF-9082 (Exp: Oct 2027)</option>
-                  <option value="MD-4419">Lot #MD-4419 (Exp: Aug 2027)</option>
-                  <option value="INF-7012">Lot #INF-7012 (Exp: May 2027)</option>
+                  {usableLots.map((lot) => (
+                    <option key={lot.id} value={lot.id}>
+                      Lot #{lot.lotNumber} · {lot.availableDoses ?? lot.available} doses · Exp {lot.expiry}
+                    </option>
+                  ))}
                 </select>
+                {usableLots.length === 0 && (
+                  <p style={{ margin: '6px 0 0', fontSize: '0.78rem', color: '#b45309' }}>
+                    No usable stock for this vaccine. Restock inventory before certifying.
+                  </p>
+                )}
               </div>
 
               <div className="doctor-form-group">
@@ -116,7 +157,6 @@ export default function NurseClinicalAdministerModal({ isOpen, onClose, patient,
               </div>
             </div>
 
-            {/* Injection Site & Route */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
               <div className="doctor-form-group">
                 <label className="doctor-form-label">Injection Anatomical Site</label>
@@ -147,7 +187,6 @@ export default function NurseClinicalAdministerModal({ isOpen, onClose, patient,
               </div>
             </div>
 
-            {/* Pre-Screening Checkboxes */}
             <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px', padding: '12px 14px', margin: '14px 0' }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.85rem', fontWeight: 600, color: '#166534', cursor: 'pointer', marginBottom: '8px' }}>
                 <input
@@ -167,7 +206,6 @@ export default function NurseClinicalAdministerModal({ isOpen, onClose, patient,
               </label>
             </div>
 
-            {/* Nurse Notes */}
             <div className="doctor-form-group">
               <label className="doctor-form-label">Nurse Observation Notes</label>
               <textarea
@@ -184,7 +222,12 @@ export default function NurseClinicalAdministerModal({ isOpen, onClose, patient,
             <button type="button" className="doctor-btn-cancel" onClick={onClose}>
               Cancel
             </button>
-            <button type="submit" className="doctor-btn-submit" style={{ background: '#0284c7' }}>
+            <button
+              type="submit"
+              className="doctor-btn-submit"
+              style={{ background: '#0284c7' }}
+              disabled={usableLots.length === 0}
+            >
               Confirm Dose &amp; Transfer to Observation
             </button>
           </div>

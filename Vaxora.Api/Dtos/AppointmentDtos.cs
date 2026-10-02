@@ -93,6 +93,29 @@ public class UpdateAppointmentStatusDto
     public string Status { get; set; } = "Confirmed";
 
     public string? Remarks { get; set; }
+
+    /// <summary>
+    /// Optional clinical administration details used when moving to Observation/Completed.
+    /// When provided, the selected batch is consumed and site/route/notes are saved
+    /// on the patient vaccination record (instead of silent FEFO + hardcoded IM).
+    /// </summary>
+    public Guid? BatchId { get; set; }
+
+    [MaxLength(100)]
+    public string? LotNumber { get; set; }
+
+    [MaxLength(100)]
+    public string? InjectionSite { get; set; }
+
+    [MaxLength(100)]
+    public string? Route { get; set; }
+
+    [MaxLength(1000)]
+    public string? AdministrationNotes { get; set; }
+
+    public bool? ConsentConfirmed { get; set; }
+
+    public bool? VitalsConfirmed { get; set; }
 }
 
 public class CreateWalkInAppointmentDto

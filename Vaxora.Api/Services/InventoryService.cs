@@ -12,7 +12,7 @@ public interface IInventoryService
     Task<List<FormularyEntryDto>> GetFormularyAsync(Guid userId);
     Task<FormularyEntryDto> RegisterFormularyAsync(Guid userId, RegisterFormularyDto dto);
     Task<bool> RemoveFormularyAsync(Guid userId, Guid formularyId);
-    Task<List<InventoryItemDto>> GetInventoryAsync(Guid userId);
+    Task<List<InventoryItemDto>> GetInventoryAsync(Guid userId, Guid? hospitalUserId = null);
     Task<InventoryItemDto> RestockBatchAsync(Guid userId, RestockBatchDto dto);
     Task<InventoryItemDto> LogWastageAsync(Guid userId, Guid batchId, WastageDto dto);
     Task<InventoryItemDto> AdjustStockAsync(Guid userId, Guid batchId, AdjustStockDto dto);
@@ -43,12 +43,28 @@ public class InventoryService : IInventoryService
 
     // ==================== HELPERS ====================
 
-    private async Task<HospitalProfile?> GetHospitalAsync(Guid userId)
+    private async Task<HospitalProfile?> GetHospitalAsync(Guid userId, Guid? preferredHospitalUserId = null)
     {
         var own = await _context.HospitalProfiles.FirstOrDefaultAsync(h => h.UserId == userId);
         if (own != null) return own;
 
-        // Doctor/Nurse: use first active hospital affiliation
+        // Doctor/Nurse: prefer the hospital they are currently working in when provided.
+        if (preferredHospitalUserId.HasValue)
+        {
+            var affiliatedPreferred = await _context.StaffAffiliations
+                .AsNoTracking()
+                .AnyAsync(a =>
+                    a.StaffUserId == userId &&
+                    a.HospitalUserId == preferredHospitalUserId.Value &&
+                    a.Status == AffiliationStatus.Active);
+
+            if (affiliatedPreferred)
+            {
+                return await _context.HospitalProfiles
+                    .FirstOrDefaultAsync(h => h.UserId == preferredHospitalUserId.Value);
+            }
+        }
+
         var hospitalUserId = await _context.StaffAffiliations
             .AsNoTracking()
             .Where(a => a.StaffUserId == userId && a.Status == AffiliationStatus.Active)
@@ -346,9 +362,9 @@ public class InventoryService : IInventoryService
 
     // ==================== INVENTORY (BATCHES) ====================
 
-    public async Task<List<InventoryItemDto>> GetInventoryAsync(Guid userId)
+    public async Task<List<InventoryItemDto>> GetInventoryAsync(Guid userId, Guid? hospitalUserId = null)
     {
-        var hospital = await GetHospitalAsync(userId);
+        var hospital = await GetHospitalAsync(userId, hospitalUserId);
         if (hospital == null) return new List<InventoryItemDto>();
 
         var batches = await _context.Batches

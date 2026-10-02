@@ -728,7 +728,7 @@ public class AppointmentService : IAppointmentService
 
         if (doseIsBeingGiven)
         {
-            await ConsumeVialForAppointmentAsync(actorUserId, appointment);
+            await ConsumeVialForAppointmentAsync(actorUserId, appointment, dto);
         }
 
         await _context.SaveChangesAsync();
@@ -1015,7 +1015,10 @@ public class AppointmentService : IAppointmentService
         return rest;
     }
 
-    private async Task ConsumeVialForAppointmentAsync(Guid actorUserId, Appointment appointment)
+    private async Task ConsumeVialForAppointmentAsync(
+        Guid actorUserId,
+        Appointment appointment,
+        UpdateAppointmentStatusDto dto)
     {
         var appointmentKey = appointment.Id.ToString();
         var alreadyIssued = await _context.InventoryTransactions.AnyAsync(t =>
@@ -1057,18 +1060,45 @@ public class AppointmentService : IAppointmentService
         }
 
         var now = DateTime.UtcNow;
-        var batch = await _context.Batches
+        IQueryable<Batch> usableBatches = _context.Batches
             .Include(b => b.Vaccine)
             .Where(b =>
                 b.HospitalProfileId == hospital.Id &&
                 b.VaccineId == vaccine.Id &&
                 b.Status == BatchStatus.Active &&
                 b.ExpiryDate >= now &&
-                ((b.OpenVialDosesRemaining ?? 0) > 0 || b.QuantityAvailable > 0))
-            .OrderByDescending(b => (b.OpenVialDosesRemaining ?? 0) > 0)
-            .ThenBy(b => b.ExpiryDate)
-            .ThenBy(b => b.CreatedAt)
-            .FirstOrDefaultAsync();
+                ((b.OpenVialDosesRemaining ?? 0) > 0 || b.QuantityAvailable > 0));
+
+        Batch? batch = null;
+
+        if (dto.BatchId.HasValue)
+        {
+            batch = await usableBatches.FirstOrDefaultAsync(b => b.Id == dto.BatchId.Value);
+            if (batch == null)
+            {
+                throw new InvalidOperationException(
+                    "Selected lot is not usable for this vaccine at this hospital (expired, empty, or wrong product).");
+            }
+        }
+        else if (!string.IsNullOrWhiteSpace(dto.LotNumber))
+        {
+            var lot = dto.LotNumber.Trim();
+            batch = await usableBatches.FirstOrDefaultAsync(b => b.BatchNumber == lot);
+            if (batch == null)
+            {
+                throw new InvalidOperationException(
+                    $"Lot '{lot}' is not usable for this vaccine at this hospital.");
+            }
+        }
+        else
+        {
+            // Fallback FEFO when clinician did not pick a lot (e.g. older clients).
+            batch = await usableBatches
+                .OrderByDescending(b => (b.OpenVialDosesRemaining ?? 0) > 0)
+                .ThenBy(b => b.ExpiryDate)
+                .ThenBy(b => b.CreatedAt)
+                .FirstOrDefaultAsync();
+        }
 
         if (batch == null)
         {
@@ -1112,6 +1142,27 @@ public class AppointmentService : IAppointmentService
             Timestamp = DateTime.UtcNow
         });
 
+        var route = ParseVaccineRoute(dto.Route);
+        var site = ParseInjectionSite(dto.InjectionSite);
+        var noteParts = new List<string> { $"Linked to appointment {appointment.Id}" };
+        if (dto.ConsentConfirmed == true)
+            noteParts.Add("Informed consent confirmed");
+        if (dto.VitalsConfirmed == true)
+            noteParts.Add("Pre-administration vitals verified");
+        if (!string.IsNullOrWhiteSpace(dto.AdministrationNotes))
+            noteParts.Add(dto.AdministrationNotes.Trim());
+        else if (!string.IsNullOrWhiteSpace(dto.Remarks))
+            noteParts.Add(dto.Remarks.Trim());
+
+        // Keep a short administration trail on the appointment for guest walk-ins (no patient profile).
+        var adminSummary =
+            $"Administered lot {batch.BatchNumber}; route {route}; site {(site?.ToString() ?? "n/a")}";
+        if (!string.IsNullOrWhiteSpace(dto.AdministrationNotes))
+            adminSummary += $"; {dto.AdministrationNotes.Trim()}";
+        appointment.Notes = string.IsNullOrWhiteSpace(appointment.Notes)
+            ? adminSummary
+            : $"{appointment.Notes.Trim()}\n{adminSummary}";
+
         if (appointment.PatientProfileId is Guid patientProfileId)
         {
             var patientExists = await _context.PatientProfiles.AnyAsync(p => p.Id == patientProfileId);
@@ -1129,12 +1180,55 @@ public class AppointmentService : IAppointmentService
                     AdministeredByName = actorName,
                     AdministeredAt = DateTime.UtcNow,
                     DoseNumber = priorDoses + 1,
-                    Route = VaccineRoute.Intramuscular,
+                    Route = route,
+                    Site = site,
                     LotNumber = batch.BatchNumber,
-                    Notes = $"Linked to appointment {appointment.Id}"
+                    Notes = string.Join(". ", noteParts)
                 });
             }
         }
+    }
+
+    private static VaccineRoute ParseVaccineRoute(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+            return VaccineRoute.Intramuscular;
+
+        var value = raw.Trim().ToLowerInvariant();
+        if (value.Contains("subcut") || value is "sc" or "subcutaneous (sc)")
+            return VaccineRoute.Subcutaneous;
+        if (value.Contains("intraderm") || value is "id" or "intradermal (id)")
+            return VaccineRoute.Intradermal;
+        if (value.Contains("oral") || value is "po" or "oral (po)")
+            return VaccineRoute.Oral;
+        if (value.Contains("nasal"))
+            return VaccineRoute.Nasal;
+        if (Enum.TryParse<VaccineRoute>(raw.Trim(), true, out var parsed))
+            return parsed;
+        return VaccineRoute.Intramuscular;
+    }
+
+    private static InjectionSite? ParseInjectionSite(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+            return null;
+
+        var value = raw.Trim().ToLowerInvariant();
+        if (value.Contains("left") && value.Contains("deltoid"))
+            return InjectionSite.LeftDeltoid;
+        if (value.Contains("right") && value.Contains("deltoid"))
+            return InjectionSite.RightDeltoid;
+        if (value.Contains("left") && (value.Contains("thigh") || value.Contains("anterolateral")))
+            return InjectionSite.LeftThigh;
+        if (value.Contains("right") && (value.Contains("thigh") || value.Contains("anterolateral")))
+            return InjectionSite.RightThigh;
+        if (value.Contains("oral"))
+            return InjectionSite.Oral;
+        if (value.Contains("nasal"))
+            return InjectionSite.Nasal;
+        if (Enum.TryParse<InjectionSite>(raw.Replace(" ", string.Empty), true, out var parsed))
+            return parsed;
+        return null;
     }
 
     private static AppointmentResponseDto MapToDto(Appointment a)
