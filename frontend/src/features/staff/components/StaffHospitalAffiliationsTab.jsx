@@ -38,15 +38,89 @@ function formatWeekRangeLabel(weekStart, weekEnd) {
   return `${start.toLocaleDateString(undefined, opts)} – ${end.toLocaleDateString(undefined, { ...opts, year: 'numeric' })}`;
 }
 
+function formatCoverWhen(request) {
+  const date = request.shiftDate
+    ? new Date(`${String(request.shiftDate).slice(0, 10)}T00:00:00`).toLocaleDateString(undefined, {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+      })
+    : '—';
+  return `${date}${request.shiftWindow ? ` · ${request.shiftWindow}` : ''}`;
+}
+
+function coverStatusTone(status) {
+  const s = String(status || '').toLowerCase();
+  if (s === 'approved' || s === 'covering') return 'is-approved';
+  if (s === 'declined') return 'is-declined';
+  if (s === 'requested' || s === 'pending') return 'is-pending';
+  return 'is-pending';
+}
+
+function coverActivityTone(status, direction) {
+  const s = String(status || '').toLowerCase();
+  if (s === 'declined') return 'is-declined';
+  if (s === 'pending' || s === 'requested') return 'is-pending';
+  if (String(direction || '').toLowerCase() === 'incoming' || s === 'covering') {
+    return 'is-incoming';
+  }
+  return 'is-approved';
+}
+
+function isShiftFinished(shift, today) {
+  const day = String(shift?.shiftDate || '').slice(0, 10);
+  if (!day) return true;
+  if (day < today) return true;
+  if (day > today) return false;
+  const end = String(shift?.endTime || '23:59').slice(0, 5);
+  const now = new Date();
+  const hh = String(now.getHours()).padStart(2, '0');
+  const mm = String(now.getMinutes()).padStart(2, '0');
+  return `${hh}:${mm}` >= end;
+}
+
+function localQuotaFallback(shift, today) {
+  const day = String(shift?.shiftDate || '').slice(0, 10);
+  const finished = isShiftFinished(shift, today);
+  if (finished) {
+    return {
+      usedThisMonth: 0,
+      monthlyLimit: 3,
+      urgentUsedThisMonth: 0,
+      urgentLimit: 1,
+      minNoticeDays: 2,
+      canRequest: false,
+      reasonRequired: false,
+      alreadyPending: false,
+      isUrgent: false,
+      blockReason: 'This shift has already finished.',
+      summary: 'This shift has already finished.',
+    };
+  }
+  const shiftDate = new Date(`${day}T00:00:00`);
+  const todayDate = new Date(`${today}T00:00:00`);
+  const daysUntil = Math.round((shiftDate - todayDate) / 86400000);
+  const isUrgent = daysUntil < 2;
+  return {
+    usedThisMonth: 0,
+    monthlyLimit: 3,
+    urgentUsedThisMonth: 0,
+    urgentLimit: 1,
+    minNoticeDays: 2,
+    daysUntilShift: daysUntil,
+    canRequest: true,
+    reasonRequired: isUrgent,
+    alreadyPending: false,
+    isUrgent,
+    summary: isUrgent
+      ? `Short notice (${daysUntil} day${daysUntil === 1 ? '' : 's'} left). Add a reason.`
+      : 'Cover limits could not be verified from the server — you can still try to send.',
+  };
+}
+
 function HospitalAvatar({ name, logoUrl }) {
   if (logoUrl) {
-    return (
-      <img
-        src={logoUrl}
-        alt=""
-        className="staff-affil-hospital-avatar"
-      />
-    );
+    return <img src={logoUrl} alt="" className="staff-affil-hospital-avatar" />;
   }
   return (
     <div className="staff-affil-hospital-avatar staff-affil-hospital-avatar--fallback" aria-hidden>
@@ -56,7 +130,8 @@ function HospitalAvatar({ name, logoUrl }) {
 }
 
 /**
- * Shared doctor/nurse view for hospital invitations and active affiliations.
+ * Shared doctor/nurse view for hospital invitations, active affiliations,
+ * week shifts, and cover requests (parity with mobile staff cover flow).
  */
 export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff' }) {
   const today = useMemo(() => hospitalToday(), []);
@@ -64,10 +139,17 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff' }) {
   const [invitations, setInvitations] = useState([]);
   const [affiliations, setAffiliations] = useState([]);
   const [shifts, setShifts] = useState([]);
+  const [coverRequests, setCoverRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
   const [actionId, setActionId] = useState(null);
+  const [coverShift, setCoverShift] = useState(null);
+  const [coverReason, setCoverReason] = useState('');
+  const [coverQuota, setCoverQuota] = useState(null);
+  const [coverLoading, setCoverLoading] = useState(false);
+  const [coverSubmitting, setCoverSubmitting] = useState(false);
+  const [coverError, setCoverError] = useState('');
   const toastTimerRef = useRef(null);
 
   const weekEnd = useMemo(() => addHospitalDays(weekStart, 6), [weekStart]);
@@ -100,6 +182,18 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff' }) {
     return map;
   }, [shifts, weekDays]);
 
+  const outgoingCovers = useMemo(
+    () => coverRequests.filter((r) => String(r.direction || '').toLowerCase() !== 'incoming'),
+    [coverRequests]
+  );
+  const incomingCovers = useMemo(
+    () => coverRequests.filter((r) => String(r.direction || '').toLowerCase() === 'incoming'),
+    [coverRequests]
+  );
+  const pendingOutgoing = outgoingCovers.filter(
+    (r) => String(r.status || '').toLowerCase() === 'pending'
+  ).length;
+
   const showToast = (message) => {
     setToast(message);
     clearTimeout(toastTimerRef.current);
@@ -112,19 +206,22 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff' }) {
     setLoading(true);
     setError('');
     try {
-      const [pending, active, myShifts] = await Promise.all([
+      const [pending, active, myShifts, myCovers] = await Promise.all([
         staffService.getMyInvitations(),
         staffService.getMyAffiliations(),
         staffService.getMyShifts({ from: weekStart, to: weekEnd }),
+        staffService.getMyShiftSwaps(40).catch(() => []),
       ]);
       setInvitations(Array.isArray(pending) ? pending : []);
       setAffiliations(Array.isArray(active) ? active : []);
       setShifts(Array.isArray(myShifts) ? myShifts : []);
+      setCoverRequests(Array.isArray(myCovers) ? myCovers : []);
     } catch (err) {
       setError(err.message || 'Failed to load hospital affiliations.');
       setInvitations([]);
       setAffiliations([]);
       setShifts([]);
+      setCoverRequests([]);
     } finally {
       setLoading(false);
     }
@@ -146,6 +243,77 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff' }) {
       setActionId(null);
     }
   };
+
+  const openCoverModal = async (shift) => {
+    if (isShiftFinished(shift, today)) {
+      showToast('This shift has already finished — cover cannot be requested.');
+      return;
+    }
+    setCoverShift(shift);
+    setCoverReason('');
+    setCoverError('');
+    setCoverQuota(null);
+    setCoverLoading(true);
+    try {
+      const quota = await staffService.getCoverQuota(shift.shiftId);
+      setCoverQuota(quota || localQuotaFallback(shift, today));
+      setCoverError('');
+    } catch {
+      // Local estimate keeps the form usable; hide the raw API failure.
+      setCoverQuota(localQuotaFallback(shift, today));
+      setCoverError('');
+    } finally {
+      setCoverLoading(false);
+    }
+  };
+
+  const closeCoverModal = () => {
+    if (coverSubmitting) return;
+    setCoverShift(null);
+    setCoverReason('');
+    setCoverQuota(null);
+    setCoverError('');
+  };
+
+  const submitCoverRequest = async () => {
+    if (!coverShift?.shiftId || coverSubmitting) return;
+    if (coverQuota?.reasonRequired && !coverReason.trim()) {
+      setCoverError('A reason is required for short-notice cover.');
+      return;
+    }
+    if (coverQuota && !coverQuota.alreadyPending && coverQuota.canRequest === false) {
+      setCoverError(coverQuota.blockReason || 'Cover cannot be requested for this shift.');
+      return;
+    }
+
+    setCoverSubmitting(true);
+    setCoverError('');
+    try {
+      await staffService.requestShiftCover({
+        shiftId: coverShift.shiftId,
+        reason: coverReason.trim() || undefined,
+      });
+      showToast(
+        coverQuota?.alreadyPending
+          ? 'Cover request updated.'
+          : 'Cover request sent to the hospital.'
+      );
+      setCoverShift(null);
+      setCoverReason('');
+      setCoverQuota(null);
+      await loadData();
+    } catch (err) {
+      setCoverError(err.message || 'Could not send cover request.');
+    } finally {
+      setCoverSubmitting(false);
+    }
+  };
+
+  const canSubmitCover =
+    !coverLoading &&
+    !coverSubmitting &&
+    (!coverQuota || coverQuota.alreadyPending || coverQuota.canRequest !== false) &&
+    (!(coverQuota?.reasonRequired) || coverReason.trim().length > 0);
 
   return (
     <div className="doctor-dashboard-tab">
@@ -170,20 +338,23 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff' }) {
 
       <section className="hospital-hero-banner staff-affil-hero">
         <div className="hospital-hero-content staff-affil-hero-content">
-          <p className="hospital-hero-eyebrow">Roster &amp; invitations</p>
+          <p className="hospital-hero-eyebrow">Roster &amp; cover</p>
           <h1>Hospital Affiliations</h1>
           <p className="hospital-hero-sub">
-            Invitations, roster membership, and upcoming shifts for your {roleLabel.toLowerCase()} account.
+            Invitations, roster membership, shifts, and cover requests for your {roleLabel.toLowerCase()} account.
           </p>
           <div className="staff-affil-hero-pills" aria-label="Affiliation summary">
             <span className="staff-affil-hero-pill">
-              <strong>{loading ? '—' : invitations.length}</strong> Pending
+              <strong>{loading ? '—' : invitations.length}</strong> Pending invites
             </span>
             <span className="staff-affil-hero-pill">
               <strong>{loading ? '—' : affiliations.length}</strong> Active
             </span>
             <span className="staff-affil-hero-pill">
               <strong>{loading ? '—' : shifts.length}</strong> Shifts (week)
+            </span>
+            <span className="staff-affil-hero-pill">
+              <strong>{loading ? '—' : pendingOutgoing}</strong> Cover pending
             </span>
           </div>
         </div>
@@ -206,10 +377,7 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff' }) {
         ) : (
           <div style={{ display: 'grid', gap: '14px' }}>
             {affiliations.map((item) => (
-              <div
-                key={item.affiliationId}
-                className="staff-affil-item-card"
-              >
+              <div key={item.affiliationId} className="staff-affil-item-card">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0, flex: 1 }}>
                   <HospitalAvatar name={item.hospitalName} logoUrl={item.hospitalLogoUrl} />
                   <div style={{ minWidth: 0 }}>
@@ -267,6 +435,9 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff' }) {
           </div>
         </div>
         <p className="staff-shift-week-range">{formatWeekRangeLabel(weekStart, weekEnd)}</p>
+        <p className="staff-cover-hint">
+          Click a shift to request hospital cover. Limits: 3 covers / month, 1 short-notice (&lt; 2 days).
+        </p>
 
         {loading ? (
           <p style={{ color: '#64748b' }}>Loading shifts...</p>
@@ -302,26 +473,161 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff' }) {
                       {dayShifts.length === 0 ? (
                         <span className="staff-shift-week-empty">—</span>
                       ) : (
-                        dayShifts.map((shift) => (
-                          <div key={shift.shiftId} className="staff-shift-week-card">
-                            <div className="staff-shift-week-card-time">{formatShiftTime(shift)}</div>
-                            <div className="staff-shift-week-card-booth">
-                              {shift.boothOrStation || 'Unassigned booth'}
-                            </div>
-                            {shift.notes ? (
-                              <div className="staff-shift-week-card-notes">{shift.notes}</div>
-                            ) : null}
-                            <div className="staff-shift-week-card-hospital">
-                              {hospitalNameByAffiliation[shift.affiliationId] || 'Hospital'}
-                            </div>
-                          </div>
-                        ))
+                        dayShifts.map((shift) => {
+                          const cover = String(shift.coverStatus || '').trim();
+                          const finished = isShiftFinished(shift, today);
+                          const canRequest =
+                            !finished &&
+                            (!cover ||
+                              cover.toLowerCase() === 'declined' ||
+                              cover.toLowerCase() === 'requested');
+                          return (
+                            <button
+                              type="button"
+                              key={shift.shiftId}
+                              className={`staff-shift-week-card staff-shift-week-card--action${
+                                cover ? ` is-cover-${cover.toLowerCase()}` : ''
+                              }${finished ? ' is-finished' : ''}`}
+                              onClick={() => canRequest && openCoverModal(shift)}
+                              disabled={!canRequest}
+                              title={
+                                finished
+                                  ? 'This shift has already finished'
+                                  : cover.toLowerCase() === 'covering'
+                                    ? 'You are covering this shift for a colleague'
+                                    : canRequest
+                                      ? 'Request cover for this shift'
+                                      : undefined
+                              }
+                            >
+                              <div className="staff-shift-week-card-time">{formatShiftTime(shift)}</div>
+                              <div className="staff-shift-week-card-booth">
+                                {shift.boothOrStation || 'Unassigned booth'}
+                              </div>
+                              {shift.notes ? (
+                                <div className="staff-shift-week-card-notes">{shift.notes}</div>
+                              ) : null}
+                              <div className="staff-shift-week-card-hospital">
+                                {hospitalNameByAffiliation[shift.affiliationId] || 'Hospital'}
+                              </div>
+                              {finished ? (
+                                <span className="staff-cover-chip is-declined">Finished</span>
+                              ) : cover ? (
+                                <span className={`staff-cover-chip ${coverStatusTone(cover)}`}>
+                                  {cover}
+                                </span>
+                              ) : (
+                                <span className="staff-cover-chip is-request">Request cover</span>
+                              )}
+                            </button>
+                          );
+                        })
                       )}
                     </div>
                   );
                 })}
               </div>
             </div>
+          </div>
+        )}
+      </div>
+
+      <div className="doctor-card staff-cover-activity">
+        <h2 className="doctor-card-title" style={{ marginTop: 0, marginBottom: 8 }}>
+          Cover activity
+        </h2>
+        <p className="staff-cover-hint" style={{ marginTop: 0 }}>
+          Outgoing requests you filed, and incoming shifts assigned to you after hospital approval.
+        </p>
+
+        {loading ? (
+          <p className="staff-cover-activity-empty">Loading cover activity...</p>
+        ) : coverRequests.length === 0 ? (
+          <p className="staff-cover-activity-empty">No cover requests yet.</p>
+        ) : (
+          <div className="staff-cover-columns">
+            <section className="staff-cover-column">
+              <h3 className="staff-cover-column-title is-outgoing">
+                Outgoing
+                <span className="staff-cover-column-count">{outgoingCovers.length}</span>
+              </h3>
+              {outgoingCovers.length === 0 ? (
+                <p className="staff-cover-activity-empty is-compact">No outgoing requests.</p>
+              ) : (
+                <div className="staff-cover-list">
+                  {outgoingCovers.map((req) => {
+                    const tone = coverActivityTone(req.status, 'outgoing');
+                    return (
+                      <article key={req.id} className={`staff-cover-item ${tone}`}>
+                        <div className="staff-cover-item-top">
+                          <strong>{req.hospitalName || 'Hospital'}</strong>
+                          <span className={`staff-cover-badge ${tone}`}>
+                            {req.status || 'Pending'}
+                          </span>
+                        </div>
+                        <div className="staff-cover-item-main">
+                          <div className="staff-cover-item-meta">{formatCoverWhen(req)}</div>
+                          {req.boothOrStation ? (
+                            <div className="staff-cover-item-booth">{req.boothOrStation}</div>
+                          ) : null}
+                        </div>
+                        {req.reason || req.replacementName ? (
+                          <div className="staff-cover-item-bottom">
+                            {req.reason ? (
+                              <div className="staff-cover-item-reason">{req.reason}</div>
+                            ) : null}
+                            {req.replacementName ? (
+                              <div className="staff-cover-item-foot">
+                                Covered by {req.replacementName}
+                              </div>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <div className="staff-cover-item-bottom is-spacer" aria-hidden="true" />
+                        )}
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+
+            <section className="staff-cover-column">
+              <h3 className="staff-cover-column-title is-incoming">
+                Incoming
+                <span className="staff-cover-column-count">{incomingCovers.length}</span>
+              </h3>
+              {incomingCovers.length === 0 ? (
+                <p className="staff-cover-activity-empty is-compact">No assigned cover shifts.</p>
+              ) : (
+                <div className="staff-cover-list">
+                  {incomingCovers.map((req) => {
+                    const tone = coverActivityTone(req.status, 'incoming');
+                    return (
+                      <article key={req.id} className={`staff-cover-item ${tone}`}>
+                        <div className="staff-cover-item-top">
+                          <strong>{req.hospitalName || 'Hospital'}</strong>
+                          <span className={`staff-cover-badge ${tone}`}>
+                            {req.status || 'Approved'}
+                          </span>
+                        </div>
+                        <div className="staff-cover-item-main">
+                          <div className="staff-cover-item-meta">{formatCoverWhen(req)}</div>
+                          {req.boothOrStation ? (
+                            <div className="staff-cover-item-booth">{req.boothOrStation}</div>
+                          ) : null}
+                        </div>
+                        <div className="staff-cover-item-bottom">
+                          <div className="staff-cover-item-foot">
+                            Covering for {req.requesterName || 'colleague'}
+                          </div>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
           </div>
         )}
       </div>
@@ -373,6 +679,102 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff' }) {
           </div>
         )}
       </div>
+
+      {coverShift && (
+        <div className="doctor-modal-overlay" onClick={closeCoverModal}>
+          <div className="doctor-modal-card staff-cover-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="doctor-modal-header">
+              <div>
+                <h3 className="doctor-modal-title">Request cover</h3>
+                <p style={{ margin: '4px 0 0', fontSize: '0.82rem', color: 'rgba(255,255,255,0.85)' }}>
+                  Hospital will assign a replacement — not a peer swap
+                </p>
+              </div>
+              <button
+                type="button"
+                className="doctor-modal-close-btn"
+                onClick={closeCoverModal}
+                disabled={coverSubmitting}
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="doctor-modal-body">
+              <div className="staff-cover-modal-shift">
+                <strong>
+                  {hospitalNameByAffiliation[coverShift.affiliationId] || 'Hospital'}
+                </strong>
+                <div>
+                  {String(coverShift.shiftDate || '').slice(0, 10)} · {formatShiftTime(coverShift)}
+                </div>
+                <div>{coverShift.boothOrStation || 'Unassigned booth'}</div>
+              </div>
+
+              {coverLoading ? (
+                <p className="staff-cover-loading">Checking cover limits…</p>
+              ) : coverQuota?.canRequest === false ? (
+                <p className="staff-cover-blocked" role="alert">
+                  {coverQuota.blockReason || coverQuota.summary || 'Cover cannot be requested for this shift.'}
+                </p>
+              ) : null}
+
+              <div className="doctor-form-group">
+                <label className="doctor-form-label" htmlFor="staff-cover-reason">
+                  Reason {coverQuota?.reasonRequired ? '(required)' : '(optional)'}
+                </label>
+                <textarea
+                  id="staff-cover-reason"
+                  className="doctor-form-textarea"
+                  rows={3}
+                  value={coverReason}
+                  onChange={(e) => setCoverReason(e.target.value)}
+                  placeholder={
+                    coverQuota?.reasonRequired
+                      ? 'Short notice — explain why you need cover'
+                      : 'Why do you need cover for this shift?'
+                  }
+                  disabled={coverSubmitting || coverQuota?.canRequest === false}
+                />
+                {coverQuota?.alreadyPending && coverQuota?.canRequest !== false ? (
+                  <p className="staff-cover-hint-inline">
+                    You already have a pending request — submitting updates the reason.
+                  </p>
+                ) : null}
+              </div>
+
+              {coverError ? (
+                <p role="alert" style={{ color: '#b91c1c', fontWeight: 600, margin: '0 0 8px' }}>
+                  {coverError}
+                </p>
+              ) : null}
+            </div>
+
+            <div className="doctor-modal-footer">
+              <button
+                type="button"
+                className="doctor-btn-cancel"
+                onClick={closeCoverModal}
+                disabled={coverSubmitting}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="doctor-btn-submit"
+                onClick={submitCoverRequest}
+                disabled={!canSubmitCover}
+              >
+                {coverSubmitting
+                  ? 'Sending…'
+                  : coverQuota?.alreadyPending
+                    ? 'Update request'
+                    : 'Send cover request'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
