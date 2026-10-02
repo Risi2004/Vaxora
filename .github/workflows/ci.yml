@@ -80,3 +80,6 @@ jobs:
         run: pip install -r agent/requirements.txt
       - name: Check Python files compile
         run: python -m compileall -q agent
+      - name: Run StaffSchedulingAgent evaluation suite
+        working-directory: agent
+        run: python -m pytest -q
