@@ -1012,8 +1012,10 @@ public class InventoryService : IInventoryService
 
     public async Task<List<InventoryAgentWorkflowDto>> GetRecentAgentWorkflowsAsync(Guid userId, int limit)
     {
+        limit = Math.Clamp(limit, 1, 50);
+
         var logs = await _context.AuditLogs
-            .Where(a => a.Action.StartsWith("AI_"))
+            .Where(a => a.UserId == userId && a.Action.StartsWith("AI_"))
             .OrderByDescending(a => a.Timestamp)
             .Take(limit)
             .ToListAsync();
