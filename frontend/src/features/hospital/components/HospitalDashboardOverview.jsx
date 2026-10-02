@@ -166,6 +166,27 @@ export default function HospitalDashboardOverview() {
 
   useEffect(() => () => clearTimeout(toastTimerRef.current), []);
 
+  const handleDeskMarkPaid = async (appointmentId) => {
+    try {
+      await appointmentService.updateAppointmentStatus(appointmentId, { status: 'Confirmed' });
+      showToast('Counter payment recorded — patient is ready for clinical queue.');
+      await loadAppointmentsQueue();
+    } catch (err) {
+      showToast(err.message || 'Failed to record payment.');
+    }
+  };
+
+  const handleDeskDeclineUnpaid = async (appointmentId) => {
+    if (!window.confirm('Decline this unpaid appointment?')) return;
+    try {
+      await appointmentService.updateAppointmentStatus(appointmentId, { status: 'Rejected' });
+      showToast('Unpaid appointment declined.');
+      await loadAppointmentsQueue();
+    } catch (err) {
+      showToast(err.message || 'Failed to decline appointment.');
+    }
+  };
+
   // ==================== FETCH INVENTORY (BATCHES & FORMULARY) ====================
   const loadInventory = useCallback(async () => {
     setInventoryLoading(true);
@@ -644,6 +665,7 @@ export default function HospitalDashboardOverview() {
                 className="queue-filter-select"
               >
                 <option value="all">All Statuses</option>
+                <option value="awaiting_payment">Awaiting payment</option>
                 <option value="waiting">Waiting</option>
                 <option value="administering">Administering</option>
                 <option value="observation">In Observation</option>
@@ -757,9 +779,31 @@ export default function HospitalDashboardOverview() {
                         </span>
                       </td>
                       <td>
-                        <span className={`queue-status-badge status-${patient.status}`}>
-                          {queueStatusLabel(patient.status)}
-                        </span>
+                        {patient.status === 'awaiting_payment' ? (
+                          <div className="hospital-action-buttons-wrapper">
+                            <span className="mockup-status-badge pending">Awaiting payment</span>
+                            <button
+                              type="button"
+                              className="btn-hospital-confirm-action"
+                              title="Record desk/cash payment at the hospital counter"
+                              onClick={() => handleDeskMarkPaid(patient.id)}
+                            >
+                              Mark paid
+                            </button>
+                            <button
+                              type="button"
+                              className="btn-hospital-cancel-action"
+                              title="Decline unpaid appointment"
+                              onClick={() => handleDeskDeclineUnpaid(patient.id)}
+                            >
+                              ✕ Decline
+                            </button>
+                          </div>
+                        ) : (
+                          <span className={`queue-status-badge status-${patient.status}`}>
+                            {queueStatusLabel(patient.status)}
+                          </span>
+                        )}
                       </td>
                     </tr>
                   ))

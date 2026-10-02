@@ -8,7 +8,7 @@ export function normalizeAppointmentStatus(dbStatus) {
 
 /**
  * Map DB appointment status → hospital queue bucket.
- * Confirmed / Pending / PendingPayment stay in the waiting queue.
+ * Paid Confirmed stays in waiting. Unpaid PendingPayment is desk-held.
  */
 export function mapDbStatusToQueueStatus(dbStatus) {
   const s = normalizeAppointmentStatus(dbStatus);
@@ -16,6 +16,7 @@ export function mapDbStatusToQueueStatus(dbStatus) {
   if (s === 'observation') return 'observation';
   if (s === 'administering' || s === 'insession') return 'administering';
   if (s === 'cancelled' || s === 'rejected') return 'cancelled';
+  if (s === 'pendingpayment') return 'awaiting_payment';
   return 'waiting';
 }
 
@@ -24,11 +25,13 @@ export function mapQueueStatusToDbStatus(queueStatus) {
   if (queueStatus === 'observation') return 'Observation';
   if (queueStatus === 'administering') return 'Administering';
   if (queueStatus === 'cancelled') return 'Cancelled';
+  if (queueStatus === 'awaiting_payment') return 'PendingPayment';
   return 'Confirmed';
 }
 
 export function queueStatusLabel(status) {
   if (status === 'waiting') return 'Waiting';
+  if (status === 'awaiting_payment') return 'Awaiting payment';
   if (status === 'administering') return 'In Session';
   if (status === 'observation') return 'Observation';
   if (status === 'completed') return 'Completed';

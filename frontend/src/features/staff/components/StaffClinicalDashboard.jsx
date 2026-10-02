@@ -222,7 +222,9 @@ export default function StaffClinicalDashboard({
   const todayTotal = todayAppointments.length;
   const todayCompleted = todayAppointments.filter((a) => a.status === 'Completed').length;
   const todayUpcoming = todayAppointments.filter(
-    (a) => a.status === 'Confirmed' || a.status === 'PendingPayment'
+    (a) =>
+      a.status === 'Confirmed' &&
+      String(a.paymentStatus || '').toLowerCase() === 'paid'
   ).length;
   const todayNeedsDosage = todayAppointments.filter(
     (a) => a.status === 'Confirmed' && !a.prescribedDosage
@@ -440,10 +442,23 @@ export default function StaffClinicalDashboard({
 
     if (!matchesSearch) return false;
     if (filterStatus === 'all') return true;
+    if (filterStatus === 'waiting') {
+      return p.status === 'waiting' && isPaymentSettled(p);
+    }
+    if (filterStatus === 'awaiting_payment') {
+      return p.status === 'waiting' && !isPaymentSettled(p);
+    }
     return p.status === filterStatus;
   });
 
-  const waitingCount = patients.filter((p) => p.status === 'waiting').length;
+  const waitingCount = patients.filter(
+    (p) => p.status === 'waiting' && isPaymentSettled(p)
+  ).length;
+  const awaitingPaymentCount = patients.filter(
+    (p) =>
+      p.status === 'waiting' &&
+      !isPaymentSettled(p)
+  ).length;
   const completedCount = patients.filter((p) => p.status === 'completed').length;
   const observationCount = patients.filter((p) => p.status === 'observation').length;
   const showHospitalSwitch = allowHospitalSwitch && affiliations.length > 1;
@@ -743,7 +758,7 @@ export default function StaffClinicalDashboard({
             </p>
           ) : !activePaymentSettled ? (
             <p className="doctor-off-duty-hint" style={{ marginTop: '10px', color: '#b45309', fontSize: '0.85rem', fontWeight: 600 }}>
-              Payment not settled — collect payment before administering this vaccine.
+              Payment not settled — hospital desk must Mark paid at the counter before administration.
             </p>
           ) : null}
         </section>
@@ -782,6 +797,15 @@ export default function StaffClinicalDashboard({
                 >
                   Waiting ({waitingCount})
                 </button>
+                {awaitingPaymentCount > 0 ? (
+                  <button
+                    type="button"
+                    className={`queue-scope-btn${filterStatus === 'awaiting_payment' ? ' active' : ''}`}
+                    onClick={() => setFilterStatus('awaiting_payment')}
+                  >
+                    Awaiting payment ({awaitingPaymentCount})
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   className={`queue-scope-btn${filterStatus === 'observation' ? ' active' : ''}`}
@@ -897,11 +921,13 @@ export default function StaffClinicalDashboard({
                           <span className="queue-booth-tag">{p.time || '—'}</span>
                         </td>
                         <td>
-                          <span className={`queue-status-badge status-${p.status}`}>
+                          <span className={`queue-status-badge status-${p.status === 'waiting' && !isPaymentSettled(p) ? 'awaiting-payment' : p.status}`}>
                             {p.status === 'consulting'
                               ? 'Consulting'
                               : p.status === 'waiting'
-                                ? 'In Queue'
+                                ? isPaymentSettled(p)
+                                  ? 'In Queue'
+                                  : 'Awaiting payment'
                                 : p.status === 'observation'
                                   ? 'Observation'
                                   : p.status === 'cancelled'
