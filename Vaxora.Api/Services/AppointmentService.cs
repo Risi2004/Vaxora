@@ -675,6 +675,14 @@ public class AppointmentService : IAppointmentService
                 appointment.HospitalUserId);
         }
 
+        // Dose/session transitions require settled payment (free bookings are Paid at create).
+        if (OnDutyRequiredStatuses.Contains(nextStatus) &&
+            !string.Equals(appointment.PaymentStatus, "Paid", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                "Payment must be settled before clinical administration.");
+        }
+
         var previousStatus = appointment.Status;
         appointment.Status = nextStatus;
         appointment.UpdatedAt = DateTime.UtcNow;

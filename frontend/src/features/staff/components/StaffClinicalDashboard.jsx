@@ -61,6 +61,14 @@ function presenceLabel(affiliation) {
   return affiliation.isOnDutyNow ? 'On duty' : 'No active shift';
 }
 
+function isPaymentSettled(patientOrStatus) {
+  const value =
+    typeof patientOrStatus === 'string'
+      ? patientOrStatus
+      : patientOrStatus?.paymentStatus;
+  return String(value || '').toLowerCase() === 'paid';
+}
+
 /**
  * Shared doctor/nurse home: today's queue, observation watch, and status transitions.
  * Role-specific chrome (hero image, title, modals, labels) is passed in by the wrappers.
@@ -204,6 +212,7 @@ export default function StaffClinicalDashboard({
   const greeting = greetingForNow();
   const dutyText = presenceLabel(primaryAffiliation);
   const isOnDuty = Boolean(primaryAffiliation?.isOnDutyNow);
+  const activePaymentSettled = activePatient ? isPaymentSettled(activePatient) : true;
 
   const todayTotal = todayAppointments.length;
   const todayCompleted = todayAppointments.filter((a) => a.status === 'Completed').length;
@@ -278,9 +287,18 @@ export default function StaffClinicalDashboard({
       return;
     }
 
-    const nextWaiting = patients.find((p) => p.status === 'waiting');
+    const nextWaiting = patients.find(
+      (p) => p.status === 'waiting' && isPaymentSettled(p)
+    );
     if (!nextWaiting) {
-      showToast("No more waiting patients in today's queue.");
+      const unpaidWaiting = patients.some(
+        (p) => p.status === 'waiting' && !isPaymentSettled(p)
+      );
+      showToast(
+        unpaidWaiting
+          ? 'No paid patients waiting. Unpaid appointments cannot be administered yet.'
+          : "No more waiting patients in today's queue."
+      );
       return;
     }
 
@@ -313,6 +331,10 @@ export default function StaffClinicalDashboard({
         showToast('You must have an active shift to start consultation.');
         return;
       }
+      if (!isPaymentSettled(patient)) {
+        showToast('Payment must be settled before starting consultation.');
+        return;
+      }
       try {
         await persistStatus(patient.id, 'Administering');
       } catch (err) {
@@ -324,6 +346,10 @@ export default function StaffClinicalDashboard({
   const handleCertifyAdministration = async (certifiedData) => {
     if (!isOnDuty) {
       showToast('You must have an active shift to record administration.');
+      return;
+    }
+    if (!isPaymentSettled(certifiedData)) {
+      showToast('Payment must be settled before recording administration.');
       return;
     }
     try {
@@ -347,6 +373,11 @@ export default function StaffClinicalDashboard({
   const handleDischargeObservation = async (id, name) => {
     if (!isOnDuty) {
       showToast('You must have an active shift to discharge a patient.');
+      return;
+    }
+    const patient = patients.find((p) => p.id === id);
+    if (patient && !isPaymentSettled(patient)) {
+      showToast('Payment must be settled before discharging the patient.');
       return;
     }
     try {
@@ -670,8 +701,14 @@ export default function StaffClinicalDashboard({
                   }),
                 });
               }}
-              disabled={statusUpdating || !isOnDuty}
-              title={!isOnDuty ? 'You need an active shift to transfer patients' : undefined}
+              disabled={statusUpdating || !isOnDuty || !activePaymentSettled}
+              title={
+                !isOnDuty
+                  ? 'You need an active shift to transfer patients'
+                  : !activePaymentSettled
+                    ? 'Payment must be settled first'
+                    : undefined
+              }
             >
               Transfer to Observation
             </button>
@@ -679,8 +716,14 @@ export default function StaffClinicalDashboard({
               type="button"
               className="doctor-btn-certify"
               onClick={() => setIsAdministerModalOpen(true)}
-              disabled={statusUpdating || !isOnDuty}
-              title={!isOnDuty ? 'You need an active shift to certify administration' : undefined}
+              disabled={statusUpdating || !isOnDuty || !activePaymentSettled}
+              title={
+                !isOnDuty
+                  ? 'You need an active shift to certify administration'
+                  : !activePaymentSettled
+                    ? 'Payment must be settled first'
+                    : undefined
+              }
             >
               Certify &amp; Record Administration
             </button>
@@ -688,6 +731,10 @@ export default function StaffClinicalDashboard({
           {!isOnDuty ? (
             <p className="doctor-off-duty-hint" style={{ marginTop: '10px', color: '#b45309', fontSize: '0.85rem', fontWeight: 600 }}>
               No active shift — clinical actions are disabled until your scheduled shift starts.
+            </p>
+          ) : !activePaymentSettled ? (
+            <p className="doctor-off-duty-hint" style={{ marginTop: '10px', color: '#b45309', fontSize: '0.85rem', fontWeight: 600 }}>
+              Payment not settled — collect payment before administering this vaccine.
             </p>
           ) : null}
         </section>
@@ -860,6 +907,14 @@ export default function StaffClinicalDashboard({
                                 type="button"
                                 className="btn-queue-action"
                                 onClick={() => handleSelectPatient(p)}
+                                disabled={!isOnDuty || !isPaymentSettled(p) || statusUpdating}
+                                title={
+                                  !isPaymentSettled(p)
+                                    ? 'Payment must be settled first'
+                                    : !isOnDuty
+                                      ? 'You need an active shift'
+                                      : undefined
+                                }
                               >
                                 Examine
                               </button>
@@ -872,8 +927,14 @@ export default function StaffClinicalDashboard({
                                   setActivePatientId(p.id);
                                   setIsAdministerModalOpen(true);
                                 }}
-                                disabled={!isOnDuty || statusUpdating}
-                                title={!isOnDuty ? 'You need an active shift to administer' : undefined}
+                                disabled={!isOnDuty || !isPaymentSettled(p) || statusUpdating}
+                                title={
+                                  !isPaymentSettled(p)
+                                    ? 'Payment must be settled first'
+                                    : !isOnDuty
+                                      ? 'You need an active shift to administer'
+                                      : undefined
+                                }
                               >
                                 Administer
                               </button>
@@ -883,8 +944,14 @@ export default function StaffClinicalDashboard({
                                 type="button"
                                 className="btn-queue-action btn-queue-action--release"
                                 onClick={() => handleDischargeObservation(p.id, p.name)}
-                                disabled={!isOnDuty || statusUpdating}
-                                title={!isOnDuty ? 'You need an active shift to discharge' : undefined}
+                                disabled={!isOnDuty || !isPaymentSettled(p) || statusUpdating}
+                                title={
+                                  !isPaymentSettled(p)
+                                    ? 'Payment must be settled first'
+                                    : !isOnDuty
+                                      ? 'You need an active shift to discharge'
+                                      : undefined
+                                }
                               >
                                 Discharge
                               </button>

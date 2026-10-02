@@ -265,6 +265,7 @@ export default function HospitalDashboardOverview() {
             time: a.timeSlot || '09:00 AM - 09:20 AM',
             status: queueStatus,
             dbStatus: rawStatus,
+            paymentStatus: a.paymentStatus || a.PaymentStatus || '—',
           };
         });
 
@@ -396,6 +397,16 @@ export default function HospitalDashboardOverview() {
   const updatePatientStatus = async (id, newStatus) => {
     const previousPatients = [...queuePatients];
     const targetId = String(id);
+    const patient = queuePatients.find((p) => String(p.id) === targetId);
+    const clinicalStatuses = new Set(['administering', 'observation', 'completed']);
+
+    if (
+      clinicalStatuses.has(newStatus) &&
+      String(patient?.paymentStatus || '').toLowerCase() !== 'paid'
+    ) {
+      alert('Payment must be settled before clinical administration.');
+      return;
+    }
 
     // Optimistically update UI
     setQueuePatients((prev) =>
@@ -794,7 +805,12 @@ export default function HospitalDashboardOverview() {
                               type="button"
                               className="btn-queue-action"
                               onClick={() => updatePatientStatus(patient.id, 'administering')}
-                              title="Call patient into booth"
+                              title={
+                                String(patient.paymentStatus || '').toLowerCase() !== 'paid'
+                                  ? 'Payment must be settled first'
+                                  : 'Call patient into booth'
+                              }
+                              disabled={String(patient.paymentStatus || '').toLowerCase() !== 'paid'}
                             >
                               Call Now
                             </button>
@@ -804,7 +820,12 @@ export default function HospitalDashboardOverview() {
                               type="button"
                               className="btn-queue-action btn-queue-action--session"
                               onClick={() => updatePatientStatus(patient.id, 'observation')}
-                              title="Move to 15-min post vaccination observation"
+                              title={
+                                String(patient.paymentStatus || '').toLowerCase() !== 'paid'
+                                  ? 'Payment must be settled first'
+                                  : 'Move to 15-min post vaccination observation'
+                              }
+                              disabled={String(patient.paymentStatus || '').toLowerCase() !== 'paid'}
                             >
                               To Observation
                             </button>
@@ -814,7 +835,12 @@ export default function HospitalDashboardOverview() {
                               type="button"
                               className="btn-queue-action btn-queue-action--release"
                               onClick={() => updatePatientStatus(patient.id, 'completed')}
-                              title="Complete and issue digital pass"
+                              title={
+                                String(patient.paymentStatus || '').toLowerCase() !== 'paid'
+                                  ? 'Payment must be settled first'
+                                  : 'Complete and issue digital pass'
+                              }
+                              disabled={String(patient.paymentStatus || '').toLowerCase() !== 'paid'}
                             >
                               Release &amp; Pass
                             </button>
