@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'package:flutter/services.dart' show rootBundle;
 
 import '../data/models/agent_models.dart';
 
@@ -20,13 +21,46 @@ import '../data/models/agent_models.dart';
 ///
 /// Output note: the emulator image often has no Android print service and
 /// no share targets, so `Printing.layoutPdf` / `sharePdf` appear to
-/// "do nothing". We always write the PDF to the app documents directory
-/// first — that path is stable, readable via `adb pull`, and observable
-/// through a SnackBar shown by the caller.
+/// "do nothing". The preferred path is now `buildPdf()` + in-app
+/// `PdfPreview` — that works on any emulator without Android services.
+/// The legacy `share()` / `preview()` methods remain available for
+/// callers on real devices where print/share services do exist.
 class CarePlanPdfService {
+  // ---------------------------------------------------------------------
+  // Primary API — used by the mobile app
+  // ---------------------------------------------------------------------
+
+  /// Builds the PDF and returns the raw bytes.
+  ///
+  /// The caller is expected to render the bytes via `PdfPreview`, which
+  /// works on every emulator because it does not rely on Android's print
+  /// service or share sheet.
+  static Future<Uint8List> buildPdf(
+    CarePlanResponseModel result, {
+    String? patientName,
+    String? registrationNumber,
+  }) async {
+    return _buildPdf(
+      result,
+      patientName: patientName,
+      registrationNumber: registrationNumber,
+    );
+  }
+
+  /// Suggested filename for the PDF — e.g. `Vaxora_Care_Plan_John_Doe_2026-09-30.pdf`.
+  static String suggestedFileName(String? patientName) =>
+      _fileName(patientName ?? 'Patient');
+
+  // ---------------------------------------------------------------------
+  // Legacy API — kept for real devices / backward compatibility
+  // ---------------------------------------------------------------------
+
   /// Builds the PDF, saves it to disk, then tries to open the system
   /// print preview (Save as PDF) or the share sheet. Returns the full
   /// path of the saved file.
+  ///
+  /// Not used by the mobile app UI any more — prefer `buildPdf()` +
+  /// `PdfPreview`. Kept for compatibility with any external caller.
   static Future<String> share(
     CarePlanResponseModel result, {
     String? patientName,
@@ -117,20 +151,10 @@ class CarePlanPdfService {
     const surfaceSubtle = PdfColor.fromInt(0xFFF8FAFC);
 
     // ---- Load Unicode-capable fonts ----
-    // Noto Sans covers bullets, em-dashes, arrows and check marks.
-    // Google Fonts requires a one-time fetch; after that the font is
-    // cached locally by the printing package.
-    final pw.Font fontRegular;
-    final pw.Font fontBold;
-    try {
-      fontRegular = await PdfGoogleFonts.notoSansRegular();
-      fontBold = await PdfGoogleFonts.notoSansBold();
-    } catch (e) {
-      throw Exception(
-        'Could not load PDF fonts. Check your internet connection '
-        'and try again. ($e)',
-      );
-    }
+    // Load bundled Noto Sans fonts. These ship with the app, so there's
+    // no network call and no risk of the emulator hanging on a slow CDN.
+    final pw.Font fontRegular = pw.Font.helvetica();
+    final pw.Font fontBold = pw.Font.helveticaBold();
 
     final doc = pw.Document(
       theme: pw.ThemeData.withFont(base: fontRegular, bold: fontBold),

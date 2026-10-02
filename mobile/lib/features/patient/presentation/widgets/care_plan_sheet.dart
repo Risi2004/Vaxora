@@ -1,4 +1,8 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:printing/printing.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../../../core/services/storage_service.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -124,9 +128,19 @@ class _CarePlanLoaderState extends State<CarePlanLoader> {
     }
   }
 
-  Future<void> _downloadPdf() async {
+  /// Builds the PDF bytes and opens a full-screen in-app preview.
+  ///
+  /// This path works on any emulator — it does not rely on Android's print
+  /// service or share targets, which are missing on bare AVD images and
+  /// were the reason the previous "Download PDF" button appeared to do
+  /// nothing.
+  Future<void> _openPdfPreview() async {
     final r = _result;
+    debugPrint(
+      '[CarePlanSheet] _openPdfPreview triggered, result=${r != null}, plan=${r?.carePlan != null}',
+    );
     if (r == null || r.carePlan == null) return;
+    debugPrint('[CarePlanSheet] building PDF…');
 
     setState(() {
       _isDownloading = true;
@@ -136,7 +150,7 @@ class _CarePlanLoaderState extends State<CarePlanLoader> {
     try {
       final cached = await StorageService.getUser();
       final user = cached != null ? UserModel.fromJson(cached) : null;
-      final savedPath = await CarePlanPdfService.share(
+      final bytes = await CarePlanPdfService.buildPdf(
         r,
         patientName: user?.name,
         registrationNumber: user?.registrationNumber,
@@ -146,20 +160,22 @@ class _CarePlanLoaderState extends State<CarePlanLoader> {
         _isDownloading = false;
         _downloadSuccess = true;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: AppColors.success,
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 8),
-          content: Text(
-            'PDF saved to device.\n$savedPath',
-            style: const TextStyle(fontSize: 12),
+
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => _PdfPreviewPage(
+            bytes: bytes,
+            fileName: CarePlanPdfService.suggestedFileName(user?.name),
           ),
         ),
       );
-      Future.delayed(const Duration(seconds: 4), () {
-        if (mounted) setState(() => _downloadSuccess = false);
-      });
+
+      // Reset the checkmark after the preview is closed
+      if (mounted) {
+        Future.delayed(const Duration(seconds: 2), () {
+          if (mounted) setState(() => _downloadSuccess = false);
+        });
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() => _isDownloading = false);
@@ -472,7 +488,7 @@ class _CarePlanLoaderState extends State<CarePlanLoader> {
                 ),
                 const SizedBox(height: 12),
                 ElevatedButton.icon(
-                  onPressed: _isDownloading ? null : _downloadPdf,
+                  onPressed: _isDownloading ? null : _openPdfPreview,
                   icon: _isDownloading
                       ? const SizedBox(
                           width: 14,
@@ -835,6 +851,69 @@ class _CarePlanLoaderState extends State<CarePlanLoader> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// =========================================================================
+// Full-screen in-app PDF preview
+// =========================================================================
+
+/// Renders the PDF bytes in-app using the `printing` package's `PdfPreview`
+/// widget. No Android print service or share target is required — this is
+/// why it works on every emulator.
+class _PdfPreviewPage extends StatelessWidget {
+  final Uint8List bytes;
+  final String fileName;
+
+  const _PdfPreviewPage({required this.bytes, required this.fileName});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: AppColors.textTitle),
+        title: const Text(
+          'Care Plan PDF',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            color: AppColors.textTitle,
+          ),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.share),
+            tooltip: 'Share',
+            onPressed: () async {
+              try {
+                await Printing.sharePdf(bytes: bytes, filename: fileName);
+              } catch (_) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Share not available on this device.'),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+              }
+            },
+          ),
+        ],
+      ),
+      body: PdfPreview(
+        build: (_) async => bytes,
+        canChangeOrientation: false,
+        canChangePageFormat: false,
+        canDebug: false,
+        allowSharing: false,
+        allowPrinting: false,
+        pdfFileName: fileName,
       ),
     );
   }
