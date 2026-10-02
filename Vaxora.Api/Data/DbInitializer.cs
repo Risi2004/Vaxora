@@ -15,6 +15,19 @@ public static class DbInitializer
 
         try
         {
+            // Apply critical additive columns even if EF MigrateAsync is blocked
+            // (e.g. incomplete migration metadata). Inventory queries depend on these.
+            try
+            {
+                await context.Database.ExecuteSqlRawAsync(@"
+                    ALTER TABLE ""Batches"" ADD COLUMN IF NOT EXISTS ""OpenVialDosesRemaining"" INTEGER NULL;
+                ");
+            }
+            catch (Exception exBootstrap)
+            {
+                logger.LogWarning(exBootstrap, "Non-fatal notice during early schema bootstrap: {Message}", exBootstrap.Message);
+            }
+
             await context.Database.MigrateAsync();
 
             // Safe column checks for pricing and payment integration
