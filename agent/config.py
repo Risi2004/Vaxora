@@ -10,7 +10,9 @@ load_dotenv(dotenv_path=env_path, override=True)
 class Settings(BaseModel):
     # OpenRouter LLM Settings
     openrouter_base_url: str = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1").rstrip("/")
-    openrouter_api_key: str = os.getenv("OPENROUTER_API_KEY", "")
+    # openai>=1.x rejects empty api_key at client construction; keep a
+    # non-empty placeholder so imports/tests work without secrets (CI).
+    openrouter_api_key: str = os.getenv("OPENROUTER_API_KEY") or "missing-openrouter-api-key"
     openrouter_model: str = os.getenv("OPENROUTER_MODEL", "qwen/qwen3.8-27b")
     
     # Vaxora ASP.NET Core API Base URL (normalized to always end with /api)
