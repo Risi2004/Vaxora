@@ -284,6 +284,43 @@ public class AppointmentsController : ControllerBase
     }
 
     /// <summary>
+    /// Clinical AEFI report: capture immediate care, document on linked dose when available, notify MOH/physician.
+    /// </summary>
+    [HttpPost("{id}/aefi")]
+    [Authorize(Roles = "DOCTOR,NURSE")]
+    public async Task<IActionResult> ReportAefi(Guid id, [FromBody] ReportAefiDto dto)
+    {
+        var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(userIdStr, out var actorUserId))
+        {
+            return Unauthorized(new { message = "Invalid user token." });
+        }
+
+        try
+        {
+            var result = await _appointmentService.ReportAefiAsync(actorUserId, id, dto);
+            return Ok(result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error reporting AEFI for appointment {AppId}", id);
+            return StatusCode(500, new { message = "Failed to submit AEFI report." });
+        }
+    }
+
+    /// <summary>
     /// Cancel an appointment (either by patient or by hospital). Supports Guid Id or ReferenceNumber.
     /// </summary>
     [HttpDelete("{id}/cancel")]

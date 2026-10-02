@@ -427,8 +427,45 @@ export default function StaffClinicalDashboard({
     loadDashboardData(hospitalUserId);
   };
 
-  const handleAefiSubmit = (data) => {
-    showToast(`AEFI report noted for ${data.patientName}.`);
+  const handleAefiSubmit = async (data) => {
+    if (!activePatient?.id) {
+      showToast('Select an active patient before reporting AEFI.');
+      throw new Error('No active patient');
+    }
+    if (!isOnDuty) {
+      showToast('You must have an active shift to report AEFI.');
+      throw new Error('Not on duty');
+    }
+
+    const severity = data.severity || 'Mild';
+    const notifyMOH = severity === 'Severe' ? true : !!data.notifyMOH;
+
+    try {
+      setStatusUpdating(true);
+      const result = await staffAppointmentService.reportAefi(activePatient.id, {
+        ...data,
+        severity,
+        notifyMOH,
+        notifyDoctor: data.notifyDoctor !== false,
+      });
+      await loadDashboardData(selectedHospitalUserId);
+      const bits = [];
+      if (result?.documentedOnDose) bits.push('documented on dose');
+      if (result?.notifiedMoh) bits.push('MOH alerted');
+      else if (notifyMOH) bits.push('MOH notify recorded');
+      if (result?.notifiedDoctor) bits.push('physician alerted');
+      showToast(
+        result?.message ||
+          `AEFI (${severity}) saved for ${data.patientName || activePatient.name}${
+            bits.length ? ` — ${bits.join(', ')}` : ''
+          }.`
+      );
+    } catch (err) {
+      showToast(err.message || 'Failed to submit AEFI report.');
+      throw err;
+    } finally {
+      setStatusUpdating(false);
+    }
   };
 
   const filteredPatients = patients.filter((p) => {
@@ -575,6 +612,14 @@ export default function StaffClinicalDashboard({
               type="button"
               className="doctor-btn-report-aefi"
               onClick={() => setIsAefiModalOpen(true)}
+              disabled={!activePatient || !isOnDuty || statusUpdating}
+              title={
+                !isOnDuty
+                  ? 'You need an active shift to report AEFI'
+                  : !activePatient
+                    ? 'Call or select a patient first'
+                    : undefined
+              }
             >
               Report AEFI
             </button>

@@ -92,6 +92,19 @@ export const staffAppointmentService = {
       }),
     });
   },
+
+  reportAefi(appointmentId, payload) {
+    return apiRequest(`/appointments/${appointmentId}/aefi`, {
+      method: 'POST',
+      body: JSON.stringify({
+        severity: payload.severity || 'Mild',
+        description: payload.reactionType || payload.description || '',
+        treatmentGiven: payload.treatmentGiven || '',
+        notifyMOH: !!payload.notifyMOH,
+        notifyDoctor: payload.notifyDoctor !== false,
+      }),
+    });
+  },
 };
 
 export default staffAppointmentService;

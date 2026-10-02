@@ -23,6 +23,7 @@ public interface IAppointmentService
     Task<bool> CancelAppointmentAsync(Guid userId, string idOrRef, bool isHospital = false);
     Task<bool> CancelAppointmentAsync(Guid userId, Guid appointmentId, bool isHospital = false);
     Task<AppointmentResponseDto> ConfirmPayHerePaymentAsync(Guid appointmentId, string transactionId, string? orderId = null);
+    Task<AefiReportResponseDto> ReportAefiAsync(Guid actorUserId, Guid appointmentId, ReportAefiDto dto);
 }
 
 public class AppointmentService : IAppointmentService
@@ -876,6 +877,258 @@ public class AppointmentService : IAppointmentService
             actorUserId, appointmentId, appointment.Status);
 
         return MapToDto(appointment);
+    }
+
+    public async Task<AefiReportResponseDto> ReportAefiAsync(Guid actorUserId, Guid appointmentId, ReportAefiDto dto)
+    {
+        var appointment = await _context.Appointments
+            .FirstOrDefaultAsync(a => a.Id == appointmentId)
+            ?? throw new KeyNotFoundException("Appointment record not found.");
+
+        var actor = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == actorUserId)
+            ?? throw new UnauthorizedAccessException("Invalid user.");
+
+        if (actor.Role is not (UserRole.DOCTOR or UserRole.NURSE))
+            throw new UnauthorizedAccessException("Only on-duty clinical staff can report AEFI.");
+
+        if (actor.Status != UserStatus.Active)
+            throw new InvalidOperationException("Staff account must be Active.");
+
+        var isAffiliated = await _context.StaffAffiliations.AsNoTracking().AnyAsync(a =>
+            a.StaffUserId == actorUserId &&
+            a.HospitalUserId == appointment.HospitalUserId &&
+            a.Status == AffiliationStatus.Active);
+
+        if (!isAffiliated)
+            throw new UnauthorizedAccessException("You are not affiliated with this hospital.");
+
+        await StaffDutyHelper.EnsureStaffOnDutyAsync(_context, actorUserId, appointment.HospitalUserId);
+
+        if (string.Equals(appointment.Status, "Cancelled", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(appointment.Status, "Rejected", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Cannot report AEFI for cancelled or rejected appointments.");
+        }
+
+        var severityRaw = (dto.Severity ?? string.Empty).Trim();
+        var severity = severityRaw.Equals("Severe", StringComparison.OrdinalIgnoreCase) ? "Severe"
+            : severityRaw.Equals("Moderate", StringComparison.OrdinalIgnoreCase) ? "Moderate"
+            : "Mild";
+
+        var description = (dto.Description ?? string.Empty).Trim();
+        var treatment = (dto.TreatmentGiven ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(description))
+            throw new InvalidOperationException("Symptoms / clinical signs are required.");
+        if (string.IsNullOrWhiteSpace(treatment))
+            throw new InvalidOperationException("Immediate care / treatment given is required.");
+
+        // Severe events always trigger surveillance notification intent.
+        var notifyMoh = dto.NotifyMOH || severity == "Severe";
+        var notifyDoctor = dto.NotifyDoctor;
+
+        var actorName = await ResolveActorDisplayNameAsync(actorUserId, actor);
+        var reportedAt = DateTime.UtcNow;
+
+        var aefiSummary =
+            $"AEFI {severity}: {description}. Treatment: {treatment}. " +
+            $"Reported by {actorName} at {reportedAt:yyyy-MM-dd HH:mm} UTC" +
+            (notifyMoh ? ". MOH surveillance notified." : ".") +
+            (notifyDoctor ? " Attending physician alerted." : "");
+
+        // Cap for PatientVaccinationRecord.AdverseEventNotes (max 1000).
+        var doseNotes = aefiSummary.Length <= 1000 ? aefiSummary : aefiSummary[..997] + "...";
+
+        PatientVaccinationRecord? doseRecord = null;
+        if (appointment.PatientProfileId is Guid profileId)
+        {
+            var appointmentKey = appointment.Id.ToString();
+            doseRecord = await _context.PatientVaccinationRecords
+                .Where(r => r.PatientProfileId == profileId)
+                .Where(r => r.Notes != null && r.Notes.Contains(appointmentKey))
+                .OrderByDescending(r => r.AdministeredAt)
+                .FirstOrDefaultAsync();
+
+            if (doseRecord == null && appointment.VaccineId.HasValue)
+            {
+                var dayStart = reportedAt.Date;
+                doseRecord = await _context.PatientVaccinationRecords
+                    .Where(r =>
+                        r.PatientProfileId == profileId &&
+                        r.VaccineId == appointment.VaccineId.Value &&
+                        r.AdministeredAt >= dayStart)
+                    .OrderByDescending(r => r.AdministeredAt)
+                    .FirstOrDefaultAsync();
+            }
+        }
+
+        var documentedOnDose = false;
+        if (doseRecord != null)
+        {
+            doseRecord.AdverseEventReported = true;
+            doseRecord.AdverseEventNotes = doseNotes;
+            documentedOnDose = true;
+        }
+
+        appointment.Notes = string.IsNullOrWhiteSpace(appointment.Notes)
+            ? aefiSummary
+            : $"{appointment.Notes.Trim()}\n{aefiSummary}";
+        if (appointment.Notes.Length > 1000)
+            appointment.Notes = appointment.Notes[^1000..];
+        appointment.UpdatedAt = reportedAt;
+
+        _context.AuditLogs.Add(new AuditLog
+        {
+            UserId = actorUserId,
+            UserEmail = actor.Email,
+            Role = actor.Role.ToString(),
+            Action = "AEFI_REPORTED",
+            Details =
+                $"AEFI ({severity}) for appointment {appointment.Id}, patient {appointment.PatientName}, " +
+                $"vaccine {appointment.VaccineName}. Treatment captured. " +
+                $"DocumentedOnDose={documentedOnDose}. NotifyMOH={notifyMoh}. NotifyDoctor={notifyDoctor}. " +
+                $"Signs: {description}",
+            Timestamp = reportedAt
+        });
+
+        await _context.SaveChangesAsync();
+
+        var notifiedMoh = false;
+        var notifiedDoctor = false;
+
+        if (notifyMoh)
+        {
+            var opsEmail = Environment.GetEnvironmentVariable("OpsManager__Email")
+                ?? Environment.GetEnvironmentVariable("MOH__SurveillanceEmail")
+                ?? "opsmanager@vaxora.local";
+
+            try
+            {
+                notifiedMoh = await _emailService.SendAefiSurveillanceAlertAsync(
+                    opsEmail,
+                    "MOH Surveillance Unit",
+                    appointment.PatientName,
+                    appointment.VaccineName ?? "Unknown vaccine",
+                    appointment.HospitalName ?? "Hospital",
+                    appointment.AppointmentDate.ToString("yyyy-MM-dd"),
+                    appointment.TimeSlot ?? "",
+                    severity,
+                    description,
+                    treatment,
+                    actorName,
+                    appointment.Id.ToString());
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to send AEFI MOH alert for appointment {AppId}", appointment.Id);
+            }
+        }
+
+        if (notifyDoctor)
+        {
+            string? doctorEmail = null;
+            string doctorName = appointment.PrescribedByDoctorName
+                ?? appointment.DoctorName
+                ?? "Attending Physician";
+
+            if (appointment.PrescribedByDoctorUserId is Guid doctorId)
+            {
+                var doctor = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == doctorId);
+                if (doctor != null && !string.IsNullOrWhiteSpace(doctor.Email))
+                {
+                    doctorEmail = doctor.Email;
+                    doctorName = appointment.PrescribedByDoctorName ?? doctorName;
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(doctorEmail))
+            {
+                // Fall back to any active affiliated doctor at this hospital (excluding the reporter if nurse).
+                var affiliatedDoctor = await (
+                    from aff in _context.StaffAffiliations.AsNoTracking()
+                    join u in _context.Users.AsNoTracking() on aff.StaffUserId equals u.Id
+                    where aff.HospitalUserId == appointment.HospitalUserId
+                          && aff.Status == AffiliationStatus.Active
+                          && u.Role == UserRole.DOCTOR
+                          && u.Status == UserStatus.Active
+                          && u.Id != actorUserId
+                    select u
+                ).FirstOrDefaultAsync();
+
+                if (affiliatedDoctor != null)
+                {
+                    doctorEmail = affiliatedDoctor.Email;
+                    doctorName = affiliatedDoctor.Email.Split('@')[0];
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(doctorEmail))
+            {
+                try
+                {
+                    notifiedDoctor = await _emailService.SendAefiSurveillanceAlertAsync(
+                        doctorEmail,
+                        doctorName,
+                        appointment.PatientName,
+                        appointment.VaccineName ?? "Unknown vaccine",
+                        appointment.HospitalName ?? "Hospital",
+                        appointment.AppointmentDate.ToString("yyyy-MM-dd"),
+                        appointment.TimeSlot ?? "",
+                        severity,
+                        description,
+                        treatment,
+                        actorName,
+                        appointment.Id.ToString());
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to send AEFI doctor alert for appointment {AppId}", appointment.Id);
+                }
+            }
+        }
+
+        _logger.LogInformation(
+            "AEFI reported by {ActorId} for appointment {AppId}: severity={Severity}, onDose={OnDose}, moh={Moh}, doctor={Doctor}",
+            actorUserId, appointmentId, severity, documentedOnDose, notifiedMoh, notifiedDoctor);
+
+        var message = documentedOnDose
+            ? "AEFI documented on the vaccination dose; care and notifications recorded."
+            : "AEFI and treatment recorded on the appointment. Link a certified dose to attach it to the vaccination record.";
+
+        if (notifyMoh && !notifiedMoh)
+            message += " MOH alert queued (email not delivered — check SMTP).";
+        if (notifyDoctor && !notifiedDoctor)
+            message += " Physician alert intent recorded (no deliverable doctor email).";
+
+        return new AefiReportResponseDto
+        {
+            AppointmentId = appointment.Id,
+            VaccinationRecordId = doseRecord?.Id,
+            Severity = severity,
+            DocumentedOnDose = documentedOnDose,
+            NotifiedMoh = notifiedMoh,
+            NotifiedDoctor = notifiedDoctor,
+            Message = message
+        };
+    }
+
+    private async Task<string> ResolveActorDisplayNameAsync(Guid actorUserId, User actor)
+    {
+        if (actor.Role == UserRole.DOCTOR)
+        {
+            var doc = await _context.DoctorProfiles.AsNoTracking()
+                .FirstOrDefaultAsync(d => d.UserId == actorUserId);
+            if (!string.IsNullOrWhiteSpace(doc?.FullName))
+                return doc.FullName.Trim();
+        }
+        else if (actor.Role == UserRole.NURSE)
+        {
+            var nurse = await _context.NurseProfiles.AsNoTracking()
+                .FirstOrDefaultAsync(n => n.UserId == actorUserId);
+            if (!string.IsNullOrWhiteSpace(nurse?.FullName))
+                return nurse.FullName.Trim();
+        }
+
+        return actor.Email;
     }
 
     public Task<bool> CancelAppointmentAsync(Guid userId, Guid appointmentId, bool isHospital = false)

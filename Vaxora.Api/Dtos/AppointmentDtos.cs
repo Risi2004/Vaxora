@@ -196,3 +196,34 @@ public class ConfirmPayHerePaymentRequestDto
     public string? StatusCode { get; set; }
     public string? Md5Sig { get; set; }
 }
+
+public class ReportAefiDto
+{
+    [Required]
+    [MaxLength(40)]
+    public string Severity { get; set; } = "Mild";
+
+    [Required]
+    [MaxLength(2000)]
+    public string Description { get; set; } = string.Empty;
+
+    [Required]
+    [MaxLength(2000)]
+    public string TreatmentGiven { get; set; } = string.Empty;
+
+    /// <summary>When true (or severity is Severe), surveillance / MOH notification intent is recorded and emailed.</summary>
+    public bool NotifyMOH { get; set; }
+
+    public bool NotifyDoctor { get; set; } = true;
+}
+
+public class AefiReportResponseDto
+{
+    public Guid AppointmentId { get; set; }
+    public Guid? VaccinationRecordId { get; set; }
+    public string Severity { get; set; } = string.Empty;
+    public bool DocumentedOnDose { get; set; }
+    public bool NotifiedMoh { get; set; }
+    public bool NotifiedDoctor { get; set; }
+    public string Message { get; set; } = string.Empty;
+}
