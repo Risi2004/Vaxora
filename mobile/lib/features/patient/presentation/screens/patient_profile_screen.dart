@@ -281,7 +281,7 @@ class _PatientProfileScreenState extends State<PatientProfileScreen> {
                       const SizedBox(height: 4),
                       Text(
                         'National Registration: $_registrationNumber',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
                           color: StaffSurfaces.brandSoft,
