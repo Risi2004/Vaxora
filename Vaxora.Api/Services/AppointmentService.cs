@@ -57,12 +57,21 @@ public class AppointmentService : IAppointmentService
 
     private readonly ApplicationDbContext _context;
     private readonly IEmailService _emailService;
+    private readonly IPasswordHasher _passwordHasher;
+    private readonly IRegistrationNumberService _registrationNumberService;
     private readonly ILogger<AppointmentService> _logger;
 
-    public AppointmentService(ApplicationDbContext context, IEmailService emailService, ILogger<AppointmentService> logger)
+    public AppointmentService(
+        ApplicationDbContext context,
+        IEmailService emailService,
+        IPasswordHasher passwordHasher,
+        IRegistrationNumberService registrationNumberService,
+        ILogger<AppointmentService> logger)
     {
         _context = context;
         _emailService = emailService;
+        _passwordHasher = passwordHasher;
+        _registrationNumberService = registrationNumberService;
         _logger = logger;
     }
 
@@ -461,7 +470,7 @@ public class AppointmentService : IAppointmentService
 
         var presentedName = (dto.PatientName ?? string.Empty).Trim();
 
-        // Prefer linking a registered patient when NIC matches; otherwise allow guest walk-in.
+        // Link existing patient by NIC, or auto-provision a patient account for history/records.
         var patient = await _context.Users
             .Include(u => u.PatientProfile)
             .FirstOrDefaultAsync(u =>
@@ -469,15 +478,19 @@ public class AppointmentService : IAppointmentService
                 u.PatientProfile != null &&
                 u.PatientProfile.NicNumber == nic);
 
-        var isGuest = patient?.PatientProfile == null;
-        if (isGuest && string.IsNullOrWhiteSpace(presentedName))
-            throw new InvalidOperationException("Patient full name is required for walk-ins without a Vaxora account.");
+        var createdAccount = false;
+        if (patient?.PatientProfile == null)
+        {
+            if (string.IsNullOrWhiteSpace(presentedName))
+                throw new InvalidOperationException("Patient full name is required to create a walk-in account.");
 
-        var resolvedName = isGuest
-            ? presentedName
-            : (string.IsNullOrWhiteSpace(presentedName)
-                ? patient!.PatientProfile!.FullName
-                : presentedName);
+            (patient, _) = await CreateWalkInPatientAccountAsync(nic, presentedName, dto.Age);
+            createdAccount = true;
+        }
+
+        var resolvedName = string.IsNullOrWhiteSpace(presentedName)
+            ? patient.PatientProfile!.FullName
+            : presentedName;
 
         var hospitalNow = DateTime.UtcNow.AddHours(5.5);
         var today = DateOnly.FromDateTime(hospitalNow);
@@ -507,15 +520,17 @@ public class AppointmentService : IAppointmentService
 
         var noteParts = new List<string>
         {
-            isGuest ? "Walk-in registration (guest — no Vaxora account)" : "Walk-in registration"
+            createdAccount
+                ? "Walk-in registration (patient account auto-created)"
+                : "Walk-in registration"
         };
         if (!string.IsNullOrWhiteSpace(dto.Dose)) noteParts.Add($"Dose: {dto.Dose.Trim()}");
         if (!string.IsNullOrWhiteSpace(dto.BoothLabel)) noteParts.Add($"Booth: {dto.BoothLabel.Trim()}");
         if (dto.Age.HasValue) noteParts.Add($"Age: {dto.Age.Value}");
         if (!string.IsNullOrWhiteSpace(dto.Gender)) noteParts.Add($"Gender: {dto.Gender.Trim()}");
-        if (!isGuest &&
+        if (!createdAccount &&
             !string.IsNullOrWhiteSpace(presentedName) &&
-            !string.Equals(presentedName, patient!.PatientProfile!.FullName, StringComparison.OrdinalIgnoreCase))
+            !string.Equals(presentedName, patient.PatientProfile!.FullName, StringComparison.OrdinalIgnoreCase))
         {
             noteParts.Add($"Presented as: {presentedName}");
         }
@@ -523,12 +538,12 @@ public class AppointmentService : IAppointmentService
         var appointment = new Appointment
         {
             Id = Guid.NewGuid(),
-            PatientUserId = isGuest ? null : patient!.Id,
-            PatientProfileId = isGuest ? null : patient!.PatientProfile!.Id,
+            PatientUserId = patient.Id,
+            PatientProfileId = patient.PatientProfile!.Id,
             PatientName = resolvedName,
-            PatientNic = isGuest ? nic : patient!.PatientProfile!.NicNumber,
-            PatientPhone = isGuest ? null : (patient!.PatientProfile!.PhoneNumber ?? patient.PhoneNumber),
-            PatientEmail = isGuest ? null : patient!.Email,
+            PatientNic = patient.PatientProfile.NicNumber,
+            PatientPhone = patient.PatientProfile.PhoneNumber ?? patient.PhoneNumber,
+            PatientEmail = patient.Email,
             HospitalUserId = hospital.Id,
             HospitalProfileId = hospital.HospitalProfile?.Id,
             HospitalName = hospital.HospitalProfile?.HospitalName ?? "Hospital Center",
@@ -556,10 +571,81 @@ public class AppointmentService : IAppointmentService
         await _context.SaveChangesAsync();
 
         _logger.LogInformation(
-            "Walk-in appointment {AppId} created for {Patient} (NIC {Nic}, guest={IsGuest}) at hospital {Hospital}",
-            appointment.Id, appointment.PatientName, nic, isGuest, appointment.HospitalName);
+            "Walk-in appointment {AppId} created for {Patient} (NIC {Nic}, newAccount={Created}) at hospital {Hospital}",
+            appointment.Id, appointment.PatientName, nic, createdAccount, appointment.HospitalName);
 
         return MapToDto(appointment);
+    }
+
+    /// <summary>
+    /// Provisions a PATIENT user + profile for desk walk-ins so doses can be stored
+    /// on vaccination history. Login email is synthetic; password is a random secret
+    /// (patient can later claim/update via normal signup flows if needed).
+    /// </summary>
+    private async Task<(User user, PatientProfile profile)> CreateWalkInPatientAccountAsync(
+        string nic,
+        string fullName,
+        int? age)
+    {
+        var nicKey = new string(nic.Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(nicKey))
+            nicKey = Guid.NewGuid().ToString("N")[..8];
+
+        var email = $"walkin.{nicKey}@vaxora.local";
+        var suffix = 0;
+        while (await _context.Users.AnyAsync(u => u.Email == email))
+        {
+            suffix++;
+            email = $"walkin.{nicKey}.{suffix}@vaxora.local";
+        }
+
+        var regNumber = await _registrationNumberService.GenerateRegistrationNumberAsync(UserRole.PATIENT);
+        var tempPassword = $"Wx{Guid.NewGuid():N}!9";
+
+        DateTime? dateOfBirth = null;
+        if (age is >= 0 and <= 120)
+        {
+            dateOfBirth = DateTime.SpecifyKind(
+                DateTime.UtcNow.Date.AddYears(-age.Value),
+                DateTimeKind.Utc);
+        }
+
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Email = email,
+            PasswordHash = _passwordHasher.HashPassword(tempPassword),
+            Role = UserRole.PATIENT,
+            Status = UserStatus.Active,
+            RegistrationNumber = regNumber,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        var profile = new PatientProfile
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            FullName = fullName.Trim(),
+            NicNumber = nic.Trim(),
+            DateOfBirth = dateOfBirth,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _context.Users.Add(user);
+        _context.PatientProfiles.Add(profile);
+        _context.AuditLogs.Add(new AuditLog
+        {
+            UserId = user.Id,
+            UserEmail = user.Email,
+            Role = "PATIENT",
+            Action = "PATIENT_WALKIN_PROVISION",
+            Details = $"Auto-created patient account from hospital walk-in (NIC {profile.NicNumber}, Reg #{regNumber})",
+            Timestamp = DateTime.UtcNow
+        });
+
+        // Navigation must be available before SaveChanges for appointment linking.
+        user.PatientProfile = profile;
+        return (user, profile);
     }
 
     public async Task<List<AppointmentResponseDto>> GetPatientAppointmentsAsync(Guid patientUserId)
@@ -1154,7 +1240,7 @@ public class AppointmentService : IAppointmentService
         else if (!string.IsNullOrWhiteSpace(dto.Remarks))
             noteParts.Add(dto.Remarks.Trim());
 
-        // Keep a short administration trail on the appointment for guest walk-ins (no patient profile).
+        // Keep a short administration trail on the appointment (useful for legacy guest rows).
         var adminSummary =
             $"Administered lot {batch.BatchNumber}; route {route}; site {(site?.ToString() ?? "n/a")}";
         if (!string.IsNullOrWhiteSpace(dto.AdministrationNotes))

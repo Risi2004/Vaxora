@@ -134,12 +134,12 @@ export default function WalkInRegistrationModal({
                   name="nic"
                   value={formData.nic}
                   onChange={handleChange}
-                  placeholder="Patient NIC (account not required)"
+                  placeholder="Patient NIC"
                   required
                   className="modal-input"
                 />
                 <p style={{ margin: '6px 0 0', fontSize: '0.75rem', color: '#64748b' }}>
-                  If the NIC matches a Vaxora account it will be linked; otherwise this is a guest walk-in.
+                  Matches an existing Vaxora account by NIC, or creates one automatically for vaccination history.
                 </p>
               </div>
 
