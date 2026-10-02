@@ -843,8 +843,57 @@ public class AppointmentService : IAppointmentService
         }
 
         var previousStatus = appointment.Status;
+
+        // Enforce clinical transition graph for non-hospital actors.
+        // Hospital desk may still Confirm/Cancel/Reject bookings; clinical staff
+        // may only move within the live session path (plus closing missed visits).
+        if (!isHospitalOwner)
+        {
+            var from = previousStatus ?? string.Empty;
+            var to = nextStatus;
+            var allowedClinical =
+                (string.Equals(from, "Confirmed", StringComparison.OrdinalIgnoreCase) &&
+                 (string.Equals(to, "Administering", StringComparison.OrdinalIgnoreCase) ||
+                  string.Equals(to, "Cancelled", StringComparison.OrdinalIgnoreCase))) ||
+                (string.Equals(from, "PendingPayment", StringComparison.OrdinalIgnoreCase) &&
+                 string.Equals(to, "Cancelled", StringComparison.OrdinalIgnoreCase)) ||
+                (string.Equals(from, "Administering", StringComparison.OrdinalIgnoreCase) &&
+                 (string.Equals(to, "Observation", StringComparison.OrdinalIgnoreCase) ||
+                  string.Equals(to, "Confirmed", StringComparison.OrdinalIgnoreCase) ||
+                  string.Equals(to, "Cancelled", StringComparison.OrdinalIgnoreCase))) ||
+                (string.Equals(from, "Observation", StringComparison.OrdinalIgnoreCase) &&
+                 (string.Equals(to, "Completed", StringComparison.OrdinalIgnoreCase) ||
+                  string.Equals(to, "Confirmed", StringComparison.OrdinalIgnoreCase))) ||
+                (string.Equals(from, to, StringComparison.OrdinalIgnoreCase));
+
+            if (!allowedClinical)
+            {
+                throw new InvalidOperationException(
+                    $"Cannot change appointment status from '{from}' to '{to}'.");
+            }
+
+            // Staff must never "Confirm" an unpaid PendingPayment booking (that would skip desk settlement).
+            if (string.Equals(to, "Confirmed", StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(from, "PendingPayment", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    "Unpaid bookings must be marked paid by the hospital desk before clinical confirmation.");
+            }
+        }
+
         appointment.Status = nextStatus;
         appointment.UpdatedAt = DateTime.UtcNow;
+
+        if (string.Equals(nextStatus, "Cancelled", StringComparison.OrdinalIgnoreCase) &&
+            !string.IsNullOrWhiteSpace(dto.Remarks))
+        {
+            var cancelNote = dto.Remarks.Trim();
+            appointment.Notes = string.IsNullOrWhiteSpace(appointment.Notes)
+                ? cancelNote
+                : $"{appointment.Notes.Trim()}\n{cancelNote}";
+            if (appointment.Notes.Length > 1000)
+                appointment.Notes = appointment.Notes[^1000..];
+        }
 
         // Hospital desk: confirming a PendingPayment booking records payment as settled.
         if (isHospitalOwner &&
@@ -985,7 +1034,8 @@ public class AppointmentService : IAppointmentService
             : $"{appointment.Notes.Trim()}\n{aefiSummary}";
         if (appointment.Notes.Length > 1000)
             appointment.Notes = appointment.Notes[^1000..];
-        appointment.UpdatedAt = reportedAt;
+        // Do not bump UpdatedAt — the clinical dashboard uses it as the
+        // observation-window start time after Administering → Observation.
 
         Guid? followUpVisitId = null;
         var followUpScheduled = false;
