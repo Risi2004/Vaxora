@@ -6,6 +6,11 @@ import { inventoryService } from '../services/inventoryService';
 import { appointmentService } from '../../patient/services/appointmentService';
 import { authService } from '../../auth';
 import { hospitalMinutesNow, hospitalToday } from '../utils/hospitalDate';
+import {
+  mapDbStatusToQueueStatus,
+  mapQueueStatusToDbStatus,
+  queueStatusLabel,
+} from '../utils/appointmentStatus';
 import hospitalHeroImage from '../../../assets/images/hospital-hero-vaccine.webp';
 import {
   IconClipboard,
@@ -47,37 +52,10 @@ function boothStatusClass(status) {
   return 'is-scheduled';
 }
 
-function queueStatusLabel(status) {
-  if (status === 'waiting') return 'Waiting';
-  if (status === 'administering') return 'In Session';
-  if (status === 'observation') return 'Observation';
-  if (status === 'completed') return 'Completed';
-  if (status === 'cancelled') return 'Cancelled';
-  return status || 'Unknown';
-}
-
 function queueTimeSortKey(time) {
   const match = String(time || '').match(/(\d{1,2}):(\d{2})/);
   if (!match) return 0;
   return Number(match[1]) * 60 + Number(match[2]);
-}
-
-function mapDbStatusToQueueStatus(dbStatus) {
-  const s = String(dbStatus || '').trim().toLowerCase().replace(/[\s_-]+/g, '');
-  if (s === 'completed') return 'completed';
-  if (s === 'observation') return 'observation';
-  if (s === 'administering' || s === 'insession') return 'administering';
-  if (s === 'cancelled' || s === 'rejected') return 'cancelled';
-  // Confirmed / Pending / PendingPayment / CheckedIn → still in queue
-  return 'waiting';
-}
-
-function mapQueueStatusToDbStatus(queueStatus) {
-  if (queueStatus === 'completed') return 'Completed';
-  if (queueStatus === 'observation') return 'Observation';
-  if (queueStatus === 'administering') return 'Administering';
-  if (queueStatus === 'cancelled') return 'Cancelled';
-  return 'Confirmed';
 }
 
 function formatVaultTemp(temp) {
