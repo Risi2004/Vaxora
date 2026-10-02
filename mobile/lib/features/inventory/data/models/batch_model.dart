@@ -9,11 +9,13 @@ class BatchModel {
   final int capacity;
   final int minThreshold;
   final int dosesPerVial;
+  final int openVialDosesRemaining;
+  final int availableDoses;
   final String expiry;
   final String expiryStatus; // 'healthy' | 'expiring_soon' | 'expired'
   final String temp;
   final String storageUnit;
-  final String statusColor;  // 'bar-green' | 'bar-orange' | 'bar-red' | 'bar-blue'
+  final String statusColor; // 'bar-green' | 'bar-orange' | 'bar-red' | 'bar-blue'
   final String lastRestocked;
 
   const BatchModel({
@@ -27,6 +29,8 @@ class BatchModel {
     required this.capacity,
     required this.minThreshold,
     required this.dosesPerVial,
+    this.openVialDosesRemaining = 0,
+    this.availableDoses = 0,
     required this.expiry,
     required this.expiryStatus,
     required this.temp,
@@ -40,7 +44,19 @@ class BatchModel {
   bool get isExpired => expiryStatus == 'expired';
   double get stockPercent => capacity > 0 ? (available / capacity) : 0.0;
 
+  int get usableDoses {
+    if (availableDoses > 0) return availableDoses;
+    final sealed = available * (dosesPerVial <= 0 ? 1 : dosesPerVial);
+    return sealed + (openVialDosesRemaining < 0 ? 0 : openVialDosesRemaining);
+  }
+
   factory BatchModel.fromJson(Map<String, dynamic> json) {
+    final available = (json['available'] as num?)?.toInt() ?? 0;
+    final dosesPerVial = (json['dosesPerVial'] as num?)?.toInt() ?? 1;
+    final open = (json['openVialDosesRemaining'] as num?)?.toInt() ?? 0;
+    final availableDoses = (json['availableDoses'] as num?)?.toInt() ??
+        (available * (dosesPerVial <= 0 ? 1 : dosesPerVial) +
+            (open < 0 ? 0 : open));
     return BatchModel(
       id: json['id']?.toString() ?? '',
       vaccineId: json['vaccineId']?.toString() ?? '',
@@ -48,10 +64,12 @@ class BatchModel {
       manufacturer: json['manufacturer']?.toString() ?? '',
       category: json['category']?.toString() ?? 'routine',
       lotNumber: json['lotNumber']?.toString() ?? '',
-      available: (json['available'] as num?)?.toInt() ?? 0,
+      available: available,
       capacity: (json['capacity'] as num?)?.toInt() ?? 0,
       minThreshold: (json['minThreshold'] as num?)?.toInt() ?? 0,
-      dosesPerVial: (json['dosesPerVial'] as num?)?.toInt() ?? 1,
+      dosesPerVial: dosesPerVial,
+      openVialDosesRemaining: open,
+      availableDoses: availableDoses,
       expiry: json['expiry']?.toString() ?? '',
       expiryStatus: json['expiryStatus']?.toString() ?? 'healthy',
       temp: json['temp']?.toString() ?? '',

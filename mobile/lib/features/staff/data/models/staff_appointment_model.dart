@@ -59,6 +59,21 @@ class StaffAppointmentModel {
     return 'waiting';
   }
 
+  String get statusLabel {
+    switch (uiStatus) {
+      case 'completed':
+        return 'Completed';
+      case 'observation':
+        return 'Observation';
+      case 'consulting':
+        return 'In session';
+      case 'cancelled':
+        return status.toLowerCase() == 'rejected' ? 'Rejected' : 'Cancelled';
+      default:
+        return 'In queue';
+    }
+  }
+
   String get token {
     final short = id.replaceAll('-', '');
     final slice = short.length >= 4 ? short.substring(0, 4) : short;
@@ -76,6 +91,8 @@ class StaffAppointmentModel {
 
   bool get hasDosage =>
       prescribedDosage != null && prescribedDosage!.trim().isNotEmpty;
+
+  bool get isPaymentSettled => paymentStatus.toLowerCase() == 'paid';
 
   factory StaffAppointmentModel.fromJson(Map<String, dynamic> json) {
     return StaffAppointmentModel(

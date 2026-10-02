@@ -6,9 +6,16 @@ import '../models/audit_entry_model.dart';
 
 class InventoryRepository {
   // ============ LIST ============
-  static Future<List<BatchModel>> getBatches() async {
+  static Future<List<BatchModel>> getBatches({String? hospitalUserId}) async {
     try {
-      final response = await ApiClient.get(ApiConstants.inventoryBatches);
+      final query = <String, String>{};
+      if (hospitalUserId != null && hospitalUserId.trim().isNotEmpty) {
+        query['hospitalUserId'] = hospitalUserId.trim();
+      }
+      final response = await ApiClient.get(
+        ApiConstants.inventoryBatches,
+        queryParams: query.isEmpty ? null : query,
+      );
       if (response is List) {
         return response
             .map((e) => BatchModel.fromJson(e as Map<String, dynamic>))
