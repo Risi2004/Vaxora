@@ -152,3 +152,4 @@ __pycache__/
 
 __pycache__/
 *.pyc
+.vscode/settings.json

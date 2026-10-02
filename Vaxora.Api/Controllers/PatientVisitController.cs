@@ -9,7 +9,7 @@ namespace Vaxora.Api.Controllers;
 
 [ApiController]
 [Route("api/patient-visits")]
-[Authorize(Roles = "DOCTOR,NURSE,HOSPITAL,ADMIN")]
+[Authorize(Roles = "DOCTOR,NURSE,HOSPITAL,ADMIN,PATIENT")]
 public class PatientVisitController : ControllerBase
 {
     private readonly IPatientVisitService _service;
@@ -24,6 +24,16 @@ public class PatientVisitController : ControllerBase
     [HttpGet("patients/{patientProfileId:guid}/timeline")]
     public async Task<IActionResult> GetTimeline(Guid patientProfileId)
     {
+        if (!TryGetUserId(out var currentUserId))
+            return Unauthorized(new { message = "Invalid identity claim." });
+
+        var role = User.FindFirst(ClaimTypes.Role)?.Value ?? string.Empty;
+        if (string.Equals(role, "PATIENT", StringComparison.OrdinalIgnoreCase))
+        {
+            var owns = await _service.IsOwnedByUserAsync(patientProfileId, currentUserId);
+            if (!owns) return Forbid();
+        }
+
         try { return Ok(await _service.GetTimelineAsync(patientProfileId)); }
         catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
         catch (Exception ex)
@@ -36,6 +46,16 @@ public class PatientVisitController : ControllerBase
     [HttpGet("patients/{patientProfileId:guid}/follow-ups")]
     public async Task<IActionResult> GetUpcomingFollowUps(Guid patientProfileId)
     {
+        if (!TryGetUserId(out var currentUserId))
+            return Unauthorized(new { message = "Invalid identity claim." });
+
+        var role = User.FindFirst(ClaimTypes.Role)?.Value ?? string.Empty;
+        if (string.Equals(role, "PATIENT", StringComparison.OrdinalIgnoreCase))
+        {
+            var owns = await _service.IsOwnedByUserAsync(patientProfileId, currentUserId);
+            if (!owns) return Forbid();
+        }
+
         try { return Ok(await _service.GetUpcomingFollowUpsAsync(patientProfileId)); }
         catch (Exception ex)
         {
@@ -45,6 +65,7 @@ public class PatientVisitController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
+    [Authorize(Roles = "DOCTOR,NURSE,HOSPITAL,ADMIN")]
     public async Task<IActionResult> GetById(Guid id)
     {
         try { return Ok(await _service.GetByIdAsync(id)); }
@@ -57,6 +78,7 @@ public class PatientVisitController : ControllerBase
     }
 
     [HttpGet("{id:guid}/summary")]
+    [Authorize(Roles = "DOCTOR,NURSE,HOSPITAL,ADMIN")]
     public async Task<IActionResult> GetSummary(Guid id)
     {
         try { return Ok(await _service.GetSummaryAsync(id)); }

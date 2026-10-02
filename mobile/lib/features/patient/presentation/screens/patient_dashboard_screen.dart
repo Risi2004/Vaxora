@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../../core/services/storage_service.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../auth/data/models/user_model.dart';
@@ -7,6 +8,7 @@ import '../../../staff/presentation/widgets/network_avatar.dart';
 import '../../../staff/presentation/widgets/staff_common_widgets.dart';
 import '../../data/models/appointment_model.dart';
 import '../../data/models/vaccination_record_model.dart';
+import '../../data/repositories/agent_repository.dart';
 import '../../data/repositories/appointment_repository.dart';
 import '../../data/repositories/patient_repository.dart';
 import '../widgets/agent_booking_sheet.dart';
@@ -15,6 +17,8 @@ import '../widgets/digital_certificate_sheet.dart';
 import '../widgets/immunization_timeline_item.dart';
 import '../widgets/appointment_card.dart';
 import '../widgets/payhere_checkout_sheet.dart';
+import '../widgets/care_plan_sheet.dart';
+import '../widgets/care_plan_history_sheet.dart';
 
 class PatientDashboardScreen extends StatefulWidget {
   final Function(int targetTab) onNavigateTab;
@@ -63,7 +67,9 @@ class _PatientDashboardScreenState extends State<PatientDashboardScreen> {
     PatientVaccinationTimelineModel? timeline;
     if (user?.patientProfileId != null && user!.patientProfileId!.isNotEmpty) {
       try {
-        timeline = await PatientRepository.getVaccinationTimeline(user.patientProfileId!);
+        timeline = await PatientRepository.getVaccinationTimeline(
+          user.patientProfileId!,
+        );
       } catch (_) {}
     }
 
@@ -114,12 +120,32 @@ class _PatientDashboardScreenState extends State<PatientDashboardScreen> {
     );
   }
 
+  void _openCarePlanSheet(BuildContext context) {
+    final profileId = _user?.patientProfileId;
+    if (profileId == null || profileId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          backgroundColor: AppColors.error,
+          content: Text('Patient profile ID not found. Please log in again.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    CarePlanSheet.show(
+      context,
+      loader: () => AgentRepository.generatePatientCarePlan(profileId),
+    );
+  }
+
   void _openDigitalPassSheet(BuildContext context, {AppointmentModel? appt}) {
     final userName = _user?.name.toUpperCase() ?? 'VAXORA CITIZEN';
     final regNo = _user?.registrationNumber ?? 'VAX-P-PENDING';
     final nic = _user?.nicNumber ?? 'N/A';
 
-    final vaccineName = appt?.vaccineName ??
+    final vaccineName =
+        appt?.vaccineName ??
         (_timeline?.records.isNotEmpty == true
             ? _timeline!.records.first.vaccineName
             : 'Vaxora Certified Health Pass');
@@ -127,15 +153,17 @@ class _PatientDashboardScreenState extends State<PatientDashboardScreen> {
     final dose = appt != null
         ? (appt.doseNumber ?? 'Scheduled Dose')
         : (_timeline?.records.isNotEmpty == true
-            ? 'Dose ${_timeline!.records.first.doseNumber}'
-            : 'Pass Active');
+              ? 'Dose ${_timeline!.records.first.doseNumber}'
+              : 'Pass Active');
 
-    final date = appt?.appointmentDate ??
+    final date =
+        appt?.appointmentDate ??
         (_timeline?.lastVaccinatedAt != null
             ? '${_timeline!.lastVaccinatedAt!.year}-${_timeline!.lastVaccinatedAt!.month.toString().padLeft(2, '0')}-${_timeline!.lastVaccinatedAt!.day.toString().padLeft(2, '0')}'
             : 'Active 2026');
 
-    final center = appt?.hospitalName ??
+    final center =
+        appt?.hospitalName ??
         (_timeline?.records.isNotEmpty == true
             ? _timeline!.records.first.administeredByName
             : 'National Immunization Network');
@@ -202,34 +230,40 @@ class _PatientDashboardScreenState extends State<PatientDashboardScreen> {
   }
 
   ButtonStyle get _ctaStyle => FilledButton.styleFrom(
-        backgroundColor: StaffSurfaces.cta,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-      );
+    backgroundColor: StaffSurfaces.cta,
+    foregroundColor: Colors.white,
+    elevation: 0,
+    padding: const EdgeInsets.symmetric(vertical: 12),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+    textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+  );
 
   ButtonStyle get _outlineStyle => OutlinedButton.styleFrom(
-        foregroundColor: StaffSurfaces.textPrimary,
-        side: const BorderSide(color: StaffSurfaces.cardBorder),
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-      );
+    foregroundColor: StaffSurfaces.textPrimary,
+    side: const BorderSide(color: StaffSurfaces.cardBorder),
+    padding: const EdgeInsets.symmetric(vertical: 12),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+    textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+  );
 
   @override
   Widget build(BuildContext context) {
     final userName = _user?.name.isNotEmpty == true ? _user!.name : 'Citizen';
     final upcomingAppointments = _appointments
-        .where((a) =>
-            a.status.toLowerCase() != 'cancelled' &&
-            a.status.toLowerCase() != 'completed')
+        .where(
+          (a) =>
+              a.status.toLowerCase() != 'cancelled' &&
+              a.status.toLowerCase() != 'completed',
+        )
         .toList();
-    final nextAppointment =
-        upcomingAppointments.isNotEmpty ? upcomingAppointments.first : null;
-    final totalDoses = _timeline?.totalDoses ??
-        _appointments.where((a) => a.status.toLowerCase() == 'completed').length;
+    final nextAppointment = upcomingAppointments.isNotEmpty
+        ? upcomingAppointments.first
+        : null;
+    final totalDoses =
+        _timeline?.totalDoses ??
+        _appointments
+            .where((a) => a.status.toLowerCase() == 'completed')
+            .length;
     final scheduledCount = upcomingAppointments.length;
     final photoUrl = resolveMediaUrl(_user?.profilePhotoUrl);
 
@@ -290,6 +324,8 @@ class _PatientDashboardScreenState extends State<PatientDashboardScreen> {
               ],
             ),
             const SizedBox(height: 12),
+
+            // Row 1 — booking actions
             Row(
               children: [
                 Expanded(
@@ -311,10 +347,49 @@ class _PatientDashboardScreenState extends State<PatientDashboardScreen> {
                 ),
               ],
             ),
+
+            // Row 2 — AI care plan actions (was added on Patient-Management branch)
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: () => _openCarePlanSheet(context),
+                    icon: const Icon(Icons.auto_awesome, size: 18),
+                    label: const Text('AI care plan'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF0EA5E9),
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      textStyle: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => CarePlanHistorySheet.show(context),
+                    icon: const Icon(Icons.history, size: 18),
+                    label: const Text('Saved plans'),
+                    style: _outlineStyle,
+                  ),
+                ),
+              ],
+            ),
+
             if (_isLoading && _appointments.isEmpty && _timeline == null) ...[
               const SizedBox(height: 36),
               Center(
-                child: CircularProgressIndicator(color: StaffSurfaces.brandSoft),
+                child: CircularProgressIndicator(
+                  color: StaffSurfaces.brandSoft,
+                ),
               ),
             ],
             const SizedBox(height: 18),
@@ -336,7 +411,8 @@ class _PatientDashboardScreenState extends State<PatientDashboardScreen> {
             ),
             if (nextAppointment == null)
               const StaffEmptyCard(
-                message: 'No upcoming sessions. Book a dose with AI or the form.',
+                message:
+                    'No upcoming sessions. Book a dose with AI or the form.',
                 icon: Icons.event_available_outlined,
               )
             else
@@ -422,7 +498,8 @@ class _PatientDashboardScreenState extends State<PatientDashboardScreen> {
                             child: FilledButton.icon(
                               onPressed: () {
                                 final apt = PatientAppointment(
-                                  id: nextAppointment.referenceNumber ??
+                                  id:
+                                      nextAppointment.referenceNumber ??
                                       (nextAppointment.id.length > 8
                                           ? nextAppointment.id.substring(0, 8)
                                           : nextAppointment.id),
@@ -451,8 +528,9 @@ class _PatientDashboardScreenState extends State<PatientDashboardScreen> {
                                 backgroundColor: AppColors.success,
                                 foregroundColor: Colors.white,
                                 elevation: 0,
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 12),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(10),
                                 ),
@@ -572,14 +650,13 @@ class _PatientDashboardScreenState extends State<PatientDashboardScreen> {
                 decoration: StaffSurfaces.card(),
                 child: Column(
                   children: [
-                    for (int i = 0;
-                        i < _timeline!.records.length && i < 4;
-                        i++) ...[
+                    for (
+                      int i = 0;
+                      i < _timeline!.records.length && i < 4;
+                      i++
+                    ) ...[
                       if (i > 0)
-                        const Divider(
-                          color: StaffSurfaces.divider,
-                          height: 1,
-                        ),
+                        const Divider(color: StaffSurfaces.divider, height: 1),
                       ImmunizationTimelineItem(
                         icon: Icons.vaccines_outlined,
                         name: _timeline!.records[i].vaccineName,
@@ -599,14 +676,9 @@ class _PatientDashboardScreenState extends State<PatientDashboardScreen> {
                 decoration: StaffSurfaces.card(),
                 child: Column(
                   children: [
-                    for (int i = 0;
-                        i < _appointments.length && i < 3;
-                        i++) ...[
+                    for (int i = 0; i < _appointments.length && i < 3; i++) ...[
                       if (i > 0)
-                        const Divider(
-                          color: StaffSurfaces.divider,
-                          height: 1,
-                        ),
+                        const Divider(color: StaffSurfaces.divider, height: 1),
                       ImmunizationTimelineItem(
                         icon: Icons.event_outlined,
                         name: _appointments[i].vaccineName,

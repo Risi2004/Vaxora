@@ -80,10 +80,17 @@ class UserModel {
       status: _pick(json, ['status', 'Status']) ?? 'APPROVED',
       name: _pick(json, ['name', 'Name', 'fullName', 'FullName']) ?? 'User',
       phoneNumber: _pick(json, ['phoneNumber', 'PhoneNumber']),
-      registrationNumber:
-          _pick(json, ['registrationNumber', 'RegistrationNumber']),
+      registrationNumber: _pick(json, [
+        'registrationNumber',
+        'RegistrationNumber',
+      ]),
       nicNumber: extractedNic ?? _pick(json, ['nicNumber', 'NicNumber']),
-      patientProfileId: extractedProfileId,
+      // Fallback to top-level key for cache round-trips; without this,
+      // patientProfileId is null after any logout/login cycle through
+      // the local SharedPreferences cache.
+      patientProfileId:
+          extractedProfileId ??
+          _pick(json, ['patientProfileId', 'PatientProfileId']),
       dateOfBirth: extractedDob ?? _pick(json, ['dateOfBirth', 'DateOfBirth']),
       profilePhotoUrl: _photoFromJson(json),
     );

@@ -1,5 +1,7 @@
 import 'dart:convert';
+
 import 'package:http/http.dart' as http;
+
 import 'api_constants.dart';
 import '../services/storage_service.dart';
 
@@ -27,26 +29,35 @@ class ApiClient {
     return headers;
   }
 
-  static Future<dynamic> get(String endpoint, {Map<String, String>? queryParams}) async {
-    final uri = Uri.parse('${ApiConstants.baseUrl}$endpoint').replace(queryParameters: queryParams);
+  static Future<dynamic> get(
+    String endpoint, {
+    Map<String, String>? queryParams,
+  }) async {
+    final uri = Uri.parse('${ApiConstants.baseUrl}$endpoint')
+        .replace(queryParameters: queryParams);
     final headers = await _getHeaders();
 
     try {
-      final response = await http.get(uri, headers: headers).timeout(const Duration(seconds: 30));
+      final response = await http
+          .get(uri, headers: headers)
+          .timeout(const Duration(seconds: 30));
       return _processResponse(response);
     } catch (e) {
       if (e is ApiException) rethrow;
-      throw ApiException('Unable to connect to Vaxora server ($e). Please ensure backend is running at ${ApiConstants.baseUrl}');
+      throw ApiException(
+        'Unable to connect to Vaxora server ($e). Please ensure backend is running at ${ApiConstants.baseUrl}',
+      );
     }
   }
 
   static Future<dynamic> post(
     String endpoint, {
     dynamic body,
-    Duration timeout = const Duration(seconds: 120),
+    Duration? timeout,
   }) async {
     final uri = Uri.parse('${ApiConstants.baseUrl}$endpoint');
     final headers = await _getHeaders();
+    final effectiveTimeout = timeout ?? const Duration(seconds: 45);
 
     try {
       final response = await http
@@ -55,17 +66,24 @@ class ApiClient {
             headers: headers,
             body: body != null ? jsonEncode(body) : null,
           )
-          .timeout(timeout);
+          .timeout(effectiveTimeout);
       return _processResponse(response);
     } catch (e) {
       if (e is ApiException) rethrow;
-      throw ApiException('Unable to connect to Vaxora server ($e). Please ensure backend is running at ${ApiConstants.baseUrl}');
+      throw ApiException(
+        'Unable to connect to Vaxora server ($e). Please ensure backend is running at ${ApiConstants.baseUrl}',
+      );
     }
   }
 
-  static Future<dynamic> put(String endpoint, {dynamic body}) async {
+  static Future<dynamic> put(
+    String endpoint, {
+    dynamic body,
+    Duration? timeout,
+  }) async {
     final uri = Uri.parse('${ApiConstants.baseUrl}$endpoint');
     final headers = await _getHeaders();
+    final effectiveTimeout = timeout ?? const Duration(seconds: 45);
 
     try {
       final response = await http
@@ -74,11 +92,13 @@ class ApiClient {
             headers: headers,
             body: body != null ? jsonEncode(body) : null,
           )
-          .timeout(const Duration(seconds: 45));
+          .timeout(effectiveTimeout);
       return _processResponse(response);
     } catch (e) {
       if (e is ApiException) rethrow;
-      throw ApiException('Unable to connect to Vaxora server ($e). Please ensure backend is running at ${ApiConstants.baseUrl}');
+      throw ApiException(
+        'Unable to connect to Vaxora server ($e). Please ensure backend is running at ${ApiConstants.baseUrl}',
+      );
     }
   }
 
@@ -97,7 +117,9 @@ class ApiClient {
       return _processResponse(response);
     } catch (e) {
       if (e is ApiException) rethrow;
-      throw ApiException('Unable to connect to Vaxora server ($e). Please ensure backend is running at ${ApiConstants.baseUrl}');
+      throw ApiException(
+        'Unable to connect to Vaxora server ($e). Please ensure backend is running at ${ApiConstants.baseUrl}',
+      );
     }
   }
 
@@ -106,11 +128,15 @@ class ApiClient {
     final headers = await _getHeaders();
 
     try {
-      final response = await http.delete(uri, headers: headers).timeout(const Duration(seconds: 30));
+      final response = await http
+          .delete(uri, headers: headers)
+          .timeout(const Duration(seconds: 30));
       return _processResponse(response);
     } catch (e) {
       if (e is ApiException) rethrow;
-      throw ApiException('Unable to connect to Vaxora server ($e). Please ensure backend is running at ${ApiConstants.baseUrl}');
+      throw ApiException(
+        'Unable to connect to Vaxora server ($e). Please ensure backend is running at ${ApiConstants.baseUrl}',
+      );
     }
   }
 
@@ -128,12 +154,16 @@ class ApiClient {
       }
       request.fields.addAll(fields);
 
-      final streamedResponse = await request.send().timeout(const Duration(seconds: 45));
+      final streamedResponse = await request.send().timeout(
+        const Duration(seconds: 45),
+      );
       final response = await http.Response.fromStream(streamedResponse);
       return _processResponse(response);
     } catch (e) {
       if (e is ApiException) rethrow;
-      throw ApiException('Unable to connect to Vaxora server ($e). Please ensure backend is running at ${ApiConstants.baseUrl}');
+      throw ApiException(
+        'Unable to connect to Vaxora server ($e). Please ensure backend is running at ${ApiConstants.baseUrl}',
+      );
     }
   }
 

@@ -9,33 +9,33 @@ class AuthRepository {
     UserModel user, [
     Map<String, dynamic>? raw,
   ]) async {
-    final merged = <String, dynamic>{
-      if (raw != null) ...raw,
-      ...user.toJson(),
-    };
+    final merged = <String, dynamic>{if (raw != null) ...raw, ...user.toJson()};
 
     // Never let a null model field wipe a photo URL that came from the API payload.
     final fromModel = user.profilePhotoUrl?.trim();
-    final fromRawTop = raw?['profilePhotoUrl']?.toString().trim() ??
+    final fromRawTop =
+        raw?['profilePhotoUrl']?.toString().trim() ??
         raw?['ProfilePhotoUrl']?.toString().trim();
     String? fromDetails;
     final details = raw?['profileDetails'] ?? raw?['ProfileDetails'];
     if (details is Map) {
-      fromDetails = details['profilePhotoUrl']?.toString().trim() ??
+      fromDetails =
+          details['profilePhotoUrl']?.toString().trim() ??
           details['ProfilePhotoUrl']?.toString().trim() ??
           details['logoUrl']?.toString().trim() ??
           details['LogoUrl']?.toString().trim();
     }
 
-    final photo = [
-      fromModel,
-      fromRawTop,
-      fromDetails,
-      merged['profilePhotoUrl']?.toString().trim(),
-    ].firstWhere(
-      (v) => v != null && v.isNotEmpty && v.toLowerCase() != 'null',
-      orElse: () => null,
-    );
+    final photo =
+        [
+          fromModel,
+          fromRawTop,
+          fromDetails,
+          merged['profilePhotoUrl']?.toString().trim(),
+        ].firstWhere(
+          (v) => v != null && v.isNotEmpty && v.toLowerCase() != 'null',
+          orElse: () => null,
+        );
 
     if (photo != null) {
       merged['profilePhotoUrl'] = photo;
@@ -52,10 +52,7 @@ class AuthRepository {
   }) async {
     final response = await ApiClient.post(
       ApiConstants.login,
-      body: {
-        'email': email.trim(),
-        'password': password,
-      },
+      body: {'email': email.trim(), 'password': password},
     );
 
     if (response is Map<String, dynamic>) {
@@ -64,7 +61,8 @@ class AuthRepository {
         await StorageService.saveToken(token);
       }
 
-      if (response['user'] != null && response['user'] is Map<String, dynamic>) {
+      if (response['user'] != null &&
+          response['user'] is Map<String, dynamic>) {
         final userMap = Map<String, dynamic>.from(
           response['user'] as Map<String, dynamic>,
         );
@@ -74,7 +72,9 @@ class AuthRepository {
       }
     }
 
-    throw ApiException('Malformed response received from authentication server.');
+    throw ApiException(
+      'Malformed response received from authentication server.',
+    );
   }
 
   static Future<Map<String, dynamic>> registerPatient({
@@ -143,20 +143,52 @@ class AuthRepository {
     final body = <String, dynamic>{};
     if (fullName != null) body['fullName'] = fullName.trim();
     if (phoneNumber != null) body['phoneNumber'] = phoneNumber.trim();
-    if (dateOfBirth != null) body['dateOfBirth'] = dateOfBirth.toIso8601String();
+    if (dateOfBirth != null)
+      body['dateOfBirth'] = dateOfBirth.toIso8601String();
 
     final response = await ApiClient.put(
       ApiConstants.updateProfile,
       body: body,
     );
 
-    if (response is Map<String, dynamic>) {
+    // Preferred path: the PUT response carries the full user DTO (with
+    // profileDetails). Parse it directly and cache via the standard helper.
+    if (response is Map<String, dynamic> &&
+        response.containsKey('profileDetails')) {
       final raw = Map<String, dynamic>.from(response);
       final user = UserModel.fromJson(raw);
       await _persistUser(user, raw);
       return user;
     }
-    throw ApiException('Failed to update profile.');
+
+    // Fallback 1: re-fetch /auth/me. This guarantees we get the full user
+    // shape even if PUT returned a partial payload — without it, we can
+    // accidentally wipe patientProfileId / nicNumber / registrationNumber.
+    try {
+      final fresh = await ApiClient.get(ApiConstants.currentUser);
+      if (fresh is Map<String, dynamic>) {
+        final raw = Map<String, dynamic>.from(fresh);
+        final user = UserModel.fromJson(raw);
+        await _persistUser(user, raw);
+        return user;
+      }
+    } catch (_) {
+      // Fall through to cache merge
+    }
+
+    // Fallback 2: merge the new values into the cached user.
+    final cached = await StorageService.getUser();
+    if (cached != null) {
+      final merged = Map<String, dynamic>.from(cached);
+      if (fullName != null) merged['name'] = fullName.trim();
+      if (phoneNumber != null) merged['phoneNumber'] = phoneNumber.trim();
+      if (dateOfBirth != null)
+        merged['dateOfBirth'] = dateOfBirth.toIso8601String();
+      await StorageService.saveUser(merged);
+      return UserModel.fromJson(merged);
+    }
+
+    throw ApiException('Profile updated but could not refresh user data.');
   }
 
   static Future<void> logout() async {

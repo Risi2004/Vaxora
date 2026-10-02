@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../../core/services/storage_service.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../auth/data/models/user_model.dart';
@@ -9,6 +10,7 @@ import '../../data/models/vaccination_record_model.dart';
 import '../../data/repositories/patient_repository.dart';
 import '../widgets/agent_booking_sheet.dart';
 import '../widgets/digital_certificate_sheet.dart';
+import 'qr_verification_screen.dart';
 
 class PatientHistoryScreen extends StatefulWidget {
   const PatientHistoryScreen({super.key});
@@ -41,7 +43,9 @@ class _PatientHistoryScreenState extends State<PatientHistoryScreen> {
     PatientVaccinationTimelineModel? timeline;
     if (user?.patientProfileId != null && user!.patientProfileId!.isNotEmpty) {
       try {
-        timeline = await PatientRepository.getVaccinationTimeline(user.patientProfileId!);
+        timeline = await PatientRepository.getVaccinationTimeline(
+          user.patientProfileId!,
+        );
       } catch (_) {}
     }
 
@@ -54,7 +58,10 @@ class _PatientHistoryScreenState extends State<PatientHistoryScreen> {
     }
   }
 
-  void _openCertificate(BuildContext context, PatientVaccinationRecordModel rec) {
+  void _openCertificate(
+    BuildContext context,
+    PatientVaccinationRecordModel rec,
+  ) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -65,7 +72,9 @@ class _PatientHistoryScreenState extends State<PatientHistoryScreen> {
         administeredDate:
             '${rec.administeredAt.year}-${rec.administeredAt.month.toString().padLeft(2, '0')}-${rec.administeredAt.day.toString().padLeft(2, '0')}',
         administeredBy: rec.administeredByName,
-        centerName: rec.notes?.isNotEmpty == true ? rec.notes! : 'National Vaccination Center',
+        centerName: rec.notes?.isNotEmpty == true
+            ? rec.notes!
+            : 'National Vaccination Center',
         patientName: _user?.name.toUpperCase() ?? 'CITIZEN',
         vaxoraId: _user?.registrationNumber ?? 'VAX-P-RECORD',
         nic: _user?.nicNumber ?? 'N/A',
@@ -82,9 +91,16 @@ class _PatientHistoryScreenState extends State<PatientHistoryScreen> {
     );
   }
 
+  void _openQrVerification(BuildContext context) {
+    Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => const QrVerificationScreen()));
+  }
+
   @override
   Widget build(BuildContext context) {
-    final displayName = _user?.name.isNotEmpty == true ? _user!.name : 'Citizen';
+    final displayName = _user?.name.isNotEmpty == true
+        ? _user!.name
+        : 'Citizen';
     final totalDoses = _timeline?.totalDoses ?? 0;
     final distinctVaccines = _timeline?.distinctVaccines ?? 0;
     final lastVaccinated = _timeline?.lastVaccinatedAt != null
@@ -98,6 +114,11 @@ class _PatientHistoryScreenState extends State<PatientHistoryScreen> {
         subtitle: 'Patient · History',
         photoUrl: resolveMediaUrl(_user?.profilePhotoUrl),
         actions: [
+          StaffHeaderAction(
+            icon: Icons.qr_code_scanner,
+            tooltip: 'Verify certificate',
+            onPressed: () => _openQrVerification(context),
+          ),
           StaffHeaderAction(
             icon: Icons.auto_awesome,
             tooltip: 'Book with AI',
@@ -211,7 +232,9 @@ class _PatientHistoryScreenState extends State<PatientHistoryScreen> {
                         label: const Text('View certificate'),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: StaffSurfaces.textPrimary,
-                          side: const BorderSide(color: StaffSurfaces.cardBorder),
+                          side: const BorderSide(
+                            color: StaffSurfaces.cardBorder,
+                          ),
                           padding: const EdgeInsets.symmetric(vertical: 10),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),

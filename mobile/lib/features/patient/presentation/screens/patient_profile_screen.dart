@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../../core/theme/app_colors.dart';
 import '../../../auth/presentation/screens/login_screen.dart';
 import '../../../auth/data/repositories/auth_repository.dart';
@@ -77,7 +78,10 @@ class _PatientProfileScreenState extends State<PatientProfileScreen> {
         parsedDob = DateTime.tryParse(_dobController.text.trim());
       }
 
-      await AuthRepository.updateProfile(
+      // Use the returned UserModel so we can refresh the fields from the
+      // server-side state. This also ensures patientProfileId / nicNumber
+      // aren't lost after the PUT (the response may be partial).
+      final updated = await AuthRepository.updateProfile(
         fullName: _nameController.text.trim(),
         phoneNumber: _phoneController.text.trim(),
         dateOfBirth: parsedDob,
@@ -85,6 +89,18 @@ class _PatientProfileScreenState extends State<PatientProfileScreen> {
 
       if (mounted) {
         setState(() {
+          _nameController.text = updated.name;
+          _emailController.text = updated.email;
+          _phoneController.text = updated.phoneNumber ?? '';
+          if (updated.nicNumber != null) {
+            _nicController.text = updated.nicNumber!;
+          }
+          if (updated.dateOfBirth != null) {
+            _dobController.text = updated.dateOfBirth!.split('T').first;
+          }
+          _registrationNumber =
+              updated.registrationNumber ?? _registrationNumber;
+          _status = updated.status;
           _isEditing = false;
           _isSaving = false;
         });
@@ -200,169 +216,211 @@ class _PatientProfileScreenState extends State<PatientProfileScreen> {
           : ListView(
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 28),
               children: [
-                  // 1. Profile Avatar & Badges Header Card
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: StaffSurfaces.card(),
-                    child: Column(
-                      children: [
-                        Stack(
-                          children: [
-                            Container(
-                              width: 88,
-                              height: 88,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: StaffSurfaces.cardBorder,
-                                ),
+                // 1. Profile Avatar & Badges Header Card
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: StaffSurfaces.card(),
+                  child: Column(
+                    children: [
+                      Stack(
+                        children: [
+                          Container(
+                            width: 88,
+                            height: 88,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: StaffSurfaces.cardBorder,
                               ),
-                              clipBehavior: Clip.antiAlias,
-                              child: NetworkAvatar(
-                                url: _photoUrl,
-                                size: 88,
-                                fallback: Container(
-                                  color: StaffSurfaces.softPanelDeep,
-                                  alignment: Alignment.center,
-                                  child: Icon(
-                                    Icons.person,
-                                    size: 54,
-                                    color: StaffSurfaces.brandSoft,
-                                  ),
+                            ),
+                            clipBehavior: Clip.antiAlias,
+                            child: NetworkAvatar(
+                              url: _photoUrl,
+                              size: 88,
+                              fallback: Container(
+                                color: StaffSurfaces.softPanelDeep,
+                                alignment: Alignment.center,
+                                child: Icon(
+                                  Icons.person,
+                                  size: 54,
+                                  color: StaffSurfaces.brandSoft,
                                 ),
                               ),
                             ),
-                            if (_isEditing)
-                              Positioned(
-                                bottom: 0,
-                                right: 0,
-                                child: Container(
-                                  padding: const EdgeInsets.all(6),
-                                  decoration: const BoxDecoration(
-                                    color: StaffSurfaces.cta,
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: const Icon(Icons.camera_alt, color: Colors.white, size: 16),
+                          ),
+                          if (_isEditing)
+                            Positioned(
+                              bottom: 0,
+                              right: 0,
+                              child: Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: const BoxDecoration(
+                                  color: StaffSurfaces.cta,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.camera_alt,
+                                  color: Colors.white,
+                                  size: 16,
                                 ),
                               ),
-                          ],
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        _nameController.text.isNotEmpty
+                            ? _nameController.text
+                            : 'Patient Profile',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: StaffSurfaces.textPrimary,
                         ),
-                        const SizedBox(height: 12),
-                        Text(
-                          _nameController.text.isNotEmpty ? _nameController.text : 'Patient Profile',
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                            color: StaffSurfaces.textPrimary,
-                          ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'National Registration: $_registrationNumber',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: StaffSurfaces.brandSoft,
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'National Registration: $_registrationNumber',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: StaffSurfaces.brandSoft,
-                          ),
+                      ),
+                      const SizedBox(height: 8),
+                      StaffStatusChip(
+                        label: _status,
+                        tone: StaffChipTone.success,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // 2. Personal Information Fields
+                _buildSectionCard(
+                  title: 'Personal Information',
+                  icon: Icons.badge_outlined,
+                  children: [
+                    _buildField(
+                      label: 'Full Name',
+                      controller: _nameController,
+                      enabled: _isEditing,
+                    ),
+                    const SizedBox(height: 12),
+                    _buildField(
+                      label: 'NIC / Passport',
+                      controller: _nicController,
+                      enabled: false,
+                    ),
+                    const SizedBox(height: 12),
+                    _buildField(
+                      label: 'Date of Birth (YYYY-MM-DD)',
+                      controller: _dobController,
+                      enabled: _isEditing,
+                    ),
+                    const SizedBox(height: 12),
+                    _buildField(
+                      label: 'Email Address',
+                      controller: _emailController,
+                      enabled: false,
+                    ),
+                    const SizedBox(height: 12),
+                    _buildField(
+                      label: 'Contact Number',
+                      controller: _phoneController,
+                      enabled: _isEditing,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // 3. Clinical & Health Profile
+                _buildSectionCard(
+                  title: 'Medical & Clinical Registry',
+                  icon: Icons.medical_services_outlined,
+                  iconColor: AppColors.accentTeal,
+                  children: [
+                    _buildStaticRow('Registry ID', _registrationNumber),
+                    const Divider(color: StaffSurfaces.divider, height: 16),
+                    _buildStaticRow('Account Status', _status),
+                    const Divider(color: StaffSurfaces.divider, height: 16),
+                    _buildStaticRow(
+                      'Immunization Record',
+                      'National Health Database Verified',
+                    ),
+                    const Divider(color: StaffSurfaces.divider, height: 16),
+                    _buildStaticRow(
+                      'Clinical Notes',
+                      'Eligible for national immunization schedules',
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // 4. Emergency Contact
+                _buildSectionCard(
+                  title: 'Emergency Contact',
+                  icon: Icons.contact_phone_outlined,
+                  iconColor: const Color(0xFFB2660A),
+                  children: [
+                    _buildField(
+                      label: 'Contact Name & Relationship',
+                      controller: _emergencyNameController,
+                      enabled: _isEditing,
+                    ),
+                    const SizedBox(height: 12),
+                    _buildField(
+                      label: 'Emergency Phone',
+                      controller: _emergencyPhoneController,
+                      enabled: _isEditing,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+
+                // 5. Action Buttons (Export & Logout)
+                OutlinedButton.icon(
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Exporting official citizen health dossier (.PDF)',
                         ),
-                        const SizedBox(height: 8),
-                        StaffStatusChip(
-                          label: _status,
-                          tone: StaffChipTone.success,
-                        ),
-                      ],
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.file_download_outlined, size: 20),
+                  label: const Text('Export health pass (PDF)'),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: StaffSurfaces.cardBorder),
+                    foregroundColor: StaffSurfaces.textPrimary,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
                     ),
                   ),
-                  const SizedBox(height: 16),
-
-                  // 2. Personal Information Fields
-                  _buildSectionCard(
-                    title: 'Personal Information',
-                    icon: Icons.badge_outlined,
-                    children: [
-                      _buildField(label: 'Full Name', controller: _nameController, enabled: _isEditing),
-                      const SizedBox(height: 12),
-                      _buildField(label: 'NIC / Passport', controller: _nicController, enabled: false),
-                      const SizedBox(height: 12),
-                      _buildField(label: 'Date of Birth (YYYY-MM-DD)', controller: _dobController, enabled: _isEditing),
-                      const SizedBox(height: 12),
-                      _buildField(label: 'Email Address', controller: _emailController, enabled: false),
-                      const SizedBox(height: 12),
-                      _buildField(label: 'Contact Number', controller: _phoneController, enabled: _isEditing),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-
-                  // 3. Clinical & Health Profile
-                  _buildSectionCard(
-                    title: 'Medical & Clinical Registry',
-                    icon: Icons.medical_services_outlined,
-                    iconColor: AppColors.accentTeal,
-                    children: [
-                      _buildStaticRow('Registry ID', _registrationNumber),
-                      const Divider(color: StaffSurfaces.divider, height: 16),
-                      _buildStaticRow('Account Status', _status),
-                      const Divider(color: StaffSurfaces.divider, height: 16),
-                      _buildStaticRow('Immunization Record', 'National Health Database Verified'),
-                      const Divider(color: StaffSurfaces.divider, height: 16),
-                      _buildStaticRow('Clinical Notes', 'Eligible for national immunization schedules'),
-                    ],
-                  ),
-            const SizedBox(height: 16),
-
-            // 4. Emergency Contact
-            _buildSectionCard(
-              title: 'Emergency Contact',
-              icon: Icons.contact_phone_outlined,
-              iconColor: const Color(0xFFB2660A),
-              children: [
-                _buildField(label: 'Contact Name & Relationship', controller: _emergencyNameController, enabled: _isEditing),
+                ),
                 const SizedBox(height: 12),
-                _buildField(label: 'Emergency Phone', controller: _emergencyPhoneController, enabled: _isEditing),
+                FilledButton.icon(
+                  onPressed: _handleLogout,
+                  icon: const Icon(Icons.logout, size: 18),
+                  label: const Text('Log out'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.errorBg,
+                    foregroundColor: AppColors.error,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      side: const BorderSide(color: StaffSurfaces.dangerBorder),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
               ],
             ),
-            const SizedBox(height: 20),
-
-            // 5. Action Buttons (Export & Logout)
-            OutlinedButton.icon(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Exporting official citizen health dossier (.PDF)'),
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-              },
-              icon: const Icon(Icons.file_download_outlined, size: 20),
-              label: const Text('Export health pass (PDF)'),
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: StaffSurfaces.cardBorder),
-                foregroundColor: StaffSurfaces.textPrimary,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            FilledButton.icon(
-              onPressed: _handleLogout,
-              icon: const Icon(Icons.logout, size: 18),
-              label: const Text('Log out'),
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.errorBg,
-                foregroundColor: AppColors.error,
-                elevation: 0,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  side: const BorderSide(color: StaffSurfaces.dangerBorder),
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-          ],
-        ),
     );
   }
 
@@ -427,12 +485,13 @@ class _PatientProfileScreenState extends State<PatientProfileScreen> {
           ),
           decoration: InputDecoration(
             isDense: true,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 11,
+            ),
             fillColor: enabled ? StaffSurfaces.cardBg : StaffSurfaces.softPanel,
             filled: true,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: StaffSurfaces.cardBorder),
