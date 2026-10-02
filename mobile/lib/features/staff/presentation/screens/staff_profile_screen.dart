@@ -365,11 +365,15 @@ class _StaffProfileScreenState extends State<StaffProfileScreen> {
                     icon: Icons.medical_services_outlined,
                     label: 'Role',
                     value: _roleLabel,
+                    accent: AppColors.accentTeal,
                   ),
                   _InfoTile(
                     icon: Icons.verified_user_outlined,
                     label: 'Account status',
                     value: _user?.status ?? 'Active',
+                    accent: (_user?.status ?? '').toLowerCase() == 'active'
+                        ? AppColors.success
+                        : null,
                   ),
                   const SizedBox(height: 18),
                   StaffSectionHeader(title: 'Session'),
@@ -503,15 +507,18 @@ class _InfoTile extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
+  final Color? accent;
 
   const _InfoTile({
     required this.icon,
     required this.label,
     required this.value,
+    this.accent,
   });
 
   @override
   Widget build(BuildContext context) {
+    final color = accent ?? StaffSurfaces.brandSoft;
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -522,10 +529,12 @@ class _InfoTile extends StatelessWidget {
             width: 36,
             height: 36,
             decoration: BoxDecoration(
-              color: StaffSurfaces.softPanelDeep,
+              color: accent != null
+                  ? color.withValues(alpha: 0.12)
+                  : StaffSurfaces.softPanelDeep,
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(icon, size: 18, color: StaffSurfaces.brandSoft),
+            child: Icon(icon, size: 18, color: color),
           ),
           const SizedBox(width: 12),
           Expanded(

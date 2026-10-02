@@ -364,6 +364,73 @@
   padding: 28px 24px 60px;
 }
 
+.patient-subpage-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 0 40px;
+  box-sizing: border-box;
+  font-family: var(--font-body, 'Plus Jakarta Sans', sans-serif);
+}
+
+.patient-subpage-page > .staff-subpage-hero {
+  width: 100%;
+  max-width: 100%;
+  min-height: 0;
+  margin: 0;
+  box-sizing: border-box;
+}
+
+.patient-subpage-page .manage-appointments-wrapper {
+  justify-content: flex-start;
+  align-items: stretch;
+  padding: 0;
+  margin: 0;
+}
+
+.patient-subpage-page .manage-appointments-card,
+.patient-subpage-page .feedback-split-card {
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
+  border-color: #dce6f2;
+  border-radius: 16px;
+  box-shadow: 0 8px 24px -16px rgba(15, 23, 42, 0.2);
+}
+
+.patient-subpage-page .doctor-patient-history-page {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.patient-subpage-page h1,
+.patient-subpage-page h2,
+.patient-subpage-page h3 {
+  font-family: var(--font-heading, 'Outfit', sans-serif);
+  letter-spacing: 0;
+}
+
+@media (max-width: 700px) {
+  .patient-subpage-page {
+    gap: 16px;
+    padding-bottom: 28px;
+  }
+
+  .patient-subpage-page > .staff-subpage-hero .hospital-hero-content {
+    padding: 22px 20px 24px;
+  }
+
+  .patient-subpage-page .manage-appointments-card {
+    padding: 20px 16px;
+  }
+}
+
 /* ==========================================================================
    3. Welcome Banner — care / healing hero
    ========================================================================== */
@@ -2993,6 +3060,3 @@
     transform: rotate(360deg);
   }
 }
-
-
-

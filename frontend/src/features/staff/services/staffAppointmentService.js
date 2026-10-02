@@ -70,12 +70,43 @@ export const staffAppointmentService = {
     );
   },
 
-  updateAppointmentStatus(id, status, remarks) {
+  updateAppointmentStatus(id, status, remarks, administration) {
     return apiRequest(`/appointments/${id}/status`, {
       method: 'PATCH',
       body: JSON.stringify({
         status,
         ...(remarks ? { remarks } : {}),
+        ...(administration?.batchId ? { batchId: administration.batchId } : {}),
+        ...(administration?.lotNumber ? { lotNumber: administration.lotNumber } : {}),
+        ...(administration?.injectionSite ? { injectionSite: administration.injectionSite } : {}),
+        ...(administration?.route ? { route: administration.route } : {}),
+        ...(administration?.administrationNotes
+          ? { administrationNotes: administration.administrationNotes }
+          : {}),
+        ...(administration?.consentConfirmed != null
+          ? { consentConfirmed: administration.consentConfirmed }
+          : {}),
+        ...(administration?.vitalsConfirmed != null
+          ? { vitalsConfirmed: administration.vitalsConfirmed }
+          : {}),
+      }),
+    });
+  },
+
+  reportAefi(appointmentId, payload) {
+    const followUpDate = payload.followUpAt
+      ? new Date(`${payload.followUpAt}T09:00:00.000Z`).toISOString()
+      : undefined;
+    return apiRequest(`/appointments/${appointmentId}/aefi`, {
+      method: 'POST',
+      body: JSON.stringify({
+        severity: payload.severity || 'Mild',
+        description: payload.reactionType || payload.description || '',
+        treatmentGiven: payload.treatmentGiven || '',
+        followUpAt: followUpDate,
+        followUpPlan: payload.followUpPlan || '',
+        notifyDoctor: payload.notifyDoctor !== false,
+        notifyMOH: false,
       }),
     });
   },

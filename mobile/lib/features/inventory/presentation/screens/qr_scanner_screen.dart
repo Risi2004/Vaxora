@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_text_styles.dart';
+import '../../../staff/presentation/widgets/staff_common_widgets.dart';
 import '../../data/models/batch_model.dart';
 import '../../data/repositories/inventory_repository.dart';
 import 'batch_detail_screen.dart';
@@ -82,11 +82,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      appBar: AppBar(
-        title: const Text('Scan Batch QR', style: AppTextStyles.h3),
-        backgroundColor: Colors.white,
-        elevation: 0,
-      ),
+      appBar: StaffSurfaces.appBar(title: 'Scan batch QR'),
       body: Stack(
         children: [
           MobileScanner(

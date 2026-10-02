@@ -33,6 +33,7 @@ public class ClinicalPendingVaccineDto
     public string? Dosage { get; set; }
     public string? PrescribedBy { get; set; }
     public string Status { get; set; } = string.Empty;
+    public bool IsOverdue { get; set; }
 }
 
 public class ClinicalPatientDetailDto

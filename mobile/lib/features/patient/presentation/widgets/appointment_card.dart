@@ -50,23 +50,61 @@ class AppointmentCard extends StatelessWidget {
       case 'completed':
         return StaffChipTone.success;
       case 'cancelled':
+      case 'rejected':
         return StaffChipTone.danger;
+      case 'pendingpayment':
+      case 'pending':
+        return StaffChipTone.warning;
+      case 'administering':
+      case 'observation':
+        return StaffChipTone.brand;
       default:
         return StaffChipTone.warning;
     }
   }
 
+  String get _statusLabel {
+    switch (appointment.status.toLowerCase()) {
+      case 'pendingpayment':
+        return 'Awaiting payment';
+      case 'administering':
+        return 'In session';
+      case 'observation':
+        return 'Observation';
+      case 'completed':
+        return 'Completed';
+      case 'cancelled':
+        return 'Cancelled';
+      case 'rejected':
+        return 'Rejected';
+      case 'confirmed':
+        return 'Confirmed';
+      default:
+        return appointment.status;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final isCancelled = appointment.status.toLowerCase() == 'cancelled';
+    final isCancelled = appointment.status.toLowerCase() == 'cancelled' ||
+        appointment.status.toLowerCase() == 'rejected';
     final isPaymentComplete = appointment.isPaid ||
         appointment.status.toLowerCase() == 'confirmed' ||
-        appointment.status.toLowerCase() == 'completed';
+        appointment.status.toLowerCase() == 'completed' ||
+        appointment.status.toLowerCase() == 'administering' ||
+        appointment.status.toLowerCase() == 'observation';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
-      decoration: StaffSurfaces.card(),
+      decoration: StaffSurfaces.card(
+        borderColor: switch (_tone) {
+          StaffChipTone.success => AppColors.success.withValues(alpha: 0.28),
+          StaffChipTone.danger => AppColors.error.withValues(alpha: 0.28),
+          StaffChipTone.warning => const Color(0xFFF5B168),
+          _ => StaffSurfaces.cardBorder,
+        },
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -82,7 +120,7 @@ class AppointmentCard extends StatelessWidget {
                   ),
                 ),
               ),
-              StaffStatusChip(label: appointment.status, tone: _tone),
+              StaffStatusChip(label: _statusLabel, tone: _tone),
             ],
           ),
           const SizedBox(height: 4),
@@ -214,6 +252,10 @@ class AppointmentCard extends StatelessWidget {
                   ),
                 ],
                 if (appointment.status.toLowerCase() != 'completed' &&
+                    appointment.status.toLowerCase() != 'administering' &&
+                    appointment.status.toLowerCase() != 'observation' &&
+                    appointment.status.toLowerCase() != 'cancelled' &&
+                    appointment.status.toLowerCase() != 'rejected' &&
                     onCancel != null) ...[
                   const SizedBox(width: 8),
                   IconButton(

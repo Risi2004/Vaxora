@@ -23,6 +23,7 @@ public interface IAppointmentService
     Task<bool> CancelAppointmentAsync(Guid userId, string idOrRef, bool isHospital = false);
     Task<bool> CancelAppointmentAsync(Guid userId, Guid appointmentId, bool isHospital = false);
     Task<AppointmentResponseDto> ConfirmPayHerePaymentAsync(Guid appointmentId, string transactionId, string? orderId = null);
+    Task<AefiReportResponseDto> ReportAefiAsync(Guid actorUserId, Guid appointmentId, ReportAefiDto dto);
 }
 
 public class AppointmentService : IAppointmentService
@@ -43,14 +44,35 @@ public class AppointmentService : IAppointmentService
             ["Rejected"] = "Rejected",
         };
 
+    /// <summary>
+    /// Clinical transitions that require the doctor/nurse to be on an active shift.
+    /// Hospital owners are exempt (they update without a staff shift).
+    /// </summary>
+    private static readonly HashSet<string> OnDutyRequiredStatuses =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            "Administering",
+            "Observation",
+            "Completed",
+        };
+
     private readonly ApplicationDbContext _context;
     private readonly IEmailService _emailService;
+    private readonly IPasswordHasher _passwordHasher;
+    private readonly IRegistrationNumberService _registrationNumberService;
     private readonly ILogger<AppointmentService> _logger;
 
-    public AppointmentService(ApplicationDbContext context, IEmailService emailService, ILogger<AppointmentService> logger)
+    public AppointmentService(
+        ApplicationDbContext context,
+        IEmailService emailService,
+        IPasswordHasher passwordHasher,
+        IRegistrationNumberService registrationNumberService,
+        ILogger<AppointmentService> logger)
     {
         _context = context;
         _emailService = emailService;
+        _passwordHasher = passwordHasher;
+        _registrationNumberService = registrationNumberService;
         _logger = logger;
     }
 
@@ -239,7 +261,8 @@ public class AppointmentService : IAppointmentService
             .AsNoTracking()
             .Where(a => (a.HospitalUserId == resolvedHospitalUserId || (resolvedProfileId.HasValue && a.HospitalProfileId == resolvedProfileId.Value)) &&
                         a.AppointmentDate == date &&
-                        a.Status != "Cancelled")
+                        a.Status != "Cancelled" &&
+                        a.Status != "Rejected")
             .ToListAsync();
 
         var bookedSlots = bookedAppointments
@@ -294,7 +317,8 @@ public class AppointmentService : IAppointmentService
             .FirstOrDefaultAsync(a => a.HospitalUserId == resolvedHospitalUserId &&
                                       a.AppointmentDate == dto.AppointmentDate &&
                                       a.TimeSlot == dto.TimeSlot &&
-                                      a.Status != "Cancelled");
+                                      a.Status != "Cancelled" &&
+                                      a.Status != "Rejected");
 
         if (existingAppointment != null)
         {
@@ -447,6 +471,9 @@ public class AppointmentService : IAppointmentService
         if (string.IsNullOrWhiteSpace(vaccineName))
             throw new InvalidOperationException("Vaccine name is required.");
 
+        var presentedName = (dto.PatientName ?? string.Empty).Trim();
+
+        // Link existing patient by NIC, or auto-provision a patient account for history/records.
         var patient = await _context.Users
             .Include(u => u.PatientProfile)
             .FirstOrDefaultAsync(u =>
@@ -454,8 +481,44 @@ public class AppointmentService : IAppointmentService
                 u.PatientProfile != null &&
                 u.PatientProfile.NicNumber == nic);
 
+        var createdAccount = false;
         if (patient?.PatientProfile == null)
-            throw new KeyNotFoundException($"No registered patient found with NIC '{nic}'. Ask the patient to create a Vaxora account first.");
+        {
+            if (string.IsNullOrWhiteSpace(presentedName))
+                throw new InvalidOperationException("Patient full name is required to create a walk-in account.");
+
+            var email = (dto.PatientEmail ?? string.Empty).Trim().ToLowerInvariant();
+            var phone = (dto.PatientPhone ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(email))
+                throw new InvalidOperationException("Patient email is required to create a walk-in account.");
+            if (string.IsNullOrWhiteSpace(phone))
+                throw new InvalidOperationException("Patient phone is required to create a walk-in account.");
+
+            (patient, _) = await CreateWalkInPatientAccountAsync(nic, presentedName, dto.Age, email, phone);
+            createdAccount = true;
+        }
+        else
+        {
+            // Refresh contact details on the linked profile when the desk captures newer data.
+            var phone = (dto.PatientPhone ?? string.Empty).Trim();
+            if (!string.IsNullOrWhiteSpace(phone))
+            {
+                patient.PhoneNumber = phone;
+                patient.PatientProfile!.PhoneNumber = phone;
+            }
+
+            var email = (dto.PatientEmail ?? string.Empty).Trim().ToLowerInvariant();
+            if (!string.IsNullOrWhiteSpace(email) &&
+                !string.Equals(patient.Email, email, StringComparison.OrdinalIgnoreCase) &&
+                !await _context.Users.AnyAsync(u => u.Email == email && u.Id != patient.Id))
+            {
+                patient.Email = email;
+            }
+        }
+
+        var resolvedName = string.IsNullOrWhiteSpace(presentedName)
+            ? patient.PatientProfile!.FullName
+            : presentedName;
 
         var hospitalNow = DateTime.UtcNow.AddHours(5.5);
         var today = DateOnly.FromDateTime(hospitalNow);
@@ -468,7 +531,8 @@ public class AppointmentService : IAppointmentService
                    a.HospitalUserId == hospital.Id &&
                    a.AppointmentDate == today &&
                    a.TimeSlot == timeSlot &&
-                   a.Status != "Cancelled"))
+                   a.Status != "Cancelled" &&
+                   a.Status != "Rejected"))
         {
             start = start.AddMinutes(1);
             end = start.AddMinutes(20);
@@ -483,25 +547,31 @@ public class AppointmentService : IAppointmentService
                  (hospital.HospitalProfile != null && s.HospitalProfileId == hospital.HospitalProfile.Id)) &&
                 (s.VaccineName.ToLower() == vName || s.VaccineName.ToLower().Contains(vName)));
 
-        var noteParts = new List<string> { "Walk-in registration" };
+        var noteParts = new List<string>
+        {
+            createdAccount
+                ? "Walk-in registration (patient account auto-created)"
+                : "Walk-in registration"
+        };
         if (!string.IsNullOrWhiteSpace(dto.Dose)) noteParts.Add($"Dose: {dto.Dose.Trim()}");
         if (!string.IsNullOrWhiteSpace(dto.BoothLabel)) noteParts.Add($"Booth: {dto.BoothLabel.Trim()}");
         if (dto.Age.HasValue) noteParts.Add($"Age: {dto.Age.Value}");
         if (!string.IsNullOrWhiteSpace(dto.Gender)) noteParts.Add($"Gender: {dto.Gender.Trim()}");
-        if (!string.IsNullOrWhiteSpace(dto.PatientName) &&
-            !string.Equals(dto.PatientName.Trim(), patient.PatientProfile.FullName, StringComparison.OrdinalIgnoreCase))
+        if (!createdAccount &&
+            !string.IsNullOrWhiteSpace(presentedName) &&
+            !string.Equals(presentedName, patient.PatientProfile!.FullName, StringComparison.OrdinalIgnoreCase))
         {
-            noteParts.Add($"Presented as: {dto.PatientName.Trim()}");
+            noteParts.Add($"Presented as: {presentedName}");
         }
 
         var appointment = new Appointment
         {
             Id = Guid.NewGuid(),
             PatientUserId = patient.Id,
-            PatientProfileId = patient.PatientProfile.Id,
-            PatientName = patient.PatientProfile.FullName,
+            PatientProfileId = patient.PatientProfile!.Id,
+            PatientName = resolvedName,
             PatientNic = patient.PatientProfile.NicNumber,
-            PatientPhone = patient.PatientProfile.PhoneNumber ?? patient.PhoneNumber,
+            PatientPhone = patient.PatientProfile.PhoneNumber ?? patient.PhoneNumber ?? (dto.PatientPhone ?? string.Empty).Trim(),
             PatientEmail = patient.Email,
             HospitalUserId = hospital.Id,
             HospitalProfileId = hospital.HospitalProfile?.Id,
@@ -530,10 +600,85 @@ public class AppointmentService : IAppointmentService
         await _context.SaveChangesAsync();
 
         _logger.LogInformation(
-            "Walk-in appointment {AppId} created for Patient {Patient} (NIC {Nic}) at hospital {Hospital}",
-            appointment.Id, appointment.PatientName, nic, appointment.HospitalName);
+            "Walk-in appointment {AppId} created for {Patient} (NIC {Nic}, newAccount={Created}) at hospital {Hospital}",
+            appointment.Id, appointment.PatientName, nic, createdAccount, appointment.HospitalName);
 
         return MapToDto(appointment);
+    }
+
+    /// <summary>
+    /// Provisions a PATIENT user + profile for desk walk-ins using the real email/phone
+    /// collected at the counter so vaccination history and contact data stay accurate.
+    /// </summary>
+    private async Task<(User user, PatientProfile profile)> CreateWalkInPatientAccountAsync(
+        string nic,
+        string fullName,
+        int? age,
+        string email,
+        string phone)
+    {
+        if (await _context.Users.AnyAsync(u => u.Email == email))
+        {
+            throw new InvalidOperationException(
+                $"An account with email '{email}' already exists. Use that patient's NIC, or a different email.");
+        }
+
+        if (await _context.PatientProfiles.AnyAsync(p => p.NicNumber == nic.Trim()))
+        {
+            throw new InvalidOperationException(
+                "A patient profile with this NIC already exists but could not be linked. Check the NIC and try again.");
+        }
+
+        var regNumber = await _registrationNumberService.GenerateRegistrationNumberAsync(UserRole.PATIENT);
+        // Desk walk-in default password = NIC / national ID (patient is reminded on login).
+        var defaultPassword = nic.Trim();
+
+        DateTime? dateOfBirth = null;
+        if (age is >= 0 and <= 120)
+        {
+            dateOfBirth = DateTime.SpecifyKind(
+                DateTime.UtcNow.Date.AddYears(-age.Value),
+                DateTimeKind.Utc);
+        }
+
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Email = email,
+            PasswordHash = _passwordHasher.HashPassword(defaultPassword),
+            Role = UserRole.PATIENT,
+            Status = UserStatus.Active,
+            PhoneNumber = phone,
+            RegistrationNumber = regNumber,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        var profile = new PatientProfile
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            FullName = fullName.Trim(),
+            NicNumber = nic.Trim(),
+            DateOfBirth = dateOfBirth,
+            PhoneNumber = phone,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _context.Users.Add(user);
+        _context.PatientProfiles.Add(profile);
+        _context.AuditLogs.Add(new AuditLog
+        {
+            UserId = user.Id,
+            UserEmail = user.Email,
+            Role = "PATIENT",
+            Action = "PATIENT_WALKIN_PROVISION",
+            Details =
+                $"Auto-created patient account from hospital walk-in (NIC {profile.NicNumber}, email {email}, Reg #{regNumber}). Default password set to NIC.",
+            Timestamp = DateTime.UtcNow
+        });
+
+        user.PatientProfile = profile;
+        return (user, profile);
     }
 
     public async Task<List<AppointmentResponseDto>> GetPatientAppointmentsAsync(Guid patientUserId)
@@ -654,8 +799,125 @@ public class AppointmentService : IAppointmentService
             throw new InvalidOperationException("Cannot update status for cancelled or rejected appointments.");
         }
 
+        // Clinical session transitions are doctor/nurse only — hospital can monitor, not administer.
+        if (OnDutyRequiredStatuses.Contains(nextStatus))
+        {
+            if (isHospitalOwner)
+            {
+                throw new UnauthorizedAccessException(
+                    "Clinical status changes (Administering, Observation, Completed) must be performed by on-duty clinical staff.");
+            }
+
+            await StaffDutyHelper.EnsureStaffOnDutyAsync(
+                _context,
+                actorUserId,
+                appointment.HospitalUserId);
+        }
+
+        // Returning a patient from an active clinical session to the waiting queue is also a clinical action.
+        var returningToQueue =
+            string.Equals(nextStatus, "Confirmed", StringComparison.OrdinalIgnoreCase) &&
+            (string.Equals(appointment.Status, "Administering", StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(appointment.Status, "Observation", StringComparison.OrdinalIgnoreCase));
+
+        if (returningToQueue)
+        {
+            if (isHospitalOwner)
+            {
+                throw new UnauthorizedAccessException(
+                    "Returning a patient to the waiting queue must be performed by on-duty clinical staff.");
+            }
+
+            await StaffDutyHelper.EnsureStaffOnDutyAsync(
+                _context,
+                actorUserId,
+                appointment.HospitalUserId);
+        }
+
+        // Dose/session transitions require settled payment (free bookings are Paid at create).
+        if (OnDutyRequiredStatuses.Contains(nextStatus) &&
+            !string.Equals(appointment.PaymentStatus, "Paid", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                "Payment must be settled before clinical administration.");
+        }
+
+        var previousStatus = appointment.Status;
+
+        // Enforce clinical transition graph for non-hospital actors.
+        // Hospital desk may still Confirm/Cancel/Reject bookings; clinical staff
+        // may only move within the live session path (plus closing missed visits).
+        if (!isHospitalOwner)
+        {
+            var from = previousStatus ?? string.Empty;
+            var to = nextStatus;
+            var allowedClinical =
+                (string.Equals(from, "Confirmed", StringComparison.OrdinalIgnoreCase) &&
+                 (string.Equals(to, "Administering", StringComparison.OrdinalIgnoreCase) ||
+                  string.Equals(to, "Cancelled", StringComparison.OrdinalIgnoreCase))) ||
+                (string.Equals(from, "PendingPayment", StringComparison.OrdinalIgnoreCase) &&
+                 string.Equals(to, "Cancelled", StringComparison.OrdinalIgnoreCase)) ||
+                (string.Equals(from, "Administering", StringComparison.OrdinalIgnoreCase) &&
+                 (string.Equals(to, "Observation", StringComparison.OrdinalIgnoreCase) ||
+                  string.Equals(to, "Confirmed", StringComparison.OrdinalIgnoreCase) ||
+                  string.Equals(to, "Cancelled", StringComparison.OrdinalIgnoreCase))) ||
+                (string.Equals(from, "Observation", StringComparison.OrdinalIgnoreCase) &&
+                 (string.Equals(to, "Completed", StringComparison.OrdinalIgnoreCase) ||
+                  string.Equals(to, "Confirmed", StringComparison.OrdinalIgnoreCase))) ||
+                (string.Equals(from, to, StringComparison.OrdinalIgnoreCase));
+
+            if (!allowedClinical)
+            {
+                throw new InvalidOperationException(
+                    $"Cannot change appointment status from '{from}' to '{to}'.");
+            }
+
+            // Staff must never "Confirm" an unpaid PendingPayment booking (that would skip desk settlement).
+            if (string.Equals(to, "Confirmed", StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(from, "PendingPayment", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    "Unpaid bookings must be marked paid by the hospital desk before clinical confirmation.");
+            }
+        }
+
         appointment.Status = nextStatus;
         appointment.UpdatedAt = DateTime.UtcNow;
+
+        if (string.Equals(nextStatus, "Cancelled", StringComparison.OrdinalIgnoreCase) &&
+            !string.IsNullOrWhiteSpace(dto.Remarks))
+        {
+            var cancelNote = dto.Remarks.Trim();
+            appointment.Notes = string.IsNullOrWhiteSpace(appointment.Notes)
+                ? cancelNote
+                : $"{appointment.Notes.Trim()}\n{cancelNote}";
+            if (appointment.Notes.Length > 1000)
+                appointment.Notes = appointment.Notes[^1000..];
+        }
+
+        // Hospital desk: confirming a PendingPayment booking records payment as settled.
+        if (isHospitalOwner &&
+            string.Equals(nextStatus, "Confirmed", StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(previousStatus, "PendingPayment", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(appointment.PaymentStatus, "Paid", StringComparison.OrdinalIgnoreCase))
+        {
+            appointment.PaymentStatus = "Paid";
+            if (string.IsNullOrWhiteSpace(appointment.PaymentMethod) ||
+                string.Equals(appointment.PaymentMethod, "PayHere", StringComparison.OrdinalIgnoreCase))
+            {
+                appointment.PaymentMethod = "Hospital";
+            }
+        }
+
+        var doseIsBeingGiven =
+            (nextStatus is "Observation" or "Completed") &&
+            !string.Equals(previousStatus, "Observation", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(previousStatus, "Completed", StringComparison.OrdinalIgnoreCase);
+
+        if (doseIsBeingGiven)
+        {
+            await ConsumeVialForAppointmentAsync(actorUserId, appointment, dto);
+        }
 
         await _context.SaveChangesAsync();
 
@@ -664,6 +926,281 @@ public class AppointmentService : IAppointmentService
             actorUserId, appointmentId, appointment.Status);
 
         return MapToDto(appointment);
+    }
+
+    public async Task<AefiReportResponseDto> ReportAefiAsync(Guid actorUserId, Guid appointmentId, ReportAefiDto dto)
+    {
+        var appointment = await _context.Appointments
+            .FirstOrDefaultAsync(a => a.Id == appointmentId)
+            ?? throw new KeyNotFoundException("Appointment record not found.");
+
+        var actor = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == actorUserId)
+            ?? throw new UnauthorizedAccessException("Invalid user.");
+
+        if (actor.Role is not (UserRole.DOCTOR or UserRole.NURSE))
+            throw new UnauthorizedAccessException("Only on-duty clinical staff can report AEFI.");
+
+        if (actor.Status != UserStatus.Active)
+            throw new InvalidOperationException("Staff account must be Active.");
+
+        var isAffiliated = await _context.StaffAffiliations.AsNoTracking().AnyAsync(a =>
+            a.StaffUserId == actorUserId &&
+            a.HospitalUserId == appointment.HospitalUserId &&
+            a.Status == AffiliationStatus.Active);
+
+        if (!isAffiliated)
+            throw new UnauthorizedAccessException("You are not affiliated with this hospital.");
+
+        await StaffDutyHelper.EnsureStaffOnDutyAsync(_context, actorUserId, appointment.HospitalUserId);
+
+        if (string.Equals(appointment.Status, "Cancelled", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(appointment.Status, "Rejected", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Cannot report AEFI for cancelled or rejected appointments.");
+        }
+
+        var severityRaw = (dto.Severity ?? string.Empty).Trim();
+        var severity = severityRaw.Equals("Severe", StringComparison.OrdinalIgnoreCase) ? "Severe"
+            : severityRaw.Equals("Moderate", StringComparison.OrdinalIgnoreCase) ? "Moderate"
+            : "Mild";
+
+        var description = (dto.Description ?? string.Empty).Trim();
+        var treatment = (dto.TreatmentGiven ?? string.Empty).Trim();
+        var followUpPlan = (dto.FollowUpPlan ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(description))
+            throw new InvalidOperationException("Symptoms / clinical signs are required.");
+        if (string.IsNullOrWhiteSpace(treatment))
+            throw new InvalidOperationException("Immediate care / treatment given is required.");
+        if (string.IsNullOrWhiteSpace(followUpPlan))
+            throw new InvalidOperationException("Follow-up plan is required.");
+
+        var actorName = await ResolveActorDisplayNameAsync(actorUserId, actor);
+        var reportedAt = DateTime.UtcNow;
+
+        var followUpAt = dto.FollowUpAt;
+        if (followUpAt == default)
+            throw new InvalidOperationException("Follow-up date is required.");
+        if (followUpAt.Kind == DateTimeKind.Unspecified)
+            followUpAt = DateTime.SpecifyKind(followUpAt, DateTimeKind.Utc);
+        else
+            followUpAt = followUpAt.ToUniversalTime();
+        if (followUpAt.Date < reportedAt.Date)
+            throw new InvalidOperationException("Follow-up date must be today or in the future.");
+
+        var notifyDoctor = dto.NotifyDoctor;
+
+        var aefiSummary =
+            $"AEFI {severity}: {description}. Treatment: {treatment}. " +
+            $"Follow-up {followUpAt:yyyy-MM-dd}: {followUpPlan}. " +
+            $"Reported by {actorName} at {reportedAt:yyyy-MM-dd HH:mm} UTC" +
+            (notifyDoctor ? ". Attending physician alerted." : ".");
+
+        // Cap for PatientVaccinationRecord.AdverseEventNotes (max 1000).
+        var doseNotes = aefiSummary.Length <= 1000 ? aefiSummary : aefiSummary[..997] + "...";
+
+        PatientVaccinationRecord? doseRecord = null;
+        if (appointment.PatientProfileId is Guid profileId)
+        {
+            var appointmentKey = appointment.Id.ToString();
+            doseRecord = await _context.PatientVaccinationRecords
+                .Where(r => r.PatientProfileId == profileId)
+                .Where(r => r.Notes != null && r.Notes.Contains(appointmentKey))
+                .OrderByDescending(r => r.AdministeredAt)
+                .FirstOrDefaultAsync();
+
+            if (doseRecord == null && appointment.VaccineId.HasValue)
+            {
+                var dayStart = reportedAt.Date;
+                doseRecord = await _context.PatientVaccinationRecords
+                    .Where(r =>
+                        r.PatientProfileId == profileId &&
+                        r.VaccineId == appointment.VaccineId.Value &&
+                        r.AdministeredAt >= dayStart)
+                    .OrderByDescending(r => r.AdministeredAt)
+                    .FirstOrDefaultAsync();
+            }
+        }
+
+        var documentedOnDose = false;
+        if (doseRecord != null)
+        {
+            doseRecord.AdverseEventReported = true;
+            doseRecord.AdverseEventNotes = doseNotes;
+            documentedOnDose = true;
+        }
+
+        appointment.Notes = string.IsNullOrWhiteSpace(appointment.Notes)
+            ? aefiSummary
+            : $"{appointment.Notes.Trim()}\n{aefiSummary}";
+        if (appointment.Notes.Length > 1000)
+            appointment.Notes = appointment.Notes[^1000..];
+        // Do not bump UpdatedAt — the clinical dashboard uses it as the
+        // observation-window start time after Administering → Observation.
+
+        Guid? followUpVisitId = null;
+        var followUpScheduled = false;
+        if (appointment.PatientProfileId is Guid patientProfileId)
+        {
+            Guid? hospitalProfileId = appointment.HospitalProfileId;
+            if (hospitalProfileId == null)
+            {
+                hospitalProfileId = await _context.HospitalProfiles.AsNoTracking()
+                    .Where(h => h.UserId == appointment.HospitalUserId)
+                    .Select(h => (Guid?)h.Id)
+                    .FirstOrDefaultAsync();
+            }
+
+            var visit = new PatientVisit
+            {
+                PatientProfileId = patientProfileId,
+                AppointmentId = appointment.Id,
+                HospitalProfileId = hospitalProfileId,
+                VisitDate = reportedAt,
+                VisitType = VisitType.FollowUp,
+                Status = VisitStatus.Scheduled,
+                ChiefComplaint = $"AEFI follow-up ({severity}) — {appointment.VaccineName}",
+                DiagnosisSummary = description.Length <= 2000 ? description : description[..2000],
+                TreatmentPlan = treatment.Length <= 2000 ? treatment : treatment[..2000],
+                Notes = followUpPlan.Length <= 1000 ? followUpPlan : followUpPlan[..1000],
+                FollowUpDate = followUpAt,
+                DoctorUserId = actor.Role == UserRole.DOCTOR
+                    ? actorUserId
+                    : appointment.PrescribedByDoctorUserId,
+                DoctorName = actor.Role == UserRole.DOCTOR
+                    ? actorName
+                    : appointment.PrescribedByDoctorName ?? appointment.DoctorName,
+                NurseUserId = actor.Role == UserRole.NURSE ? actorUserId : null,
+                NurseName = actor.Role == UserRole.NURSE ? actorName : appointment.NurseName
+            };
+            _context.PatientVisits.Add(visit);
+            followUpVisitId = visit.Id;
+            followUpScheduled = true;
+        }
+
+        _context.AuditLogs.Add(new AuditLog
+        {
+            UserId = actorUserId,
+            UserEmail = actor.Email,
+            Role = actor.Role.ToString(),
+            Action = "AEFI_REPORTED",
+            Details =
+                $"AEFI ({severity}) for appointment {appointment.Id}, patient {appointment.PatientName}, " +
+                $"vaccine {appointment.VaccineName}. Treatment + follow-up ({followUpAt:yyyy-MM-dd}) captured. " +
+                $"DocumentedOnDose={documentedOnDose}. FollowUpScheduled={followUpScheduled}. NotifyDoctor={notifyDoctor}. " +
+                $"Signs: {description}",
+            Timestamp = reportedAt
+        });
+
+        await _context.SaveChangesAsync();
+
+        var notifiedDoctor = false;
+
+        if (notifyDoctor)
+        {
+            string? doctorEmail = null;
+            string doctorName = appointment.PrescribedByDoctorName
+                ?? appointment.DoctorName
+                ?? "Attending Physician";
+
+            if (appointment.PrescribedByDoctorUserId is Guid doctorId)
+            {
+                var doctor = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == doctorId);
+                if (doctor != null && !string.IsNullOrWhiteSpace(doctor.Email))
+                {
+                    doctorEmail = doctor.Email;
+                    doctorName = appointment.PrescribedByDoctorName ?? doctorName;
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(doctorEmail))
+            {
+                var affiliatedDoctor = await (
+                    from aff in _context.StaffAffiliations.AsNoTracking()
+                    join u in _context.Users.AsNoTracking() on aff.StaffUserId equals u.Id
+                    where aff.HospitalUserId == appointment.HospitalUserId
+                          && aff.Status == AffiliationStatus.Active
+                          && u.Role == UserRole.DOCTOR
+                          && u.Status == UserStatus.Active
+                          && u.Id != actorUserId
+                    select u
+                ).FirstOrDefaultAsync();
+
+                if (affiliatedDoctor != null)
+                {
+                    doctorEmail = affiliatedDoctor.Email;
+                    doctorName = affiliatedDoctor.Email.Split('@')[0];
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(doctorEmail))
+            {
+                try
+                {
+                    notifiedDoctor = await _emailService.SendAefiSurveillanceAlertAsync(
+                        doctorEmail,
+                        doctorName,
+                        appointment.PatientName,
+                        appointment.VaccineName ?? "Unknown vaccine",
+                        appointment.HospitalName ?? "Hospital",
+                        appointment.AppointmentDate.ToString("yyyy-MM-dd"),
+                        appointment.TimeSlot ?? "",
+                        severity,
+                        description,
+                        treatment,
+                        actorName,
+                        appointment.Id.ToString());
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to send AEFI doctor alert for appointment {AppId}", appointment.Id);
+                }
+            }
+        }
+
+        _logger.LogInformation(
+            "AEFI reported by {ActorId} for appointment {AppId}: severity={Severity}, onDose={OnDose}, followUp={FollowUp}, doctor={Doctor}",
+            actorUserId, appointmentId, severity, documentedOnDose, followUpScheduled, notifiedDoctor);
+
+        var message = documentedOnDose
+            ? "AEFI documented on the vaccination dose; care and follow-up recorded."
+            : "AEFI, treatment, and follow-up recorded on the appointment.";
+        if (!followUpScheduled)
+            message += " Link a patient profile to schedule a clinical follow-up visit.";
+        if (notifyDoctor && !notifiedDoctor)
+            message += " Physician alert intent recorded (no deliverable doctor email).";
+
+        return new AefiReportResponseDto
+        {
+            AppointmentId = appointment.Id,
+            VaccinationRecordId = doseRecord?.Id,
+            FollowUpVisitId = followUpVisitId,
+            Severity = severity,
+            DocumentedOnDose = documentedOnDose,
+            FollowUpScheduled = followUpScheduled,
+            FollowUpAt = followUpAt,
+            NotifiedDoctor = notifiedDoctor,
+            Message = message
+        };
+    }
+
+    private async Task<string> ResolveActorDisplayNameAsync(Guid actorUserId, User actor)
+    {
+        if (actor.Role == UserRole.DOCTOR)
+        {
+            var doc = await _context.DoctorProfiles.AsNoTracking()
+                .FirstOrDefaultAsync(d => d.UserId == actorUserId);
+            if (!string.IsNullOrWhiteSpace(doc?.FullName))
+                return doc.FullName.Trim();
+        }
+        else if (actor.Role == UserRole.NURSE)
+        {
+            var nurse = await _context.NurseProfiles.AsNoTracking()
+                .FirstOrDefaultAsync(n => n.UserId == actorUserId);
+            if (!string.IsNullOrWhiteSpace(nurse?.FullName))
+                return nurse.FullName.Trim();
+        }
+
+        return actor.Email;
     }
 
     public Task<bool> CancelAppointmentAsync(Guid userId, Guid appointmentId, bool isHospital = false)
@@ -774,9 +1311,26 @@ public class AppointmentService : IAppointmentService
             return MapToDto(appointment);
         }
 
+        if (string.Equals(appointment.Status, "Cancelled", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(appointment.Status, "Rejected", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Cannot confirm payment for a cancelled or rejected appointment.");
+        }
+
+        if (appointment.Fee <= 0)
+        {
+            throw new InvalidOperationException("This appointment does not require PayHere payment.");
+        }
+
+        if (string.IsNullOrWhiteSpace(transactionId))
+        {
+            throw new InvalidOperationException("PayHere payment id is required.");
+        }
+
         appointment.Status = "Confirmed";
         appointment.PaymentStatus = "Paid";
-        appointment.PaymentTransactionId = transactionId;
+        appointment.PaymentMethod = "PayHere";
+        appointment.PaymentTransactionId = transactionId.Trim();
         appointment.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
@@ -939,6 +1493,222 @@ public class AppointmentService : IAppointmentService
         var endLine = rest.IndexOfAny(['\r', '\n']);
         if (endLine >= 0) rest = rest[..endLine].Trim();
         return rest;
+    }
+
+    private async Task ConsumeVialForAppointmentAsync(
+        Guid actorUserId,
+        Appointment appointment,
+        UpdateAppointmentStatusDto dto)
+    {
+        var appointmentKey = appointment.Id.ToString();
+        var alreadyIssued = await _context.InventoryTransactions.AnyAsync(t =>
+            t.Type == TransactionType.Issue &&
+            t.Reason != null &&
+            t.Reason.Contains(appointmentKey));
+
+        if (alreadyIssued)
+            return;
+
+        var hospital = await _context.HospitalProfiles
+            .FirstOrDefaultAsync(h =>
+                h.UserId == appointment.HospitalUserId ||
+                (appointment.HospitalProfileId.HasValue && h.Id == appointment.HospitalProfileId.Value));
+
+        if (hospital == null)
+        {
+            throw new InvalidOperationException(
+                "Cannot record this dose: the hospital inventory profile was not found.");
+        }
+
+        Vaccine? vaccine = null;
+        if (appointment.VaccineId.HasValue)
+        {
+            vaccine = await _context.Vaccines.FirstOrDefaultAsync(v => v.Id == appointment.VaccineId.Value);
+        }
+
+        if (vaccine == null && !string.IsNullOrWhiteSpace(appointment.VaccineName))
+        {
+            var name = appointment.VaccineName.Trim().ToLower();
+            vaccine = await _context.Vaccines.FirstOrDefaultAsync(v => v.Name.ToLower() == name)
+                ?? await _context.Vaccines.FirstOrDefaultAsync(v => v.Name.ToLower().Contains(name));
+        }
+
+        if (vaccine == null)
+        {
+            throw new InvalidOperationException(
+                $"Cannot record this dose: no inventory product matches '{appointment.VaccineName}'.");
+        }
+
+        var now = DateTime.UtcNow;
+        IQueryable<Batch> usableBatches = _context.Batches
+            .Include(b => b.Vaccine)
+            .Where(b =>
+                b.HospitalProfileId == hospital.Id &&
+                b.VaccineId == vaccine.Id &&
+                b.Status == BatchStatus.Active &&
+                b.ExpiryDate >= now &&
+                ((b.OpenVialDosesRemaining ?? 0) > 0 || b.QuantityAvailable > 0));
+
+        Batch? batch = null;
+
+        if (dto.BatchId.HasValue)
+        {
+            batch = await usableBatches.FirstOrDefaultAsync(b => b.Id == dto.BatchId.Value);
+            if (batch == null)
+            {
+                throw new InvalidOperationException(
+                    "Selected lot is not usable for this vaccine at this hospital (expired, empty, or wrong product).");
+            }
+        }
+        else if (!string.IsNullOrWhiteSpace(dto.LotNumber))
+        {
+            var lot = dto.LotNumber.Trim();
+            batch = await usableBatches.FirstOrDefaultAsync(b => b.BatchNumber == lot);
+            if (batch == null)
+            {
+                throw new InvalidOperationException(
+                    $"Lot '{lot}' is not usable for this vaccine at this hospital.");
+            }
+        }
+        else
+        {
+            // Fallback FEFO when clinician did not pick a lot (e.g. older clients).
+            batch = await usableBatches
+                .OrderByDescending(b => (b.OpenVialDosesRemaining ?? 0) > 0)
+                .ThenBy(b => b.ExpiryDate)
+                .ThenBy(b => b.CreatedAt)
+                .FirstOrDefaultAsync();
+        }
+
+        if (batch == null)
+        {
+            throw new InvalidOperationException(
+                $"No usable {vaccine.Name} stock at this hospital. Restock a batch before completing the dose.");
+        }
+
+        var actor = await _context.Users
+            .AsNoTracking()
+            .Include(u => u.DoctorProfile)
+            .Include(u => u.NurseProfile)
+            .Include(u => u.HospitalProfile)
+            .FirstOrDefaultAsync(u => u.Id == actorUserId);
+
+        var actorName = actor?.DoctorProfile?.FullName is { Length: > 0 } docName ? $"Dr. {docName}"
+            : actor?.NurseProfile?.FullName is { Length: > 0 } nurseName ? $"Nurse {nurseName}"
+            : actor?.HospitalProfile?.HospitalName
+            ?? actor?.Email
+            ?? "Clinical staff";
+
+        InventoryDoseHelper.ConsumeOneDose(batch, vaccine);
+
+        _context.InventoryTransactions.Add(new InventoryTransaction
+        {
+            BatchId = batch.Id,
+            Type = TransactionType.Issue,
+            Quantity = 1,
+            Reason = $"Administered 1 dose of {vaccine.Name} for appointment {appointment.Id}",
+            PerformedByUserId = actorUserId,
+            PerformedByName = actorName
+        });
+
+        _context.AuditLogs.Add(new AuditLog
+        {
+            UserId = actorUserId,
+            UserEmail = actor?.Email,
+            Role = actor?.Role.ToString() ?? "STAFF",
+            Action = "INVENTORY_ISSUE",
+            Details =
+                $"Issued 1 dose of {vaccine.Name} (Lot {batch.BatchNumber}, {InventoryDoseHelper.ResolveDosesPerVial(vaccine)} doses/vial) for appointment {appointment.Id}",
+            Timestamp = DateTime.UtcNow
+        });
+
+        var route = ParseVaccineRoute(dto.Route);
+        var site = ParseInjectionSite(dto.InjectionSite);
+        var noteParts = new List<string> { $"Linked to appointment {appointment.Id}" };
+        if (dto.ConsentConfirmed == true)
+            noteParts.Add("Informed consent confirmed");
+        if (dto.VitalsConfirmed == true)
+            noteParts.Add("Pre-administration vitals verified");
+        if (!string.IsNullOrWhiteSpace(dto.AdministrationNotes))
+            noteParts.Add(dto.AdministrationNotes.Trim());
+        else if (!string.IsNullOrWhiteSpace(dto.Remarks))
+            noteParts.Add(dto.Remarks.Trim());
+
+        // Keep a short administration trail on the appointment (useful for legacy guest rows).
+        var adminSummary =
+            $"Administered lot {batch.BatchNumber}; route {route}; site {(site?.ToString() ?? "n/a")}";
+        if (!string.IsNullOrWhiteSpace(dto.AdministrationNotes))
+            adminSummary += $"; {dto.AdministrationNotes.Trim()}";
+        appointment.Notes = string.IsNullOrWhiteSpace(appointment.Notes)
+            ? adminSummary
+            : $"{appointment.Notes.Trim()}\n{adminSummary}";
+
+        if (appointment.PatientProfileId is Guid patientProfileId)
+        {
+            var patientExists = await _context.PatientProfiles.AnyAsync(p => p.Id == patientProfileId);
+            if (patientExists)
+            {
+                var priorDoses = await _context.PatientVaccinationRecords.CountAsync(r =>
+                    r.PatientProfileId == patientProfileId && r.VaccineId == vaccine.Id);
+
+                _context.PatientVaccinationRecords.Add(new PatientVaccinationRecord
+                {
+                    PatientProfileId = patientProfileId,
+                    VaccineId = vaccine.Id,
+                    BatchId = batch.Id,
+                    AdministeredByUserId = actorUserId,
+                    AdministeredByName = actorName,
+                    AdministeredAt = DateTime.UtcNow,
+                    DoseNumber = priorDoses + 1,
+                    Route = route,
+                    Site = site,
+                    LotNumber = batch.BatchNumber,
+                    Notes = string.Join(". ", noteParts)
+                });
+            }
+        }
+    }
+
+    private static VaccineRoute ParseVaccineRoute(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+            return VaccineRoute.Intramuscular;
+
+        var value = raw.Trim().ToLowerInvariant();
+        if (value.Contains("subcut") || value is "sc" or "subcutaneous (sc)")
+            return VaccineRoute.Subcutaneous;
+        if (value.Contains("intraderm") || value is "id" or "intradermal (id)")
+            return VaccineRoute.Intradermal;
+        if (value.Contains("oral") || value is "po" or "oral (po)")
+            return VaccineRoute.Oral;
+        if (value.Contains("nasal"))
+            return VaccineRoute.Nasal;
+        if (Enum.TryParse<VaccineRoute>(raw.Trim(), true, out var parsed))
+            return parsed;
+        return VaccineRoute.Intramuscular;
+    }
+
+    private static InjectionSite? ParseInjectionSite(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+            return null;
+
+        var value = raw.Trim().ToLowerInvariant();
+        if (value.Contains("left") && value.Contains("deltoid"))
+            return InjectionSite.LeftDeltoid;
+        if (value.Contains("right") && value.Contains("deltoid"))
+            return InjectionSite.RightDeltoid;
+        if (value.Contains("left") && (value.Contains("thigh") || value.Contains("anterolateral")))
+            return InjectionSite.LeftThigh;
+        if (value.Contains("right") && (value.Contains("thigh") || value.Contains("anterolateral")))
+            return InjectionSite.RightThigh;
+        if (value.Contains("oral"))
+            return InjectionSite.Oral;
+        if (value.Contains("nasal"))
+            return InjectionSite.Nasal;
+        if (Enum.TryParse<InjectionSite>(raw.Replace(" ", string.Empty), true, out var parsed))
+            return parsed;
+        return null;
     }
 
     private static AppointmentResponseDto MapToDto(Appointment a)

@@ -49,9 +49,31 @@ public class AgentWorkflow
     [Required]
     public string ProposalsJson { get; set; } = "[]";
 
+    /// <summary>Structured plan produced by the orchestrator, or an empty object.</summary>
+    [Required]
+    public string PlanJson { get; set; } = "{}";
+
+    /// <summary>Completed delegated steps, or an empty array.</summary>
+    [Required]
+    public string CompletedStepsJson { get; set; } = "[]";
+
+    /// <summary>Allow-listed tool outputs retained for audit, or an empty array.</summary>
+    [Required]
+    public string ToolResultsJson { get; set; } = "[]";
+
+    /// <summary>Deterministic validation results, or an empty object.</summary>
+    [Required]
+    public string ValidationResultsJson { get; set; } = "{}";
+
     /// <summary>Short agent reply kept for audit / observability.</summary>
     [MaxLength(4000)]
     public string? ResultSummary { get; set; }
+
+    [MaxLength(4000)]
+    public string? ErrorDetails { get; set; }
+
+    [MaxLength(4000)]
+    public string? FinalOutcome { get; set; }
 
     [Required]
     public AgentWorkflowStatus Status { get; set; } = AgentWorkflowStatus.Completed;

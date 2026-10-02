@@ -3,6 +3,8 @@ import { inventoryService } from '../services/inventoryService';
 import { scheduleService } from '../services/scheduleService';
 import { staffService } from '../services/staffService';
 import { appointmentService } from '../../patient/services/appointmentService';
+import HospitalSubpageHero from './HospitalSubpageHero';
+import { getAppointmentActionDisplay } from '../utils/appointmentStatus';
 
 const DAYS_OF_WEEK = [
   { key: 'Monday', label: 'Mon' },
@@ -326,7 +328,7 @@ export default function HospitalAppointmentsTab() {
   const handleAcceptAppointment = async (id) => {
     try {
       await appointmentService.updateAppointmentStatus(id, { status: 'Confirmed' });
-      showToast('Patient appointment confirmed successfully!');
+      showToast('Appointment confirmed (payment recorded if it was awaiting payment).');
       await loadHospitalAppointments();
     } catch (err) {
       alert(`Failed to confirm appointment: ${err.message}`);
@@ -334,10 +336,21 @@ export default function HospitalAppointmentsTab() {
   };
 
   const handleRejectAppointment = async (id) => {
-    if (!window.confirm('Are you sure you want to decline/cancel this appointment?')) return;
+    if (!window.confirm('Decline this appointment? The patient will see it as rejected.')) return;
+    try {
+      await appointmentService.updateAppointmentStatus(id, { status: 'Rejected' });
+      showToast('Appointment declined.');
+      await loadHospitalAppointments();
+    } catch (err) {
+      alert(`Failed to decline appointment: ${err.message}`);
+    }
+  };
+
+  const handleCancelAppointment = async (id) => {
+    if (!window.confirm('Cancel this confirmed appointment?')) return;
     try {
       await appointmentService.cancelAppointment(id);
-      showToast('Appointment declined/cancelled.');
+      showToast('Appointment cancelled.');
       await loadHospitalAppointments();
     } catch (err) {
       alert(`Failed to cancel appointment: ${err.message}`);
@@ -351,6 +364,11 @@ export default function HospitalAppointmentsTab() {
 
   return (
     <div className="hospital-manage-appointments-wrapper">
+      <HospitalSubpageHero
+        eyebrow="Appointment operations"
+        title="Schedules & appointments"
+        subtitle="Publish vaccination sessions, manage recurring availability, and monitor today’s hospital appointments."
+      />
       {notification && (
         <div
           className="appointment-alert-pill"
@@ -815,46 +833,80 @@ export default function HospitalAppointmentsTab() {
                       </td>
                       <td>{item.vaccineName || item.vaccine}</td>
                       <td style={{ borderRight: 'none', textAlign: 'center' }}>
-                        {(item.status || '').toLowerCase() === 'pending' ? (
-                          <div className="hospital-action-buttons-wrapper">
-                            <button
-                              type="button"
-                              className="btn-hospital-confirm-action"
-                              title="Accept and Confirm Appointment"
-                              onClick={() => handleAcceptAppointment(item.id || item.Id)}
-                            >
-                              Confirm
-                            </button>
-                            <button
-                              type="button"
-                              className="btn-hospital-cancel-action"
-                              title="Decline Appointment"
-                              onClick={() => handleRejectAppointment(item.id || item.Id)}
-                            >
-                              ✕ Decline
-                            </button>
-                          </div>
-                        ) : (item.status || '').toLowerCase() === 'confirmed' || (item.status || '').toLowerCase() === 'accepted' ? (
-                          <div className="hospital-action-buttons-wrapper">
-                            <span className="mockup-status-badge accepted">
-                              Confirmed ✓
-                            </span>
-                            <button
-                              type="button"
-                              className="btn-hospital-cancel-action"
-                              onClick={() => handleRejectAppointment(item.id || item.Id)}
-                              title="Cancel appointment"
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="hospital-action-buttons-wrapper">
-                            <span className="mockup-status-badge rejected">
-                              Cancelled ✕
-                            </span>
-                          </div>
-                        )}
+                        {(() => {
+                          const display = getAppointmentActionDisplay(item.status);
+                          if (display.kind === 'actions-pending') {
+                            return (
+                              <div className="hospital-action-buttons-wrapper">
+                                <button
+                                  type="button"
+                                  className="btn-hospital-confirm-action"
+                                  title="Accept and Confirm Appointment"
+                                  onClick={() => handleAcceptAppointment(item.id || item.Id)}
+                                >
+                                  Confirm
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn-hospital-cancel-action"
+                                  title="Decline Appointment"
+                                  onClick={() => handleRejectAppointment(item.id || item.Id)}
+                                >
+                                  ✕ Decline
+                                </button>
+                              </div>
+                            );
+                          }
+                          if (display.kind === 'actions-payment') {
+                            return (
+                              <div className="hospital-action-buttons-wrapper">
+                                <span className={`mockup-status-badge ${display.tone}`}>
+                                  {display.label}
+                                </span>
+                                <button
+                                  type="button"
+                                  className="btn-hospital-confirm-action"
+                                  title="Record desk/cash payment and confirm the appointment"
+                                  onClick={() => handleAcceptAppointment(item.id || item.Id)}
+                                >
+                                  Mark paid
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn-hospital-cancel-action"
+                                  title="Decline unpaid appointment"
+                                  onClick={() => handleRejectAppointment(item.id || item.Id)}
+                                >
+                                  ✕ Decline
+                                </button>
+                              </div>
+                            );
+                          }
+                          if (display.kind === 'badge-cancel') {
+                            return (
+                              <div className="hospital-action-buttons-wrapper">
+                                <span className={`mockup-status-badge ${display.tone}`}>
+                                  {display.label}
+                                </span>
+                                <button
+                                  type="button"
+                                  className="btn-hospital-cancel-action"
+                                  onClick={() => handleCancelAppointment(item.id || item.Id)}
+                                  title="Cancel appointment"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            );
+                          }
+                          return (
+                            <div className="hospital-action-buttons-wrapper">
+                              <span className={`mockup-status-badge ${display.tone}`}>
+                                {display.label}
+                              </span>
+                            </div>
+                          );
+                        })()}
                       </td>
                     </tr>
                   ))

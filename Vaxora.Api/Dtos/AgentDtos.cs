@@ -67,6 +67,12 @@ public class AgentWorkflowDto
     public string Status { get; set; } = string.Empty;
     public string? ResultSummary { get; set; }
     public string ProposalsJson { get; set; } = "[]";
+    public string PlanJson { get; set; } = "{}";
+    public string CompletedStepsJson { get; set; } = "[]";
+    public string ToolResultsJson { get; set; } = "[]";
+    public string ValidationResultsJson { get; set; } = "{}";
+    public string? ErrorDetails { get; set; }
+    public string? FinalOutcome { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? DecidedAt { get; set; }
     public string? DecisionNote { get; set; }

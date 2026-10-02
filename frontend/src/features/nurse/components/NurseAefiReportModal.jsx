@@ -1,25 +1,38 @@
 import React, { useEffect, useState } from 'react';
 
+const tomorrowIso = () => {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+
 const emptyReport = {
   patientToken: '',
   patientName: '',
   vaccineName: '',
   reactionType: '',
   severity: 'Mild',
-  timeElapsed: '',
   treatmentGiven: '',
+  followUpAt: tomorrowIso(),
+  followUpPlan: '',
   notifyDoctor: true,
-  notifyMOH: true,
 };
 
 export default function NurseAefiReportModal({ isOpen, onClose, onSubmitReport, patient }) {
   const [aefiData, setAefiData] = useState(emptyReport);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
 
-  // Prefill identifiers from the patient in the chair; the nurse describes the event.
   useEffect(() => {
     if (!isOpen) return;
+    setError('');
+    setSubmitting(false);
     setAefiData({
       ...emptyReport,
+      followUpAt: tomorrowIso(),
       patientToken: patient?.token || '',
       patientName: patient?.name || '',
       vaccineName: patient?.vaccine && patient.vaccine !== '—' ? patient.vaccine : '',
@@ -28,23 +41,49 @@ export default function NurseAefiReportModal({ isOpen, onClose, onSubmitReport, 
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    onSubmitReport(aefiData);
-    onClose();
+    setError('');
+
+    if (!patient?.id) {
+      setError('Select an active patient before reporting AEFI.');
+      return;
+    }
+    if (!String(aefiData.treatmentGiven || '').trim()) {
+      setError('Immediate nursing action / emergency care is required.');
+      return;
+    }
+    if (!String(aefiData.followUpPlan || '').trim()) {
+      setError('Follow-up plan is required.');
+      return;
+    }
+    if (!aefiData.followUpAt) {
+      setError('Follow-up date is required.');
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      await onSubmitReport(aefiData);
+      onClose();
+    } catch (err) {
+      setError(err?.message || 'Failed to submit AEFI report.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
-    <div className="doctor-modal-overlay" onClick={onClose}>
+    <div className="doctor-modal-overlay" onClick={submitting ? undefined : onClose}>
       <div className="doctor-modal-card" onClick={(e) => e.stopPropagation()}>
         <div className="doctor-modal-header" style={{ background: 'linear-gradient(135deg, #dc2626 0%, #991b1b 100%)' }}>
           <div>
             <h3 className="doctor-modal-title">Report Adverse Event (AEFI)</h3>
             <p style={{ margin: '4px 0 0 0', fontSize: '0.82rem', color: 'rgba(255,255,255,0.9)' }}>
-              Nurse Clinical Alert • Physician Notification &amp; MOH Surveillance
+              Capture care, document on dose, schedule follow-up
             </p>
           </div>
-          <button type="button" className="doctor-modal-close-btn" onClick={onClose}>
+          <button type="button" className="doctor-modal-close-btn" onClick={onClose} disabled={submitting}>
             &times;
           </button>
         </div>
@@ -58,17 +97,18 @@ export default function NurseAefiReportModal({ isOpen, onClose, onSubmitReport, 
                   type="text"
                   className="doctor-form-input"
                   value={aefiData.patientToken}
+                  readOnly={Boolean(patient?.token)}
                   onChange={(e) => setAefiData({ ...aefiData, patientToken: e.target.value })}
                   required
                 />
               </div>
-
               <div className="doctor-form-group">
                 <label className="doctor-form-label">Patient Full Name</label>
                 <input
                   type="text"
                   className="doctor-form-input"
                   value={aefiData.patientName}
+                  readOnly={Boolean(patient?.name)}
                   onChange={(e) => setAefiData({ ...aefiData, patientName: e.target.value })}
                   required
                 />
@@ -82,17 +122,18 @@ export default function NurseAefiReportModal({ isOpen, onClose, onSubmitReport, 
                   type="text"
                   className="doctor-form-input"
                   value={aefiData.vaccineName}
+                  readOnly={Boolean(patient?.vaccine && patient.vaccine !== '—')}
                   onChange={(e) => setAefiData({ ...aefiData, vaccineName: e.target.value })}
                   required
                 />
               </div>
-
               <div className="doctor-form-group">
                 <label className="doctor-form-label">Severity Level</label>
                 <select
                   className="doctor-form-select"
                   value={aefiData.severity}
                   onChange={(e) => setAefiData({ ...aefiData, severity: e.target.value })}
+                  disabled={submitting}
                 >
                   <option value="Mild">Mild (Rash, Local swelling, Dizziness)</option>
                   <option value="Moderate">Moderate (Extensive hives, Pyrexia, Syncope)</option>
@@ -109,6 +150,7 @@ export default function NurseAefiReportModal({ isOpen, onClose, onSubmitReport, 
                 value={aefiData.reactionType}
                 onChange={(e) => setAefiData({ ...aefiData, reactionType: e.target.value })}
                 required
+                disabled={submitting}
               />
             </div>
 
@@ -120,35 +162,66 @@ export default function NurseAefiReportModal({ isOpen, onClose, onSubmitReport, 
                 value={aefiData.treatmentGiven}
                 onChange={(e) => setAefiData({ ...aefiData, treatmentGiven: e.target.value })}
                 required
+                disabled={submitting}
+                placeholder="e.g. Called physician, adrenaline prepared, airway supported…"
               />
             </div>
 
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+              <div className="doctor-form-group">
+                <label className="doctor-form-label">Follow-up Date</label>
+                <input
+                  type="date"
+                  className="doctor-form-input"
+                  value={aefiData.followUpAt}
+                  min={new Date().toISOString().slice(0, 10)}
+                  onChange={(e) => setAefiData({ ...aefiData, followUpAt: e.target.value })}
+                  required
+                  disabled={submitting}
+                />
+              </div>
+              <div className="doctor-form-group">
+                <label className="doctor-form-label">Follow-up Plan</label>
+                <input
+                  type="text"
+                  className="doctor-form-input"
+                  value={aefiData.followUpPlan}
+                  onChange={(e) => setAefiData({ ...aefiData, followUpPlan: e.target.value })}
+                  required
+                  disabled={submitting}
+                  placeholder="Phone check-in, clinic review…"
+                />
+              </div>
+            </div>
+
             <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '10px', padding: '12px 14px' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.85rem', fontWeight: 600, color: '#991b1b', cursor: 'pointer', marginBottom: '6px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.85rem', fontWeight: 600, color: '#991b1b', cursor: 'pointer' }}>
                 <input
                   type="checkbox"
                   checked={aefiData.notifyDoctor}
                   onChange={(e) => setAefiData({ ...aefiData, notifyDoctor: e.target.checked })}
+                  disabled={submitting}
                 />
-                Urgent Alert to Attending Physician (Dr. Samantha Perera)
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.85rem', fontWeight: 600, color: '#991b1b', cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={aefiData.notifyMOH}
-                  onChange={(e) => setAefiData({ ...aefiData, notifyMOH: e.target.checked })}
-                />
-                Forward report to Ministry of Health (MOH) Surveillance Unit
+                Urgent alert to attending physician
               </label>
             </div>
+
+            {error ? (
+              <p style={{ margin: '12px 0 0', color: '#b91c1c', fontSize: '0.85rem' }}>{error}</p>
+            ) : null}
           </div>
 
           <div className="doctor-modal-footer">
-            <button type="button" className="doctor-btn-cancel" onClick={onClose}>
+            <button type="button" className="doctor-btn-cancel" onClick={onClose} disabled={submitting}>
               Cancel
             </button>
-            <button type="submit" className="doctor-btn-submit danger" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-              Dispatch Emergency AEFI Alert
+            <button
+              type="submit"
+              className="doctor-btn-submit danger"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+              disabled={submitting || !patient?.id}
+            >
+              {submitting ? 'Saving…' : 'Log AEFI & Schedule Follow-up'}
             </button>
           </div>
         </form>

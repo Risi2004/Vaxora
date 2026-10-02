@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/services/storage_service.dart';
+import '../../../../core/theme/app_colors.dart';
 import '../../../auth/data/models/user_model.dart';
 import '../../../auth/data/repositories/auth_repository.dart';
 import '../../../staff/presentation/widgets/network_avatar.dart';
@@ -147,16 +148,19 @@ class _PatientHistoryScreenState extends State<PatientHistoryScreen> {
                   label: 'Doses',
                   value: '$totalDoses',
                   icon: Icons.vaccines_outlined,
+                  accent: StaffSurfaces.brandSoft,
                 ),
                 StaffIntroStat(
                   label: 'Vaccines',
                   value: '$distinctVaccines',
                   icon: Icons.health_and_safety_outlined,
+                  accent: const Color(0xFF6D5BAE),
                 ),
                 StaffIntroStat(
                   label: 'Last dose',
                   value: lastVaccinated,
                   icon: Icons.event_available_outlined,
+                  accent: AppColors.success,
                 ),
               ],
             ),
@@ -181,7 +185,9 @@ class _PatientHistoryScreenState extends State<PatientHistoryScreen> {
                 return Container(
                   margin: const EdgeInsets.only(bottom: 10),
                   padding: const EdgeInsets.all(14),
-                  decoration: StaffSurfaces.card(),
+                  decoration: StaffSurfaces.card(
+                    borderColor: AppColors.success.withValues(alpha: 0.28),
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [

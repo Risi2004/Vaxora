@@ -1,10 +1,10 @@
+using System.Globalization;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Vaxora.Api.Data;
 using Vaxora.Api.Dtos;
-using Vaxora.Api.Models;
 using Vaxora.Api.Services;
 
 namespace Vaxora.Api.Controllers;
@@ -56,20 +56,34 @@ public class PaymentController : ControllerBase
             return BadRequest(new { message = "This vaccination appointment is free (0 LKR). Payment gateway is not required." });
         }
 
+        if (string.Equals(appointment.PaymentStatus, "Paid", StringComparison.OrdinalIgnoreCase))
+        {
+            return BadRequest(new { message = "This appointment is already paid." });
+        }
+
+        if (string.Equals(appointment.Status, "Cancelled", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(appointment.Status, "Rejected", StringComparison.OrdinalIgnoreCase))
+        {
+            return BadRequest(new { message = "Cannot pay for a cancelled or rejected appointment." });
+        }
+
         var originHeader = Request.Headers.Origin.ToString();
         var clientOrigin = !string.IsNullOrWhiteSpace(originHeader) ? originHeader : "http://localhost:5173";
 
         var payload = _payHereService.CreateCheckoutParameters(appointment, clientOrigin);
 
-        _logger.LogInformation("Generated PayHere checkout payload for Appointment {AppId} (Order: {OrderId}, Fee: {Fee})",
+        _logger.LogInformation(
+            "Generated PayHere checkout payload for Appointment {AppId} (Order: {OrderId}, Fee: {Fee})",
             appointment.Id, payload.OrderId, payload.Amount);
 
         return Ok(payload);
     }
 
     /// <summary>
-    /// Confirm PayHere payment from client return flow.
-    /// Updates status to Confirmed, PaymentStatus to Paid, and triggers booking + receipt emails.
+    /// Sync PayHere payment status for the patient UI after checkout.
+    /// Does NOT trust client-supplied payment ids alone. Marks Paid only when:
+    /// 1) IPN already confirmed the appointment, or
+    /// 2) Client forwards a verified PayHere notify signature payload.
     /// </summary>
     [HttpPost("confirm")]
     [Authorize]
@@ -82,6 +96,7 @@ public class PaymentController : ControllerBase
         }
 
         var appointment = await _context.Appointments
+            .AsNoTracking()
             .FirstOrDefaultAsync(a => a.Id == dto.AppointmentId && a.PatientUserId == userId);
 
         if (appointment == null)
@@ -89,19 +104,86 @@ public class PaymentController : ControllerBase
             return NotFound(new { message = "Appointment record not found." });
         }
 
-        var txId = !string.IsNullOrWhiteSpace(dto.PaymentId) ? dto.PaymentId : $"PH-MOCK-{Guid.NewGuid().ToString("N")[..8].ToUpperInvariant()}";
-        var result = await _appointmentService.ConfirmPayHerePaymentAsync(appointment.Id, txId);
+        if (string.Equals(appointment.PaymentStatus, "Paid", StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(appointment.Status, "Confirmed", StringComparison.OrdinalIgnoreCase))
+        {
+            return Ok(new
+            {
+                message = "Payment already confirmed.",
+                confirmed = true,
+                appointment
+            });
+        }
+
+        var hasProof =
+            !string.IsNullOrWhiteSpace(dto.MerchantId) &&
+            !string.IsNullOrWhiteSpace(dto.OrderId) &&
+            !string.IsNullOrWhiteSpace(dto.PaymentId) &&
+            !string.IsNullOrWhiteSpace(dto.PayhereAmount) &&
+            !string.IsNullOrWhiteSpace(dto.PayhereCurrency) &&
+            !string.IsNullOrWhiteSpace(dto.StatusCode) &&
+            !string.IsNullOrWhiteSpace(dto.Md5Sig);
+
+        if (!hasProof)
+        {
+            return Accepted(new
+            {
+                message =
+                    "Waiting for PayHere payment notification. Refresh in a moment, or ask the hospital desk to Mark paid if you paid at the counter.",
+                confirmed = false,
+                appointment
+            });
+        }
+
+        if (!_payHereService.VerifyNotification(
+                dto.MerchantId!,
+                dto.OrderId!,
+                dto.PayhereAmount!,
+                dto.PayhereCurrency!,
+                dto.StatusCode!,
+                dto.Md5Sig!))
+        {
+            _logger.LogWarning(
+                "Rejected forged/invalid PayHere client confirm for Appointment {AppId}",
+                appointment.Id);
+            return BadRequest(new { message = "Invalid PayHere payment signature." });
+        }
+
+        if (dto.StatusCode != "2")
+        {
+            return BadRequest(new { message = $"PayHere payment was not successful (status {dto.StatusCode})." });
+        }
+
+        if (!_payHereService.MatchesOrderId(appointment.Id, dto.OrderId))
+        {
+            return BadRequest(new { message = "PayHere order id does not match this appointment." });
+        }
+
+        if (!_payHereService.TryParseAmount(dto.PayhereAmount, out var paidAmount) ||
+            Math.Abs(paidAmount - appointment.Fee) > 0.01m)
+        {
+            return BadRequest(new
+            {
+                message = $"PayHere amount {dto.PayhereAmount} does not match appointment fee {appointment.Fee.ToString("0.00", CultureInfo.InvariantCulture)}."
+            });
+        }
+
+        var result = await _appointmentService.ConfirmPayHerePaymentAsync(
+            appointment.Id,
+            dto.PaymentId!,
+            dto.OrderId);
 
         return Ok(new
         {
             message = "Payment confirmed successfully. Booking confirmed and emails sent.",
+            confirmed = true,
             appointment = result
         });
     }
 
     /// <summary>
     /// PayHere IPN (Instant Payment Notification) Webhook.
-    /// Validates MD5 signature, confirms appointment, and triggers booking + payment receipt emails.
+    /// Validates MD5 signature, merchant, amount, and order id before confirming.
     /// </summary>
     [HttpPost("payhere-notify")]
     [AllowAnonymous]
@@ -118,10 +200,12 @@ public class PaymentController : ControllerBase
             var statusCode = form["status_code"].ToString();
             var md5Sig = form["md5sig"].ToString();
 
-            _logger.LogInformation("Received PayHere IPN: Order={OrderId}, PaymentId={PaymentId}, Status={StatusCode}, Amount={Amount}",
+            _logger.LogInformation(
+                "Received PayHere IPN: Order={OrderId}, PaymentId={PaymentId}, Status={StatusCode}, Amount={Amount}",
                 orderId, paymentId, statusCode, payhereAmount);
 
-            var isValid = _payHereService.VerifyNotification(merchantId, orderId, payhereAmount, payhereCurrency, statusCode, md5Sig);
+            var isValid = _payHereService.VerifyNotification(
+                merchantId, orderId, payhereAmount, payhereCurrency, statusCode, md5Sig);
             if (!isValid)
             {
                 _logger.LogWarning("Invalid PayHere IPN signature for Order {OrderId}", orderId);
@@ -129,32 +213,38 @@ public class PaymentController : ControllerBase
             }
 
             // PayHere status_code: 2 = Success, 0 = Pending, -1 = Canceled, -2 = Failed, -3 = Chargedback
-            if (statusCode == "2")
+            if (statusCode != "2")
             {
-                // Resolve appointment by OrderId: "APT-{first12Guid}"
-                var cleanOrderId = orderId.Trim();
-                var appointments = await _context.Appointments
-                    .Where(a => a.PaymentStatus != "Paid")
-                    .ToListAsync();
-
-                var appointment = appointments.FirstOrDefault(a =>
-                    cleanOrderId.Contains(a.Id.ToString("N")[..12], StringComparison.OrdinalIgnoreCase) ||
-                    cleanOrderId.EndsWith(a.Id.ToString(), StringComparison.OrdinalIgnoreCase));
-
-                if (appointment != null)
-                {
-                    await _appointmentService.ConfirmPayHerePaymentAsync(appointment.Id, paymentId, cleanOrderId);
-                    _logger.LogInformation("Successfully processed PayHere IPN for Appointment {AppId}", appointment.Id);
-                }
-                else
-                {
-                    _logger.LogWarning("PayHere IPN: Could not locate appointment matching OrderId {OrderId}", orderId);
-                }
+                _logger.LogInformation(
+                    "PayHere IPN status code was {StatusCode} (non-success). No confirmation applied.",
+                    statusCode);
+                return Ok("Notification processed");
             }
-            else
+
+            if (string.IsNullOrWhiteSpace(paymentId))
             {
-                _logger.LogInformation("PayHere IPN status code was {StatusCode} (non-success). No confirmation applied.", statusCode);
+                _logger.LogWarning("PayHere IPN missing payment_id for Order {OrderId}", orderId);
+                return BadRequest("Missing payment_id");
             }
+
+            var appointment = await FindAppointmentForOrderAsync(orderId);
+            if (appointment == null)
+            {
+                _logger.LogWarning("PayHere IPN: Could not locate appointment matching OrderId {OrderId}", orderId);
+                return Ok("Notification processed");
+            }
+
+            if (!_payHereService.TryParseAmount(payhereAmount, out var paidAmount) ||
+                Math.Abs(paidAmount - appointment.Fee) > 0.01m)
+            {
+                _logger.LogWarning(
+                    "PayHere IPN amount mismatch for Appointment {AppId}. Paid={Paid}, Expected={Expected}",
+                    appointment.Id, payhereAmount, appointment.Fee);
+                return BadRequest("Amount mismatch");
+            }
+
+            await _appointmentService.ConfirmPayHerePaymentAsync(appointment.Id, paymentId, orderId.Trim());
+            _logger.LogInformation("Successfully processed PayHere IPN for Appointment {AppId}", appointment.Id);
 
             return Ok("Notification processed");
         }
@@ -163,5 +253,36 @@ public class PaymentController : ControllerBase
             _logger.LogError(ex, "Error processing PayHere notification");
             return StatusCode(500, "Internal error processing payment notification");
         }
+    }
+
+    private async Task<Models.Appointment?> FindAppointmentForOrderAsync(string orderId)
+    {
+        var cleanOrderId = (orderId ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(cleanOrderId))
+            return null;
+
+        // Canonical format from checkout: APT-{first 12 hex chars of Guid "N"}
+        if (cleanOrderId.StartsWith("APT-", StringComparison.OrdinalIgnoreCase) &&
+            cleanOrderId.Length >= 16)
+        {
+            var prefix = cleanOrderId[4..].ToLowerInvariant();
+            if (prefix.Length > 12) prefix = prefix[..12];
+
+            var candidates = await _context.Appointments
+                .Where(a => a.PaymentStatus != "Paid")
+                .OrderByDescending(a => a.CreatedAt)
+                .Take(200)
+                .ToListAsync();
+
+            return candidates.FirstOrDefault(a =>
+                a.Id.ToString("N").StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (Guid.TryParse(cleanOrderId, out var directId))
+        {
+            return await _context.Appointments.FirstOrDefaultAsync(a => a.Id == directId);
+        }
+
+        return null;
     }
 }

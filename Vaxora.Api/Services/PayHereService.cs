@@ -10,8 +10,17 @@ public interface IPayHereService
 {
     string MerchantId { get; }
     string CheckoutUrl { get; }
+    string BuildOrderId(Guid appointmentId);
+    bool MatchesOrderId(Guid appointmentId, string? orderId);
     string GenerateHash(string orderId, decimal amount, string currency = "LKR");
-    bool VerifyNotification(string merchantId, string orderId, string payhereAmount, string payhereCurrency, string statusCode, string receivedMd5Sig);
+    bool VerifyNotification(
+        string merchantId,
+        string orderId,
+        string payhereAmount,
+        string payhereCurrency,
+        string statusCode,
+        string receivedMd5Sig);
+    bool TryParseAmount(string? payhereAmount, out decimal amount);
     PayHereInitResponseDto CreateCheckoutParameters(Appointment appointment, string? baseUrl);
 }
 
@@ -41,6 +50,23 @@ public class PayHereService : IPayHereService
         ?? Environment.GetEnvironmentVariable("PayHere__CheckoutUrl")
         ?? "https://sandbox.payhere.lk/pay/checkout";
 
+    private string PublicApiBaseUrl =>
+        Environment.GetEnvironmentVariable("PayHere__PublicApiBaseUrl")
+        ?? _configuration["PayHere:PublicApiBaseUrl"]
+        ?? "http://localhost:5004";
+
+    public string BuildOrderId(Guid appointmentId) =>
+        $"APT-{appointmentId.ToString("N")[..12].ToUpperInvariant()}";
+
+    public bool MatchesOrderId(Guid appointmentId, string? orderId)
+    {
+        if (string.IsNullOrWhiteSpace(orderId)) return false;
+        return string.Equals(
+            BuildOrderId(appointmentId),
+            orderId.Trim(),
+            StringComparison.OrdinalIgnoreCase);
+    }
+
     public string GenerateHash(string orderId, decimal amount, string currency = "LKR")
     {
         var formattedAmount = amount.ToString("0.00", CultureInfo.InvariantCulture);
@@ -49,23 +75,58 @@ public class PayHereService : IPayHereService
         return ComputeMd5(raw).ToUpperInvariant();
     }
 
-    public bool VerifyNotification(string merchantId, string orderId, string payhereAmount, string payhereCurrency, string statusCode, string receivedMd5Sig)
+    public bool VerifyNotification(
+        string merchantId,
+        string orderId,
+        string payhereAmount,
+        string payhereCurrency,
+        string statusCode,
+        string receivedMd5Sig)
     {
-        if (string.IsNullOrWhiteSpace(receivedMd5Sig)) return false;
+        if (string.IsNullOrWhiteSpace(receivedMd5Sig) ||
+            string.IsNullOrWhiteSpace(merchantId) ||
+            string.IsNullOrWhiteSpace(orderId) ||
+            string.IsNullOrWhiteSpace(statusCode))
+        {
+            return false;
+        }
+
+        if (!string.Equals(merchantId.Trim(), MerchantId, StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogWarning(
+                "PayHere notify merchant_id mismatch. Received={Received}, Expected={Expected}",
+                merchantId, MerchantId);
+            return false;
+        }
 
         var hashedSecret = ComputeMd5(MerchantSecret).ToUpperInvariant();
         var raw = $"{merchantId}{orderId}{payhereAmount}{payhereCurrency}{statusCode}{hashedSecret}";
         var expectedSig = ComputeMd5(raw).ToUpperInvariant();
+        var received = receivedMd5Sig.Trim().ToUpperInvariant();
 
-        return string.Equals(expectedSig, receivedMd5Sig.Trim(), StringComparison.OrdinalIgnoreCase);
+        var expectedBytes = Encoding.UTF8.GetBytes(expectedSig);
+        var receivedBytes = Encoding.UTF8.GetBytes(received);
+        if (expectedBytes.Length != receivedBytes.Length)
+            return false;
+
+        return CryptographicOperations.FixedTimeEquals(expectedBytes, receivedBytes);
+    }
+
+    public bool TryParseAmount(string? payhereAmount, out decimal amount)
+    {
+        return decimal.TryParse(
+            payhereAmount,
+            NumberStyles.Number,
+            CultureInfo.InvariantCulture,
+            out amount);
     }
 
     public PayHereInitResponseDto CreateCheckoutParameters(Appointment appointment, string? baseUrl)
     {
-        var clientOrigin = !string.IsNullOrWhiteSpace(baseUrl) ? baseUrl : "http://localhost:5173";
-        var serverOrigin = "http://localhost:5004";
+        var clientOrigin = !string.IsNullOrWhiteSpace(baseUrl) ? baseUrl.Trim().TrimEnd('/') : "http://localhost:5173";
+        var serverOrigin = PublicApiBaseUrl.Trim().TrimEnd('/');
 
-        var orderId = $"APT-{appointment.Id.ToString("N")[..12].ToUpperInvariant()}";
+        var orderId = BuildOrderId(appointment.Id);
         var amount = appointment.Fee;
         var formattedAmount = amount.ToString("0.00", CultureInfo.InvariantCulture);
         var currency = "LKR";
@@ -76,8 +137,9 @@ public class PayHereService : IPayHereService
         var firstName = nameParts.Length > 0 ? nameParts[0] : "Patient";
         var lastName = nameParts.Length > 1 ? nameParts[1] : "Vaxora";
 
-        _logger.LogInformation("Creating PayHere checkout parameters: MerchantId={MerchantId}, OrderId={OrderId}, Amount={Amount}, Hash={Hash}",
-            MerchantId, orderId, formattedAmount, hash);
+        _logger.LogInformation(
+            "Creating PayHere checkout parameters: MerchantId={MerchantId}, OrderId={OrderId}, Amount={Amount}",
+            MerchantId, orderId, formattedAmount);
 
         return new PayHereInitResponseDto
         {
@@ -104,9 +166,7 @@ public class PayHereService : IPayHereService
 
     private static string ComputeMd5(string input)
     {
-        using var md5 = MD5.Create();
-        var inputBytes = Encoding.UTF8.GetBytes(input);
-        var hashBytes = md5.ComputeHash(inputBytes);
+        var hashBytes = MD5.HashData(Encoding.UTF8.GetBytes(input));
         return Convert.ToHexString(hashBytes);
     }
 }

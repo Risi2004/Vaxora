@@ -167,7 +167,8 @@ public class AppointmentsController : ControllerBase
     }
 
     /// <summary>
-    /// Hospital walk-in: enqueue a registered patient (matched by NIC) for today.
+    /// Hospital walk-in: enqueue a patient for today. Links an existing Vaxora account when
+    /// NIC matches; otherwise auto-creates a patient account so doses can be recorded.
     /// </summary>
     [HttpPost("hospital/walk-in")]
     [Authorize(Roles = "HOSPITAL")]
@@ -267,9 +268,9 @@ public class AppointmentsController : ControllerBase
         {
             return NotFound(new { message = ex.Message });
         }
-        catch (UnauthorizedAccessException)
+        catch (UnauthorizedAccessException ex)
         {
-            return Forbid();
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
         }
         catch (InvalidOperationException ex)
         {
@@ -279,6 +280,43 @@ public class AppointmentsController : ControllerBase
         {
             _logger.LogError(ex, "Error updating appointment {AppId} status", id);
             return StatusCode(500, new { message = "Failed to update appointment status." });
+        }
+    }
+
+    /// <summary>
+    /// Clinical AEFI report: capture immediate care, document on linked dose when available, notify MOH/physician.
+    /// </summary>
+    [HttpPost("{id}/aefi")]
+    [Authorize(Roles = "DOCTOR,NURSE")]
+    public async Task<IActionResult> ReportAefi(Guid id, [FromBody] ReportAefiDto dto)
+    {
+        var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(userIdStr, out var actorUserId))
+        {
+            return Unauthorized(new { message = "Invalid user token." });
+        }
+
+        try
+        {
+            var result = await _appointmentService.ReportAefiAsync(actorUserId, id, dto);
+            return Ok(result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error reporting AEFI for appointment {AppId}", id);
+            return StatusCode(500, new { message = "Failed to submit AEFI report." });
         }
     }
 

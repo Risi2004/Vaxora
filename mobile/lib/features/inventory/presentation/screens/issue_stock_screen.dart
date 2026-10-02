@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_text_styles.dart';
+import '../../../staff/presentation/widgets/staff_common_widgets.dart';
 import '../../data/models/batch_model.dart';
 import '../../data/repositories/inventory_repository.dart';
 
@@ -44,7 +44,9 @@ class _IssueStockScreenState extends State<IssueStockScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Issued ${_quantityController.text} vials to ${_sessionController.text}'),
+            content: Text(
+              'Issued ${_quantityController.text} vials to ${_sessionController.text}',
+            ),
             backgroundColor: AppColors.success,
             behavior: SnackBarBehavior.floating,
           ),
@@ -61,108 +63,153 @@ class _IssueStockScreenState extends State<IssueStockScreen> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        title: const Text('Issue Stock', style: AppTextStyles.h3),
-        backgroundColor: Colors.white,
-        elevation: 0,
+  InputDecoration _field(String hint, IconData icon) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: const TextStyle(
+        color: StaffSurfaces.textMutedSoft,
+        fontSize: 13,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _buildBatchSummary(),
-              const SizedBox(height: 20),
-              if (_errorMessage != null) ...[
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppColors.errorBg,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
-                  ),
-                  child: Text(_errorMessage!,
-                      style: const TextStyle(color: AppColors.error, fontSize: 13, fontWeight: FontWeight.w600)),
-                ),
-                const SizedBox(height: 14),
-              ],
-              TextFormField(
-                controller: _quantityController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  hintText: 'Quantity to issue (vials)',
-                  prefixIcon: Icon(Icons.numbers),
-                ),
-                validator: (v) {
-                  if (v == null || v.trim().isEmpty) return 'Quantity is required';
-                  final n = int.tryParse(v.trim());
-                  if (n == null || n <= 0) return 'Enter a valid positive number';
-                  if (n > widget.batch.available) {
-                    return 'Max available is ${widget.batch.available} vials';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 14),
-              TextFormField(
-                controller: _sessionController,
-                decoration: const InputDecoration(
-                  hintText: 'Session reference (e.g. COL-2026-045)',
-                  prefixIcon: Icon(Icons.event),
-                ),
-                validator: (v) =>
-                    (v == null || v.trim().isEmpty) ? 'Session reference is required' : null,
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: _isLoading ? null : _handleSubmit,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.brandBlue,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-                child: _isLoading
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                        ),
-                      )
-                    : const Text('Confirm Issue', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-              ),
-            ],
-          ),
-        ),
+      prefixIcon: Icon(icon, color: StaffSurfaces.brandSoft),
+      filled: true,
+      fillColor: StaffSurfaces.cardBg,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: StaffSurfaces.cardBorder),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: StaffSurfaces.cardBorder),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: StaffSurfaces.brandSoft),
       ),
     );
   }
 
-  Widget _buildBatchSummary() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderLight),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: StaffSurfaces.pageBg,
+      appBar: StaffSurfaces.appBar(title: 'Issue stock'),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 28),
         children: [
-          Text(widget.batch.name, style: AppTextStyles.bodyBold),
-          const SizedBox(height: 4),
-          Text('Lot: ${widget.batch.lotNumber}', style: AppTextStyles.caption),
-          const SizedBox(height: 6),
-          Text('Available: ${widget.batch.available} vials',
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.brandBlue)),
+          const StaffPageIntro(
+            eyebrow: 'Dispense',
+            title: 'Issue vials',
+            subtitle: 'Record vials leaving this lot for a clinic session.',
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: StaffSurfaces.card(
+              color: AppColors.successBg,
+              borderColor: AppColors.success.withValues(alpha: 0.28),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  widget.batch.name,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: StaffSurfaces.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Lot ${widget.batch.lotNumber}',
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    color: StaffSurfaces.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '${widget.batch.available} vials available',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.success,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (_errorMessage != null) ...[
+                  StaffErrorBanner(
+                    message: _errorMessage!,
+                    onDismiss: () => setState(() => _errorMessage = null),
+                  ),
+                  const SizedBox(height: 14),
+                ],
+                TextFormField(
+                  controller: _quantityController,
+                  keyboardType: TextInputType.number,
+                  decoration: _field('Quantity to issue (vials)', Icons.numbers),
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) {
+                      return 'Quantity is required';
+                    }
+                    final n = int.tryParse(v.trim());
+                    if (n == null || n <= 0) {
+                      return 'Enter a valid positive number';
+                    }
+                    if (n > widget.batch.available) {
+                      return 'Max available is ${widget.batch.available} vials';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 14),
+                TextFormField(
+                  controller: _sessionController,
+                  decoration: _field(
+                    'Session reference (e.g. COL-2026-045)',
+                    Icons.event_outlined,
+                  ),
+                  validator: (v) => (v == null || v.trim().isEmpty)
+                      ? 'Session reference is required'
+                      : null,
+                ),
+                const SizedBox(height: 24),
+                FilledButton(
+                  onPressed: _isLoading ? null : _handleSubmit,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: StaffSurfaces.cta,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    textStyle: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : const Text('Confirm issue'),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getUser } from '../../auth/services/authService';
+import inventoryService from '../../hospital/services/inventoryService';
 import staffService from '../../hospital/services/staffService';
+import clinicalPatientService from '../../doctor/services/clinicalPatientService';
 import staffAppointmentService from '../services/staffAppointmentService';
 import {
   IconCalendar,
@@ -43,7 +45,9 @@ function mapDbStatusToUi(status) {
   if (s === 'completed') return 'completed';
   if (s === 'observation') return 'observation';
   if (s === 'administering') return 'consulting';
-  if (s === 'cancelled' || s === 'rejected') return 'completed';
+  if (s === 'cancelled' || s === 'rejected') return 'cancelled';
+  // PendingPayment and Confirmed both show in the waiting queue;
+  // paymentStatus decides "In Queue" vs "Awaiting payment".
   return 'waiting';
 }
 
@@ -59,6 +63,14 @@ function pickDefaultHospitalId(active, preferredId) {
 function presenceLabel(affiliation) {
   if (!affiliation) return null;
   return affiliation.isOnDutyNow ? 'On duty' : 'No active shift';
+}
+
+function isPaymentSettled(patientOrStatus) {
+  const value =
+    typeof patientOrStatus === 'string'
+      ? patientOrStatus
+      : patientOrStatus?.paymentStatus;
+  return String(value || '').toLowerCase() === 'paid';
 }
 
 /**
@@ -83,6 +95,7 @@ export default function StaffClinicalDashboard({
   const [affiliations, setAffiliations] = useState([]);
   const [selectedHospitalUserId, setSelectedHospitalUserId] = useState('');
   const [todayAppointments, setTodayAppointments] = useState([]);
+  const [inventoryLots, setInventoryLots] = useState([]);
   const [statsLoading, setStatsLoading] = useState(true);
   const [statusUpdating, setStatusUpdating] = useState(false);
   const [activePatientId, setActivePatientId] = useState(null);
@@ -133,27 +146,29 @@ export default function StaffClinicalDashboard({
       const active = Array.isArray(list) ? list : [];
       setAffiliations(active);
 
-      const hospitalId = allowHospitalSwitch
-        ? pickDefaultHospitalId(
-            active,
-            hospitalOverride !== undefined ? hospitalOverride : selectedHospitalUserId
-          )
-        : active[0]?.hospitalUserId || '';
+      // Always prefer the hospital where staff are on duty now — even when the
+      // switcher UI is hidden (nurses with one affiliation, or multi without switch).
+      const hospitalId = pickDefaultHospitalId(
+        active,
+        hospitalOverride !== undefined ? hospitalOverride : selectedHospitalUserId
+      );
 
       setSelectedHospitalUserId(hospitalId || '');
 
       if (!hospitalId) {
         setTodayAppointments([]);
+        setInventoryLots([]);
         setActivePatientId(null);
         return;
       }
 
-      const appts = await staffAppointmentService.getHospitalAppointments(
-        hospitalId,
-        toDateInputValue()
-      );
+      const [appts, lots] = await Promise.all([
+        staffAppointmentService.getHospitalAppointments(hospitalId, toDateInputValue()),
+        inventoryService.getInventory(hospitalId).catch(() => []),
+      ]);
       const rows = Array.isArray(appts) ? appts : [];
       setTodayAppointments(rows);
+      setInventoryLots(Array.isArray(lots) ? lots : []);
 
       const administering = rows.find((a) => mapDbStatusToUi(a.status) === 'consulting');
       setActivePatientId((prev) => {
@@ -166,6 +181,7 @@ export default function StaffClinicalDashboard({
       setLoadError(err?.message || 'Could not load your clinical session. Check your connection and retry.');
       setAffiliations([]);
       setTodayAppointments([]);
+      setInventoryLots([]);
       setSelectedHospitalUserId('');
       setActivePatientId(null);
     } finally {
@@ -203,12 +219,14 @@ export default function StaffClinicalDashboard({
   const displayTitle = formatTitle(user);
   const greeting = greetingForNow();
   const dutyText = presenceLabel(primaryAffiliation);
+  const isOnDuty = Boolean(primaryAffiliation?.isOnDutyNow);
 
   const todayTotal = todayAppointments.length;
   const todayCompleted = todayAppointments.filter((a) => a.status === 'Completed').length;
-  const todayUpcoming = todayAppointments.filter(
-    (a) => a.status === 'Confirmed' || a.status === 'PendingPayment'
-  ).length;
+  const todayUpcoming = todayAppointments.filter((a) => {
+    const s = String(a.status || '').toLowerCase();
+    return s === 'confirmed' || s === 'pendingpayment';
+  }).length;
   const todayNeedsDosage = todayAppointments.filter(
     (a) => a.status === 'Confirmed' && !a.prescribedDosage
   ).length;
@@ -261,6 +279,8 @@ export default function StaffClinicalDashboard({
     [patients, activePatientId]
   );
 
+  const activePaymentSettled = activePatient ? isPaymentSettled(activePatient) : true;
+
   const persistStatus = async (appointmentId, dbStatus) => {
     setStatusUpdating(true);
     try {
@@ -272,20 +292,39 @@ export default function StaffClinicalDashboard({
   };
 
   const handleCallNext = async () => {
-    const nextWaiting = patients.find((p) => p.status === 'waiting');
+    if (!isOnDuty) {
+      showToast('You must have an active shift to call the next patient.');
+      return;
+    }
+
+    const nextWaiting = patients.find(
+      (p) => p.status === 'waiting' && isPaymentSettled(p)
+    );
     if (!nextWaiting) {
-      showToast("No more waiting patients in today's queue.");
+      const unpaidWaiting = patients.some(
+        (p) => p.status === 'waiting' && !isPaymentSettled(p)
+      );
+      showToast(
+        unpaidWaiting
+          ? 'No paid patients waiting. Unpaid appointments cannot be administered yet.'
+          : "No more waiting patients in today's queue."
+      );
       return;
     }
 
     const current = activePatientId
       ? patients.find((p) => p.id === activePatientId)
-      : null;
+      : patients.find((p) => p.status === 'consulting');
+
+    // Do not silently move consulting → Observation (that consumes inventory).
+    if (current?.status === 'consulting') {
+      showToast(
+        `Finish ${current.name} (certify to observation) before calling the next patient.`
+      );
+      return;
+    }
 
     try {
-      if (current?.status === 'consulting') {
-        await staffAppointmentService.updateAppointmentStatus(current.id, 'Observation');
-      }
       await staffAppointmentService.updateAppointmentStatus(nextWaiting.id, 'Administering');
       setActivePatientId(nextWaiting.id);
       showToast(`Calling ${nextWaiting.name} (${nextWaiting.token})`);
@@ -296,26 +335,93 @@ export default function StaffClinicalDashboard({
   };
 
   const handleSelectPatient = async (patient) => {
-    setActivePatientId(patient.id);
     if (patient.status === 'waiting') {
+      if (!isOnDuty) {
+        showToast('You must have an active shift to start consultation.');
+        return;
+      }
+      if (!isPaymentSettled(patient)) {
+        showToast('Payment must be settled before starting consultation.');
+        return;
+      }
       try {
+        setActivePatientId(patient.id);
         await persistStatus(patient.id, 'Administering');
       } catch (err) {
+        setActivePatientId(null);
         showToast(err.message || 'Failed to start consultation.');
       }
+      return;
     }
+
+    // Spotlight only drives clinical actions for the active consulting patient.
+    // Observation / completed rows can still be focused for read-only context.
+    setActivePatientId(patient.id);
   };
 
   const handleCertifyAdministration = async (certifiedData) => {
+    if (!isOnDuty) {
+      showToast('You must have an active shift to record administration.');
+      throw new Error('Not on duty');
+    }
+    if (!isPaymentSettled(certifiedData)) {
+      showToast('Payment must be settled before recording administration.');
+      throw new Error('Payment not settled');
+    }
+    const current = patients.find((p) => p.id === certifiedData.id);
+    if (current && current.status !== 'consulting') {
+      showToast('Only a patient in active consultation can be certified to observation.');
+      throw new Error('Invalid status for certify');
+    }
+    const details = certifiedData.administrationDetails || {};
     try {
-      await persistStatus(certifiedData.id, 'Observation');
+      setStatusUpdating(true);
+      const dosage = String(details.dosage || '').trim();
+      const currentDose = certifiedData.hasDosage ? String(certifiedData.dose || '').trim() : '';
+      if (dosage && dosage !== currentDose) {
+        try {
+          await clinicalPatientService.updateDosage(certifiedData.id, dosage);
+        } catch {
+          // Dosage update is doctor-only; nurses keep prescribed dosage read-only.
+        }
+      }
+      await staffAppointmentService.updateAppointmentStatus(
+        certifiedData.id,
+        'Observation',
+        undefined,
+        {
+          batchId: details.batchId || undefined,
+          lotNumber: details.lotNumber || undefined,
+          injectionSite: details.injectionSite || undefined,
+          route: details.route || undefined,
+          administrationNotes: details.notes || undefined,
+          consentConfirmed: details.consentConfirmed,
+          vitalsConfirmed: details.vitalsConfirmed,
+        }
+      );
       showToast(`Recorded administration for ${certifiedData.name}`);
+      await loadDashboardData(selectedHospitalUserId);
     } catch (err) {
       showToast(err.message || 'Failed to move patient to observation.');
+      throw err;
+    } finally {
+      setStatusUpdating(false);
     }
   };
 
   const handleReturnToQueue = async (patient) => {
+    if (!isOnDuty) {
+      showToast('You must have an active shift to return a patient to the queue.');
+      return;
+    }
+    if (patient.status !== 'consulting') {
+      showToast('Only the active consulting patient can be returned to the waiting queue.');
+      return;
+    }
+    if (!isPaymentSettled(patient)) {
+      showToast('Unpaid appointments cannot be returned as Confirmed — settle payment at the desk first.');
+      return;
+    }
     try {
       await persistStatus(patient.id, 'Confirmed');
       if (activePatientId === patient.id) setActivePatientId(null);
@@ -326,6 +432,15 @@ export default function StaffClinicalDashboard({
   };
 
   const handleDischargeObservation = async (id, name) => {
+    if (!isOnDuty) {
+      showToast('You must have an active shift to discharge a patient.');
+      return;
+    }
+    const patient = patients.find((p) => p.id === id);
+    if (patient && !isPaymentSettled(patient)) {
+      showToast('Payment must be settled before discharging the patient.');
+      return;
+    }
     try {
       await persistStatus(id, 'Completed');
       if (activePatientId === id) setActivePatientId(null);
@@ -344,8 +459,42 @@ export default function StaffClinicalDashboard({
     loadDashboardData(hospitalUserId);
   };
 
-  const handleAefiSubmit = (data) => {
-    showToast(`AEFI report noted for ${data.patientName}.`);
+  const handleAefiSubmit = async (data) => {
+    if (!activePatient?.id) {
+      showToast('Select an active patient before reporting AEFI.');
+      throw new Error('No active patient');
+    }
+    if (!isOnDuty) {
+      showToast('You must have an active shift to report AEFI.');
+      throw new Error('Not on duty');
+    }
+
+    const severity = data.severity || 'Mild';
+
+    try {
+      setStatusUpdating(true);
+      const result = await staffAppointmentService.reportAefi(activePatient.id, {
+        ...data,
+        severity,
+        notifyDoctor: data.notifyDoctor !== false,
+      });
+      await loadDashboardData(selectedHospitalUserId);
+      const bits = [];
+      if (result?.documentedOnDose) bits.push('documented on dose');
+      if (result?.followUpScheduled) bits.push('follow-up scheduled');
+      if (result?.notifiedDoctor) bits.push('physician alerted');
+      showToast(
+        result?.message ||
+          `AEFI (${severity}) saved for ${data.patientName || activePatient.name}${
+            bits.length ? ` — ${bits.join(', ')}` : ''
+          }.`
+      );
+    } catch (err) {
+      showToast(err.message || 'Failed to submit AEFI report.');
+      throw err;
+    } finally {
+      setStatusUpdating(false);
+    }
   };
 
   const filteredPatients = patients.filter((p) => {
@@ -355,17 +504,34 @@ export default function StaffClinicalDashboard({
       p.name.toLowerCase().includes(q) ||
       p.token.toLowerCase().includes(q) ||
       String(p.nic).toLowerCase().includes(q) ||
+      String(p.phone || '').toLowerCase().includes(q) ||
       p.vaccine.toLowerCase().includes(q);
 
     if (!matchesSearch) return false;
     if (filterStatus === 'all') return true;
+    if (filterStatus === 'waiting') {
+      return p.status === 'waiting' && isPaymentSettled(p);
+    }
+    if (filterStatus === 'awaiting_payment') {
+      return p.status === 'waiting' && !isPaymentSettled(p);
+    }
     return p.status === filterStatus;
   });
 
-  const waitingCount = patients.filter((p) => p.status === 'waiting').length;
+  const waitingCount = patients.filter(
+    (p) => p.status === 'waiting' && isPaymentSettled(p)
+  ).length;
+  const awaitingPaymentCount = patients.filter(
+    (p) =>
+      p.status === 'waiting' &&
+      !isPaymentSettled(p)
+  ).length;
   const completedCount = patients.filter((p) => p.status === 'completed').length;
   const observationCount = patients.filter((p) => p.status === 'observation').length;
-  const showHospitalSwitch = allowHospitalSwitch && affiliations.length > 1;
+  // Show the switcher whenever staff have multiple affiliations (doctors + multi-hospital nurses).
+  const showHospitalSwitch = (allowHospitalSwitch || affiliations.length > 1) && affiliations.length > 1;
+  const canCertifyActive = activePatient?.status === 'consulting' && activePaymentSettled && isOnDuty;
+  const canReturnActive = activePatient?.status === 'consulting' && isOnDuty;
 
   return (
     <div>
@@ -470,7 +636,8 @@ export default function StaffClinicalDashboard({
               type="button"
               className="doctor-btn-call-next"
               onClick={handleCallNext}
-              disabled={statusUpdating || statsLoading || !selectedHospitalUserId}
+              disabled={statusUpdating || statsLoading || !selectedHospitalUserId || !isOnDuty}
+              title={!isOnDuty ? 'You need an active shift to call patients' : undefined}
             >
               Call Next Patient
             </button>
@@ -478,6 +645,14 @@ export default function StaffClinicalDashboard({
               type="button"
               className="doctor-btn-report-aefi"
               onClick={() => setIsAefiModalOpen(true)}
+              disabled={!activePatient || !isOnDuty || statusUpdating}
+              title={
+                !isOnDuty
+                  ? 'You need an active shift to report AEFI'
+                  : !activePatient
+                    ? 'Call or select a patient first'
+                    : undefined
+              }
             >
               Report AEFI
             </button>
@@ -616,8 +791,8 @@ export default function StaffClinicalDashboard({
               <span className={`doctor-check-pill${activePatient.nic !== '—' ? ' is-ok' : ' is-pending'}`}>
                 {activePatient.nic !== '—' ? 'Patient NIC on record' : 'NIC missing'}
               </span>
-              <span className={`doctor-check-pill${activePatient.paymentStatus === 'Paid' ? ' is-ok' : ' is-pending'}`}>
-                {activePatient.paymentStatus === 'Paid' ? 'Payment settled' : `Payment: ${activePatient.paymentStatus}`}
+              <span className={`doctor-check-pill${isPaymentSettled(activePatient) ? ' is-ok' : ' is-pending'}`}>
+                {isPaymentSettled(activePatient) ? 'Payment settled' : `Payment: ${activePatient.paymentStatus}`}
               </span>
               <span className={`doctor-check-pill${activePatient.booth ? ' is-ok' : ' is-pending'}`}>
                 {activePatient.booth ? `Booth ${activePatient.booth}` : 'Booth not assigned'}
@@ -630,35 +805,48 @@ export default function StaffClinicalDashboard({
               type="button"
               className="doctor-btn-defer"
               onClick={() => handleReturnToQueue(activePatient)}
-              disabled={statusUpdating}
+              disabled={statusUpdating || !canReturnActive}
+              title={
+                !isOnDuty
+                  ? 'You need an active shift to return a patient to the queue'
+                  : activePatient.status !== 'consulting'
+                    ? 'Only the active consulting patient can be returned to the queue'
+                    : 'Send this patient back to the waiting queue'
+              }
             >
               Return to Queue
             </button>
             <button
               type="button"
-              className="doctor-btn-observe"
-              onClick={() => {
-                handleCertifyAdministration({
-                  ...activePatient,
-                  administeredAt: new Date().toLocaleTimeString([], {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  }),
-                });
-              }}
-              disabled={statusUpdating}
-            >
-              Transfer to Observation
-            </button>
-            <button
-              type="button"
               className="doctor-btn-certify"
               onClick={() => setIsAdministerModalOpen(true)}
-              disabled={statusUpdating}
+              disabled={statusUpdating || !canCertifyActive}
+              title={
+                !isOnDuty
+                  ? 'You need an active shift to certify administration'
+                  : activePatient.status !== 'consulting'
+                    ? 'Select a consulting patient to certify administration'
+                    : !activePaymentSettled
+                      ? 'Payment must be settled first'
+                      : 'Record administration details, then transfer to observation'
+              }
             >
-              Certify &amp; Record Administration
+              Certify &amp; Transfer to Observation
             </button>
           </div>
+          {!isOnDuty ? (
+            <p className="doctor-off-duty-hint" style={{ marginTop: '10px', color: '#b45309', fontSize: '0.85rem', fontWeight: 600 }}>
+              No active shift — clinical actions are disabled until your scheduled shift starts.
+            </p>
+          ) : activePatient.status !== 'consulting' ? (
+            <p className="doctor-off-duty-hint" style={{ marginTop: '10px', color: '#64748b', fontSize: '0.85rem', fontWeight: 600 }}>
+              Spotlight actions apply only while this patient is in active consultation.
+            </p>
+          ) : !activePaymentSettled ? (
+            <p className="doctor-off-duty-hint" style={{ marginTop: '10px', color: '#b45309', fontSize: '0.85rem', fontWeight: 600 }}>
+              Payment not settled — hospital desk must Mark paid at the counter before administration.
+            </p>
+          ) : null}
         </section>
       )}
 
@@ -695,6 +883,15 @@ export default function StaffClinicalDashboard({
                 >
                   Waiting ({waitingCount})
                 </button>
+                {awaitingPaymentCount > 0 ? (
+                  <button
+                    type="button"
+                    className={`queue-scope-btn${filterStatus === 'awaiting_payment' ? ' active' : ''}`}
+                    onClick={() => setFilterStatus('awaiting_payment')}
+                  >
+                    Awaiting payment ({awaitingPaymentCount})
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   className={`queue-scope-btn${filterStatus === 'observation' ? ' active' : ''}`}
@@ -810,14 +1007,18 @@ export default function StaffClinicalDashboard({
                           <span className="queue-booth-tag">{p.time || '—'}</span>
                         </td>
                         <td>
-                          <span className={`queue-status-badge status-${p.status}`}>
+                          <span className={`queue-status-badge status-${p.status === 'waiting' && !isPaymentSettled(p) ? 'awaiting-payment' : p.status}`}>
                             {p.status === 'consulting'
                               ? 'Consulting'
                               : p.status === 'waiting'
-                                ? 'In Queue'
+                                ? isPaymentSettled(p)
+                                  ? 'In Queue'
+                                  : 'Awaiting payment'
                                 : p.status === 'observation'
                                   ? 'Observation'
-                                  : 'Completed'}
+                                  : p.status === 'cancelled'
+                                    ? 'Cancelled'
+                                    : 'Completed'}
                           </span>
                         </td>
                         <td>
@@ -827,6 +1028,14 @@ export default function StaffClinicalDashboard({
                                 type="button"
                                 className="btn-queue-action"
                                 onClick={() => handleSelectPatient(p)}
+                                disabled={!isOnDuty || !isPaymentSettled(p) || statusUpdating}
+                                title={
+                                  !isPaymentSettled(p)
+                                    ? 'Payment must be settled first'
+                                    : !isOnDuty
+                                      ? 'You need an active shift'
+                                      : undefined
+                                }
                               >
                                 Examine
                               </button>
@@ -835,7 +1044,18 @@ export default function StaffClinicalDashboard({
                               <button
                                 type="button"
                                 className="btn-queue-action btn-queue-action--session"
-                                onClick={() => setIsAdministerModalOpen(true)}
+                                onClick={() => {
+                                  setActivePatientId(p.id);
+                                  setIsAdministerModalOpen(true);
+                                }}
+                                disabled={!isOnDuty || !isPaymentSettled(p) || statusUpdating}
+                                title={
+                                  !isPaymentSettled(p)
+                                    ? 'Payment must be settled first'
+                                    : !isOnDuty
+                                      ? 'You need an active shift to administer'
+                                      : undefined
+                                }
                               >
                                 Administer
                               </button>
@@ -845,6 +1065,14 @@ export default function StaffClinicalDashboard({
                                 type="button"
                                 className="btn-queue-action btn-queue-action--release"
                                 onClick={() => handleDischargeObservation(p.id, p.name)}
+                                disabled={!isOnDuty || !isPaymentSettled(p) || statusUpdating}
+                                title={
+                                  !isPaymentSettled(p)
+                                    ? 'Payment must be settled first'
+                                    : !isOnDuty
+                                      ? 'You need an active shift to discharge'
+                                      : undefined
+                                }
                               >
                                 Discharge
                               </button>
@@ -921,6 +1149,8 @@ export default function StaffClinicalDashboard({
                         type="button"
                         className="doctor-obs-btn-discharge"
                         onClick={() => handleDischargeObservation(obs.id, obs.name)}
+                        disabled={!isOnDuty || statusUpdating}
+                        title={!isOnDuty ? 'You need an active shift to discharge' : undefined}
                       >
                         Discharge Patient
                       </button>
@@ -983,6 +1213,7 @@ export default function StaffClinicalDashboard({
         onClose={() => setIsAdministerModalOpen(false)}
         patient={activePatient}
         onCertify={handleCertifyAdministration}
+        lotOptions={inventoryLots}
       />
 
       <AefiModal

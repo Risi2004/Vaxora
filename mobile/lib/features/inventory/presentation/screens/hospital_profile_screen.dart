@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/services/storage_service.dart';
 import '../../../auth/presentation/screens/login_screen.dart';
 import '../../../auth/data/repositories/auth_repository.dart';
+import '../../../staff/presentation/widgets/network_avatar.dart';
+import '../../../staff/presentation/widgets/staff_common_widgets.dart';
 
 class HospitalProfileScreen extends StatefulWidget {
   const HospitalProfileScreen({super.key});
@@ -42,88 +43,127 @@ class _HospitalProfileScreenState extends State<HospitalProfileScreen> {
     }
   }
 
+  String? get _photo => resolveMediaUrl(
+        _user?['profilePhotoUrl']?.toString() ??
+            _user?['logoUrl']?.toString() ??
+            _user?['photoUrl']?.toString(),
+      );
+
   @override
   Widget build(BuildContext context) {
+    final name = _user?['name']?.toString() ?? 'Hospital';
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        title: const Text('Profile', style: AppTextStyles.h3),
-        centerTitle: false,
-        backgroundColor: Colors.white,
-        elevation: 0,
+      backgroundColor: StaffSurfaces.pageBg,
+      appBar: StaffSurfaces.appBar(
+        title: 'Profile',
+        actions: [
+          StaffHeaderAction(
+            icon: Icons.refresh,
+            tooltip: 'Refresh',
+            onPressed: _loading ? null : _load,
+          ),
+        ],
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? Center(
+              child: CircularProgressIndicator(color: StaffSurfaces.brandSoft),
+            )
           : ListView(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 28),
               children: [
                 Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.borderLight),
-                  ),
+                  padding: const EdgeInsets.all(16),
+                  decoration: StaffSurfaces.card(),
                   child: Column(
                     children: [
                       Container(
                         width: 72,
                         height: 72,
                         decoration: BoxDecoration(
-                          color: AppColors.brandBlue.withValues(alpha: 0.1),
                           shape: BoxShape.circle,
+                          border: Border.all(color: StaffSurfaces.cardBorder),
                         ),
-                        child: const Icon(Icons.local_hospital,
-                            color: AppColors.brandBlue, size: 36),
+                        clipBehavior: Clip.antiAlias,
+                        child: NetworkAvatar(
+                          url: _photo,
+                          size: 72,
+                          fallback: Container(
+                            color: StaffSurfaces.softPanelDeep,
+                            alignment: Alignment.center,
+                            child: Icon(
+                              Icons.local_hospital,
+                              color: StaffSurfaces.brandSoft,
+                              size: 32,
+                            ),
+                          ),
+                        ),
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        _user?['name']?.toString() ?? 'Hospital',
-                        style: AppTextStyles.h3,
+                        name,
                         textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: StaffSurfaces.textPrimary,
+                        ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         _user?['email']?.toString() ?? '',
-                        style: AppTextStyles.caption,
+                        style: const TextStyle(
+                          fontSize: 12.5,
+                          color: StaffSurfaces.textSecondary,
+                        ),
                       ),
                       const SizedBox(height: 10),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: AppColors.successBg,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: const Text(
-                          'HOSPITAL',
-                          style: TextStyle(
-                            color: AppColors.success,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.8,
-                          ),
-                        ),
+                      StaffStatusChip(
+                        label: _user?['status']?.toString() ?? 'Active',
+                        tone: StaffChipTone.success,
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 20),
-                _infoTile('Registration Number',
-                    _user?['registrationNumber']?.toString() ?? 'N/A'),
-                _infoTile('Phone', _user?['phoneNumber']?.toString() ?? 'N/A'),
-                _infoTile('Role', _user?['role']?.toString() ?? 'HOSPITAL'),
-                _infoTile('Status', _user?['status']?.toString() ?? 'Active'),
-                const SizedBox(height: 24),
-                ElevatedButton.icon(
+                const SizedBox(height: 18),
+                const StaffSectionHeader(title: 'Account details'),
+                _InfoTile(
+                  icon: Icons.badge_outlined,
+                  label: 'Registration number',
+                  value: _user?['registrationNumber']?.toString() ?? 'N/A',
+                ),
+                _InfoTile(
+                  icon: Icons.phone_outlined,
+                  label: 'Phone',
+                  value: _user?['phoneNumber']?.toString() ?? 'N/A',
+                ),
+                _InfoTile(
+                  icon: Icons.apartment_outlined,
+                  label: 'Role',
+                  value: _user?['role']?.toString() ?? 'HOSPITAL',
+                ),
+                _InfoTile(
+                  icon: Icons.verified_user_outlined,
+                  label: 'Status',
+                  value: _user?['status']?.toString() ?? 'Active',
+                ),
+                const SizedBox(height: 18),
+                const StaffSectionHeader(title: 'Session'),
+                OutlinedButton.icon(
                   onPressed: _logout,
-                  icon: const Icon(Icons.logout),
-                  label: const Text('Logout'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.error,
-                    foregroundColor: Colors.white,
+                  icon: const Icon(Icons.logout, size: 18),
+                  label: const Text('Log out'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.error,
+                    side: const BorderSide(color: StaffSurfaces.dangerBorder),
+                    backgroundColor: AppColors.errorBg,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    textStyle: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
@@ -131,27 +171,46 @@ class _HospitalProfileScreenState extends State<HospitalProfileScreen> {
             ),
     );
   }
+}
 
-  Widget _infoTile(String label, String value) {
+class _InfoTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+
+  const _InfoTile({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderLight),
-      ),
+      padding: const EdgeInsets.all(14),
+      decoration: StaffSurfaces.card(),
       child: Row(
         children: [
-          Expanded(child: Text(label, style: AppTextStyles.caption)),
+          Icon(icon, size: 18, color: StaffSurfaces.brandSoft),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontSize: 12.5,
+                color: StaffSurfaces.textSecondary,
+              ),
+            ),
+          ),
           Flexible(
             child: Text(
               value,
-              textAlign: TextAlign.right,
+              textAlign: TextAlign.end,
               style: const TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
-                color: AppColors.textTitle,
+                color: StaffSurfaces.textPrimary,
               ),
             ),
           ),

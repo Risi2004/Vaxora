@@ -2,6 +2,11 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { appointmentService } from '../services/appointmentService';
 import BookingAgentChat from './BookingAgentChat';
 import { IconCalendar, IconClock, IconDoctor, IconHospital, IconRefresh, IconShield } from '../../../shared/icons/AppIcons';
+import PatientSubpageHeader from './PatientSubpageHeader';
+import {
+  canPatientCancelByStatus,
+  getPatientAppointmentStatusDisplay,
+} from '../utils/appointmentStatusDisplay';
 
 const STEP_ICONS = {
   hospital: IconHospital,
@@ -68,6 +73,52 @@ export default function AppointmentsTab() {
     }
   }, []);
 
+  /** Wait for authoritative PayHere IPN (client cannot forge Paid). */
+  const syncPayHereConfirmation = useCallback(async (appointmentId) => {
+    const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    let confirmed = false;
+
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      try {
+        const result = await appointmentService.confirmPayment(appointmentId);
+        if (result?.confirmed) {
+          confirmed = true;
+          break;
+        }
+      } catch (err) {
+        console.warn('PayHere sync attempt failed:', err?.message || err);
+      }
+
+      const list = await appointmentService.getPatientAppointments().catch(() => null);
+      if (Array.isArray(list)) {
+        setAppointments(list);
+        const match = list.find((a) => String(a.id || a.Id) === String(appointmentId));
+        const paid =
+          String(match?.paymentStatus || '').toLowerCase() === 'paid' &&
+          String(match?.status || '').toLowerCase() === 'confirmed';
+        if (paid) {
+          confirmed = true;
+          break;
+        }
+      }
+
+      await sleep(1500);
+    }
+
+    await loadMyAppointments();
+    if (confirmed) {
+      showToast('Payment confirmed. Your appointment is booked and receipts have been emailed.');
+    } else {
+      showToast(
+        'PayHere checkout finished. Waiting for payment notification — refresh shortly, or ask the hospital desk to Mark paid if you paid at the counter.'
+      );
+    }
+    setTimeout(() => {
+      const section = document.querySelector('.appointments-list-section');
+      if (section) section.scrollIntoView({ behavior: 'smooth' });
+    }, 250);
+  }, [loadMyAppointments]);
+
   useEffect(() => {
     loadMyAppointments();
   }, [loadMyAppointments]);
@@ -86,23 +137,11 @@ export default function AppointmentsTab() {
     const query = new URLSearchParams(window.location.search);
     const paymentParam = query.get('payment');
     const aptId = query.get('apt_id');
-    const orderId = query.get('order_id');
 
     if (paymentParam === 'success' && aptId) {
       const handleReturnSuccess = async () => {
-        try {
-          await appointmentService.confirmPayment(aptId, orderId || 'PAYHERE-RETURN');
-          showToast('🎉 Payment successful! Your appointment is confirmed and receipts have been emailed.');
-          window.history.replaceState({}, document.title, window.location.pathname);
-          await loadMyAppointments();
-          setTimeout(() => {
-            const section = document.querySelector('.appointments-list-section');
-            if (section) section.scrollIntoView({ behavior: 'smooth' });
-          }, 250);
-        } catch (err) {
-          console.error('Failed to confirm payment on return:', err);
-          await loadMyAppointments();
-        }
+        window.history.replaceState({}, document.title, window.location.pathname);
+        await syncPayHereConfirmation(aptId);
       };
       handleReturnSuccess();
     } else if (paymentParam === 'cancelled') {
@@ -110,7 +149,7 @@ export default function AppointmentsTab() {
       window.history.replaceState({}, document.title, window.location.pathname);
       loadMyAppointments();
     }
-  }, [loadMyAppointments]);
+  }, [loadMyAppointments, syncPayHereConfirmation]);
 
   // 3. Fetch available vaccines and hospitals from database
   useEffect(() => {
@@ -447,15 +486,10 @@ export default function AppointmentsTab() {
     window.payhere.onCompleted = async function onCompleted(orderId) {
       console.log('PayHere payment completed. OrderID:', orderId);
       try {
-        await appointmentService.confirmPayment(aptId, orderId || `PH-${Date.now().toString().slice(-8)}`);
-        showToast('🎉 PayHere payment verified! Booking confirmed. Confirmation email and payment transaction receipt have been sent.');
-        await loadMyAppointments();
-        setTimeout(() => {
-          const section = document.querySelector('.appointments-list-section');
-          if (section) section.scrollIntoView({ behavior: 'smooth' });
-        }, 250);
+        await syncPayHereConfirmation(aptId);
       } catch (err) {
-        alert(`Failed to confirm PayHere payment on server: ${err.message}`);
+        console.error('Failed to sync PayHere payment:', err);
+        showToast(err.message || 'Could not sync payment status. Please refresh.');
         await loadMyAppointments();
       }
     };
@@ -586,14 +620,14 @@ export default function AppointmentsTab() {
   const isFormComplete = Boolean(formData.vaccine && formData.hospitalUserId && formData.date && formData.time);
 
   return (
-    <div className="manage-appointments-wrapper">
+    <div className="patient-subpage-page">
+      <PatientSubpageHeader
+        title="Appointments"
+        subtitle="Book vaccination visits and manage your upcoming appointments."
+      />
+      <div className="manage-appointments-wrapper">
       {/* Outer White Card Container */}
       <div className="manage-appointments-card">
-        {/* Main Heading */}
-        <h1 className="manage-appointments-title">
-          Manage Your Appointments
-        </h1>
-
         {/* Notification Alert */}
         {notification && (
           <div className="appointment-alert-pill" role="alert">
@@ -1158,9 +1192,9 @@ export default function AppointmentsTab() {
                 ) : (
                   appointments.map((apt) => {
                     const feeNum = Number(apt.fee ?? apt.Fee ?? 0);
-                    const payMethod = apt.paymentMethod || apt.PaymentMethod || 'Free';
                     const payStatus = apt.paymentStatus || apt.PaymentStatus || 'Paid';
-                    const isPendingPayment = (apt.status || '').toLowerCase() === 'pendingpayment' || payStatus === 'PendingOnline';
+                    const statusDisplay = getPatientAppointmentStatusDisplay(apt.status);
+                    const canCancelByStatus = canPatientCancelByStatus(apt.status);
 
                     return (
                       <tr key={apt.id || apt.Id}>
@@ -1228,30 +1262,15 @@ export default function AppointmentsTab() {
                               borderRadius: '12px',
                               fontSize: '0.78rem',
                               fontWeight: 700,
-                              textTransform: 'uppercase',
-                              backgroundColor:
-                                (apt.status || '').toLowerCase() === 'confirmed'
-                                  ? '#dcfce7'
-                                  : (apt.status || '').toLowerCase() === 'cancelled'
-                                  ? '#fee2e2'
-                                  : (apt.status || '').toLowerCase() === 'pendingpayment'
-                                  ? '#fef3c7'
-                                  : '#e0f2fe',
-                              color:
-                                (apt.status || '').toLowerCase() === 'confirmed'
-                                  ? '#15803d'
-                                  : (apt.status || '').toLowerCase() === 'cancelled'
-                                  ? '#b91c1c'
-                                  : (apt.status || '').toLowerCase() === 'pendingpayment'
-                                  ? '#b45309'
-                                  : '#0369a1',
+                              backgroundColor: statusDisplay.backgroundColor,
+                              color: statusDisplay.color,
                             }}
                           >
-                            {apt.status || 'Confirmed'}
+                            {statusDisplay.label}
                           </span>
                         </td>
                         <td className="td-action">
-                          {(apt.status || '').toLowerCase() !== 'cancelled' ? (
+                          {canCancelByStatus ? (
                             isEligibleForCancellation(apt.appointmentDate || apt.date) ? (
                               <button
                                 type="button"
@@ -1277,8 +1296,13 @@ export default function AppointmentsTab() {
                                 Locked (Same-Day)
                               </span>
                             )
-                          ) : (
+                          ) : (apt.status || '').toLowerCase() === 'cancelled' ||
+                            (apt.status || '').toLowerCase() === 'rejected' ? (
                             <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Cancelled</span>
+                          ) : (apt.status || '').toLowerCase() === 'completed' ? (
+                            <span style={{ fontSize: '0.8rem', color: '#15803d', fontWeight: 600 }}>Done</span>
+                          ) : (
+                            <span style={{ fontSize: '0.76rem', color: '#64748b' }}>In progress</span>
                           )}
                         </td>
                       </tr>
@@ -1289,6 +1313,7 @@ export default function AppointmentsTab() {
             </table>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );

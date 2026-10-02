@@ -79,7 +79,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                   index: 1,
                   icon: Icons.event_note_outlined,
                   activeIcon: Icons.event_note,
-                  label: 'Appts',
+                  label: 'Clinic',
                 ),
                 _navItem(
                   index: 2,

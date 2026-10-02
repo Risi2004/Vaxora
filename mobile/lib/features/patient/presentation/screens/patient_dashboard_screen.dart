@@ -194,12 +194,38 @@ class _PatientDashboardScreenState extends State<PatientDashboardScreen> {
         return StaffChipTone.success;
       case 'cancelled':
       case 'declined':
+      case 'rejected':
         return StaffChipTone.danger;
       case 'due soon':
       case 'pending':
+      case 'pendingpayment':
         return StaffChipTone.warning;
+      case 'administering':
+      case 'observation':
+        return StaffChipTone.brand;
       default:
         return StaffChipTone.brand;
+    }
+  }
+
+  String _statusLabel(String status) {
+    switch (status.toLowerCase()) {
+      case 'pendingpayment':
+        return 'Awaiting payment';
+      case 'administering':
+        return 'In session';
+      case 'observation':
+        return 'Observation';
+      case 'completed':
+        return 'Completed';
+      case 'cancelled':
+        return 'Cancelled';
+      case 'rejected':
+        return 'Rejected';
+      case 'confirmed':
+        return 'Confirmed';
+      default:
+        return status;
     }
   }
 
@@ -279,16 +305,21 @@ class _PatientDashboardScreenState extends State<PatientDashboardScreen> {
                   label: 'Received',
                   value: '$totalDoses',
                   icon: Icons.vaccines_outlined,
+                  accent: AppColors.success,
                 ),
                 StaffIntroStat(
                   label: 'Upcoming',
                   value: '$scheduledCount',
                   icon: Icons.event_note_outlined,
+                  accent: scheduledCount > 0
+                      ? const Color(0xFFB2660A)
+                      : StaffSurfaces.brandSoft,
                 ),
                 StaffIntroStat(
                   label: 'Vaccines',
                   value: '${_timeline?.distinctVaccines ?? 0}',
                   icon: Icons.health_and_safety_outlined,
+                  accent: const Color(0xFF6D5BAE),
                 ),
               ],
             ),
@@ -387,7 +418,16 @@ class _PatientDashboardScreenState extends State<PatientDashboardScreen> {
             else
               Container(
                 padding: const EdgeInsets.all(14),
-                decoration: StaffSurfaces.card(),
+                decoration: StaffSurfaces.card(
+                  borderColor: switch (_chipTone(nextAppointment.status)) {
+                    StaffChipTone.success =>
+                      AppColors.success.withValues(alpha: 0.28),
+                    StaffChipTone.danger =>
+                      AppColors.error.withValues(alpha: 0.28),
+                    StaffChipTone.warning => const Color(0xFFF5B168),
+                    _ => StaffSurfaces.cardBorder,
+                  },
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -404,7 +444,7 @@ class _PatientDashboardScreenState extends State<PatientDashboardScreen> {
                           ),
                         ),
                         StaffStatusChip(
-                          label: nextAppointment.status,
+                          label: _statusLabel(nextAppointment.status),
                           tone: _chipTone(nextAppointment.status),
                         ),
                       ],
@@ -538,13 +578,13 @@ class _PatientDashboardScreenState extends State<PatientDashboardScreen> {
                     width: 36,
                     height: 36,
                     decoration: BoxDecoration(
-                      color: StaffSurfaces.softPanelDeep,
+                      color: AppColors.infoBg,
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Icon(
+                    child: const Icon(
                       Icons.flight_takeoff_outlined,
                       size: 18,
-                      color: StaffSurfaces.brandSoft,
+                      color: AppColors.accent,
                     ),
                   ),
                   const SizedBox(width: 12),

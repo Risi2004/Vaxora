@@ -716,8 +716,13 @@ public class ShiftSwapService : IShiftSwapService
         var today = HospitalToday();
         var monthStart = new DateOnly(today.Year, today.Month, 1);
         var monthEnd = monthStart.AddMonths(1);
-        var monthStartUtc = monthStart.ToDateTime(TimeOnly.MinValue) - HospitalUtcOffset;
-        var monthEndUtc = monthEnd.ToDateTime(TimeOnly.MinValue) - HospitalUtcOffset;
+        // Npgsql rejects Kind=Unspecified for timestamptz parameters.
+        var monthStartUtc = DateTime.SpecifyKind(
+            monthStart.ToDateTime(TimeOnly.MinValue) - HospitalUtcOffset,
+            DateTimeKind.Utc);
+        var monthEndUtc = DateTime.SpecifyKind(
+            monthEnd.ToDateTime(TimeOnly.MinValue) - HospitalUtcOffset,
+            DateTimeKind.Utc);
 
         var monthRows = await _context.ShiftSwapRequests
             .AsNoTracking()

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AddStaffRequestModal from './AddStaffRequestModal';
+import HospitalCoverRequestsPanel from './HospitalCoverRequestsPanel';
 import HospitalShiftsPanel from './HospitalShiftsPanel';
 import staffService from '../services/staffService';
 import staffHeroImage from '../../../assets/images/hospital-staff-hero.jpg';
@@ -14,7 +15,7 @@ import {
 function mapAffiliationToCard(item) {
   const isPending = item.status === 'Pending';
   const roleLabel = item.staffRole === 'DOCTOR' ? 'Doctor' : 'Nurse';
-  const liveDuty = item.isOnDutyNow ? 'On duty' : 'Off duty';
+  const liveDuty = item.isOnDutyNow ? 'On duty' : 'No active shift';
 
   return {
     id: item.affiliationId,
@@ -33,7 +34,7 @@ function mapAffiliationToCard(item) {
 }
 
 export default function HospitalStaffTab() {
-  const [pageView, setPageView] = useState('directory'); // 'directory' | 'shifts'
+  const [pageView, setPageView] = useState('directory'); // 'directory' | 'shifts' | 'covers'
   const [activeTab, setActiveTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -43,8 +44,15 @@ export default function HospitalStaffTab() {
   const [loading, setLoading] = useState(true);
   const [staffList, setStaffList] = useState([]);
   const [actionId, setActionId] = useState(null);
+  const [sortBy, setSortBy] = useState('name');
+  const [page, setPage] = useState(1);
+  const [pendingCoverCount, setPendingCoverCount] = useState(0);
+  const pageSize = 6;
 
   const toastTimerRef = useRef(null);
+  const handlePendingCoverCount = useCallback((count) => {
+    setPendingCoverCount(Number(count) || 0);
+  }, []);
 
   const showToast = (message) => {
     setNotification(message);
@@ -75,12 +83,34 @@ export default function HospitalStaffTab() {
     loadStaff();
   }, [loadStaff]);
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await staffService.getHospitalShiftSwaps({ status: 'Pending', limit: 40 });
+        if (cancelled) return;
+        const list = Array.isArray(data) ? data : [];
+        setPendingCoverCount(
+          list.filter((r) => String(r.status || '').toLowerCase() === 'pending').length
+        );
+      } catch {
+        if (!cancelled) setPendingCoverCount(0);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const handleSendRequest = async (registrationNumber) => {
     setIsSubmitting(true);
     try {
       const invited = await staffService.inviteStaff(registrationNumber);
       showToast(`Invitation sent to ${invited.staffName} (${invited.staffRegistrationNumber}).`);
       await loadStaff();
+    } catch (err) {
+      setError(err.message || 'Failed to send staff invitation.');
+      throw err;
     } finally {
       setIsSubmitting(false);
     }
@@ -113,7 +143,7 @@ export default function HospitalStaffTab() {
   };
 
   const filteredStaff = useMemo(() => {
-    return staffList.filter((staff) => {
+    const filtered = staffList.filter((staff) => {
       const haystack = `${staff.name} ${staff.vaxoraId} ${staff.specialty} ${staff.email}`.toLowerCase();
       const matchesSearch = haystack.includes(searchQuery.toLowerCase());
 
@@ -123,7 +153,22 @@ export default function HospitalStaffTab() {
       if (activeTab === 'pending') return staff.affiliationStatus === 'Pending';
       return true;
     });
-  }, [staffList, activeTab, searchQuery]);
+
+    return filtered.sort((a, b) => {
+      if (sortBy === 'role') return a.role.localeCompare(b.role) || a.name.localeCompare(b.name);
+      if (sortBy === 'status') {
+        return a.status.localeCompare(b.status) || a.name.localeCompare(b.name);
+      }
+      return a.name.localeCompare(b.name);
+    });
+  }, [staffList, activeTab, searchQuery, sortBy]);
+
+  useEffect(() => {
+    setPage((current) => Math.min(current, Math.max(1, Math.ceil(filteredStaff.length / pageSize))));
+  }, [activeTab, searchQuery, sortBy, filteredStaff.length]);
+
+  const pageCount = Math.max(1, Math.ceil(filteredStaff.length / pageSize));
+  const visibleStaff = filteredStaff.slice((page - 1) * pageSize, page * pageSize);
 
   const activeStaff = staffList.filter((s) => s.affiliationStatus === 'Active');
   const doctorsCount = activeStaff.filter((s) => s.role === 'Doctor').length;
@@ -193,6 +238,18 @@ export default function HospitalStaffTab() {
               >
                 Shifts
               </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={pageView === 'covers'}
+                className={`hospital-staff-hero-tab ${pageView === 'covers' ? 'active' : ''}`}
+                onClick={() => setPageView('covers')}
+              >
+                Cover requests
+                {pendingCoverCount > 0 ? (
+                  <span className="hospital-staff-hero-tab-badge">{pendingCoverCount}</span>
+                ) : null}
+              </button>
             </div>
           </div>
         </div>
@@ -203,6 +260,8 @@ export default function HospitalStaffTab() {
 
       {pageView === 'shifts' ? (
         <HospitalShiftsPanel />
+      ) : pageView === 'covers' ? (
+        <HospitalCoverRequestsPanel onPendingCountChange={handlePendingCoverCount} />
       ) : (
       <>
       <div className="hospital-staff-toolbar">
@@ -269,17 +328,8 @@ export default function HospitalStaffTab() {
         </div>
       </div>
 
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          marginBottom: '20px',
-          flexWrap: 'wrap',
-          gap: '12px',
-        }}
-      >
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+      <div className="hospital-staff-toolbar">
+        <div className="hospital-staff-filters" role="group" aria-label="Filter staff by category">
           <button
             type="button"
             className={`hospital-nav-btn ${activeTab === 'all' ? 'active' : ''}`}
@@ -330,12 +380,12 @@ export default function HospitalStaffTab() {
         </div>
 
         <input
+          aria-label="Search staff directory"
           type="text"
           placeholder="Search name, Vaxora ID, email..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="queue-search-input"
-          style={{ width: '280px', padding: '8px 14px' }}
+          className="queue-search-input hospital-staff-search"
         />
       </div>
 
@@ -352,10 +402,12 @@ export default function HospitalStaffTab() {
             className="hospital-section-card"
             style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px', color: '#64748b' }}
           >
-            No staff found. Invite a doctor or nurse with their Vaxora ID to get started.
+            {staffList.length === 0
+              ? 'No staff yet. Invite an approved doctor or nurse with their Vaxora ID to get started.'
+              : 'No staff matches the current search or filter.'}
           </div>
         ) : (
-          filteredStaff.map((staff) => (
+            visibleStaff.map((staff) => (
             <div
               key={staff.id}
               className="booth-card"
@@ -493,6 +545,33 @@ export default function HospitalStaffTab() {
           ))
         )}
       </div>
+
+      {!loading && filteredStaff.length > 0 && (
+        <div
+          aria-label="Staff directory pagination"
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', marginTop: '18px' }}
+        >
+          <button
+            type="button"
+            className="hospital-nav-btn"
+            onClick={() => setPage((current) => Math.max(1, current - 1))}
+            disabled={page === 1}
+          >
+            Previous
+          </button>
+          <span style={{ color: '#64748b', fontSize: '0.85rem' }}>
+            Page {page} of {pageCount}
+          </span>
+          <button
+            type="button"
+            className="hospital-nav-btn"
+            onClick={() => setPage((current) => Math.min(pageCount, current + 1))}
+            disabled={page === pageCount}
+          >
+            Next
+          </button>
+        </div>
+      )}
 
       <AddStaffRequestModal
         isOpen={isModalOpen}

@@ -124,11 +124,11 @@ public class InventoryController : ControllerBase
     // ==================== BATCHES / INVENTORY ====================
 
     [HttpGet("batches")]
-    public async Task<IActionResult> GetInventory()
+    public async Task<IActionResult> GetInventory([FromQuery] Guid? hospitalUserId = null)
     {
         try
         {
-            var result = await _inventoryService.GetInventoryAsync(GetUserId());
+            var result = await _inventoryService.GetInventoryAsync(GetUserId(), hospitalUserId);
             return Ok(result);
         }
         catch (Exception ex)

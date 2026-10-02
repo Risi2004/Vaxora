@@ -41,6 +41,42 @@ async def tool_get_stock_levels(token: Optional[str] = None) -> Dict[str, Any]:
         return {"success": False, "error": str(e)}
 
 
+async def tool_get_low_stock_items(token: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Returns ONLY batches where available <= minThreshold.
+    Pre-filters on the Python side so the LLM doesn't have to compare numbers.
+    Enriches each item with 'deficit' and 'suggested_qty' (pre-computed).
+    """
+    try:
+        batches = await _api_get("/inventory/batches", token=token)
+        low: List[Dict[str, Any]] = []
+        for b in batches or []:
+            available = b.get("available")
+            min_threshold = b.get("minThreshold")
+            if not isinstance(available, int) or not isinstance(min_threshold, int):
+                continue
+            if available <= min_threshold:
+                deficit = min_threshold - available
+                # recommended = max(50, round_up_to_nearest_50((2 * threshold) - available))
+                target = (2 * min_threshold) - available
+                rounded = ((target + 49) // 50) * 50 if target > 0 else 50
+                suggested_qty = max(50, rounded)
+                low.append({
+                    "batchId": b.get("id"),
+                    "vaccineId": b.get("vaccineId"),
+                    "vaccineName": b.get("name"),
+                    "lotNumber": b.get("lotNumber"),
+                    "available": available,
+                    "minThreshold": min_threshold,
+                    "deficit": deficit,
+                    "suggested_qty": suggested_qty,
+                    "expiry": b.get("expiry"),
+                })
+        return {"success": True, "low_stock_items": low, "count": len(low)}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
 async def tool_get_vaccines(token: Optional[str] = None) -> Dict[str, Any]:
     try:
         data = await _api_get("/inventory/vaccines", token=token)
@@ -150,6 +186,18 @@ RESTOCK_TOOLS_SCHEMA = [
     {
         "type": "function",
         "function": {
+            "name": "get_low_stock_items",
+            "description": (
+                "Returns ONLY batches that are at or below their minimum threshold. "
+                "Each item already includes 'deficit' and 'suggested_qty' (pre-computed). "
+                "Use this instead of get_stock_levels when you need to find restock candidates."
+            ),
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "get_vaccines",
             "description": "Get master list of vaccines with their default minimum thresholds and dosing info.",
             "parameters": {"type": "object", "properties": {}, "required": []},
@@ -159,7 +207,7 @@ RESTOCK_TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "propose_restock_order",
-            "description": "Propose a restock purchase order for admin approval. This pauses the workflow until the user approves or rejects.",
+            "description": "Propose a restock purchase order for admin approval. This pauses the workflow until the user approves or rejects. Call this ONCE PER low-stock item.",
             "parameters": {
                 "type": "object",
                 "properties": {

@@ -1,16 +1,26 @@
 import React, { useEffect, useState } from "react";
-import { getUser } from "../../auth/services/authService";
+import { authService, getUser, subscribeAuthUser } from "../../auth";
 import { patientVaccinationService } from "../services/patientVaccinationService";
 import { IconClose, IconShield } from "../../../shared/icons/AppIcons";
+import PatientSubpageHeader from './PatientSubpageHeader';
 
 export default function VaccinationHistoryTab() {
+  const [currentUser, setCurrentUser] = useState(() => getUser() || {});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [timeline, setTimeline] = useState(null);
   const [selectedCertificate, setSelectedCertificate] = useState(null);
 
+  useEffect(() => {
+    const syncUser = () => setCurrentUser(getUser() || {});
+    const unsubscribe = subscribeAuthUser(syncUser);
+    authService.getMe().catch((err) => {
+      console.warn("Could not refresh patient profile:", err);
+    });
+    return unsubscribe;
+  }, []);
+
   // Load current user + their profile ID from localStorage
-  const currentUser = getUser() || {};
   const profile = currentUser.profileDetails || {};
   const patientProfileId = profile.id;
   const vaxoraId = currentUser.registrationNumber || "—";
@@ -22,6 +32,7 @@ export default function VaccinationHistoryTab() {
   const nicNumber = profile.nicNumber || "—";
   const email = currentUser.email || "—";
   const phone = currentUser.phoneNumber || profile.phoneNumber || "—";
+  const profilePhotoUrl = currentUser.profilePhotoUrl || profile.profilePhotoUrl;
 
   useEffect(() => {
     let cancelled = false;
@@ -70,7 +81,12 @@ export default function VaccinationHistoryTab() {
   const records = timeline?.records || [];
 
   return (
-    <div className="doctor-patient-history-page">
+    <div className="patient-subpage-page">
+      <PatientSubpageHeader
+        title="Vaccination History"
+        subtitle="Review your immunization records and access your vaccination certificates."
+      />
+      <div className="doctor-patient-history-page">
       {loading && (
         <div style={{ padding: "40px", textAlign: "center", color: "#475569" }}>
           Loading your vaccination history…
@@ -93,7 +109,9 @@ export default function VaccinationHistoryTab() {
           <div className="patient-personal-info-box">
             <div className="patient-avatar-wrapper">
               <div className="patient-avatar-circle">
-                <svg
+                {profilePhotoUrl ? (
+                  <img src={profilePhotoUrl} alt={`${displayName} profile`} className="patient-avatar-silhouette" style={{ objectFit: "cover" }} />
+                ) : <svg
                   className="patient-avatar-silhouette"
                   viewBox="0 0 100 100"
                   fill="none"
@@ -104,7 +122,7 @@ export default function VaccinationHistoryTab() {
                     d="M20 86C20 68 34 60 50 60C66 60 80 68 80 86"
                     fill="#5a5e66"
                   />
-                </svg>
+                </svg>}
               </div>
             </div>
 
@@ -354,6 +372,7 @@ export default function VaccinationHistoryTab() {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

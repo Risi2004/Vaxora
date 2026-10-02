@@ -113,14 +113,21 @@ class StaffRepository {
   }
 
   /// Status values: Confirmed, Administering, Observation, Completed, Cancelled, Rejected.
+  /// Optional [administration] fields are used when certifying to Observation.
   static Future<StaffAppointmentModel> updateAppointmentStatus({
     required String appointmentId,
     required String status,
     String? remarks,
+    Map<String, dynamic>? administration,
   }) async {
     final body = <String, dynamic>{'status': status};
     if (remarks != null && remarks.trim().isNotEmpty) {
       body['remarks'] = remarks.trim();
+    }
+    if (administration != null) {
+      for (final entry in administration.entries) {
+        if (entry.value != null) body[entry.key] = entry.value;
+      }
     }
 
     final response = await ApiClient.patch(
@@ -132,5 +139,32 @@ class StaffRepository {
       return StaffAppointmentModel.fromJson(response);
     }
     throw ApiException('Failed to update appointment status.');
+  }
+
+  /// Clinical AEFI report: care, dose documentation, and follow-up visit.
+  static Future<Map<String, dynamic>> reportAefi({
+    required String appointmentId,
+    required String severity,
+    required String description,
+    required String treatmentGiven,
+    required DateTime followUpAt,
+    required String followUpPlan,
+    bool notifyDoctor = true,
+  }) async {
+    final response = await ApiClient.post(
+      ApiConstants.appointmentAefi(appointmentId),
+      body: {
+        'severity': severity,
+        'description': description,
+        'treatmentGiven': treatmentGiven,
+        'followUpAt': followUpAt.toUtc().toIso8601String(),
+        'followUpPlan': followUpPlan,
+        'notifyDoctor': notifyDoctor,
+        'notifyMOH': false,
+      },
+    );
+
+    if (response is Map<String, dynamic>) return response;
+    throw ApiException('Failed to submit AEFI report.');
   }
 }

@@ -16,6 +16,18 @@ const DOSE_OPTIONS = [
   'Annual Booster',
 ];
 
+const EMPTY_FORM = {
+  patientName: '',
+  nic: '',
+  email: '',
+  phone: '',
+  gender: 'Male',
+  age: '',
+  vaccine: '',
+  dose: DOSE_OPTIONS[0],
+  assignedBooth: '',
+};
+
 export default function WalkInRegistrationModal({
   isOpen,
   onClose,
@@ -29,12 +41,8 @@ export default function WalkInRegistrationModal({
     : [{ id: 'default', label: 'Unassigned booth' }];
 
   const [formData, setFormData] = useState({
-    patientName: '',
-    nic: '',
-    gender: 'Male',
-    age: '',
+    ...EMPTY_FORM,
     vaccine: vaccineOptions[0] || '',
-    dose: DOSE_OPTIONS[0],
     assignedBooth: boothOptions[0]?.label || '',
   });
   const [submitting, setSubmitting] = useState(false);
@@ -43,13 +51,12 @@ export default function WalkInRegistrationModal({
   useEffect(() => {
     if (!isOpen) return;
     setError('');
-    setFormData((prev) => ({
-      ...prev,
-      vaccine: vaccineOptions.includes(prev.vaccine) ? prev.vaccine : (vaccineOptions[0] || ''),
-      assignedBooth: boothOptions.some((b) => b.label === prev.assignedBooth)
-        ? prev.assignedBooth
-        : (boothOptions[0]?.label || ''),
-    }));
+    setFormData({
+      ...EMPTY_FORM,
+      vaccine: vaccineOptions[0] || '',
+      dose: DOSE_OPTIONS[0],
+      assignedBooth: boothOptions[0]?.label || '',
+    });
   }, [isOpen, vaccineOptions.join('|'), boothOptions.map((b) => b.label).join('|')]);
 
   if (!isOpen) return null;
@@ -61,7 +68,9 @@ export default function WalkInRegistrationModal({
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.patientName || !formData.nic || submitting) return;
+    if (!formData.patientName || !formData.nic || !formData.email || !formData.phone || submitting) {
+      return;
+    }
 
     setSubmitting(true);
     setError('');
@@ -69,6 +78,8 @@ export default function WalkInRegistrationModal({
       await onAddPatient({
         patientName: formData.patientName.trim(),
         patientNic: formData.nic.trim(),
+        patientEmail: formData.email.trim(),
+        patientPhone: formData.phone.trim(),
         vaccineName: formData.vaccine,
         dose: formData.dose,
         boothLabel: formData.assignedBooth,
@@ -134,10 +145,13 @@ export default function WalkInRegistrationModal({
                   name="nic"
                   value={formData.nic}
                   onChange={handleChange}
-                  placeholder="Registered Vaxora patient NIC"
+                  placeholder="Patient NIC"
                   required
                   className="modal-input"
                 />
+                <p style={{ margin: '6px 0 0', fontSize: '0.75rem', color: '#64748b' }}>
+                  Matches an existing account by NIC, or creates one with the email/phone below.
+                </p>
               </div>
 
               <div className="modal-form-group">
@@ -162,6 +176,36 @@ export default function WalkInRegistrationModal({
                     <option value="Other">Other</option>
                   </select>
                 </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div className="modal-form-group">
+                <label className="modal-label">Email *</label>
+                <input
+                  type="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  placeholder="patient@email.com"
+                  required
+                  className="modal-input"
+                />
+                <p style={{ margin: '6px 0 0', fontSize: '0.75rem', color: '#64748b' }}>
+                  For new guest accounts only: this is their login email, and the default password is their NIC.
+                </p>
+              </div>
+              <div className="modal-form-group">
+                <label className="modal-label">Phone *</label>
+                <input
+                  type="tel"
+                  name="phone"
+                  value={formData.phone}
+                  onChange={handleChange}
+                  placeholder="07XXXXXXXX"
+                  required
+                  className="modal-input"
+                />
               </div>
             </div>
 

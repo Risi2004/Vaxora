@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 
 /** Blank administration record. Confirmations start unticked so the clinician must sign off. */
 const emptyAdministration = {
+  batchId: '',
   lotNumber: '',
   injectionSite: 'Left Deltoid',
   route: 'Intramuscular (IM)',
@@ -11,36 +12,81 @@ const emptyAdministration = {
   vitalsConfirmed: false,
 };
 
-export default function ClinicalAdministerModal({ isOpen, onClose, patient, onCertify }) {
+export default function ClinicalAdministerModal({
+  isOpen,
+  onClose,
+  patient,
+  onCertify,
+  lotOptions = [],
+}) {
   const [formData, setFormData] = useState(emptyAdministration);
+  const [submitting, setSubmitting] = useState(false);
+
+  const usableLots = useMemo(() => {
+    const vaccineName = String(patient?.vaccine || '').trim().toLowerCase();
+    return (lotOptions || []).filter((lot) => {
+      const doses = Number(lot.availableDoses ?? 0);
+      const vials = Number(lot.available ?? 0);
+      const open = Number(lot.openVialDosesRemaining ?? 0);
+      if (doses <= 0 && vials <= 0 && open <= 0) return false;
+      if (!vaccineName) return true;
+      return String(lot.name || '').trim().toLowerCase() === vaccineName
+        || String(lot.name || '').toLowerCase().includes(vaccineName)
+        || vaccineName.includes(String(lot.name || '').trim().toLowerCase());
+    });
+  }, [lotOptions, patient?.vaccine]);
 
   // Reset per patient so one patient's entries can never be certified against another.
   useEffect(() => {
     if (!isOpen) return;
+    const firstLot = usableLots[0];
+    setSubmitting(false);
     setFormData({
       ...emptyAdministration,
       dosage: patient?.hasDosage ? patient.dose : '',
+      batchId: firstLot?.id || '',
+      lotNumber: firstLot?.lotNumber || '',
     });
-  }, [isOpen, patient?.id, patient?.dose, patient?.hasDosage]);
+  }, [isOpen, patient?.id, patient?.dose, patient?.hasDosage, usableLots]);
 
   if (!isOpen || !patient) return null;
 
-  const handleSubmit = (e) => {
+  const handleLotChange = (batchId) => {
+    const selected = usableLots.find((lot) => String(lot.id) === String(batchId));
+    setFormData((prev) => ({
+      ...prev,
+      batchId: selected?.id || '',
+      lotNumber: selected?.lotNumber || '',
+    }));
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.consentConfirmed || !formData.vitalsConfirmed) {
       alert('Please confirm informed consent and pre-vaccination vitals checklist.');
       return;
     }
-    onCertify({
-      ...patient,
-      administrationDetails: formData,
-      administeredAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    });
-    onClose();
+    if (!formData.batchId && !formData.lotNumber) {
+      alert('Select the vaccine lot being administered from hospital inventory.');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await onCertify({
+        ...patient,
+        administrationDetails: formData,
+        administeredAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      });
+      onClose();
+    } catch {
+      // Parent shows toast; keep modal open so the clinician can retry.
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
-    <div className="doctor-modal-overlay" onClick={onClose}>
+    <div className="doctor-modal-overlay" onClick={submitting ? undefined : onClose}>
       <div className="doctor-modal-card" onClick={(e) => e.stopPropagation()}>
         <div className="doctor-modal-header">
           <div>
@@ -49,14 +95,13 @@ export default function ClinicalAdministerModal({ isOpen, onClose, patient, onCe
               Record administration &amp; issue national vaccination digital pass
             </p>
           </div>
-          <button type="button" className="doctor-modal-close-btn" onClick={onClose}>
+          <button type="button" className="doctor-modal-close-btn" onClick={onClose} disabled={submitting}>
             &times;
           </button>
         </div>
 
         <form onSubmit={handleSubmit}>
           <div className="doctor-modal-body">
-            {/* Patient Spotlight Box */}
             <div style={{
               background: '#f8fafc',
               border: '1.5px solid #e2e8f0',
@@ -86,22 +131,28 @@ export default function ClinicalAdministerModal({ isOpen, onClose, patient, onCe
               </div>
             </div>
 
-            {/* Vaccine Lot & Dosage */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
               <div className="doctor-form-group">
                 <label className="doctor-form-label">Vaccine Lot / Batch #</label>
                 <select
                   className="doctor-form-select"
-                  value={formData.lotNumber}
-                  onChange={(e) => setFormData({ ...formData, lotNumber: e.target.value })}
+                  value={formData.batchId}
+                  onChange={(e) => handleLotChange(e.target.value)}
                   required
+                  disabled={submitting}
                 >
                   <option value="">Select the lot being administered</option>
-                  <option value="HB-8821">Lot #HB-8821 (Exp: Nov 2027)</option>
-                  <option value="PF-9082">Lot #PF-9082 (Exp: Oct 2027)</option>
-                  <option value="MD-4419">Lot #MD-4419 (Exp: Aug 2027)</option>
-                  <option value="INF-7012">Lot #INF-7012 (Exp: May 2027)</option>
+                  {usableLots.map((lot) => (
+                    <option key={lot.id} value={lot.id}>
+                      Lot #{lot.lotNumber} · {lot.availableDoses ?? lot.available} doses · Exp {lot.expiry}
+                    </option>
+                  ))}
                 </select>
+                {usableLots.length === 0 && (
+                  <p style={{ margin: '6px 0 0', fontSize: '0.78rem', color: '#b45309' }}>
+                    No usable stock for this vaccine. Restock inventory before certifying.
+                  </p>
+                )}
               </div>
 
               <div className="doctor-form-group">
@@ -112,11 +163,11 @@ export default function ClinicalAdministerModal({ isOpen, onClose, patient, onCe
                   value={formData.dosage}
                   onChange={(e) => setFormData({ ...formData, dosage: e.target.value })}
                   required
+                  disabled={submitting}
                 />
               </div>
             </div>
 
-            {/* Injection Site & Route */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
               <div className="doctor-form-group">
                 <label className="doctor-form-label">Injection Anatomical Site</label>
@@ -124,6 +175,7 @@ export default function ClinicalAdministerModal({ isOpen, onClose, patient, onCe
                   className="doctor-form-select"
                   value={formData.injectionSite}
                   onChange={(e) => setFormData({ ...formData, injectionSite: e.target.value })}
+                  disabled={submitting}
                 >
                   <option value="Left Deltoid">Left Deltoid (Upper Arm)</option>
                   <option value="Right Deltoid">Right Deltoid (Upper Arm)</option>
@@ -138,6 +190,7 @@ export default function ClinicalAdministerModal({ isOpen, onClose, patient, onCe
                   className="doctor-form-select"
                   value={formData.route}
                   onChange={(e) => setFormData({ ...formData, route: e.target.value })}
+                  disabled={submitting}
                 >
                   <option value="Intramuscular (IM)">Intramuscular (IM)</option>
                   <option value="Subcutaneous (SC)">Subcutaneous (SC)</option>
@@ -147,13 +200,13 @@ export default function ClinicalAdministerModal({ isOpen, onClose, patient, onCe
               </div>
             </div>
 
-            {/* Pre-Screening Checkboxes */}
             <div style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: '10px', padding: '12px 14px', margin: '14px 0' }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.85rem', fontWeight: 600, color: '#065f46', cursor: 'pointer', marginBottom: '8px' }}>
                 <input
                   type="checkbox"
                   checked={formData.consentConfirmed}
                   onChange={(e) => setFormData({ ...formData, consentConfirmed: e.target.checked })}
+                  disabled={submitting}
                 />
                 Informed patient consent confirmed &amp; no acute fever/contraindications
               </label>
@@ -162,12 +215,12 @@ export default function ClinicalAdministerModal({ isOpen, onClose, patient, onCe
                   type="checkbox"
                   checked={formData.vitalsConfirmed}
                   onChange={(e) => setFormData({ ...formData, vitalsConfirmed: e.target.checked })}
+                  disabled={submitting}
                 />
                 Pre-administration vitals verified (BP, pulse, temp within normal range)
               </label>
             </div>
 
-            {/* Doctor Clinical Notes */}
             <div className="doctor-form-group">
               <label className="doctor-form-label">Clinical Observations &amp; Advice</label>
               <textarea
@@ -176,16 +229,17 @@ export default function ClinicalAdministerModal({ isOpen, onClose, patient, onCe
                 value={formData.notes}
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                 placeholder="Enter any specific clinical remarks, guidance, or observation notes..."
+                disabled={submitting}
               />
             </div>
           </div>
 
           <div className="doctor-modal-footer">
-            <button type="button" className="doctor-btn-cancel" onClick={onClose}>
+            <button type="button" className="doctor-btn-cancel" onClick={onClose} disabled={submitting}>
               Cancel
             </button>
-            <button type="submit" className="doctor-btn-submit">
-              Certify &amp; Transfer to Observation
+            <button type="submit" className="doctor-btn-submit" disabled={usableLots.length === 0 || submitting}>
+              {submitting ? 'Certifying…' : 'Certify & Transfer to Observation'}
             </button>
           </div>
         </form>

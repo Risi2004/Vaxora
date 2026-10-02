@@ -1,6 +1,36 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import clinicalPatientService from '../services/clinicalPatientService';
-import { IconSearch } from '../../../shared/icons/AppIcons';
+import staffAppointmentService from '../../staff/services/staffAppointmentService';
+import { IconClose, IconSearch } from '../../../shared/icons/AppIcons';
+import StaffSubpageHeader from '../../staff/components/StaffSubpageHeader';
+
+function isPastDate(dateStr) {
+  if (!dateStr) return false;
+  const day = String(dateStr).slice(0, 10);
+  const today = new Date();
+  const y = today.getFullYear();
+  const m = String(today.getMonth() + 1).padStart(2, '0');
+  const d = String(today.getDate()).padStart(2, '0');
+  return day < `${y}-${m}-${d}`;
+}
+
+function statusPill(status, { overdue = false } = {}) {
+  if (overdue) {
+    return { label: 'Missed', tone: 'is-missed' };
+  }
+  const raw = String(status || 'Pending').trim();
+  const key = raw.toLowerCase();
+  if (key === 'completed') return { label: 'Completed', tone: 'is-completed' };
+  if (key === 'confirmed') return { label: 'Confirmed', tone: 'is-confirmed' };
+  if (key === 'pendingpayment' || key === 'pending payment') {
+    return { label: 'Awaiting payment', tone: 'is-payment' };
+  }
+  if (key === 'missed') return { label: 'Missed', tone: 'is-missed' };
+  if (key === 'cancelled' || key === 'rejected') {
+    return { label: raw, tone: 'is-cancelled' };
+  }
+  return { label: raw || 'Pending', tone: 'is-pending' };
+}
 
 function mapPatientDetail(detail) {
   if (!detail) return null;
@@ -29,6 +59,7 @@ function mapPatientDetail(detail) {
       dosage: pv.dosage || '',
       prescribedBy: pv.prescribedBy || null,
       status: pv.status,
+      isOverdue: Boolean(pv.isOverdue) || isPastDate(pv.date),
     })),
   };
 }
@@ -44,6 +75,8 @@ export default function NursePatientsTab() {
   const [recentLoading, setRecentLoading] = useState(true);
   const [notification, setNotification] = useState('');
   const [error, setError] = useState('');
+  const [recordFilter, setRecordFilter] = useState('all');
+  const [closingMissedId, setClosingMissedId] = useState(null);
 
   const showToast = (message) => {
     setNotification(message);
@@ -101,11 +134,13 @@ export default function NursePatientsTab() {
     setSearchQuery('');
     setShowDropdown(false);
     setError('');
+    setRecordFilter('all');
   };
 
   const loadPatientByVaxoraId = async (vaxoraId, displayName) => {
     setLoadingPatient(true);
     setError('');
+    setRecordFilter('all');
     try {
       const detail = await clinicalPatientService.getPatientByVaxoraId(vaxoraId);
       const mapped = mapPatientDetail(detail);
@@ -120,9 +155,38 @@ export default function NursePatientsTab() {
     }
   };
 
+  const handleMarkMissed = async (pv) => {
+    if (!pv?.id) return;
+    if (!window.confirm(`Mark ${pv.vaccine} on ${pv.date} as missed? This closes the incomplete visit.`)) {
+      return;
+    }
+    setClosingMissedId(pv.id);
+    setError('');
+    try {
+      await staffAppointmentService.updateAppointmentStatus(pv.id, 'Cancelled', 'Missed visit — closed by clinical staff');
+      setSelectedPatient((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          pendingVaccines: prev.pendingVaccines.filter((row) => row.id !== pv.id),
+        };
+      });
+      showToast(`${pv.vaccine} marked as missed.`);
+    } catch (err) {
+      setError(err.message || 'Failed to mark visit as missed.');
+    } finally {
+      setClosingMissedId(null);
+    }
+  };
+
   return (
-    <div className="doctor-manage-appointments-card" style={{ maxWidth: 1100, margin: '0 auto' }}>
-      <h1 className="doctor-manage-title">Patient History</h1>
+    <div className="staff-workspace-page">
+      <StaffSubpageHeader
+        eyebrow="Clinical records"
+        title="Patient records"
+        subtitle="Find a patient to review vaccination history and upcoming visits."
+      />
+      <div className="doctor-manage-appointments-card staff-workspace-panel">
 
       {notification && (
         <div className="appointment-alert-pill" role="status">
@@ -248,108 +312,195 @@ export default function NursePatientsTab() {
         </div>
       )}
 
-      {selectedPatient && !loadingPatient && (
+      {selectedPatient && (
         <>
-          <div className="doctor-appointment-inner-card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 8 }}>
-              <button type="button" className="doctor-filter-btn" onClick={clearSelection}>
-                ← Back to search
-              </button>
-              <button
-                type="button"
-                className="doctor-filter-btn"
-                onClick={() => loadPatientByVaxoraId(selectedPatient.vaxoraId)}
-              >
-                Refresh
-              </button>
-            </div>
-
-            <h2 className="doctor-inner-facility-name">{selectedPatient.name}</h2>
-
-            <div className="doctor-appointments-filter-bar">
-              <div className="doctor-filter-group" style={{ gap: 16, flexWrap: 'wrap' }}>
-                <span className="doctor-filter-label">ID: {selectedPatient.vaxoraId}</span>
-                <span className="doctor-filter-label">NIC: {selectedPatient.nic || '—'}</span>
-                <span className="doctor-filter-label">Phone: {selectedPatient.phone || '—'}</span>
-                <span className="doctor-filter-label">Email: {selectedPatient.email || '—'}</span>
-              </div>
-              <div style={{ fontSize: '0.88rem', color: '#64748b', fontWeight: 600 }}>
-                {selectedPatient.vaccinationHistory.length} completed · {selectedPatient.pendingVaccines.length} pending
+          {loadingPatient ? (
+            <div className="doctor-appointment-inner-card">
+              <div className="empty-table-cell" style={{ padding: '32px', textAlign: 'center' }}>
+                Loading patient record...
               </div>
             </div>
+          ) : (
+            <>
+              <div className="doctor-appointment-inner-card">
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 8 }}>
+                  <button type="button" className="doctor-filter-btn" onClick={clearSelection}>
+                    ← Back to search
+                  </button>
+                  <button
+                    type="button"
+                    className="doctor-filter-btn"
+                    onClick={() => loadPatientByVaxoraId(selectedPatient.vaxoraId)}
+                  >
+                    Refresh
+                  </button>
+                </div>
 
-            <h3 className="ph-appointments-section-label">Vaccination History</h3>
-            <div className="doctor-appointments-table-wrapper">
-              <table className="doctor-appointments-mockup-table">
-                <thead>
-                  <tr>
-                    <th style={{ width: '28%' }}>Vaccine</th>
-                    <th style={{ width: '22%' }}>Date</th>
-                    <th style={{ width: '32%' }}>Location</th>
-                    <th style={{ width: '18%' }}>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {selectedPatient.vaccinationHistory.length === 0 ? (
-                    <tr>
-                      <td colSpan={4} className="empty-table-cell">
-                        No completed vaccination records.
-                      </td>
-                    </tr>
-                  ) : (
-                    selectedPatient.vaccinationHistory.map((item) => (
-                      <tr key={item.id}>
-                        <td>{item.vaccine}</td>
-                        <td>{item.date}</td>
-                        <td>{item.location}</td>
-                        <td>{item.status}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
+                <h2 className="doctor-inner-facility-name">{selectedPatient.name}</h2>
 
-          <div className="doctor-appointment-inner-card" style={{ marginBottom: 0 }}>
-            <h3 className="ph-appointments-section-label" style={{ marginTop: 0 }}>
-              Pending Vaccines
-            </h3>
-            <div className="doctor-appointments-table-wrapper">
-              <table className="doctor-appointments-mockup-table">
-                <thead>
-                  <tr>
-                    <th style={{ width: '22%' }}>Vaccine</th>
-                    <th style={{ width: '18%' }}>Date</th>
-                    <th style={{ width: '16%' }}>Time</th>
-                    <th style={{ width: '26%' }}>Location</th>
-                    <th style={{ width: '18%' }}>Dosage</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {selectedPatient.pendingVaccines.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="empty-table-cell">
-                        No pending immunization doses scheduled.
-                      </td>
-                    </tr>
-                  ) : (
-                    selectedPatient.pendingVaccines.map((pv) => (
-                      <tr key={pv.id}>
-                        <td>{pv.vaccine}</td>
-                        <td>{pv.date}</td>
-                        <td>{pv.time}</td>
-                        <td>{pv.location}</td>
-                        <td>{pv.dosage || 'Not set'}</td>
+                <div className="doctor-appointments-filter-bar">
+                  <div className="doctor-filter-group" style={{ gap: 16, flexWrap: 'wrap' }}>
+                    <span className="doctor-filter-label">ID: {selectedPatient.vaxoraId}</span>
+                    <span className="doctor-filter-label">NIC: {selectedPatient.nic || '—'}</span>
+                    <span className="doctor-filter-label">Phone: {selectedPatient.phone || '—'}</span>
+                    <span className="doctor-filter-label">Email: {selectedPatient.email || '—'}</span>
+                  </div>
+                  <div style={{ fontSize: '0.88rem', color: '#64748b', fontWeight: 600 }}>
+                    {selectedPatient.vaccinationHistory.length} completed ·{' '}
+                    {selectedPatient.pendingVaccines.filter((pv) => !pv.isOverdue).length} upcoming ·{' '}
+                    {selectedPatient.pendingVaccines.filter((pv) => pv.isOverdue).length} missed
+                  </div>
+                </div>
+
+                <div className="ph-record-header">
+                  <h3 className="ph-appointments-section-label">Immunization record</h3>
+                  <div className="ph-record-filters" role="group" aria-label="Filter immunization records">
+                    <button
+                      type="button"
+                      className={`ph-record-filter-btn${recordFilter === 'all' ? ' is-active' : ''}`}
+                      onClick={() => setRecordFilter('all')}
+                    >
+                      All ({selectedPatient.pendingVaccines.length + selectedPatient.vaccinationHistory.length})
+                    </button>
+                    <button
+                      type="button"
+                      className={`ph-record-filter-btn${recordFilter === 'upcoming' ? ' is-active' : ''}`}
+                      onClick={() => setRecordFilter('upcoming')}
+                    >
+                      Upcoming ({selectedPatient.pendingVaccines.filter((pv) => !pv.isOverdue).length})
+                    </button>
+                    <button
+                      type="button"
+                      className={`ph-record-filter-btn${recordFilter === 'missed' ? ' is-active' : ''}`}
+                      onClick={() => setRecordFilter('missed')}
+                    >
+                      Missed ({selectedPatient.pendingVaccines.filter((pv) => pv.isOverdue).length})
+                    </button>
+                    <button
+                      type="button"
+                      className={`ph-record-filter-btn${recordFilter === 'completed' ? ' is-active' : ''}`}
+                      onClick={() => setRecordFilter('completed')}
+                    >
+                      Completed ({selectedPatient.vaccinationHistory.length})
+                    </button>
+                  </div>
+                </div>
+                <div className="doctor-appointments-table-wrapper">
+                  <table className="doctor-appointments-mockup-table">
+                    <thead>
+                      <tr>
+                        <th style={{ width: '20%' }}>Vaccine</th>
+                        <th style={{ width: '11%' }}>Date</th>
+                        <th style={{ width: '15%' }}>Time</th>
+                        <th style={{ width: '18%' }}>Location</th>
+                        <th style={{ width: '12%' }}>Status</th>
+                        <th style={{ width: '24%' }}>Dosage</th>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
+                    </thead>
+                    <tbody>
+                      {(() => {
+                        const upcoming = selectedPatient.pendingVaccines.filter((pv) => !pv.isOverdue);
+                        const missed = selectedPatient.pendingVaccines.filter((pv) => pv.isOverdue);
+                        const showUpcoming = recordFilter === 'all' || recordFilter === 'upcoming';
+                        const showMissed = recordFilter === 'all' || recordFilter === 'missed';
+                        const showCompleted = recordFilter === 'all' || recordFilter === 'completed';
+                        const visibleUpcoming = showUpcoming ? upcoming : [];
+                        const visibleMissed = showMissed ? missed : [];
+                        const visibleCompleted = showCompleted ? selectedPatient.vaccinationHistory : [];
+                        const empty =
+                          visibleUpcoming.length === 0 &&
+                          visibleMissed.length === 0 &&
+                          visibleCompleted.length === 0;
+
+                        if (empty) {
+                          return (
+                            <tr>
+                              <td colSpan={6} className="empty-table-cell">
+                                {recordFilter === 'upcoming'
+                                  ? 'No upcoming immunization doses scheduled.'
+                                  : recordFilter === 'missed'
+                                    ? 'No missed incomplete visits.'
+                                    : recordFilter === 'completed'
+                                      ? 'No completed vaccination records.'
+                                      : 'No immunization records for this patient.'}
+                              </td>
+                            </tr>
+                          );
+                        }
+
+                        return (
+                          <>
+                            {visibleMissed.map((pv) => {
+                              const pill = statusPill(pv.status, { overdue: true });
+                              return (
+                              <tr key={`missed-${pv.id}`} className="ph-record-row-missed">
+                                <td>{pv.vaccine}</td>
+                                <td>{pv.date}</td>
+                                <td>{pv.time || '—'}</td>
+                                <td>{pv.location}</td>
+                                <td>
+                                  <span className={`ph-status-pill ${pill.tone}`}>{pill.label}</span>
+                                </td>
+                                <td>
+                                  <div className="ph-appointments-dosage-edit">
+                                    <span>{pv.dosage || 'Not set'}</span>
+                                    <button
+                                      type="button"
+                                      className="ph-dosage-icon-btn is-missed"
+                                      disabled={closingMissedId === pv.id}
+                                      title="Mark missed and close this incomplete visit"
+                                      aria-label="Mark missed"
+                                      onClick={() => handleMarkMissed(pv)}
+                                    >
+                                      <IconClose size={16} />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                              );
+                            })}
+                            {visibleUpcoming.map((pv) => {
+                              const pill = statusPill(pv.status);
+                              return (
+                              <tr key={`pending-${pv.id}`}>
+                                <td>{pv.vaccine}</td>
+                                <td>{pv.date}</td>
+                                <td>{pv.time || '—'}</td>
+                                <td>{pv.location}</td>
+                                <td>
+                                  <span className={`ph-status-pill ${pill.tone}`}>{pill.label}</span>
+                                </td>
+                                <td>{pv.dosage || 'Not set'}</td>
+                              </tr>
+                              );
+                            })}
+                            {visibleCompleted.map((item) => {
+                              const pill = statusPill(item.status || 'Completed');
+                              return (
+                              <tr key={`done-${item.id}`}>
+                                <td>{item.vaccine}</td>
+                                <td>{item.date}</td>
+                                <td>—</td>
+                                <td>{item.location}</td>
+                                <td>
+                                  <span className={`ph-status-pill ${pill.tone}`}>{pill.label}</span>
+                                </td>
+                                <td>—</td>
+                              </tr>
+                              );
+                            })}
+                          </>
+                        );
+                      })()}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          )}
         </>
       )}
+      </div>
     </div>
   );
 }

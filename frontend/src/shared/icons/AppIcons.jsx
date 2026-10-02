@@ -196,6 +196,23 @@ export function IconClose(props) {
   );
 }
 
+export function IconCheck(props) {
+  return (
+    <SvgIcon {...props}>
+      <path d="M5.5 12.5l4.2 4.2L18.5 7.5" {...stroke} />
+    </SvgIcon>
+  );
+}
+
+export function IconPencil(props) {
+  return (
+    <SvgIcon {...props}>
+      <path d="M14.2 4.8l5 5" {...stroke} />
+      <path d="M5 19l1.2-5.2L15.8 4.2a1.6 1.6 0 0 1 2.3 0l1.7 1.7a1.6 1.6 0 0 1 0 2.3L10.2 17.8 5 19z" {...stroke} />
+    </SvgIcon>
+  );
+}
+
 export function IconCalendar(props) {
   return (
     <SvgIcon {...props}>

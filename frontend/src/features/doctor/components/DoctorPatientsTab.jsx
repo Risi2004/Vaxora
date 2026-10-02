@@ -1,6 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import clinicalPatientService from '../services/clinicalPatientService';
-import { IconSearch } from '../../../shared/icons/AppIcons';
+import staffService from '../../hospital/services/staffService';
+import staffAppointmentService from '../../staff/services/staffAppointmentService';
+import { IconCheck, IconClose, IconPencil, IconSearch } from '../../../shared/icons/AppIcons';
+import StaffSubpageHeader from '../../staff/components/StaffSubpageHeader';
 
 function mapPatientDetail(detail) {
   if (!detail) return null;
@@ -29,8 +32,37 @@ function mapPatientDetail(detail) {
       dosage: pv.dosage || '',
       prescribedBy: pv.prescribedBy || null,
       status: pv.status,
+      isOverdue: Boolean(pv.isOverdue) || isPastDate(pv.date),
     })),
   };
+}
+
+function isPastDate(dateStr) {
+  if (!dateStr) return false;
+  const day = String(dateStr).slice(0, 10);
+  const today = new Date();
+  const y = today.getFullYear();
+  const m = String(today.getMonth() + 1).padStart(2, '0');
+  const d = String(today.getDate()).padStart(2, '0');
+  return day < `${y}-${m}-${d}`;
+}
+
+function statusPill(status, { overdue = false } = {}) {
+  if (overdue) {
+    return { label: 'Missed', tone: 'is-missed' };
+  }
+  const raw = String(status || 'Pending').trim();
+  const key = raw.toLowerCase();
+  if (key === 'completed') return { label: 'Completed', tone: 'is-completed' };
+  if (key === 'confirmed') return { label: 'Confirmed', tone: 'is-confirmed' };
+  if (key === 'pendingpayment' || key === 'pending payment') {
+    return { label: 'Awaiting payment', tone: 'is-payment' };
+  }
+  if (key === 'missed') return { label: 'Missed', tone: 'is-missed' };
+  if (key === 'cancelled' || key === 'rejected') {
+    return { label: raw, tone: 'is-cancelled' };
+  }
+  return { label: raw || 'Pending', tone: 'is-pending' };
 }
 
 export default function DoctorPatientsTab() {
@@ -45,13 +77,26 @@ export default function DoctorPatientsTab() {
   const [editingDosageId, setEditingDosageId] = useState(null);
   const [dosageInput, setDosageInput] = useState('');
   const [savingDosage, setSavingDosage] = useState(false);
+  const [closingMissedId, setClosingMissedId] = useState(null);
   const [notification, setNotification] = useState('');
   const [error, setError] = useState('');
+  const [isOnDuty, setIsOnDuty] = useState(false);
+  const [recordFilter, setRecordFilter] = useState('all');
 
   const showToast = (message) => {
     setNotification(message);
     setTimeout(() => setNotification(''), 3000);
   };
+
+  const loadDutyStatus = useCallback(async () => {
+    try {
+      const list = await staffService.getMyAffiliations();
+      const active = Array.isArray(list) ? list : [];
+      setIsOnDuty(active.some((a) => a.isOnDutyNow));
+    } catch {
+      setIsOnDuty(false);
+    }
+  }, []);
 
   const loadRecent = useCallback(async () => {
     setRecentLoading(true);
@@ -67,7 +112,15 @@ export default function DoctorPatientsTab() {
 
   useEffect(() => {
     loadRecent();
-  }, [loadRecent]);
+    loadDutyStatus();
+  }, [loadRecent, loadDutyStatus]);
+
+  useEffect(() => {
+    if (!isOnDuty && editingDosageId) {
+      setEditingDosageId(null);
+      setDosageInput('');
+    }
+  }, [isOnDuty, editingDosageId]);
 
   useEffect(() => {
     const q = searchQuery.trim();
@@ -106,12 +159,14 @@ export default function DoctorPatientsTab() {
     setSearchQuery('');
     setShowDropdown(false);
     setError('');
+    setRecordFilter('all');
   };
 
   const loadPatientByVaxoraId = async (vaxoraId, displayName) => {
     setLoadingPatient(true);
     setError('');
     setEditingDosageId(null);
+    setRecordFilter('all');
     try {
       const detail = await clinicalPatientService.getPatientByVaxoraId(vaxoraId);
       const mapped = mapPatientDetail(detail);
@@ -119,6 +174,7 @@ export default function DoctorPatientsTab() {
       setShowDropdown(false);
       setSearchQuery(mapped.name || displayName || vaxoraId);
       showToast(`Record loaded: ${mapped.name} (${mapped.vaxoraId})`);
+      await loadDutyStatus();
     } catch (err) {
       setError(err.message || 'Failed to load patient.');
     } finally {
@@ -127,6 +183,17 @@ export default function DoctorPatientsTab() {
   };
 
   const handleSaveDosage = async (pvId) => {
+    if (!isOnDuty) {
+      setError('You need an active shift to prescribe dosage.');
+      setEditingDosageId(null);
+      return;
+    }
+    const row = selectedPatient?.pendingVaccines?.find((pv) => pv.id === pvId);
+    if (row?.isOverdue) {
+      setError('Past incomplete visits cannot be prescribed. Mark them missed or ask the patient to rebook.');
+      setEditingDosageId(null);
+      return;
+    }
     if (!dosageInput.trim()) {
       setError('Enter a dosage before saving.');
       return;
@@ -160,9 +227,39 @@ export default function DoctorPatientsTab() {
     }
   };
 
+  const handleMarkMissed = async (pv) => {
+    if (!pv?.id) return;
+    if (!window.confirm(`Mark ${pv.vaccine} on ${pv.date} as missed? This closes the incomplete visit.`)) {
+      return;
+    }
+    setClosingMissedId(pv.id);
+    setError('');
+    try {
+      await staffAppointmentService.updateAppointmentStatus(pv.id, 'Cancelled', 'Missed visit — closed by clinical staff');
+      setSelectedPatient((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          pendingVaccines: prev.pendingVaccines.filter((row) => row.id !== pv.id),
+        };
+      });
+      if (editingDosageId === pv.id) setEditingDosageId(null);
+      showToast(`${pv.vaccine} marked as missed.`);
+    } catch (err) {
+      setError(err.message || 'Failed to mark visit as missed.');
+    } finally {
+      setClosingMissedId(null);
+    }
+  };
+
   return (
-    <div className="doctor-manage-appointments-card" style={{ maxWidth: 1100, margin: '0 auto' }}>
-      <h1 className="doctor-manage-title">Patient History</h1>
+    <div className="staff-workspace-page">
+      <StaffSubpageHeader
+        eyebrow="Clinical records"
+        title="Patient records"
+        subtitle="Find a patient to review vaccination history and manage pending dosage details."
+      />
+      <div className="doctor-manage-appointments-card staff-workspace-panel">
 
       {notification && (
         <div className="appointment-alert-pill" role="status">
@@ -288,8 +385,16 @@ export default function DoctorPatientsTab() {
         </div>
       )}
 
-      {selectedPatient && !loadingPatient && (
+      {selectedPatient && (
         <>
+          {loadingPatient ? (
+            <div className="doctor-appointment-inner-card">
+              <p className="empty-table-cell" style={{ margin: 0, padding: 24, textAlign: 'center' }}>
+                Loading patient record...
+              </p>
+            </div>
+          ) : (
+            <>
           <div className="doctor-appointment-inner-card">
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 8 }}>
               <button type="button" className="doctor-filter-btn" onClick={clearSelection}>
@@ -314,124 +419,219 @@ export default function DoctorPatientsTab() {
                 <span className="doctor-filter-label">Email: {selectedPatient.email || '—'}</span>
               </div>
               <div style={{ fontSize: '0.88rem', color: '#64748b', fontWeight: 600 }}>
-                {selectedPatient.vaccinationHistory.length} completed · {selectedPatient.pendingVaccines.length} pending
+                {selectedPatient.vaccinationHistory.length} completed ·{' '}
+                {selectedPatient.pendingVaccines.filter((pv) => !pv.isOverdue).length} upcoming ·{' '}
+                {selectedPatient.pendingVaccines.filter((pv) => pv.isOverdue).length} missed
               </div>
             </div>
 
-            <h3 className="ph-appointments-section-label">Vaccination History</h3>
-            <div className="doctor-appointments-table-wrapper">
-              <table className="doctor-appointments-mockup-table">
-                <thead>
-                  <tr>
-                    <th style={{ width: '28%' }}>Vaccine</th>
-                    <th style={{ width: '22%' }}>Date</th>
-                    <th style={{ width: '32%' }}>Location</th>
-                    <th style={{ width: '18%' }}>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {selectedPatient.vaccinationHistory.length === 0 ? (
-                    <tr>
-                      <td colSpan={4} className="empty-table-cell">
-                        No completed vaccination records.
-                      </td>
-                    </tr>
-                  ) : (
-                    selectedPatient.vaccinationHistory.map((item) => (
-                      <tr key={item.id}>
-                        <td>{item.vaccine}</td>
-                        <td>{item.date}</td>
-                        <td>{item.location}</td>
-                        <td>{item.status}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+            <div className="ph-record-header">
+              <h3 className="ph-appointments-section-label">Immunization record</h3>
+              <div className="ph-record-filters" role="group" aria-label="Filter immunization records">
+                <button
+                  type="button"
+                  className={`ph-record-filter-btn${recordFilter === 'all' ? ' is-active' : ''}`}
+                  onClick={() => setRecordFilter('all')}
+                >
+                  All ({selectedPatient.pendingVaccines.length + selectedPatient.vaccinationHistory.length})
+                </button>
+                <button
+                  type="button"
+                  className={`ph-record-filter-btn${recordFilter === 'upcoming' ? ' is-active' : ''}`}
+                  onClick={() => setRecordFilter('upcoming')}
+                >
+                  Upcoming ({selectedPatient.pendingVaccines.filter((pv) => !pv.isOverdue).length})
+                </button>
+                <button
+                  type="button"
+                  className={`ph-record-filter-btn${recordFilter === 'missed' ? ' is-active' : ''}`}
+                  onClick={() => setRecordFilter('missed')}
+                >
+                  Missed ({selectedPatient.pendingVaccines.filter((pv) => pv.isOverdue).length})
+                </button>
+                <button
+                  type="button"
+                  className={`ph-record-filter-btn${recordFilter === 'completed' ? ' is-active' : ''}`}
+                  onClick={() => setRecordFilter('completed')}
+                >
+                  Completed ({selectedPatient.vaccinationHistory.length})
+                </button>
+              </div>
             </div>
-          </div>
-
-          <div className="doctor-appointment-inner-card" style={{ marginBottom: 0 }}>
-            <h3 className="ph-appointments-section-label" style={{ marginTop: 0 }}>
-              Pending Vaccines
-            </h3>
             <div className="doctor-appointments-table-wrapper">
               <table className="doctor-appointments-mockup-table">
                 <thead>
                   <tr>
                     <th style={{ width: '20%' }}>Vaccine</th>
-                    <th style={{ width: '16%' }}>Date</th>
-                    <th style={{ width: '14%' }}>Time</th>
-                    <th style={{ width: '24%' }}>Location</th>
-                    <th style={{ width: '26%' }}>Dosage</th>
+                    <th style={{ width: '11%' }}>Date</th>
+                    <th style={{ width: '15%' }}>Time</th>
+                    <th style={{ width: '18%' }}>Location</th>
+                    <th style={{ width: '12%' }}>Status</th>
+                    <th style={{ width: '24%' }}>Dosage</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {selectedPatient.pendingVaccines.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="empty-table-cell">
-                        No pending immunization doses scheduled.
-                      </td>
-                    </tr>
-                  ) : (
-                    selectedPatient.pendingVaccines.map((pv) => (
-                      <tr key={pv.id}>
-                        <td>{pv.vaccine}</td>
-                        <td>{pv.date}</td>
-                        <td>{pv.time}</td>
-                        <td>{pv.location}</td>
-                        <td>
-                          {editingDosageId === pv.id ? (
-                            <div className="ph-appointments-dosage-edit">
-                              <input
-                                type="text"
-                                className="doctor-filter-date-input"
-                                value={dosageInput}
-                                onChange={(e) => setDosageInput(e.target.value)}
-                                placeholder="e.g. 0.5ml"
-                                autoFocus
-                                disabled={savingDosage}
-                              />
-                              <button
-                                type="button"
-                                className="doctor-filter-btn active"
-                                disabled={savingDosage}
-                                onClick={() => handleSaveDosage(pv.id)}
-                              >
-                                {savingDosage ? '…' : 'Save'}
-                              </button>
-                              <button
-                                type="button"
-                                className="doctor-filter-btn"
-                                disabled={savingDosage}
-                                onClick={() => setEditingDosageId(null)}
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          ) : (
-                            <div className="ph-appointments-dosage-edit">
-                              <span>{pv.dosage || 'Not set'}</span>
-                              <button
-                                type="button"
-                                className="doctor-filter-btn"
-                                onClick={() => {
-                                  setEditingDosageId(pv.id);
-                                  setDosageInput(pv.dosage || '');
-                                }}
-                              >
-                                Edit
-                              </button>
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    ))
-                  )}
+                  {(() => {
+                    const upcoming = selectedPatient.pendingVaccines.filter((pv) => !pv.isOverdue);
+                    const missed = selectedPatient.pendingVaccines.filter((pv) => pv.isOverdue);
+                    const showUpcoming = recordFilter === 'all' || recordFilter === 'upcoming';
+                    const showMissed = recordFilter === 'all' || recordFilter === 'missed';
+                    const showCompleted = recordFilter === 'all' || recordFilter === 'completed';
+                    const visibleUpcoming = showUpcoming ? upcoming : [];
+                    const visibleMissed = showMissed ? missed : [];
+                    const visibleCompleted = showCompleted ? selectedPatient.vaccinationHistory : [];
+                    const empty =
+                      visibleUpcoming.length === 0 &&
+                      visibleMissed.length === 0 &&
+                      visibleCompleted.length === 0;
+
+                    if (empty) {
+                      return (
+                        <tr>
+                          <td colSpan={6} className="empty-table-cell">
+                            {recordFilter === 'upcoming'
+                              ? 'No upcoming immunization doses scheduled.'
+                              : recordFilter === 'missed'
+                                ? 'No missed incomplete visits.'
+                                : recordFilter === 'completed'
+                                  ? 'No completed vaccination records.'
+                                  : 'No immunization records for this patient.'}
+                          </td>
+                        </tr>
+                      );
+                    }
+
+                    return (
+                      <>
+                        {visibleMissed.map((pv) => {
+                          const pill = statusPill(pv.status, { overdue: true });
+                          return (
+                          <tr key={`missed-${pv.id}`} className="ph-record-row-missed">
+                            <td>{pv.vaccine}</td>
+                            <td>{pv.date}</td>
+                            <td>{pv.time || '—'}</td>
+                            <td>{pv.location}</td>
+                            <td>
+                              <span className={`ph-status-pill ${pill.tone}`}>{pill.label}</span>
+                            </td>
+                            <td>
+                              <div className="ph-appointments-dosage-edit">
+                                <span>{pv.dosage || 'Not set'}</span>
+                                <button
+                                  type="button"
+                                  className="ph-dosage-icon-btn is-missed"
+                                  disabled={closingMissedId === pv.id}
+                                  title="Mark missed and close this incomplete visit"
+                                  aria-label="Mark missed"
+                                  onClick={() => handleMarkMissed(pv)}
+                                >
+                                  <IconClose size={16} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                          );
+                        })}
+                        {visibleUpcoming.map((pv) => {
+                          const pill = statusPill(pv.status);
+                          return (
+                          <tr key={`pending-${pv.id}`}>
+                            <td>{pv.vaccine}</td>
+                            <td>{pv.date}</td>
+                            <td>{pv.time || '—'}</td>
+                            <td>{pv.location}</td>
+                            <td>
+                              <span className={`ph-status-pill ${pill.tone}`}>{pill.label}</span>
+                            </td>
+                            <td>
+                              {editingDosageId === pv.id ? (
+                                <div className="ph-appointments-dosage-edit">
+                                  <input
+                                    type="text"
+                                    className="doctor-filter-date-input ph-dosage-input"
+                                    value={dosageInput}
+                                    onChange={(e) => setDosageInput(e.target.value)}
+                                    placeholder="e.g. 0.5ml"
+                                    autoFocus
+                                    disabled={savingDosage}
+                                    aria-label="Dosage"
+                                  />
+                                  <button
+                                    type="button"
+                                    className="ph-dosage-icon-btn is-save"
+                                    disabled={savingDosage}
+                                    onClick={() => handleSaveDosage(pv.id)}
+                                    title="Save dosage"
+                                    aria-label="Save dosage"
+                                  >
+                                    <IconCheck size={16} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="ph-dosage-icon-btn is-cancel"
+                                    disabled={savingDosage}
+                                    onClick={() => setEditingDosageId(null)}
+                                    title="Cancel"
+                                    aria-label="Cancel dosage edit"
+                                  >
+                                    <IconClose size={16} />
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="ph-appointments-dosage-edit">
+                                  <span>{pv.dosage || 'Not set'}</span>
+                                  <button
+                                    type="button"
+                                    className="ph-dosage-icon-btn is-edit"
+                                    disabled={!isOnDuty}
+                                    title={
+                                      isOnDuty
+                                        ? 'Edit dosage'
+                                        : 'Active shift required to prescribe dosage'
+                                    }
+                                    aria-label={
+                                      isOnDuty
+                                        ? 'Edit dosage'
+                                        : 'Active shift required to prescribe dosage'
+                                    }
+                                    onClick={() => {
+                                      if (!isOnDuty) return;
+                                      setEditingDosageId(pv.id);
+                                      setDosageInput(pv.dosage || '');
+                                    }}
+                                  >
+                                    <IconPencil size={16} />
+                                  </button>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                          );
+                        })}
+                        {visibleCompleted.map((item) => {
+                          const pill = statusPill(item.status || 'Completed');
+                          return (
+                          <tr key={`done-${item.id}`}>
+                            <td>{item.vaccine}</td>
+                            <td>{item.date}</td>
+                            <td>—</td>
+                            <td>{item.location}</td>
+                            <td>
+                              <span className={`ph-status-pill ${pill.tone}`}>{pill.label}</span>
+                            </td>
+                            <td>—</td>
+                          </tr>
+                          );
+                        })}
+                      </>
+                    );
+                  })()}
                 </tbody>
               </table>
             </div>
           </div>
+            </>
+          )}
         </>
       )}
 
@@ -442,6 +642,7 @@ export default function DoctorPatientsTab() {
           </p>
         </div>
       )}
+      </div>
     </div>
   );
 }

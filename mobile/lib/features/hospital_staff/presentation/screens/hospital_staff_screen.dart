@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+
 import '../../../../core/network/api_client.dart';
 import '../../../../core/services/storage_service.dart';
+import '../../../../core/theme/app_colors.dart';
 import '../../../auth/presentation/utils/home_route_utils.dart';
 import '../../../staff/presentation/widgets/network_avatar.dart';
 import '../../../staff/presentation/widgets/staff_common_widgets.dart';
@@ -102,9 +104,8 @@ class _HospitalStaffScreenState extends State<HospitalStaffScreen> {
   }
 
   Future<void> _openShifts() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const HospitalShiftsScreen()),
-    );
+    await Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => const HospitalShiftsScreen()));
   }
 
   int get _onDutyCount => _staff.where((s) => s.isOnDutyNow).length;
@@ -169,16 +170,21 @@ class _HospitalStaffScreenState extends State<HospitalStaffScreen> {
                   label: 'Active',
                   value: '${_staff.length}',
                   icon: Icons.groups_outlined,
+                  accent: AppColors.success,
                 ),
                 StaffIntroStat(
                   label: 'On duty',
                   value: '$_onDutyCount',
                   icon: Icons.medical_services_outlined,
+                  accent: AppColors.success,
                 ),
                 StaffIntroStat(
                   label: 'Pending',
                   value: '${_pending.length}',
                   icon: Icons.mark_email_unread_outlined,
+                  accent: _pending.isNotEmpty
+                      ? const Color(0xFFB2660A)
+                      : AppColors.success,
                 ),
               ],
             ),
@@ -198,7 +204,8 @@ class _HospitalStaffScreenState extends State<HospitalStaffScreen> {
                 padding: const EdgeInsets.symmetric(vertical: 48),
                 child: Center(
                   child: CircularProgressIndicator(
-                      color: StaffSurfaces.brandSoft),
+                    color: StaffSurfaces.brandSoft,
+                  ),
                 ),
               )
             else ...[
@@ -217,8 +224,7 @@ class _HospitalStaffScreenState extends State<HospitalStaffScreen> {
               ],
               if (_staff.isEmpty && _pending.isEmpty)
                 const StaffEmptyCard(
-                  message:
-                      'No affiliated staff yet. Invitations you send will appear here once accepted.',
+                  message: 'No affiliated staff yet. Invitations you send will appear here once accepted.',
                   icon: Icons.groups_outlined,
                 )
               else ...[
@@ -318,7 +324,13 @@ class _StaffMemberCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: StaffSurfaces.card(),
+      decoration: StaffSurfaces.card(
+        borderColor: member.isPending
+            ? const Color(0xFFF5B168)
+            : (member.isOnDutyNow
+                  ? AppColors.success.withValues(alpha: 0.28)
+                  : StaffSurfaces.cardBorder),
+      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -363,7 +375,9 @@ class _StaffMemberCard extends StatelessWidget {
                       )
                     else
                       StaffStatusChip(
-                        label: member.isOnDutyNow ? 'On duty' : 'Off duty',
+                        label: member.isOnDutyNow
+                            ? 'On duty'
+                            : 'No active shift',
                         tone: member.isOnDutyNow
                             ? StaffChipTone.success
                             : StaffChipTone.neutral,

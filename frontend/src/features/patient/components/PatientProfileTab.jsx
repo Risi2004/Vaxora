@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { authService } from "../../auth";
 import { appointmentService } from "../services/appointmentService";
 import { patientVaccinationService } from "../services/patientVaccinationService";
+import PatientSubpageHeader from './PatientSubpageHeader';
 
 // ---------- Helpers ----------
 const formatDate = (iso) => {
@@ -177,21 +178,23 @@ export default function PatientProfileTab() {
     }
   };
 
-  const handlePhotoUpload = (e) => {
+  const handlePhotoUpload = async (e) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = async () => {
-        const photoData = reader.result;
-        setProfileData((prev) => ({ ...prev, profilePhotoUrl: photoData }));
-        try {
-          await authService.updateProfile({ profilePhotoUrl: photoData });
-          showNotification("Profile avatar updated successfully!");
-        } catch {
-          showNotification("Updated photo preview locally.", "success");
-        }
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+
+    try {
+      const updatedUser = await authService.updateProfilePhoto(file);
+      const details = updatedUser?.profileDetails || {};
+      const profilePhotoUrl =
+        updatedUser?.profilePhotoUrl || details.profilePhotoUrl || null;
+
+      setProfileData((prev) => ({ ...prev, profilePhotoUrl }));
+      showNotification("Profile photo updated successfully!");
+    } catch (err) {
+      showNotification(err.message || "Failed to upload profile photo.", "error");
+    } finally {
+      // Let the same file be selected again after a failed upload.
+      e.target.value = "";
     }
   };
 
@@ -215,7 +218,12 @@ export default function PatientProfileTab() {
   });
 
   return (
-    <div
+    <div className="patient-subpage-page">
+      <PatientSubpageHeader
+        title="My Profile"
+        subtitle="View and update your personal details, appointments, and vaccination records."
+      />
+      <div
       className="manage-appointments-wrapper"
       style={{ flexDirection: "column", alignItems: "center", gap: "28px" }}
     >
@@ -634,6 +642,7 @@ export default function PatientProfileTab() {
             </table>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );
