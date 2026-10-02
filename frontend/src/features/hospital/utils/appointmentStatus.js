@@ -64,8 +64,11 @@ export function getAppointmentActionDisplay(dbStatus) {
   if (s === 'completed') {
     return { kind: 'badge', label: 'Completed', tone: 'accepted' };
   }
-  if (s === 'cancelled' || s === 'rejected') {
+  if (s === 'cancelled') {
     return { kind: 'badge', label: 'Cancelled ✕', tone: 'rejected' };
+  }
+  if (s === 'rejected') {
+    return { kind: 'badge', label: 'Rejected ✕', tone: 'rejected' };
   }
 
   return { kind: 'badge', label: dbStatus || 'Unknown', tone: 'pending' };

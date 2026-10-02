@@ -74,8 +74,9 @@ class AppointmentCard extends StatelessWidget {
       case 'completed':
         return 'Completed';
       case 'cancelled':
-      case 'rejected':
         return 'Cancelled';
+      case 'rejected':
+        return 'Rejected';
       case 'confirmed':
         return 'Confirmed';
       default:

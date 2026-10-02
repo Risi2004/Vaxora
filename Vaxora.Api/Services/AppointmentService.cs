@@ -260,7 +260,8 @@ public class AppointmentService : IAppointmentService
             .AsNoTracking()
             .Where(a => (a.HospitalUserId == resolvedHospitalUserId || (resolvedProfileId.HasValue && a.HospitalProfileId == resolvedProfileId.Value)) &&
                         a.AppointmentDate == date &&
-                        a.Status != "Cancelled")
+                        a.Status != "Cancelled" &&
+                        a.Status != "Rejected")
             .ToListAsync();
 
         var bookedSlots = bookedAppointments
@@ -315,7 +316,8 @@ public class AppointmentService : IAppointmentService
             .FirstOrDefaultAsync(a => a.HospitalUserId == resolvedHospitalUserId &&
                                       a.AppointmentDate == dto.AppointmentDate &&
                                       a.TimeSlot == dto.TimeSlot &&
-                                      a.Status != "Cancelled");
+                                      a.Status != "Cancelled" &&
+                                      a.Status != "Rejected");
 
         if (existingAppointment != null)
         {
@@ -503,7 +505,8 @@ public class AppointmentService : IAppointmentService
                    a.HospitalUserId == hospital.Id &&
                    a.AppointmentDate == today &&
                    a.TimeSlot == timeSlot &&
-                   a.Status != "Cancelled"))
+                   a.Status != "Cancelled" &&
+                   a.Status != "Rejected"))
         {
             start = start.AddMinutes(1);
             end = start.AddMinutes(20);
@@ -773,6 +776,26 @@ public class AppointmentService : IAppointmentService
             {
                 throw new UnauthorizedAccessException(
                     "Clinical status changes (Administering, Observation, Completed) must be performed by on-duty clinical staff.");
+            }
+
+            await StaffDutyHelper.EnsureStaffOnDutyAsync(
+                _context,
+                actorUserId,
+                appointment.HospitalUserId);
+        }
+
+        // Returning a patient from an active clinical session to the waiting queue is also a clinical action.
+        var returningToQueue =
+            string.Equals(nextStatus, "Confirmed", StringComparison.OrdinalIgnoreCase) &&
+            (string.Equals(appointment.Status, "Administering", StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(appointment.Status, "Observation", StringComparison.OrdinalIgnoreCase));
+
+        if (returningToQueue)
+        {
+            if (isHospitalOwner)
+            {
+                throw new UnauthorizedAccessException(
+                    "Returning a patient to the waiting queue must be performed by on-duty clinical staff.");
             }
 
             await StaffDutyHelper.EnsureStaffOnDutyAsync(

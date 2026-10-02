@@ -191,8 +191,9 @@ class _PatientDashboardScreenState extends State<PatientDashboardScreen> {
       case 'completed':
         return 'Completed';
       case 'cancelled':
-      case 'rejected':
         return 'Cancelled';
+      case 'rejected':
+        return 'Rejected';
       case 'confirmed':
         return 'Confirmed';
       default:

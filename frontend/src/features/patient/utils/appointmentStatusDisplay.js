@@ -28,8 +28,9 @@ export function getPatientAppointmentStatusDisplay(status) {
     case 'completed':
       return { label: 'Completed', backgroundColor: '#dcfce7', color: '#15803d' };
     case 'cancelled':
-    case 'rejected':
       return { label: 'Cancelled', backgroundColor: '#fee2e2', color: '#b91c1c' };
+    case 'rejected':
+      return { label: 'Rejected', backgroundColor: '#fee2e2', color: '#b91c1c' };
     default:
       return {
         label: status || 'Unknown',

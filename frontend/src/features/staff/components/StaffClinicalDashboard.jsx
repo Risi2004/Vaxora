@@ -384,6 +384,10 @@ export default function StaffClinicalDashboard({
   };
 
   const handleReturnToQueue = async (patient) => {
+    if (!isOnDuty) {
+      showToast('You must have an active shift to return a patient to the queue.');
+      return;
+    }
     try {
       await persistStatus(patient.id, 'Confirmed');
       if (activePatientId === patient.id) setActivePatientId(null);
@@ -708,7 +712,12 @@ export default function StaffClinicalDashboard({
               type="button"
               className="doctor-btn-defer"
               onClick={() => handleReturnToQueue(activePatient)}
-              disabled={statusUpdating}
+              disabled={statusUpdating || !isOnDuty}
+              title={
+                !isOnDuty
+                  ? 'You need an active shift to return a patient to the queue'
+                  : 'Send this patient back to the waiting queue'
+              }
             >
               Return to Queue
             </button>

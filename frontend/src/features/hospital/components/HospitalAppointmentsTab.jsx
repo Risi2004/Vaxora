@@ -336,10 +336,21 @@ export default function HospitalAppointmentsTab() {
   };
 
   const handleRejectAppointment = async (id) => {
-    if (!window.confirm('Are you sure you want to decline/cancel this appointment?')) return;
+    if (!window.confirm('Decline this appointment? The patient will see it as rejected.')) return;
+    try {
+      await appointmentService.updateAppointmentStatus(id, { status: 'Rejected' });
+      showToast('Appointment declined.');
+      await loadHospitalAppointments();
+    } catch (err) {
+      alert(`Failed to decline appointment: ${err.message}`);
+    }
+  };
+
+  const handleCancelAppointment = async (id) => {
+    if (!window.confirm('Cancel this confirmed appointment?')) return;
     try {
       await appointmentService.cancelAppointment(id);
-      showToast('Appointment declined/cancelled.');
+      showToast('Appointment cancelled.');
       await loadHospitalAppointments();
     } catch (err) {
       alert(`Failed to cancel appointment: ${err.message}`);
@@ -880,7 +891,7 @@ export default function HospitalAppointmentsTab() {
                                 <button
                                   type="button"
                                   className="btn-hospital-cancel-action"
-                                  onClick={() => handleRejectAppointment(item.id || item.Id)}
+                                  onClick={() => handleCancelAppointment(item.id || item.Id)}
                                   title="Cancel appointment"
                                 >
                                   Cancel
