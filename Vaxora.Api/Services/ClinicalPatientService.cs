@@ -100,6 +100,14 @@ public class ClinicalPatientService : IClinicalPatientService
             .ThenBy(a => a.StartTime)
             .ToListAsync();
 
+        // Overdue (missed) visits first so clinicians clear them before today's queue.
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        pendingAppointments = pendingAppointments
+            .OrderByDescending(a => a.AppointmentDate < today)
+            .ThenBy(a => a.AppointmentDate)
+            .ThenBy(a => a.StartTime)
+            .ToList();
+
         return new ClinicalPatientDetailDto
         {
             PatientProfileId = patient.Id,
@@ -180,6 +188,14 @@ public class ClinicalPatientService : IClinicalPatientService
             throw new InvalidOperationException("Cannot edit dosage for completed, cancelled, or rejected appointments.");
         }
 
+        // Past incomplete visits need to be closed or rebooked — not prescribed retrospectively.
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        if (appointment.AppointmentDate < today)
+        {
+            throw new InvalidOperationException(
+                "This visit date has already passed. Mark it missed or ask the patient to rebook before prescribing dosage.");
+        }
+
         await StaffDutyHelper.EnsureStaffOnDutyAsync(
             _context,
             doctorUserId,
@@ -215,17 +231,23 @@ public class ClinicalPatientService : IClinicalPatientService
         return MapPending(appointment);
     }
 
-    private static ClinicalPendingVaccineDto MapPending(Appointment a) => new()
+    private static ClinicalPendingVaccineDto MapPending(Appointment a)
     {
-        Id = a.Id,
-        Vaccine = a.VaccineName,
-        Date = a.AppointmentDate.ToString("yyyy-MM-dd"),
-        Time = a.TimeSlot,
-        Location = a.HospitalName,
-        Dosage = a.PrescribedDosage,
-        PrescribedBy = a.PrescribedByDoctorName,
-        Status = a.Status
-    };
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var isOverdue = a.AppointmentDate < today;
+        return new ClinicalPendingVaccineDto
+        {
+            Id = a.Id,
+            Vaccine = a.VaccineName,
+            Date = a.AppointmentDate.ToString("yyyy-MM-dd"),
+            Time = a.TimeSlot,
+            Location = a.HospitalName,
+            Dosage = a.PrescribedDosage,
+            PrescribedBy = a.PrescribedByDoctorName,
+            Status = isOverdue ? "Missed" : a.Status,
+            IsOverdue = isOverdue
+        };
+    }
 
     private static string ToRelativeTime(DateTime utc)
     {
