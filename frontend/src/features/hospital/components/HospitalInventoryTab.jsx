@@ -6,10 +6,18 @@ import inventoryService from '../services/inventoryService';
 import InventoryAIInventoryWorkflow from './InventoryAIInventoryWorkflow';
 import HospitalSubpageHero from './HospitalSubpageHero';
 import {
+  IconBot,
+  IconClipboard,
   IconClock,
+  IconClose,
+  IconFile,
+  IconPackage,
+  IconSearch,
   IconShield,
   IconSnowflake,
   IconSyringe,
+  IconThermometer,
+  IconTrash,
 } from './HospitalIcons';
 
 export default function HospitalInventoryTab() {
@@ -223,185 +231,293 @@ export default function HospitalInventoryTab() {
           </div>
         )}
 
-        <div className="inventory-header-row">
-          <div>
-            <div className="inventory-badge-row">
-              <span className="inventory-moh-tag">MOH Sri Lanka · Cold chain</span>
+        <div className="hospital-metrics-grid hospital-metrics-grid--4">
+          <div className="hospital-stat-card">
+            <div className="hospital-stat-icon stat-icon-blue">
+              <IconSyringe size={22} />
             </div>
-            <p className="inventory-subtitle">
-              Manage authorized products, stock movements, cold storage, and lot audits.
-            </p>
+            <div className="hospital-stat-info">
+              <span className="hospital-stat-label">Total Vials In Stock</span>
+              <span className="hospital-stat-value">{totalVials.toLocaleString()}</span>
+              <span className="hospital-stat-meta">
+                ≈ {totalDoses.toLocaleString()} patient doses available
+              </span>
+            </div>
           </div>
 
+          <div className="hospital-stat-card">
+            <div className="hospital-stat-icon stat-icon-amber">
+              <IconShield size={22} />
+            </div>
+            <div className="hospital-stat-info">
+              <span className="hospital-stat-label">Low Stock Reorders</span>
+              <span className={`hospital-stat-value${lowStockCount > 0 ? ' is-alert' : ''}`}>
+                {lowStockCount}
+              </span>
+              <span className="hospital-stat-meta">
+                {lowStockCount > 0
+                  ? `${lowStockCount} formulation${lowStockCount === 1 ? '' : 's'} need reorder`
+                  : 'All stocks above safety threshold'}
+              </span>
+            </div>
+          </div>
+
+          <div className="hospital-stat-card">
+            <div className="hospital-stat-icon stat-icon-purple">
+              <IconClock size={22} />
+            </div>
+            <div className="hospital-stat-info">
+              <span className="hospital-stat-label">Expiring in &lt; 60 Days</span>
+              <span className={`hospital-stat-value${expiringCount > 0 ? ' is-warning' : ''}`}>
+                {expiringCount}
+              </span>
+              <span className="hospital-stat-meta">
+                {expiringCount > 0
+                  ? `${expiringCount} batch${expiringCount === 1 ? '' : 'es'} to prioritize`
+                  : 'Prioritize in clinic queue'}
+              </span>
+            </div>
+          </div>
+
+          <div className="hospital-stat-card">
+            <div className="hospital-stat-icon stat-icon-green">
+              <IconSnowflake size={22} />
+            </div>
+            <div className="hospital-stat-info">
+              <span className="hospital-stat-label">Cold Storage Status</span>
+              <span className="hospital-stat-value">100%</span>
+              <span className="hospital-stat-meta">
+                <span className="meta-positive">
+                  {coldVaults.length} units online · 0 excursions
+                </span>
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="inventory-header-row">
           <div className="inventory-action-buttons">
             <button type="button" className="btn-inventory-action btn-restock-primary" onClick={() => setIsRestockOpen(true)}>
-              <span className="btn-icon">📦</span> Log restock
+              <IconPackage size={16} />
+              Log restock
             </button>
             <button type="button" className="btn-inventory-action btn-wastage-secondary" onClick={() => setIsWastageOpen(true)} disabled={inventory.length === 0}>
-              <span className="btn-icon">⚠️</span> Record wastage
+              <IconTrash size={16} />
+              Record wastage
             </button>
             <button
               type="button"
               className="btn-inventory-action btn-inventory-ai"
               onClick={() => setIsAIAgentOpen(true)}
             >
-              <span className="btn-icon">🤖</span> Inventory assistant
+              <IconBot size={16} />
+              Inventory assistant
             </button>
             <button type="button" className="btn-inventory-action btn-export-neutral" onClick={() => showToast('Exporting official MOH Vaccine Stock Ledger (.CSV)...')}>
-              <span className="btn-icon">📄</span> Export report
+              <IconFile size={16} />
+              Export report
             </button>
           </div>
         </div>
 
         <div className="vaccine-formulary-card">
           <div className="formulary-card-header">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '1.35rem' }}>🧪</span>
-              <div>
-                <h3 className="formulary-title">Hospital Vaccine Formulary &amp; Product Registry</h3>
-                <p className="formulary-sub">Enter new vaccine product names below. Registered names immediately appear in the <strong>Restock Shipment form</strong> dropdown.</p>
+            <div className="formulary-header-main">
+              <div className="hospital-stat-icon stat-icon-teal" aria-hidden="true">
+                <IconPackage size={20} />
+              </div>
+              <div className="formulary-header-copy">
+                <div className="formulary-title-row">
+                  <h3 className="formulary-title">Vaccine formulary</h3>
+                  <span className="formulary-count-badge">{uniqueFormulations.length}</span>
+                </div>
+                <p className="formulary-sub">
+                  Register products once — they appear in the restock shipment dropdown.
+                </p>
               </div>
             </div>
-            <button type="button" className="btn-toggle-registry" onClick={() => setShowRegistryBox((prev) => !prev)}>
-              {showRegistryBox ? '▲ Collapse' : '▼ Expand'}
+            <button
+              type="button"
+              className="btn-toggle-registry"
+              onClick={() => setShowRegistryBox((prev) => !prev)}
+              aria-expanded={showRegistryBox}
+            >
+              {showRegistryBox ? 'Collapse' : 'Expand'}
             </button>
           </div>
 
           {showRegistryBox && (
             <div className="formulary-card-body">
               <form onSubmit={handleRegisterFormSubmit} className="formulary-input-row">
-                <div className="formulary-input-group" style={{ flex: 1.8 }}>
-                  <label className="formulary-label">Vaccine Product Name *</label>
-                  <input type="text" className="formulary-text-input" placeholder="Enter vaccine name..." value={newVaccineInput} onChange={(e) => setNewVaccineInput(e.target.value)} required />
+                <div className="formulary-input-group formulary-input-group--name">
+                  <label className="formulary-label" htmlFor="formulary-vaccine-name">
+                    Vaccine product name *
+                  </label>
+                  <input
+                    id="formulary-vaccine-name"
+                    type="text"
+                    className="formulary-text-input"
+                    placeholder="e.g. Hepatitis B Recombinant"
+                    value={newVaccineInput}
+                    onChange={(e) => setNewVaccineInput(e.target.value)}
+                    required
+                  />
                 </div>
-                <div className="formulary-input-group" style={{ flex: 1.2 }}>
-                  <label className="formulary-label">Manufacturer / Supplier</label>
-                  <input type="text" className="formulary-text-input" placeholder="e.g. Serum Institute / Sanofi / GSK" value={newVaccineMfrInput} onChange={(e) => setNewVaccineMfrInput(e.target.value)} />
+                <div className="formulary-input-group formulary-input-group--mfr">
+                  <label className="formulary-label" htmlFor="formulary-vaccine-mfr">
+                    Manufacturer / supplier
+                  </label>
+                  <input
+                    id="formulary-vaccine-mfr"
+                    type="text"
+                    className="formulary-text-input"
+                    placeholder="e.g. Serum Institute"
+                    value={newVaccineMfrInput}
+                    onChange={(e) => setNewVaccineMfrInput(e.target.value)}
+                  />
                 </div>
-                <button type="submit" className="btn-register-vaccine">+ Register Vaccine Product</button>
+                <div className="formulary-input-group formulary-input-group--action">
+                  <span className="formulary-label formulary-label--spacer" aria-hidden="true">
+                    &nbsp;
+                  </span>
+                  <button type="submit" className="btn-register-vaccine">
+                    Register product
+                  </button>
+                </div>
               </form>
 
               <div className="registered-pills-wrap">
-                <span className="registered-pills-label">Registered Formulations ({uniqueFormulations.length}):</span>
-                <div className="registered-pills-list">
-                  {uniqueFormulations.map((vName) => (
-                    <span key={vName.toLowerCase()} className="registered-vaccine-pill">
-                      <span className="pill-dot">💉</span>
-                      <strong className="pill-name">{vName}</strong>
-                      <button type="button" className="pill-remove-btn" onClick={() => handleRemoveFormulation(vName)} title={`Remove ${vName}`}>&times;</button>
-                    </span>
-                  ))}
+                <div className="registered-pills-heading">
+                  <span className="registered-pills-label">Registered products</span>
                 </div>
+                {uniqueFormulations.length === 0 ? (
+                  <p className="formulary-empty">
+                    No products registered yet. Add a vaccine name above to get started.
+                  </p>
+                ) : (
+                  <div className="registered-pills-list">
+                    {uniqueFormulations.map((vName) => (
+                      <span key={vName.toLowerCase()} className="registered-vaccine-pill">
+                        <span className="pill-icon" aria-hidden="true">
+                          <IconSyringe size={14} />
+                        </span>
+                        <strong className="pill-name">{vName}</strong>
+                        <button
+                          type="button"
+                          className="pill-remove-btn"
+                          onClick={() => handleRemoveFormulation(vName)}
+                          title={`Remove ${vName}`}
+                          aria-label={`Remove ${vName}`}
+                        >
+                          <IconClose size={12} />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}
         </div>
 
-        <div className="inventory-metrics-grid">
-          <div className="inventory-stat-card">
-            <div className="inventory-stat-icon-box icon-blue"><IconSyringe size={22} /></div>
-            <div className="inventory-stat-content">
-              <span className="inventory-stat-label">Total Vials In Stock</span>
-              <span className="inventory-stat-value">{totalVials.toLocaleString()}</span>
-              <span className="inventory-stat-sub">&asymp; <strong>{totalDoses.toLocaleString()}</strong> Patient Doses Available</span>
-            </div>
-          </div>
-          <div className="inventory-stat-card">
-            <div className="inventory-stat-icon-box icon-amber"><IconShield size={22} /></div>
-            <div className="inventory-stat-content">
-              <span className="inventory-stat-label">Low Stock Reorders</span>
-              <span className="inventory-stat-value" style={{ color: lowStockCount > 0 ? '#dc2626' : '#1e1b4b' }}>{lowStockCount} <small style={{ fontSize: '0.85rem', fontWeight: 500 }}>Formulations</small></span>
-              <span className="inventory-stat-sub">{lowStockCount > 0 ? 'Urgent PO dispatch needed' : 'All stocks above safety threshold'}</span>
-            </div>
-          </div>
-          <div className="inventory-stat-card">
-            <div className="inventory-stat-icon-box icon-purple"><IconClock size={22} /></div>
-            <div className="inventory-stat-content">
-              <span className="inventory-stat-label">Expiring in &lt; 60 Days</span>
-              <span className="inventory-stat-value" style={{ color: expiringCount > 0 ? '#d97706' : '#1e1b4b' }}>{expiringCount} <small style={{ fontSize: '0.85rem', fontWeight: 500 }}>Batches</small></span>
-              <span className="inventory-stat-sub">Prioritize in clinic queue</span>
-            </div>
-          </div>
-          <div className="inventory-stat-card">
-            <div className="inventory-stat-icon-box icon-green"><IconSnowflake size={22} /></div>
-            <div className="inventory-stat-content">
-              <span className="inventory-stat-label">Cold Storage Status</span>
-              <span className="inventory-stat-value" style={{ color: '#059669' }}>100%</span>
-              <span className="inventory-stat-sub">{coldVaults.length} Units Online &bull; 0 Excursions</span>
-            </div>
-          </div>
-        </div>
-
         {coldVaults.length > 0 && (
           <div className="cold-vaults-section">
             <div className="cold-vaults-header">
-              <div>
-                <h3 className="cold-vaults-title">❄️ IoT Cold Chain Vaults &bull; Live Telemetry</h3>
-                <p className="cold-vaults-sub">Continuous monitoring conforming to WHO &amp; MOH cold-chain guidelines.</p>
+              <div className="formulary-header-main">
+                <div className="hospital-stat-icon stat-icon-teal" aria-hidden="true">
+                  <IconSnowflake size={20} />
+                </div>
+                <div className="formulary-header-copy">
+                  <div className="formulary-title-row">
+                    <h3 className="cold-vaults-title">Cold chain vaults</h3>
+                    <span className="formulary-count-badge">{coldVaults.length}</span>
+                  </div>
+                  <p className="cold-vaults-sub">Live temperature, humidity, and lot occupancy for each storage unit.</p>
+                </div>
               </div>
-              <span className="cold-vaults-live-tag"><span className="pulse-dot" /> SENSORS SYNCED</span>
+              <span className="cold-vaults-live-tag">
+                <span className="pulse-dot" />
+                Sensors synced
+              </span>
             </div>
             <div className="cold-vaults-grid">
-              {coldVaults.map((vault) => (
-                <div key={vault.id} className="cold-vault-card">
-                  <div className="cold-vault-card-header">
-                    <div><h4 className="vault-name">{vault.name}</h4><span className="vault-type">{vault.type}</span></div>
-                    <span className="vault-status-badge">{vault.status}</span>
-                  </div>
-                  <div className="cold-vault-temp-display">
-                    <span className="temp-big">{vault.temp}</span>
-                    <span className="temp-target">Target: {vault.target}</span>
-                  </div>
-                  <div className="cold-vault-footer">
-                    <span>Humidity: <strong>{vault.humidity}</strong></span>
-                    <span>Lots Stored: <strong>{vault.assignedLots}</strong></span>
-                    <span className="sensor-tag">{vault.sensorStatus}</span>
-                  </div>
-                </div>
-              ))}
+              {coldVaults.map((vault) => {
+                const ok = !vault.status || /optimal|ok|normal|safe|active/i.test(String(vault.status));
+                return (
+                  <article key={vault.id} className="cold-vault-card">
+                    <div className="cold-vault-card-header">
+                      <div className="hospital-stat-icon stat-icon-teal" aria-hidden="true">
+                        <IconThermometer size={18} />
+                      </div>
+                      <div className="cold-vault-copy">
+                        <h4 className="vault-name">{vault.name}</h4>
+                        <span className="vault-type">{vault.type}</span>
+                      </div>
+                      <span className={`vault-status-badge${ok ? ' is-ok' : ' is-warn'}`}>
+                        {vault.status || 'Monitored'}
+                      </span>
+                    </div>
+                    <div className="cold-vault-temp-display">
+                      <span className="temp-big">{vault.temp}</span>
+                      <span className="temp-target">Target {vault.target}</span>
+                    </div>
+                    <div className="cold-vault-footer">
+                      <span>Humidity <strong>{vault.humidity || 'N/A'}</strong></span>
+                      <span>Lots <strong>{vault.assignedLots ?? 0}</strong></span>
+                      <span className="sensor-tag">{vault.sensorStatus || 'Active'}</span>
+                    </div>
+                  </article>
+                );
+              })}
             </div>
           </div>
         )}
 
         <div className="inventory-toolbar">
           <div className="inventory-search-group">
-            <span className="search-icon">🔍</span>
-            <input type="text" className="inventory-search-input" placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
-            {searchQuery && <button type="button" className="clear-search-btn" onClick={() => setSearchQuery('')}>&times;</button>}
+            <span className="search-icon" aria-hidden="true">
+              <IconSearch size={16} />
+            </span>
+            <input type="text" className="inventory-search-input" placeholder="Search vaccine, lot, or vault..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+            {searchQuery && (
+              <button type="button" className="clear-search-btn" onClick={() => setSearchQuery('')} aria-label="Clear search">
+                <IconClose size={14} />
+              </button>
+            )}
           </div>
           <div className="inventory-filter-pills">
-            <div className="filter-pill-group">
-              <button type="button" className={`filter-pill ${statusFilter === 'all' ? 'active' : ''}`} onClick={() => setStatusFilter('all')}>All Status ({inventory.length})</button>
-              <button type="button" className={`filter-pill pill-alert ${statusFilter === 'low' ? 'active' : ''}`} onClick={() => setStatusFilter('low')}>⚠️ Low Stock ({lowStockCount})</button>
-              <button type="button" className={`filter-pill ${statusFilter === 'sufficient' ? 'active' : ''}`} onClick={() => setStatusFilter('sufficient')}>✓ Healthy</button>
-              <button type="button" className={`filter-pill pill-warning ${statusFilter === 'expiring' ? 'active' : ''}`} onClick={() => setStatusFilter('expiring')}>⏳ Expiring Soon ({expiringCount})</button>
-              <button type="button" className={`filter-pill ${statusFilter === 'ultracold' ? 'active' : ''}`} onClick={() => setStatusFilter('ultracold')}>❄️ Ultra-Cold</button>
+            <div className="filter-pill-group" role="tablist" aria-label="Stock filters">
+              <button type="button" className={`filter-pill ${statusFilter === 'all' ? 'active' : ''}`} onClick={() => setStatusFilter('all')}>All ({inventory.length})</button>
+              <button type="button" className={`filter-pill ${statusFilter === 'low' ? 'active' : ''}`} onClick={() => setStatusFilter('low')}>Low stock ({lowStockCount})</button>
+              <button type="button" className={`filter-pill ${statusFilter === 'sufficient' ? 'active' : ''}`} onClick={() => setStatusFilter('sufficient')}>Healthy</button>
+              <button type="button" className={`filter-pill ${statusFilter === 'expiring' ? 'active' : ''}`} onClick={() => setStatusFilter('expiring')}>Expiring ({expiringCount})</button>
+              <button type="button" className={`filter-pill ${statusFilter === 'ultracold' ? 'active' : ''}`} onClick={() => setStatusFilter('ultracold')}>Ultra-cold</button>
             </div>
             <div className="view-mode-toggles">
-              <button type="button" className={`btn-view-toggle ${viewMode === 'table' ? 'active' : ''}`} onClick={() => setViewMode('table')}>☰ Table</button>
-              <button type="button" className={`btn-view-toggle ${viewMode === 'cards' ? 'active' : ''}`} onClick={() => setViewMode('cards')}>⊞ Cards</button>
+              <button type="button" className={`btn-view-toggle ${viewMode === 'table' ? 'active' : ''}`} onClick={() => setViewMode('table')}>Table</button>
+              <button type="button" className={`btn-view-toggle ${viewMode === 'cards' ? 'active' : ''}`} onClick={() => setViewMode('cards')}>Cards</button>
             </div>
           </div>
         </div>
 
         {inventory.length === 0 ? (
-          <div className="hospital-appointments-table-wrapper" style={{ marginTop: '12px', padding: '60px', textAlign: 'center', color: '#94a3b8' }}>
+          <div className="hospital-appointments-table-wrapper inventory-empty-state">
             <h3>No inventory yet</h3>
-            <p>Click <strong>+ Log Restock Shipment</strong> to add your first batch.</p>
+            <p>Log a restock shipment to add your first batch.</p>
           </div>
         ) : viewMode === 'table' ? (
-          <div className="hospital-appointments-table-wrapper" style={{ marginTop: '12px' }}>
+          <div className="hospital-appointments-table-wrapper">
             <table className="inventory-custom-table">
               <thead>
                 <tr>
-                  <th style={{ textAlign: 'left', paddingLeft: '20px' }}>Vaccine Formulation &amp; Lot</th>
+                  <th className="is-left">Vaccine &amp; lot</th>
                   <th>Category</th>
-                  <th>Storage &amp; Cold Unit</th>
-                  <th>Stock Level &amp; Capacity</th>
-                  <th>Doses Equiv.</th>
-                  <th>Expiry Date</th>
+                  <th>Storage</th>
+                  <th>Stock</th>
+                  <th>Doses</th>
+                  <th>Expiry</th>
                   <th>Status</th>
-                  <th>Actions &amp; Audit</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -414,7 +530,7 @@ export default function HospitalInventoryTab() {
                     const isExpiring = item.expiryStatus === 'expiring_soon';
                     return (
                       <tr key={item.id} className={isLow ? 'row-highlight-low' : ''}>
-                        <td style={{ textAlign: 'left', paddingLeft: '20px' }}>
+                        <td className="is-left">
                           <div className="vaccine-title-cell">
                             <strong className="vaccine-name-text">{item.name}</strong>
                             <div className="vaccine-sub-meta">
@@ -464,7 +580,10 @@ export default function HospitalInventoryTab() {
                           <div className="inventory-row-actions">
                             <button type="button" className="btn-quick-adjust btn-adjust-plus" onClick={() => handleQuickAdjust(item.id, 20)} title="Add +20 Vials">+20</button>
                             <button type="button" className="btn-quick-adjust btn-adjust-minus" onClick={() => handleQuickAdjust(item.id, -20)} title="Deduct -20 Vials">-20</button>
-                            <button type="button" className="btn-table-audit" onClick={() => setSelectedAuditVaccine(item)} title="View Batch Audit">📋 Audit</button>
+                            <button type="button" className="btn-table-audit" onClick={() => setSelectedAuditVaccine(item)} title="View batch audit">
+                              <IconClipboard size={14} />
+                              Audit
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -492,7 +611,7 @@ export default function HospitalInventoryTab() {
                   </div>
                   <div className="inv-card-storage-box">
                     <div className="storage-row">
-                      <span>❄️ {item.storageUnit}</span>
+                      <span>{item.storageUnit}</span>
                       <span className="temp-badge">{item.temp}</span>
                     </div>
                   </div>
@@ -518,11 +637,11 @@ export default function HospitalInventoryTab() {
 
         <div className="inventory-footer-notice">
           <div className="footer-notice-text">
-            <span>🛡️</span>
-            <span>All vaccine storage, administration records, and lot allocations automatically synchronize with the <strong>National Immunization Cold Chain Registry (MOH Sri Lanka)</strong>.</span>
+            <IconShield size={16} />
+            <span>Storage and lot records sync with the national immunization cold-chain registry.</span>
           </div>
           <button type="button" className="btn-sync-registry" onClick={() => showToast('Cold chain registry status: All batches verified.')}>
-            ⚡ Force Telemetry Sync
+            Sync registry
           </button>
         </div>
       </div>
