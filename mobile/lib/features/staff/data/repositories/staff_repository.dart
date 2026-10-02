@@ -113,14 +113,21 @@ class StaffRepository {
   }
 
   /// Status values: Confirmed, Administering, Observation, Completed, Cancelled, Rejected.
+  /// Optional [administration] fields are used when certifying to Observation.
   static Future<StaffAppointmentModel> updateAppointmentStatus({
     required String appointmentId,
     required String status,
     String? remarks,
+    Map<String, dynamic>? administration,
   }) async {
     final body = <String, dynamic>{'status': status};
     if (remarks != null && remarks.trim().isNotEmpty) {
       body['remarks'] = remarks.trim();
+    }
+    if (administration != null) {
+      for (final entry in administration.entries) {
+        if (entry.value != null) body[entry.key] = entry.value;
+      }
     }
 
     final response = await ApiClient.patch(

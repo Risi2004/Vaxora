@@ -537,6 +537,15 @@ public class AuthService : IAuthService
 
         if (user == null || !_passwordHasher.VerifyPassword(dto.Password, user.PasswordHash))
         {
+            if (user != null &&
+                user.Role == UserRole.PATIENT &&
+                await _context.AuditLogs.AnyAsync(a =>
+                    a.UserId == user.Id && a.Action == "PATIENT_WALKIN_PROVISION"))
+            {
+                throw new UnauthorizedAccessException(
+                    "Invalid email or password. Guest walk-in accounts use your NIC / National ID number as the password.");
+            }
+
             throw new UnauthorizedAccessException("Invalid email address or password.");
         }
 

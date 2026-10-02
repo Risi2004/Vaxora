@@ -12,7 +12,7 @@ public interface IInventoryService
     Task<List<FormularyEntryDto>> GetFormularyAsync(Guid userId);
     Task<FormularyEntryDto> RegisterFormularyAsync(Guid userId, RegisterFormularyDto dto);
     Task<bool> RemoveFormularyAsync(Guid userId, Guid formularyId);
-    Task<List<InventoryItemDto>> GetInventoryAsync(Guid userId);
+    Task<List<InventoryItemDto>> GetInventoryAsync(Guid userId, Guid? hospitalUserId = null);
     Task<InventoryItemDto> RestockBatchAsync(Guid userId, RestockBatchDto dto);
     Task<InventoryItemDto> LogWastageAsync(Guid userId, Guid batchId, WastageDto dto);
     Task<InventoryItemDto> AdjustStockAsync(Guid userId, Guid batchId, AdjustStockDto dto);
@@ -43,12 +43,28 @@ public class InventoryService : IInventoryService
 
     // ==================== HELPERS ====================
 
-    private async Task<HospitalProfile?> GetHospitalAsync(Guid userId)
+    private async Task<HospitalProfile?> GetHospitalAsync(Guid userId, Guid? preferredHospitalUserId = null)
     {
         var own = await _context.HospitalProfiles.FirstOrDefaultAsync(h => h.UserId == userId);
         if (own != null) return own;
 
-        // Doctor/Nurse: use first active hospital affiliation
+        // Doctor/Nurse: prefer the hospital they are currently working in when provided.
+        if (preferredHospitalUserId.HasValue)
+        {
+            var affiliatedPreferred = await _context.StaffAffiliations
+                .AsNoTracking()
+                .AnyAsync(a =>
+                    a.StaffUserId == userId &&
+                    a.HospitalUserId == preferredHospitalUserId.Value &&
+                    a.Status == AffiliationStatus.Active);
+
+            if (affiliatedPreferred)
+            {
+                return await _context.HospitalProfiles
+                    .FirstOrDefaultAsync(h => h.UserId == preferredHospitalUserId.Value);
+            }
+        }
+
         var hospitalUserId = await _context.StaffAffiliations
             .AsNoTracking()
             .Where(a => a.StaffUserId == userId && a.Status == AffiliationStatus.Active)
@@ -120,6 +136,7 @@ public class InventoryService : IInventoryService
     {
         var minThreshold = v.DefaultMinThreshold;
         var lastRestock = b.LastRestockedAt ?? b.CreatedAt;
+        var openDoses = Math.Max(0, b.OpenVialDosesRemaining ?? 0);
         return new InventoryItemDto
         {
             Id = b.Id,
@@ -132,6 +149,8 @@ public class InventoryService : IInventoryService
             Capacity = b.QuantityReceived,
             MinThreshold = minThreshold,
             DosesPerVial = v.DosesPerVial,
+            OpenVialDosesRemaining = openDoses,
+            AvailableDoses = InventoryDoseHelper.AvailableDoseCount(b, v),
             Expiry = b.ExpiryDate.ToString("yyyy-MM-dd"),
             ExpiryStatus = ComputeExpiryStatus(b.ExpiryDate),
             Temp = v.RequiredTemp,
@@ -343,9 +362,9 @@ public class InventoryService : IInventoryService
 
     // ==================== INVENTORY (BATCHES) ====================
 
-    public async Task<List<InventoryItemDto>> GetInventoryAsync(Guid userId)
+    public async Task<List<InventoryItemDto>> GetInventoryAsync(Guid userId, Guid? hospitalUserId = null)
     {
-        var hospital = await GetHospitalAsync(userId);
+        var hospital = await GetHospitalAsync(userId, hospitalUserId);
         if (hospital == null) return new List<InventoryItemDto>();
 
         var batches = await _context.Batches
@@ -507,9 +526,16 @@ public class InventoryService : IInventoryService
             throw new InvalidOperationException($"Cannot adjust — result would be negative ({newQty}).");
 
         batch.QuantityAvailable = newQty;
+        // Positive adjustments are additional receipts — keep Received in sync so
+        // Available never appears to exceed Received/"capacity" in the UI.
+        if (dto.Delta > 0 && batch.QuantityAvailable > batch.QuantityReceived)
+            batch.QuantityReceived = batch.QuantityAvailable;
+
         batch.UpdatedAt = DateTime.UtcNow;
         if (batch.QuantityAvailable == 0 && batch.Status == BatchStatus.Active)
             batch.Status = BatchStatus.Depleted;
+        else if (batch.QuantityAvailable > 0 && batch.Status == BatchStatus.Depleted)
+            batch.Status = BatchStatus.Active;
 
         _context.InventoryTransactions.Add(new InventoryTransaction
         {
@@ -726,7 +752,7 @@ public class InventoryService : IInventoryService
             .ToListAsync();
 
         var totalVials = batches.Sum(b => b.QuantityAvailable);
-        var totalDoses = batches.Sum(b => b.QuantityAvailable * b.Vaccine.DosesPerVial);
+        var totalDoses = batches.Sum(b => InventoryDoseHelper.AvailableDoseCount(b, b.Vaccine));
         var lowStock = batches.Count(b => b.QuantityAvailable <= b.Vaccine.DefaultMinThreshold);
         var expiring = batches.Count(b => b.ExpiryDate <= DateTime.UtcNow.AddDays(60) && b.ExpiryDate >= DateTime.UtcNow);
         var formulations = batches.Select(b => b.VaccineId).Distinct().Count();

@@ -6,6 +6,10 @@ import { inventoryService } from '../services/inventoryService';
 import { appointmentService } from '../../patient/services/appointmentService';
 import { authService } from '../../auth';
 import { hospitalMinutesNow, hospitalToday } from '../utils/hospitalDate';
+import {
+  mapDbStatusToQueueStatus,
+  queueStatusLabel,
+} from '../utils/appointmentStatus';
 import hospitalHeroImage from '../../../assets/images/hospital-hero-vaccine.webp';
 import {
   IconClipboard,
@@ -47,37 +51,10 @@ function boothStatusClass(status) {
   return 'is-scheduled';
 }
 
-function queueStatusLabel(status) {
-  if (status === 'waiting') return 'Waiting';
-  if (status === 'administering') return 'In Session';
-  if (status === 'observation') return 'Observation';
-  if (status === 'completed') return 'Completed';
-  if (status === 'cancelled') return 'Cancelled';
-  return status || 'Unknown';
-}
-
 function queueTimeSortKey(time) {
   const match = String(time || '').match(/(\d{1,2}):(\d{2})/);
   if (!match) return 0;
   return Number(match[1]) * 60 + Number(match[2]);
-}
-
-function mapDbStatusToQueueStatus(dbStatus) {
-  const s = String(dbStatus || '').trim().toLowerCase().replace(/[\s_-]+/g, '');
-  if (s === 'completed') return 'completed';
-  if (s === 'observation') return 'observation';
-  if (s === 'administering' || s === 'insession') return 'administering';
-  if (s === 'cancelled' || s === 'rejected') return 'cancelled';
-  // Confirmed / Pending / PendingPayment / CheckedIn → still in queue
-  return 'waiting';
-}
-
-function mapQueueStatusToDbStatus(queueStatus) {
-  if (queueStatus === 'completed') return 'Completed';
-  if (queueStatus === 'observation') return 'Observation';
-  if (queueStatus === 'administering') return 'Administering';
-  if (queueStatus === 'cancelled') return 'Cancelled';
-  return 'Confirmed';
 }
 
 function formatVaultTemp(temp) {
@@ -189,6 +166,27 @@ export default function HospitalDashboardOverview() {
 
   useEffect(() => () => clearTimeout(toastTimerRef.current), []);
 
+  const handleDeskMarkPaid = async (appointmentId) => {
+    try {
+      await appointmentService.updateAppointmentStatus(appointmentId, { status: 'Confirmed' });
+      showToast('Counter payment recorded — patient is ready for clinical queue.');
+      await loadAppointmentsQueue();
+    } catch (err) {
+      showToast(err.message || 'Failed to record payment.');
+    }
+  };
+
+  const handleDeskDeclineUnpaid = async (appointmentId) => {
+    if (!window.confirm('Decline this unpaid appointment?')) return;
+    try {
+      await appointmentService.updateAppointmentStatus(appointmentId, { status: 'Rejected' });
+      showToast('Unpaid appointment declined.');
+      await loadAppointmentsQueue();
+    } catch (err) {
+      showToast(err.message || 'Failed to decline appointment.');
+    }
+  };
+
   // ==================== FETCH INVENTORY (BATCHES & FORMULARY) ====================
   const loadInventory = useCallback(async () => {
     setInventoryLoading(true);
@@ -287,6 +285,7 @@ export default function HospitalDashboardOverview() {
             time: a.timeSlot || '09:00 AM - 09:20 AM',
             status: queueStatus,
             dbStatus: rawStatus,
+            paymentStatus: a.paymentStatus || a.PaymentStatus || '—',
           };
         });
 
@@ -384,6 +383,8 @@ export default function HospitalDashboardOverview() {
     await appointmentService.createWalkIn({
       patientNic: payload.patientNic,
       patientName: payload.patientName,
+      patientEmail: payload.patientEmail,
+      patientPhone: payload.patientPhone,
       vaccineName: payload.vaccineName,
       dose: payload.dose,
       boothLabel: payload.boothLabel,
@@ -391,7 +392,9 @@ export default function HospitalDashboardOverview() {
       gender: payload.gender,
     });
     await loadAppointmentsQueue();
-    showToast(`Walk-in patient ${payload.patientName} added to the active queue.`);
+    showToast(
+      `Guest ${payload.patientName} queued. Login email is theirs; guest password is their NIC.`
+    );
   };
 
   // 2. Real Database Restock Batch
@@ -411,30 +414,6 @@ export default function HospitalDashboardOverview() {
       console.error('Failed to restock batch:', err);
       alert('Failed to log restock shipment: ' + err.message);
       throw err;
-    }
-  };
-
-  // 3. Status Transition with Database Sync
-  const updatePatientStatus = async (id, newStatus) => {
-    const previousPatients = [...queuePatients];
-    const targetId = String(id);
-
-    // Optimistically update UI
-    setQueuePatients((prev) =>
-      prev.map((p) => (String(p.id) === targetId ? { ...p, status: newStatus } : p))
-    );
-
-    try {
-      const dbStatus = mapQueueStatusToDbStatus(newStatus);
-      await appointmentService.updateAppointmentStatus(id, { status: dbStatus });
-      showToast(`Updated patient status to "${newStatus.toUpperCase()}".`);
-      // Re-fetch so refresh / other clients stay in sync with DB
-      await loadAppointmentsQueue();
-    } catch (err) {
-      console.error('Failed to persist appointment status update:', err);
-      // Revert on failure
-      setQueuePatients(previousPatients);
-      alert('Failed to update status in database: ' + err.message);
     }
   };
 
@@ -653,7 +632,7 @@ export default function HospitalDashboardOverview() {
                 <span className="section-title-icon icon-shade-purple"><IconClipboard size={22} /></span> Live Vaccination Queue
               </h2>
               <p className="section-title-desc">
-                Real-time patient flow, booth assignments, and dose verification from database
+                Live patient flow for monitoring — Call Next, administer, and discharge are handled by on-duty clinical staff
               </p>
             </div>
           </div>
@@ -690,6 +669,7 @@ export default function HospitalDashboardOverview() {
                 className="queue-filter-select"
               >
                 <option value="all">All Statuses</option>
+                <option value="awaiting_payment">Awaiting payment</option>
                 <option value="waiting">Waiting</option>
                 <option value="administering">Administering</option>
                 <option value="observation">In Observation</option>
@@ -728,7 +708,6 @@ export default function HospitalDashboardOverview() {
                 <col className="col-vaccine" />
                 <col className="col-booth" />
                 <col className="col-status" />
-                <col className="col-actions" />
               </colgroup>
               <thead>
                 <tr>
@@ -737,25 +716,24 @@ export default function HospitalDashboardOverview() {
                   <th>Vaccine &amp; Dose</th>
                   <th>Booth Station</th>
                   <th>Status</th>
-                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {queueLoading ? (
                   <tr>
-                    <td colSpan={6} style={{ textAlign: 'center', padding: '32px', color: '#64748b' }}>
+                    <td colSpan={5} style={{ textAlign: 'center', padding: '32px', color: '#64748b' }}>
                       Loading live queue from database...
                     </td>
                   </tr>
                 ) : queueError ? (
                   <tr>
-                    <td colSpan={6} style={{ textAlign: 'center', padding: '32px', color: '#dc2626' }}>
+                    <td colSpan={5} style={{ textAlign: 'center', padding: '32px', color: '#dc2626' }}>
                       {queueError}
                     </td>
                   </tr>
                 ) : filteredQueue.length === 0 ? (
                   <tr>
-                    <td colSpan={6} style={{ textAlign: 'center', padding: '32px', color: '#94a3b8' }}>
+                    <td colSpan={5} style={{ textAlign: 'center', padding: '32px', color: '#94a3b8' }}>
                       No patients in queue for {viewScope === 'today' ? "today's session" : 'selected filters'}.
                       {viewScope === 'today' && (
                         <button
@@ -805,49 +783,31 @@ export default function HospitalDashboardOverview() {
                         </span>
                       </td>
                       <td>
-                        <span className={`queue-status-badge status-${patient.status}`}>
-                          {queueStatusLabel(patient.status)}
-                        </span>
-                      </td>
-                      <td>
-                        <div className="queue-action-btns">
-                          {patient.status === 'waiting' && (
+                        {patient.status === 'awaiting_payment' ? (
+                          <div className="hospital-action-buttons-wrapper">
+                            <span className="mockup-status-badge pending">Awaiting payment</span>
                             <button
                               type="button"
-                              className="btn-queue-action"
-                              onClick={() => updatePatientStatus(patient.id, 'administering')}
-                              title="Call patient into booth"
+                              className="btn-hospital-confirm-action"
+                              title="Record desk/cash payment at the hospital counter"
+                              onClick={() => handleDeskMarkPaid(patient.id)}
                             >
-                              Call Now
+                              Mark paid
                             </button>
-                          )}
-                          {patient.status === 'administering' && (
                             <button
                               type="button"
-                              className="btn-queue-action btn-queue-action--session"
-                              onClick={() => updatePatientStatus(patient.id, 'observation')}
-                              title="Move to 15-min post vaccination observation"
+                              className="btn-hospital-cancel-action"
+                              title="Decline unpaid appointment"
+                              onClick={() => handleDeskDeclineUnpaid(patient.id)}
                             >
-                              To Observation
+                              ✕ Decline
                             </button>
-                          )}
-                          {patient.status === 'observation' && (
-                            <button
-                              type="button"
-                              className="btn-queue-action btn-queue-action--release"
-                              onClick={() => updatePatientStatus(patient.id, 'completed')}
-                              title="Complete and issue digital pass"
-                            >
-                              Release &amp; Pass
-                            </button>
-                          )}
-                          {patient.status === 'completed' && (
-                            <span className="queue-pass-note">Pass generated</span>
-                          )}
-                          {patient.status === 'cancelled' && (
-                            <span className="queue-action-empty">—</span>
-                          )}
-                        </div>
+                          </div>
+                        ) : (
+                          <span className={`queue-status-badge status-${patient.status}`}>
+                            {queueStatusLabel(patient.status)}
+                          </span>
+                        )}
                       </td>
                     </tr>
                   ))

@@ -180,6 +180,11 @@ public class ClinicalPatientService : IClinicalPatientService
             throw new InvalidOperationException("Cannot edit dosage for completed, cancelled, or rejected appointments.");
         }
 
+        await StaffDutyHelper.EnsureStaffOnDutyAsync(
+            _context,
+            doctorUserId,
+            appointment.HospitalUserId);
+
         var doctorName = doctor.DoctorProfile?.FullName is { Length: > 0 } name
             ? $"Dr. {name}"
             : doctor.Email;

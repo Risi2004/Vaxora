@@ -159,6 +159,21 @@ export const staffService = {
   getMyShifts({ from, to } = {}) {
     return apiRequest(`/staff/shifts/mine${buildQuery({ from, to })}`);
   },
+
+  getHospitalShiftSwaps({ status, limit = 40 } = {}) {
+    return apiRequest(`/staff/shift-swaps/hospital${buildQuery({ status, limit })}`);
+  },
+
+  decideShiftSwap(requestId, { approved, note, replacementAffiliationId } = {}) {
+    return apiRequest(`/staff/shift-swaps/${requestId}/decision`, {
+      method: 'POST',
+      body: JSON.stringify({
+        approved,
+        note: note || null,
+        replacementAffiliationId: replacementAffiliationId || null,
+      }),
+    });
+  },
 };
 
 export default staffService;

@@ -104,7 +104,7 @@ export const appointmentService = {
     });
   },
 
-  // 5b. Hospital walk-in registration (patient must already exist by NIC)
+  // 5b. Hospital walk-in registration (links by NIC or auto-creates patient account)
   createWalkIn(payload) {
     return apiRequest('/appointments/hospital/walk-in', {
       method: 'POST',
@@ -135,11 +135,14 @@ export const appointmentService = {
     });
   },
 
-  // 9. Confirm PayHere payment
-  confirmPayment(appointmentId, paymentId = '') {
+  // 9. Sync PayHere payment status (IPN is authoritative; client cannot forge Paid)
+  confirmPayment(appointmentId, paymentProof = {}) {
     return apiRequest('/payment/confirm', {
       method: 'POST',
-      body: JSON.stringify({ appointmentId, paymentId }),
+      body: JSON.stringify({
+        appointmentId,
+        ...(paymentProof && typeof paymentProof === 'object' ? paymentProof : {}),
+      }),
     });
   },
 };

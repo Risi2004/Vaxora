@@ -287,6 +287,12 @@ public class ApplicationDbContext : DbContext
             .HasPrecision(18, 2)
             .HasDefaultValue(0.00m);
 
+        modelBuilder.Entity<Appointment>()
+            .HasOne(a => a.PatientUser)
+            .WithMany()
+            .HasForeignKey(a => a.PatientUserId)
+            .OnDelete(DeleteBehavior.SetNull)
+            .IsRequired(false);
 
         // === PATIENT VACCINATION RECORDS CONFIGURATION ===
         modelBuilder.Entity<PatientVaccinationRecord>()

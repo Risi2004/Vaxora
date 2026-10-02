@@ -59,6 +59,10 @@ public class InventoryItemDto
     public int Capacity { get; set; }
     public int MinThreshold { get; set; }
     public int DosesPerVial { get; set; }
+    /// <summary>Doses left in the currently opened vial (0 if sealed-only stock).</summary>
+    public int OpenVialDosesRemaining { get; set; }
+    /// <summary>Total administerable doses = sealed vials × doses/vial + open vial remainder.</summary>
+    public int AvailableDoses { get; set; }
     public string Expiry { get; set; } = string.Empty;
     public string ExpiryStatus { get; set; } = string.Empty;
     public string Temp { get; set; } = string.Empty;

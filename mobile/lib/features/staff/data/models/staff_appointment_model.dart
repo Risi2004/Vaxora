@@ -55,8 +55,23 @@ class StaffAppointmentModel {
     if (s == 'completed') return 'completed';
     if (s == 'observation') return 'observation';
     if (s == 'administering') return 'consulting';
-    if (s == 'cancelled' || s == 'rejected') return 'completed';
+    if (s == 'cancelled' || s == 'rejected') return 'cancelled';
     return 'waiting';
+  }
+
+  String get statusLabel {
+    switch (uiStatus) {
+      case 'completed':
+        return 'Completed';
+      case 'observation':
+        return 'Observation';
+      case 'consulting':
+        return 'In session';
+      case 'cancelled':
+        return status.toLowerCase() == 'rejected' ? 'Rejected' : 'Cancelled';
+      default:
+        return 'In queue';
+    }
   }
 
   String get token {
@@ -76,6 +91,8 @@ class StaffAppointmentModel {
 
   bool get hasDosage =>
       prescribedDosage != null && prescribedDosage!.trim().isNotEmpty;
+
+  bool get isPaymentSettled => paymentStatus.toLowerCase() == 'paid';
 
   factory StaffAppointmentModel.fromJson(Map<String, dynamic> json) {
     return StaffAppointmentModel(

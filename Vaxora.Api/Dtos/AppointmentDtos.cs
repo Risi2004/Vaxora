@@ -53,7 +53,7 @@ public class BookAppointmentRequestDto
 public class AppointmentResponseDto
 {
     public Guid Id { get; set; }
-    public Guid PatientUserId { get; set; }
+    public Guid? PatientUserId { get; set; }
     public string PatientName { get; set; } = string.Empty;
     public string? PatientNic { get; set; }
     public string? PatientPhone { get; set; }
@@ -93,6 +93,29 @@ public class UpdateAppointmentStatusDto
     public string Status { get; set; } = "Confirmed";
 
     public string? Remarks { get; set; }
+
+    /// <summary>
+    /// Optional clinical administration details used when moving to Observation/Completed.
+    /// When provided, the selected batch is consumed and site/route/notes are saved
+    /// on the patient vaccination record (instead of silent FEFO + hardcoded IM).
+    /// </summary>
+    public Guid? BatchId { get; set; }
+
+    [MaxLength(100)]
+    public string? LotNumber { get; set; }
+
+    [MaxLength(100)]
+    public string? InjectionSite { get; set; }
+
+    [MaxLength(100)]
+    public string? Route { get; set; }
+
+    [MaxLength(1000)]
+    public string? AdministrationNotes { get; set; }
+
+    public bool? ConsentConfirmed { get; set; }
+
+    public bool? VitalsConfirmed { get; set; }
 }
 
 public class CreateWalkInAppointmentDto
@@ -103,6 +126,15 @@ public class CreateWalkInAppointmentDto
 
     [MaxLength(200)]
     public string? PatientName { get; set; }
+
+    /// <summary>Required when auto-creating a patient account (NIC not already registered).</summary>
+    [EmailAddress]
+    [MaxLength(256)]
+    public string? PatientEmail { get; set; }
+
+    /// <summary>Required when auto-creating a patient account (NIC not already registered).</summary>
+    [MaxLength(20)]
+    public string? PatientPhone { get; set; }
 
     [Required]
     [MaxLength(200)]
@@ -153,6 +185,45 @@ public class ConfirmPayHerePaymentRequestDto
     [Required]
     public Guid AppointmentId { get; set; }
 
+    /// <summary>Optional legacy field. Alone it is not enough to mark an appointment paid.</summary>
+    public string? PaymentId { get; set; }
+
+    /// <summary>Optional PayHere notify proof — required together to confirm from the client.</summary>
+    public string? MerchantId { get; set; }
+    public string? OrderId { get; set; }
+    public string? PayhereAmount { get; set; }
+    public string? PayhereCurrency { get; set; }
+    public string? StatusCode { get; set; }
+    public string? Md5Sig { get; set; }
+}
+
+public class ReportAefiDto
+{
     [Required]
-    public string PaymentId { get; set; } = string.Empty;
+    [MaxLength(40)]
+    public string Severity { get; set; } = "Mild";
+
+    [Required]
+    [MaxLength(2000)]
+    public string Description { get; set; } = string.Empty;
+
+    [Required]
+    [MaxLength(2000)]
+    public string TreatmentGiven { get; set; } = string.Empty;
+
+    /// <summary>When true (or severity is Severe), surveillance / MOH notification intent is recorded and emailed.</summary>
+    public bool NotifyMOH { get; set; }
+
+    public bool NotifyDoctor { get; set; } = true;
+}
+
+public class AefiReportResponseDto
+{
+    public Guid AppointmentId { get; set; }
+    public Guid? VaccinationRecordId { get; set; }
+    public string Severity { get; set; } = string.Empty;
+    public bool DocumentedOnDose { get; set; }
+    public bool NotifiedMoh { get; set; }
+    public bool NotifiedDoctor { get; set; }
+    public string Message { get; set; } = string.Empty;
 }
