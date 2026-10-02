@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AddStaffRequestModal from './AddStaffRequestModal';
+import HospitalCoverRequestsPanel from './HospitalCoverRequestsPanel';
 import HospitalShiftsPanel from './HospitalShiftsPanel';
 import staffService from '../services/staffService';
 import staffHeroImage from '../../../assets/images/hospital-staff-hero.jpg';
@@ -33,7 +34,7 @@ function mapAffiliationToCard(item) {
 }
 
 export default function HospitalStaffTab() {
-  const [pageView, setPageView] = useState('directory'); // 'directory' | 'shifts'
+  const [pageView, setPageView] = useState('directory'); // 'directory' | 'shifts' | 'covers'
   const [activeTab, setActiveTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -45,9 +46,13 @@ export default function HospitalStaffTab() {
   const [actionId, setActionId] = useState(null);
   const [sortBy, setSortBy] = useState('name');
   const [page, setPage] = useState(1);
+  const [pendingCoverCount, setPendingCoverCount] = useState(0);
   const pageSize = 6;
 
   const toastTimerRef = useRef(null);
+  const handlePendingCoverCount = useCallback((count) => {
+    setPendingCoverCount(Number(count) || 0);
+  }, []);
 
   const showToast = (message) => {
     setNotification(message);
@@ -77,6 +82,25 @@ export default function HospitalStaffTab() {
   useEffect(() => {
     loadStaff();
   }, [loadStaff]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await staffService.getHospitalShiftSwaps({ status: 'Pending', limit: 40 });
+        if (cancelled) return;
+        const list = Array.isArray(data) ? data : [];
+        setPendingCoverCount(
+          list.filter((r) => String(r.status || '').toLowerCase() === 'pending').length
+        );
+      } catch {
+        if (!cancelled) setPendingCoverCount(0);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleSendRequest = async (registrationNumber) => {
     setIsSubmitting(true);
@@ -214,6 +238,18 @@ export default function HospitalStaffTab() {
               >
                 Shifts
               </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={pageView === 'covers'}
+                className={`hospital-staff-hero-tab ${pageView === 'covers' ? 'active' : ''}`}
+                onClick={() => setPageView('covers')}
+              >
+                Cover requests
+                {pendingCoverCount > 0 ? (
+                  <span className="hospital-staff-hero-tab-badge">{pendingCoverCount}</span>
+                ) : null}
+              </button>
             </div>
           </div>
         </div>
@@ -224,6 +260,8 @@ export default function HospitalStaffTab() {
 
       {pageView === 'shifts' ? (
         <HospitalShiftsPanel />
+      ) : pageView === 'covers' ? (
+        <HospitalCoverRequestsPanel onPendingCountChange={handlePendingCoverCount} />
       ) : (
       <>
       <div className="hospital-staff-toolbar">
