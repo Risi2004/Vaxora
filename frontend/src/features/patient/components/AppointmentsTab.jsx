@@ -73,6 +73,52 @@ export default function AppointmentsTab() {
     }
   }, []);
 
+  /** Wait for authoritative PayHere IPN (client cannot forge Paid). */
+  const syncPayHereConfirmation = useCallback(async (appointmentId) => {
+    const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    let confirmed = false;
+
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      try {
+        const result = await appointmentService.confirmPayment(appointmentId);
+        if (result?.confirmed) {
+          confirmed = true;
+          break;
+        }
+      } catch (err) {
+        console.warn('PayHere sync attempt failed:', err?.message || err);
+      }
+
+      const list = await appointmentService.getPatientAppointments().catch(() => null);
+      if (Array.isArray(list)) {
+        setAppointments(list);
+        const match = list.find((a) => String(a.id || a.Id) === String(appointmentId));
+        const paid =
+          String(match?.paymentStatus || '').toLowerCase() === 'paid' &&
+          String(match?.status || '').toLowerCase() === 'confirmed';
+        if (paid) {
+          confirmed = true;
+          break;
+        }
+      }
+
+      await sleep(1500);
+    }
+
+    await loadMyAppointments();
+    if (confirmed) {
+      showToast('Payment confirmed. Your appointment is booked and receipts have been emailed.');
+    } else {
+      showToast(
+        'PayHere checkout finished. Waiting for payment notification — refresh shortly, or ask the hospital desk to Mark paid if you paid at the counter.'
+      );
+    }
+    setTimeout(() => {
+      const section = document.querySelector('.appointments-list-section');
+      if (section) section.scrollIntoView({ behavior: 'smooth' });
+    }, 250);
+  }, [loadMyAppointments]);
+
   useEffect(() => {
     loadMyAppointments();
   }, [loadMyAppointments]);
@@ -91,23 +137,11 @@ export default function AppointmentsTab() {
     const query = new URLSearchParams(window.location.search);
     const paymentParam = query.get('payment');
     const aptId = query.get('apt_id');
-    const orderId = query.get('order_id');
 
     if (paymentParam === 'success' && aptId) {
       const handleReturnSuccess = async () => {
-        try {
-          await appointmentService.confirmPayment(aptId, orderId || 'PAYHERE-RETURN');
-          showToast('🎉 Payment successful! Your appointment is confirmed and receipts have been emailed.');
-          window.history.replaceState({}, document.title, window.location.pathname);
-          await loadMyAppointments();
-          setTimeout(() => {
-            const section = document.querySelector('.appointments-list-section');
-            if (section) section.scrollIntoView({ behavior: 'smooth' });
-          }, 250);
-        } catch (err) {
-          console.error('Failed to confirm payment on return:', err);
-          await loadMyAppointments();
-        }
+        window.history.replaceState({}, document.title, window.location.pathname);
+        await syncPayHereConfirmation(aptId);
       };
       handleReturnSuccess();
     } else if (paymentParam === 'cancelled') {
@@ -115,7 +149,7 @@ export default function AppointmentsTab() {
       window.history.replaceState({}, document.title, window.location.pathname);
       loadMyAppointments();
     }
-  }, [loadMyAppointments]);
+  }, [loadMyAppointments, syncPayHereConfirmation]);
 
   // 3. Fetch available vaccines and hospitals from database
   useEffect(() => {
@@ -452,15 +486,10 @@ export default function AppointmentsTab() {
     window.payhere.onCompleted = async function onCompleted(orderId) {
       console.log('PayHere payment completed. OrderID:', orderId);
       try {
-        await appointmentService.confirmPayment(aptId, orderId || `PH-${Date.now().toString().slice(-8)}`);
-        showToast('🎉 PayHere payment verified! Booking confirmed. Confirmation email and payment transaction receipt have been sent.');
-        await loadMyAppointments();
-        setTimeout(() => {
-          const section = document.querySelector('.appointments-list-section');
-          if (section) section.scrollIntoView({ behavior: 'smooth' });
-        }, 250);
+        await syncPayHereConfirmation(aptId);
       } catch (err) {
-        alert(`Failed to confirm PayHere payment on server: ${err.message}`);
+        console.error('Failed to sync PayHere payment:', err);
+        showToast(err.message || 'Could not sync payment status. Please refresh.');
         await loadMyAppointments();
       }
     };

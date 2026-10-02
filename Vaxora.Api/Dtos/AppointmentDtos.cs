@@ -176,6 +176,14 @@ public class ConfirmPayHerePaymentRequestDto
     [Required]
     public Guid AppointmentId { get; set; }
 
-    [Required]
-    public string PaymentId { get; set; } = string.Empty;
+    /// <summary>Optional legacy field. Alone it is not enough to mark an appointment paid.</summary>
+    public string? PaymentId { get; set; }
+
+    /// <summary>Optional PayHere notify proof — required together to confirm from the client.</summary>
+    public string? MerchantId { get; set; }
+    public string? OrderId { get; set; }
+    public string? PayhereAmount { get; set; }
+    public string? PayhereCurrency { get; set; }
+    public string? StatusCode { get; set; }
+    public string? Md5Sig { get; set; }
 }

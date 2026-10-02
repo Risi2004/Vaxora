@@ -957,9 +957,26 @@ public class AppointmentService : IAppointmentService
             return MapToDto(appointment);
         }
 
+        if (string.Equals(appointment.Status, "Cancelled", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(appointment.Status, "Rejected", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Cannot confirm payment for a cancelled or rejected appointment.");
+        }
+
+        if (appointment.Fee <= 0)
+        {
+            throw new InvalidOperationException("This appointment does not require PayHere payment.");
+        }
+
+        if (string.IsNullOrWhiteSpace(transactionId))
+        {
+            throw new InvalidOperationException("PayHere payment id is required.");
+        }
+
         appointment.Status = "Confirmed";
         appointment.PaymentStatus = "Paid";
-        appointment.PaymentTransactionId = transactionId;
+        appointment.PaymentMethod = "PayHere";
+        appointment.PaymentTransactionId = transactionId.Trim();
         appointment.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
