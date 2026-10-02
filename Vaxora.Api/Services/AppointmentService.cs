@@ -843,8 +843,57 @@ public class AppointmentService : IAppointmentService
         }
 
         var previousStatus = appointment.Status;
+
+        // Enforce clinical transition graph for non-hospital actors.
+        // Hospital desk may still Confirm/Cancel/Reject bookings; clinical staff
+        // may only move within the live session path (plus closing missed visits).
+        if (!isHospitalOwner)
+        {
+            var from = previousStatus ?? string.Empty;
+            var to = nextStatus;
+            var allowedClinical =
+                (string.Equals(from, "Confirmed", StringComparison.OrdinalIgnoreCase) &&
+                 (string.Equals(to, "Administering", StringComparison.OrdinalIgnoreCase) ||
+                  string.Equals(to, "Cancelled", StringComparison.OrdinalIgnoreCase))) ||
+                (string.Equals(from, "PendingPayment", StringComparison.OrdinalIgnoreCase) &&
+                 string.Equals(to, "Cancelled", StringComparison.OrdinalIgnoreCase)) ||
+                (string.Equals(from, "Administering", StringComparison.OrdinalIgnoreCase) &&
+                 (string.Equals(to, "Observation", StringComparison.OrdinalIgnoreCase) ||
+                  string.Equals(to, "Confirmed", StringComparison.OrdinalIgnoreCase) ||
+                  string.Equals(to, "Cancelled", StringComparison.OrdinalIgnoreCase))) ||
+                (string.Equals(from, "Observation", StringComparison.OrdinalIgnoreCase) &&
+                 (string.Equals(to, "Completed", StringComparison.OrdinalIgnoreCase) ||
+                  string.Equals(to, "Confirmed", StringComparison.OrdinalIgnoreCase))) ||
+                (string.Equals(from, to, StringComparison.OrdinalIgnoreCase));
+
+            if (!allowedClinical)
+            {
+                throw new InvalidOperationException(
+                    $"Cannot change appointment status from '{from}' to '{to}'.");
+            }
+
+            // Staff must never "Confirm" an unpaid PendingPayment booking (that would skip desk settlement).
+            if (string.Equals(to, "Confirmed", StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(from, "PendingPayment", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    "Unpaid bookings must be marked paid by the hospital desk before clinical confirmation.");
+            }
+        }
+
         appointment.Status = nextStatus;
         appointment.UpdatedAt = DateTime.UtcNow;
+
+        if (string.Equals(nextStatus, "Cancelled", StringComparison.OrdinalIgnoreCase) &&
+            !string.IsNullOrWhiteSpace(dto.Remarks))
+        {
+            var cancelNote = dto.Remarks.Trim();
+            appointment.Notes = string.IsNullOrWhiteSpace(appointment.Notes)
+                ? cancelNote
+                : $"{appointment.Notes.Trim()}\n{cancelNote}";
+            if (appointment.Notes.Length > 1000)
+                appointment.Notes = appointment.Notes[^1000..];
+        }
 
         // Hospital desk: confirming a PendingPayment booking records payment as settled.
         if (isHospitalOwner &&
@@ -917,23 +966,34 @@ public class AppointmentService : IAppointmentService
 
         var description = (dto.Description ?? string.Empty).Trim();
         var treatment = (dto.TreatmentGiven ?? string.Empty).Trim();
+        var followUpPlan = (dto.FollowUpPlan ?? string.Empty).Trim();
         if (string.IsNullOrWhiteSpace(description))
             throw new InvalidOperationException("Symptoms / clinical signs are required.");
         if (string.IsNullOrWhiteSpace(treatment))
             throw new InvalidOperationException("Immediate care / treatment given is required.");
-
-        // Severe events always trigger surveillance notification intent.
-        var notifyMoh = dto.NotifyMOH || severity == "Severe";
-        var notifyDoctor = dto.NotifyDoctor;
+        if (string.IsNullOrWhiteSpace(followUpPlan))
+            throw new InvalidOperationException("Follow-up plan is required.");
 
         var actorName = await ResolveActorDisplayNameAsync(actorUserId, actor);
         var reportedAt = DateTime.UtcNow;
 
+        var followUpAt = dto.FollowUpAt;
+        if (followUpAt == default)
+            throw new InvalidOperationException("Follow-up date is required.");
+        if (followUpAt.Kind == DateTimeKind.Unspecified)
+            followUpAt = DateTime.SpecifyKind(followUpAt, DateTimeKind.Utc);
+        else
+            followUpAt = followUpAt.ToUniversalTime();
+        if (followUpAt.Date < reportedAt.Date)
+            throw new InvalidOperationException("Follow-up date must be today or in the future.");
+
+        var notifyDoctor = dto.NotifyDoctor;
+
         var aefiSummary =
             $"AEFI {severity}: {description}. Treatment: {treatment}. " +
+            $"Follow-up {followUpAt:yyyy-MM-dd}: {followUpPlan}. " +
             $"Reported by {actorName} at {reportedAt:yyyy-MM-dd HH:mm} UTC" +
-            (notifyMoh ? ". MOH surveillance notified." : ".") +
-            (notifyDoctor ? " Attending physician alerted." : "");
+            (notifyDoctor ? ". Attending physician alerted." : ".");
 
         // Cap for PatientVaccinationRecord.AdverseEventNotes (max 1000).
         var doseNotes = aefiSummary.Length <= 1000 ? aefiSummary : aefiSummary[..997] + "...";
@@ -974,7 +1034,48 @@ public class AppointmentService : IAppointmentService
             : $"{appointment.Notes.Trim()}\n{aefiSummary}";
         if (appointment.Notes.Length > 1000)
             appointment.Notes = appointment.Notes[^1000..];
-        appointment.UpdatedAt = reportedAt;
+        // Do not bump UpdatedAt — the clinical dashboard uses it as the
+        // observation-window start time after Administering → Observation.
+
+        Guid? followUpVisitId = null;
+        var followUpScheduled = false;
+        if (appointment.PatientProfileId is Guid patientProfileId)
+        {
+            Guid? hospitalProfileId = appointment.HospitalProfileId;
+            if (hospitalProfileId == null)
+            {
+                hospitalProfileId = await _context.HospitalProfiles.AsNoTracking()
+                    .Where(h => h.UserId == appointment.HospitalUserId)
+                    .Select(h => (Guid?)h.Id)
+                    .FirstOrDefaultAsync();
+            }
+
+            var visit = new PatientVisit
+            {
+                PatientProfileId = patientProfileId,
+                AppointmentId = appointment.Id,
+                HospitalProfileId = hospitalProfileId,
+                VisitDate = reportedAt,
+                VisitType = VisitType.FollowUp,
+                Status = VisitStatus.Scheduled,
+                ChiefComplaint = $"AEFI follow-up ({severity}) — {appointment.VaccineName}",
+                DiagnosisSummary = description.Length <= 2000 ? description : description[..2000],
+                TreatmentPlan = treatment.Length <= 2000 ? treatment : treatment[..2000],
+                Notes = followUpPlan.Length <= 1000 ? followUpPlan : followUpPlan[..1000],
+                FollowUpDate = followUpAt,
+                DoctorUserId = actor.Role == UserRole.DOCTOR
+                    ? actorUserId
+                    : appointment.PrescribedByDoctorUserId,
+                DoctorName = actor.Role == UserRole.DOCTOR
+                    ? actorName
+                    : appointment.PrescribedByDoctorName ?? appointment.DoctorName,
+                NurseUserId = actor.Role == UserRole.NURSE ? actorUserId : null,
+                NurseName = actor.Role == UserRole.NURSE ? actorName : appointment.NurseName
+            };
+            _context.PatientVisits.Add(visit);
+            followUpVisitId = visit.Id;
+            followUpScheduled = true;
+        }
 
         _context.AuditLogs.Add(new AuditLog
         {
@@ -984,44 +1085,15 @@ public class AppointmentService : IAppointmentService
             Action = "AEFI_REPORTED",
             Details =
                 $"AEFI ({severity}) for appointment {appointment.Id}, patient {appointment.PatientName}, " +
-                $"vaccine {appointment.VaccineName}. Treatment captured. " +
-                $"DocumentedOnDose={documentedOnDose}. NotifyMOH={notifyMoh}. NotifyDoctor={notifyDoctor}. " +
+                $"vaccine {appointment.VaccineName}. Treatment + follow-up ({followUpAt:yyyy-MM-dd}) captured. " +
+                $"DocumentedOnDose={documentedOnDose}. FollowUpScheduled={followUpScheduled}. NotifyDoctor={notifyDoctor}. " +
                 $"Signs: {description}",
             Timestamp = reportedAt
         });
 
         await _context.SaveChangesAsync();
 
-        var notifiedMoh = false;
         var notifiedDoctor = false;
-
-        if (notifyMoh)
-        {
-            var opsEmail = Environment.GetEnvironmentVariable("OpsManager__Email")
-                ?? Environment.GetEnvironmentVariable("MOH__SurveillanceEmail")
-                ?? "opsmanager@vaxora.local";
-
-            try
-            {
-                notifiedMoh = await _emailService.SendAefiSurveillanceAlertAsync(
-                    opsEmail,
-                    "MOH Surveillance Unit",
-                    appointment.PatientName,
-                    appointment.VaccineName ?? "Unknown vaccine",
-                    appointment.HospitalName ?? "Hospital",
-                    appointment.AppointmentDate.ToString("yyyy-MM-dd"),
-                    appointment.TimeSlot ?? "",
-                    severity,
-                    description,
-                    treatment,
-                    actorName,
-                    appointment.Id.ToString());
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to send AEFI MOH alert for appointment {AppId}", appointment.Id);
-            }
-        }
 
         if (notifyDoctor)
         {
@@ -1042,7 +1114,6 @@ public class AppointmentService : IAppointmentService
 
             if (string.IsNullOrWhiteSpace(doctorEmail))
             {
-                // Fall back to any active affiliated doctor at this hospital (excluding the reporter if nurse).
                 var affiliatedDoctor = await (
                     from aff in _context.StaffAffiliations.AsNoTracking()
                     join u in _context.Users.AsNoTracking() on aff.StaffUserId equals u.Id
@@ -1087,15 +1158,14 @@ public class AppointmentService : IAppointmentService
         }
 
         _logger.LogInformation(
-            "AEFI reported by {ActorId} for appointment {AppId}: severity={Severity}, onDose={OnDose}, moh={Moh}, doctor={Doctor}",
-            actorUserId, appointmentId, severity, documentedOnDose, notifiedMoh, notifiedDoctor);
+            "AEFI reported by {ActorId} for appointment {AppId}: severity={Severity}, onDose={OnDose}, followUp={FollowUp}, doctor={Doctor}",
+            actorUserId, appointmentId, severity, documentedOnDose, followUpScheduled, notifiedDoctor);
 
         var message = documentedOnDose
-            ? "AEFI documented on the vaccination dose; care and notifications recorded."
-            : "AEFI and treatment recorded on the appointment. Link a certified dose to attach it to the vaccination record.";
-
-        if (notifyMoh && !notifiedMoh)
-            message += " MOH alert queued (email not delivered — check SMTP).";
+            ? "AEFI documented on the vaccination dose; care and follow-up recorded."
+            : "AEFI, treatment, and follow-up recorded on the appointment.";
+        if (!followUpScheduled)
+            message += " Link a patient profile to schedule a clinical follow-up visit.";
         if (notifyDoctor && !notifiedDoctor)
             message += " Physician alert intent recorded (no deliverable doctor email).";
 
@@ -1103,9 +1173,11 @@ public class AppointmentService : IAppointmentService
         {
             AppointmentId = appointment.Id,
             VaccinationRecordId = doseRecord?.Id,
+            FollowUpVisitId = followUpVisitId,
             Severity = severity,
             DocumentedOnDose = documentedOnDose,
-            NotifiedMoh = notifiedMoh,
+            FollowUpScheduled = followUpScheduled,
+            FollowUpAt = followUpAt,
             NotifiedDoctor = notifiedDoctor,
             Message = message
         };

@@ -17,6 +17,7 @@ export default function NurseDashboardOverview() {
       heroImage={nurseHomeHero}
       heroClassName="nurse-home-hero"
       spotlightBadge="Active Immunization Station"
+      allowHospitalSwitch
       AdministerModal={NurseClinicalAdministerModal}
       AefiModal={NurseAefiReportModal}
     />

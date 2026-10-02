@@ -4,7 +4,7 @@ import StaffAppointmentsPanel from '../../staff/components/StaffAppointmentsPane
 export default function NurseAppointmentsTab() {
   return (
     <StaffAppointmentsPanel
-      allowHospitalSwitch={false}
+      allowHospitalSwitch
       facilitySuffix=" - Nursing Station"
     />
   );

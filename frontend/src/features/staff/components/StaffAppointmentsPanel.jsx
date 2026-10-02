@@ -12,9 +12,9 @@ function toDateInputValue(date = new Date()) {
 
 /**
  * Shared doctor/nurse appointments roster.
- * - Doctors can switch among affiliated hospitals.
- * - Nurses are locked to their single hospital affiliation.
- * - No Action column (view-only roster).
+ * Hospital switch shows whenever the staff member has multiple affiliations.
+ * Prefer the hospital where they are on duty now as the default selection.
+ * No Action column (view-only roster).
  */
 export default function StaffAppointmentsPanel({
   allowHospitalSwitch = true,
@@ -41,11 +41,11 @@ export default function StaffAppointmentsPanel({
       );
       setHospitals(active);
       if (active.length > 0) {
-        setSelectedHospitalUserId((prev) =>
-          prev && active.some((h) => h.hospitalUserId === prev)
-            ? prev
-            : active[0].hospitalUserId
-        );
+        setSelectedHospitalUserId((prev) => {
+          if (prev && active.some((h) => h.hospitalUserId === prev)) return prev;
+          const onDuty = active.find((h) => h.isOnDutyNow);
+          return (onDuty || active[0]).hospitalUserId;
+        });
       } else {
         setSelectedHospitalUserId('');
       }
@@ -134,7 +134,7 @@ export default function StaffAppointmentsPanel({
               {facilityTitle}
             </h2>
 
-            {allowHospitalSwitch && hospitals.length > 1 && (
+            {(allowHospitalSwitch || hospitals.length > 1) && hospitals.length > 1 && (
               <select
                 className="doctor-filter-date-input"
                 value={selectedHospitalUserId}

@@ -3353,6 +3353,369 @@
   margin-top: 4px;
 }
 
+.staff-cover-hint {
+  margin: 0 0 14px;
+  font-size: 0.88rem;
+  color: #475569;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.staff-shift-week-card--action {
+  display: block;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.staff-shift-week-card--action:disabled {
+  cursor: default;
+}
+
+.staff-shift-week-card--action:hover:not(:disabled) {
+  border-color: #86efac;
+  box-shadow: 0 4px 12px rgba(22, 163, 74, 0.12);
+}
+
+.staff-shift-week-card.is-cover-requested {
+  border-color: #fde68a;
+  border-left-color: #d97706;
+  background: #fffbeb;
+}
+
+.staff-shift-week-card.is-cover-covering {
+  border-color: #bfdbfe;
+  border-left-color: #2563eb;
+  background: #eff6ff;
+}
+
+.staff-shift-week-card.is-cover-declined {
+  border-color: #fecaca;
+  border-left-color: #dc2626;
+  background: #fef2f2;
+}
+
+.staff-shift-week-card.is-finished {
+  border-color: #e2e8f0;
+  border-left-color: #94a3b8;
+  background: #f8fafc;
+  opacity: 0.85;
+}
+
+.staff-cover-chip {
+  display: inline-flex;
+  margin-top: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  border: 1px solid transparent;
+}
+
+.staff-cover-chip.is-request {
+  background: #ffffff;
+  color: #166534;
+  border-color: #bbf7d0;
+}
+
+.staff-cover-chip.is-pending {
+  background: #fffbeb;
+  color: #b45309;
+  border-color: #fde68a;
+}
+
+.staff-cover-chip.is-approved {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-color: #bfdbfe;
+}
+
+.staff-cover-chip.is-declined {
+  background: #fef2f2;
+  color: #b91c1c;
+  border-color: #fecaca;
+}
+
+/* Cover activity only — does not style the week shift table */
+.staff-cover-activity {
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.staff-cover-activity .staff-cover-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  align-items: stretch;
+}
+
+@media (max-width: 900px) {
+  .staff-cover-activity .staff-cover-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+.staff-cover-activity .staff-cover-column {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.staff-cover-activity .staff-cover-column-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.staff-cover-activity .staff-cover-column-title.is-outgoing {
+  color: #166534;
+}
+
+.staff-cover-activity .staff-cover-column-title.is-incoming {
+  color: #1d4ed8;
+}
+
+.staff-cover-activity .staff-cover-column-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.staff-cover-activity .staff-cover-column-title.is-outgoing .staff-cover-column-count {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #86efac;
+}
+
+.staff-cover-activity .staff-cover-column-title.is-incoming .staff-cover-column-count {
+  background: #dbeafe;
+  color: #1d4ed8;
+  border: 1px solid #93c5fd;
+}
+
+.staff-cover-activity .staff-cover-list {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.staff-cover-activity .staff-cover-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #e2e8f0;
+  border-left: 4px solid #94a3b8;
+  border-radius: 12px;
+  padding: 14px;
+  background: #ffffff;
+  min-height: 148px;
+}
+
+.staff-cover-activity .staff-cover-item.is-approved {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+  border-left-color: #16a34a;
+}
+
+.staff-cover-activity .staff-cover-item.is-pending {
+  background: #fff7ed;
+  border-color: #fed7aa;
+  border-left-color: #ea580c;
+}
+
+.staff-cover-activity .staff-cover-item.is-incoming {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  border-left-color: #2563eb;
+}
+
+.staff-cover-activity .staff-cover-item.is-declined {
+  background: #fef2f2;
+  border-color: #fecaca;
+  border-left-color: #dc2626;
+}
+
+.staff-cover-activity .staff-cover-item-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.staff-cover-activity .staff-cover-item-top strong {
+  color: #0f172a;
+  font-size: 0.95rem;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.staff-cover-activity .staff-cover-badge {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  line-height: 1.2;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.staff-cover-activity .staff-cover-badge.is-approved {
+  background: #dcfce7;
+  color: #166534;
+  border-color: #86efac;
+}
+
+.staff-cover-activity .staff-cover-badge.is-pending {
+  background: #ffedd5;
+  color: #9a3412;
+  border-color: #fdba74;
+}
+
+.staff-cover-activity .staff-cover-badge.is-incoming {
+  background: #dbeafe;
+  color: #1d4ed8;
+  border-color: #93c5fd;
+}
+
+.staff-cover-activity .staff-cover-badge.is-declined {
+  background: #fee2e2;
+  color: #b91c1c;
+  border-color: #fca5a5;
+}
+
+.staff-cover-activity .staff-cover-item-main {
+  flex: 1;
+}
+
+.staff-cover-activity .staff-cover-item-meta {
+  font-size: 0.82rem;
+  color: #475569;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.staff-cover-activity .staff-cover-item-booth {
+  margin-top: 4px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #334155;
+}
+
+.staff-cover-activity .staff-cover-item-bottom {
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.staff-cover-activity .staff-cover-item-bottom.is-spacer {
+  border-top-color: transparent;
+  min-height: 1px;
+}
+
+.staff-cover-activity .staff-cover-item-reason {
+  margin: 0;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: #334155;
+  line-height: 1.4;
+}
+
+.staff-cover-activity .staff-cover-item-foot {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.staff-cover-activity .staff-cover-item-reason + .staff-cover-item-foot {
+  margin-top: 6px;
+}
+
+.staff-cover-activity-empty {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.staff-cover-activity-empty.is-compact {
+  flex: 1;
+  font-size: 0.86rem;
+  padding: 12px;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.staff-cover-modal {
+  max-width: 520px;
+}
+
+.staff-cover-modal-shift {
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  display: grid;
+  gap: 4px;
+  color: #334155;
+  font-size: 0.88rem;
+}
+
+.staff-cover-blocked {
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.staff-cover-hint-inline {
+  margin: 8px 0 0;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.staff-cover-loading {
+  margin: 0 0 14px;
+  color: #64748b;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.staff-cover-modal {
+  max-width: 520px;
+}
+
 /* ==========================================================================
    Patient History (doctor / nurse lookup)
    ========================================================================== */
@@ -3859,6 +4222,49 @@
   margin: 8px 0 14px;
 }
 
+.ph-record-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.ph-record-header .ph-appointments-section-label {
+  margin: 0;
+}
+
+.ph-record-filters {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.ph-record-filter-btn {
+  border: 1.5px solid #d4dce8;
+  background: #ffffff;
+  color: #41556e;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.ph-record-filter-btn:hover {
+  border-color: #94a3b8;
+  background: #f8fafc;
+}
+
+.ph-record-filter-btn.is-active {
+  background: #1e3a5f;
+  border-color: #1e3a5f;
+  color: #ffffff;
+}
+
 .ph-appointments-click-row {
   cursor: pointer;
 }
@@ -3918,9 +4324,117 @@
 .ph-appointments-dosage-edit {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  max-width: 100%;
+}
+
+.ph-dosage-input {
+  width: 88px;
+  min-width: 88px;
+  padding: 6px 10px;
+}
+
+.ph-dosage-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 10px;
+  border: 1.5px solid #d4dce8;
+  background: #ffffff;
+  color: #1e3a5f;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, opacity 0.15s ease;
+}
+
+.ph-dosage-icon-btn:hover:not(:disabled) {
+  border-color: #94a3b8;
+  background: #f8fafc;
+}
+
+.ph-dosage-icon-btn.is-save {
+  background: #1e3a5f;
+  border-color: #1e3a5f;
+  color: #ffffff;
+}
+
+.ph-dosage-icon-btn.is-save:hover:not(:disabled) {
+  background: #152c48;
+  border-color: #152c48;
+  color: #ffffff;
+}
+
+.ph-dosage-icon-btn.is-missed {
+  border-color: #fecaca;
+  color: #b91c1c;
+  background: #fef2f2;
+}
+
+.ph-dosage-icon-btn.is-missed:hover:not(:disabled) {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #991b1b;
+}
+
+.ph-dosage-icon-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.ph-status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.ph-status-pill.is-missed {
+  background: #fef2f2;
+  color: #b91c1c;
+  border-color: #fecaca;
+}
+
+.ph-status-pill.is-confirmed {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-color: #bfdbfe;
+}
+
+.ph-status-pill.is-completed {
+  background: #ecfdf5;
+  color: #047857;
+  border-color: #a7f3d0;
+}
+
+.ph-status-pill.is-pending {
+  background: #fff7ed;
+  color: #c2410c;
+  border-color: #fed7aa;
+}
+
+.ph-status-pill.is-payment {
+  background: #fffbeb;
+  color: #b45309;
+  border-color: #fde68a;
+}
+
+.ph-status-pill.is-cancelled {
+  background: #f8fafc;
+  color: #64748b;
+  border-color: #e2e8f0;
+}
+
+.ph-record-row-missed td {
+  background: #fffafa;
 }
 
 /* Shared layout for staff pages other than Home and Affiliations. */
@@ -4016,6 +4530,10 @@
   border-radius: 0;
   box-shadow: none;
   background: transparent;
+}
+
+.staff-workspace-page .doctor-appointment-inner-card + .doctor-appointment-inner-card {
+  margin-top: 28px;
 }
 
 .staff-workspace-page .doctor-inner-facility-name,

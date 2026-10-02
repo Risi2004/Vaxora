@@ -11,6 +11,7 @@ import '../../data/repositories/staff_repository.dart';
 import '../utils/staff_date_utils.dart';
 import '../widgets/network_avatar.dart';
 import '../widgets/staff_administer_sheet.dart';
+import '../widgets/staff_aefi_sheet.dart';
 import '../widgets/staff_common_widgets.dart';
 
 const _observationWindowMinutes = 15;
@@ -346,6 +347,39 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
     _toast('${patient.patientName} discharged from observation.');
   }
 
+  Future<void> _reportAefi(StaffAppointmentModel patient) async {
+    if (!_isOnDuty) {
+      _toast('You must have an active shift to report AEFI.');
+      return;
+    }
+    final draft = await showStaffAefiSheet(context: context, patient: patient);
+    if (draft == null) return;
+
+    setState(() => _updating = true);
+    try {
+      final result = await StaffRepository.reportAefi(
+        appointmentId: patient.id,
+        severity: draft.severity,
+        description: draft.description,
+        treatmentGiven: draft.treatmentGiven,
+        followUpAt: draft.followUpAt,
+        followUpPlan: draft.followUpPlan,
+        notifyDoctor: draft.notifyDoctor,
+      );
+      await _loadAppointments();
+      final message = result['message']?.toString();
+      _toast(
+        (message != null && message.trim().isNotEmpty)
+            ? message
+            : 'AEFI saved for ${patient.patientName}.',
+      );
+    } catch (e) {
+      _toast(e is ApiException ? e.message : 'Failed to submit AEFI report.');
+    } finally {
+      if (mounted) setState(() => _updating = false);
+    }
+  }
+
   Future<void> _pickDate() async {
     final initial = DateTime.tryParse(_filterDate) ?? DateTime.now();
     final picked = await showDatePicker(
@@ -540,6 +574,7 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
                 onDuty: _isOnDuty,
                 onReturn: () => _returnToQueue(active),
                 onCertify: () => _certify(active),
+                onAefi: () => _reportAefi(active),
               ),
             ],
             if (_observationCount > 0) ...[
@@ -559,6 +594,7 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
                         busy: _updating,
                         onDuty: _isOnDuty,
                         onDischarge: () => _discharge(obs),
+                        onAefi: () => _reportAefi(obs),
                       ),
                     ),
                   ),
@@ -763,6 +799,7 @@ class _ActivePatientCard extends StatelessWidget {
   final bool onDuty;
   final VoidCallback onReturn;
   final VoidCallback onCertify;
+  final VoidCallback onAefi;
 
   const _ActivePatientCard({
     required this.patient,
@@ -770,6 +807,7 @@ class _ActivePatientCard extends StatelessWidget {
     required this.onDuty,
     required this.onReturn,
     required this.onCertify,
+    required this.onAefi,
   });
 
   @override
@@ -838,6 +876,19 @@ class _ActivePatientCard extends StatelessWidget {
               ),
             ],
           ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: busy || !onDuty ? null : onAefi,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.error,
+                side: BorderSide(color: AppColors.error.withValues(alpha: 0.55)),
+              ),
+              icon: const Icon(Icons.warning_amber_rounded, size: 18),
+              label: const Text('Report AEFI'),
+            ),
+          ),
         ],
       ),
     );
@@ -850,6 +901,7 @@ class _ObservationCard extends StatelessWidget {
   final bool busy;
   final bool onDuty;
   final VoidCallback onDischarge;
+  final VoidCallback onAefi;
 
   const _ObservationCard({
     required this.patient,
@@ -857,6 +909,7 @@ class _ObservationCard extends StatelessWidget {
     required this.busy,
     required this.onDuty,
     required this.onDischarge,
+    required this.onAefi,
   });
 
   @override
@@ -869,36 +922,51 @@ class _ObservationCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: StaffSurfaces.card(),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  patient.patientName,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    color: StaffSurfaces.textPrimary,
-                  ),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      patient.patientName,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: StaffSurfaces.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      watch,
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        color: StaffSurfaces.textSecondary,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  watch,
-                  style: const TextStyle(
-                    fontSize: 12.5,
-                    color: StaffSurfaces.textSecondary,
-                  ),
-                ),
-              ],
-            ),
+              ),
+              FilledButton(
+                onPressed: busy || !onDuty || !patient.isPaymentSettled
+                    ? null
+                    : onDischarge,
+                style: FilledButton.styleFrom(backgroundColor: AppColors.success),
+                child: const Text('Discharge'),
+              ),
+            ],
           ),
-          FilledButton(
-            onPressed: busy || !onDuty || !patient.isPaymentSettled
-                ? null
-                : onDischarge,
-            style: FilledButton.styleFrom(backgroundColor: AppColors.success),
-            child: const Text('Discharge'),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: busy || !onDuty ? null : onAefi,
+              icon: const Icon(Icons.warning_amber_rounded, size: 16),
+              label: const Text('Report AEFI'),
+              style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            ),
           ),
         ],
       ),

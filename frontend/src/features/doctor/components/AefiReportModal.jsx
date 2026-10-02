@@ -1,14 +1,24 @@
 import React, { useEffect, useState } from 'react';
 
+const tomorrowIso = () => {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+
 const emptyReport = {
   patientToken: '',
   patientName: '',
   vaccineName: '',
   reactionType: '',
   severity: 'Mild',
-  timeElapsed: '',
   treatmentGiven: '',
-  notifyMOH: true,
+  followUpAt: tomorrowIso(),
+  followUpPlan: '',
+  notifyDoctor: true,
 };
 
 export default function AefiReportModal({ isOpen, onClose, onSubmitReport, patient }) {
@@ -16,13 +26,13 @@ export default function AefiReportModal({ isOpen, onClose, onSubmitReport, patie
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  // Prefill identifiers from the patient in the chair; the clinician describes the event.
   useEffect(() => {
     if (!isOpen) return;
     setError('');
     setSubmitting(false);
     setAefiData({
       ...emptyReport,
+      followUpAt: tomorrowIso(),
       patientToken: patient?.token || '',
       patientName: patient?.name || '',
       vaccineName: patient?.vaccine && patient.vaccine !== '—' ? patient.vaccine : '',
@@ -30,15 +40,6 @@ export default function AefiReportModal({ isOpen, onClose, onSubmitReport, patie
   }, [isOpen, patient?.id, patient?.token, patient?.name, patient?.vaccine]);
 
   if (!isOpen) return null;
-
-  const handleSeverityChange = (value) => {
-    setAefiData((prev) => ({
-      ...prev,
-      severity: value,
-      // Severe events always notify surveillance.
-      notifyMOH: value === 'Severe' ? true : prev.notifyMOH,
-    }));
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -52,15 +53,18 @@ export default function AefiReportModal({ isOpen, onClose, onSubmitReport, patie
       setError('Immediate care / treatment given is required.');
       return;
     }
-
-    const payload = {
-      ...aefiData,
-      notifyMOH: aefiData.severity === 'Severe' ? true : aefiData.notifyMOH,
-    };
+    if (!String(aefiData.followUpPlan || '').trim()) {
+      setError('Follow-up plan is required.');
+      return;
+    }
+    if (!aefiData.followUpAt) {
+      setError('Follow-up date is required.');
+      return;
+    }
 
     try {
       setSubmitting(true);
-      await onSubmitReport(payload);
+      await onSubmitReport(aefiData);
       onClose();
     } catch (err) {
       setError(err?.message || 'Failed to submit AEFI report.');
@@ -76,7 +80,7 @@ export default function AefiReportModal({ isOpen, onClose, onSubmitReport, patie
           <div>
             <h3 className="doctor-modal-title">Report Adverse Event (AEFI)</h3>
             <p style={{ margin: '4px 0 0 0', fontSize: '0.82rem', color: 'rgba(255,255,255,0.9)' }}>
-              Capture care, document on dose, notify surveillance
+              Capture care, document on dose, schedule follow-up
             </p>
           </div>
           <button type="button" className="doctor-modal-close-btn" onClick={onClose} disabled={submitting}>
@@ -93,21 +97,20 @@ export default function AefiReportModal({ isOpen, onClose, onSubmitReport, patie
                   type="text"
                   className="doctor-form-input"
                   value={aefiData.patientToken}
+                  readOnly={Boolean(patient?.token)}
                   onChange={(e) => setAefiData({ ...aefiData, patientToken: e.target.value })}
                   required
-                  readOnly={Boolean(patient?.token)}
                 />
               </div>
-
               <div className="doctor-form-group">
                 <label className="doctor-form-label">Patient Full Name</label>
                 <input
                   type="text"
                   className="doctor-form-input"
                   value={aefiData.patientName}
+                  readOnly={Boolean(patient?.name)}
                   onChange={(e) => setAefiData({ ...aefiData, patientName: e.target.value })}
                   required
-                  readOnly={Boolean(patient?.name)}
                 />
               </div>
             </div>
@@ -119,18 +122,17 @@ export default function AefiReportModal({ isOpen, onClose, onSubmitReport, patie
                   type="text"
                   className="doctor-form-input"
                   value={aefiData.vaccineName}
+                  readOnly={Boolean(patient?.vaccine && patient.vaccine !== '—')}
                   onChange={(e) => setAefiData({ ...aefiData, vaccineName: e.target.value })}
                   required
-                  readOnly={Boolean(patient?.vaccine && patient.vaccine !== '—')}
                 />
               </div>
-
               <div className="doctor-form-group">
                 <label className="doctor-form-label">Severity Level</label>
                 <select
                   className="doctor-form-select"
                   value={aefiData.severity}
-                  onChange={(e) => handleSeverityChange(e.target.value)}
+                  onChange={(e) => setAefiData({ ...aefiData, severity: e.target.value })}
                   disabled={submitting}
                 >
                   <option value="Mild">Mild (Rash, Local swelling, Dizziness)</option>
@@ -165,17 +167,31 @@ export default function AefiReportModal({ isOpen, onClose, onSubmitReport, patie
               />
             </div>
 
-            <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '10px', padding: '12px 14px' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.85rem', fontWeight: 600, color: '#991b1b', cursor: 'pointer' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+              <div className="doctor-form-group">
+                <label className="doctor-form-label">Follow-up Date</label>
                 <input
-                  type="checkbox"
-                  checked={aefiData.severity === 'Severe' ? true : aefiData.notifyMOH}
-                  onChange={(e) => setAefiData({ ...aefiData, notifyMOH: e.target.checked })}
-                  disabled={submitting || aefiData.severity === 'Severe'}
+                  type="date"
+                  className="doctor-form-input"
+                  value={aefiData.followUpAt}
+                  min={new Date().toISOString().slice(0, 10)}
+                  onChange={(e) => setAefiData({ ...aefiData, followUpAt: e.target.value })}
+                  required
+                  disabled={submitting}
                 />
-                Automatically notify Ministry of Health (MOH) Surveillance Unit
-                {aefiData.severity === 'Severe' ? ' (required for Severe)' : ''}
-              </label>
+              </div>
+              <div className="doctor-form-group">
+                <label className="doctor-form-label">Follow-up Plan</label>
+                <input
+                  type="text"
+                  className="doctor-form-input"
+                  value={aefiData.followUpPlan}
+                  onChange={(e) => setAefiData({ ...aefiData, followUpPlan: e.target.value })}
+                  required
+                  disabled={submitting}
+                  placeholder="Phone check-in, clinic review…"
+                />
+              </div>
             </div>
 
             {error ? (
@@ -188,7 +204,7 @@ export default function AefiReportModal({ isOpen, onClose, onSubmitReport, patie
               Cancel
             </button>
             <button type="submit" className="doctor-btn-submit danger" disabled={submitting || !patient?.id}>
-              {submitting ? 'Saving…' : 'Log AEFI & Dispatch Alert'}
+              {submitting ? 'Saving…' : 'Log AEFI & Schedule Follow-up'}
             </button>
           </div>
         </form>

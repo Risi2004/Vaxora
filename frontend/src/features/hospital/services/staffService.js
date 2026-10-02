@@ -160,6 +160,24 @@ export const staffService = {
     return apiRequest(`/staff/shifts/mine${buildQuery({ from, to })}`);
   },
 
+  getMyShiftSwaps(limit = 40) {
+    return apiRequest(`/staff/shift-swaps/mine${buildQuery({ limit })}`);
+  },
+
+  getCoverQuota(shiftId) {
+    return apiRequest(`/staff/shift-swaps/quota${buildQuery({ shiftId: shiftId || undefined })}`);
+  },
+
+  requestShiftCover({ shiftId, reason } = {}) {
+    return apiRequest('/staff/shift-swaps', {
+      method: 'POST',
+      body: JSON.stringify({
+        shiftId,
+        ...(reason ? { reason } : {}),
+      }),
+    });
+  },
+
   getHospitalShiftSwaps({ status, limit = 40 } = {}) {
     return apiRequest(`/staff/shift-swaps/hospital${buildQuery({ status, limit })}`);
   },

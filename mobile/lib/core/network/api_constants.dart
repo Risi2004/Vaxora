@@ -98,4 +98,5 @@ class ApiConstants {
       '/staff/affiliations/$affiliationId';
 
   static String appointmentStatus(String id) => '/appointments/$id/status';
+  static String appointmentAefi(String id) => '/appointments/$id/aefi';
 }

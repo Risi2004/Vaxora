@@ -19,10 +19,37 @@ import {
 import heroImage from "../../../assets/images/patient-home-hero.png";
 
 // ---------- Date helpers ----------
+/** Local calendar YYYY-MM-DD (avoid UTC shift from toISOString). */
+const toLocalDateInput = (value = new Date()) => {
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+};
+
+/** Parse API date/datetime as a local calendar date when possible. */
+const parseLocalDate = (iso) => {
+  if (!iso) return null;
+  const raw = String(iso).trim();
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw.slice(0, 10));
+  if (dateOnly && (raw.length === 10 || raw[10] === "T" || raw[10] === " ")) {
+    return new Date(
+      Number(dateOnly[1]),
+      Number(dateOnly[2]) - 1,
+      Number(dateOnly[3]),
+    );
+  }
+  const d = new Date(raw);
+  return Number.isNaN(d.getTime()) ? null : d;
+};
+
 const formatLongDate = (iso) => {
-  if (!iso) return "—";
+  const d = parseLocalDate(iso);
+  if (!d) return "—";
   try {
-    return new Date(iso).toLocaleDateString("en-GB", {
+    return d.toLocaleDateString("en-GB", {
       weekday: "long",
       day: "numeric",
       month: "short",
@@ -34,9 +61,10 @@ const formatLongDate = (iso) => {
 };
 
 const formatShortDate = (iso) => {
-  if (!iso) return "—";
+  const d = parseLocalDate(iso);
+  if (!d) return "—";
   try {
-    return new Date(iso).toLocaleDateString("en-GB", {
+    return d.toLocaleDateString("en-GB", {
       day: "2-digit",
       month: "short",
       year: "numeric",
@@ -47,8 +75,13 @@ const formatShortDate = (iso) => {
 };
 
 const daysAgo = (iso) => {
-  if (!iso) return "";
-  const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+  const d = parseLocalDate(iso);
+  if (!d) return "";
+  const startToday = new Date();
+  startToday.setHours(0, 0, 0, 0);
+  const startThen = new Date(d);
+  startThen.setHours(0, 0, 0, 0);
+  const diff = Math.round((startToday - startThen) / 86400000);
   if (diff < 0) return `in ${Math.abs(diff)} days`;
   if (diff === 0) return "Today";
   if (diff === 1) return "Yesterday";
@@ -58,11 +91,26 @@ const daysAgo = (iso) => {
 };
 
 const daysUntil = (iso) => {
-  if (!iso) return "";
-  const diff = Math.ceil((new Date(iso).getTime() - Date.now()) / 86400000);
+  const d = parseLocalDate(iso);
+  if (!d) return "";
+  const startToday = new Date();
+  startToday.setHours(0, 0, 0, 0);
+  const startThen = new Date(d);
+  startThen.setHours(0, 0, 0, 0);
+  const diff = Math.round((startThen - startToday) / 86400000);
   if (diff === 0) return "Today";
   if (diff === 1) return "Tomorrow";
+  if (diff < 0) return daysAgo(iso);
   return `in ${diff} days`;
+};
+
+/** Bookings that still need a clinic visit — not already given / finished. */
+const isUpcomingAppointmentStatus = (status) => {
+  const s = String(status || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_-]+/g, "");
+  return s === "confirmed" || s === "pending" || s === "pendingpayment";
 };
 
 export default function DashboardOverview({ onNavigateTab, onOpenBookModal }) {
@@ -139,23 +187,29 @@ export default function DashboardOverview({ onNavigateTab, onOpenBookModal }) {
       try {
         setDashboardLoading(true);
 
-        // 1. Appointments (next confirmed upcoming)
+        // 1. Next booking still awaiting clinic (not completed / in session).
         try {
           const appointments =
             await appointmentService.getPatientAppointments();
           if (!cancelled && Array.isArray(appointments)) {
-            const todayStr = new Date().toISOString().split("T")[0];
+            const todayStr = toLocalDateInput(new Date());
             const upcoming = appointments
               .filter((a) => {
-                const status = String(a.status || a.Status || "").toLowerCase();
-                const date = a.appointmentDate || a.date || a.Date;
-                return status !== "cancelled" && date >= todayStr;
+                if (!isUpcomingAppointmentStatus(a.status || a.Status)) {
+                  return false;
+                }
+                const dateRaw = a.appointmentDate || a.date || a.Date || "";
+                const date = String(dateRaw).slice(0, 10);
+                return date >= todayStr;
               })
-              .sort(
-                (a, b) =>
-                  new Date(a.appointmentDate || a.date) -
-                  new Date(b.appointmentDate || b.date),
-              );
+              .sort((a, b) => {
+                const da = String(a.appointmentDate || a.date || "").slice(0, 10);
+                const db = String(b.appointmentDate || b.date || "").slice(0, 10);
+                if (da !== db) return da.localeCompare(db);
+                const ta = String(a.startTime || a.timeSlot || "");
+                const tb = String(b.startTime || b.timeSlot || "");
+                return ta.localeCompare(tb);
+              });
             setNextAppointment(upcoming[0] || null);
           }
         } catch (err) {
@@ -331,7 +385,7 @@ export default function DashboardOverview({ onNavigateTab, onOpenBookModal }) {
               {dashboardLoading
                 ? "Loading"
                 : nextAppointment
-                  ? nextApptVaccine
+                  ? `${nextApptVaccine}${nextAppointment.timeSlot ? ` · ${nextAppointment.timeSlot}` : ""} · ${daysUntil(nextApptDate)}`
                   : "No upcoming appointment"}
             </span>
           </div>
