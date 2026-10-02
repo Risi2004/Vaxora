@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../../core/network/api_client.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../hospital_staff/data/models/shift_swap_request_model.dart';
@@ -53,7 +54,9 @@ class _StaffCoverSheetState extends State<StaffCoverSheet> {
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _error = e is ApiException ? e.message : 'Failed to load cover requests.';
+        _error = e is ApiException
+            ? e.message
+            : 'Failed to load cover requests.';
         _items = [];
       });
     }
@@ -78,13 +81,11 @@ class _StaffCoverSheetState extends State<StaffCoverSheet> {
     return list;
   }
 
-  List<ShiftSwapRequestModel> get _incoming => _sorted(
-        _items.where((r) => r.isIncoming && r.isUpcoming),
-      );
+  List<ShiftSwapRequestModel> get _incoming =>
+      _sorted(_items.where((r) => r.isIncoming && r.isUpcoming));
 
-  List<ShiftSwapRequestModel> get _outgoing => _sorted(
-        _items.where((r) => r.isOutgoing && r.isUpcoming && !r.isApproved),
-      );
+  List<ShiftSwapRequestModel> get _outgoing =>
+      _sorted(_items.where((r) => r.isOutgoing));
 
   bool get _empty => _incoming.isEmpty && _outgoing.isEmpty;
 
@@ -145,70 +146,69 @@ class _StaffCoverSheetState extends State<StaffCoverSheet> {
                       ),
                     )
                   : _error != null
-                      ? ListView(
-                          padding: const EdgeInsets.all(16),
-                          children: [
-                            StaffErrorBanner(
-                              message: _error!,
-                              onDismiss: () => setState(() => _error = null),
+                  ? ListView(
+                      padding: const EdgeInsets.all(16),
+                      children: [
+                        StaffErrorBanner(
+                          message: _error!,
+                          onDismiss: () => setState(() => _error = null),
+                        ),
+                      ],
+                    )
+                  : _empty
+                  ? const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: StaffEmptyCard(
+                        icon: Icons.swap_horiz,
+                        message: 'No cover activity yet. New assignments and requests will show here.',
+                      ),
+                    )
+                  : ListView(
+                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
+                      children: [
+                        _Section(
+                          title: 'Assigned to you',
+                          hint: 'Shifts the hospital asked you to take',
+                          count: _incoming.length,
+                          accent: AppColors.success,
+                        ),
+                        const SizedBox(height: 8),
+                        if (_incoming.isEmpty)
+                          const StaffEmptyCard(
+                            compact: true,
+                            icon: Icons.event_available_outlined,
+                            message: 'No upcoming cover shifts.',
+                          )
+                        else
+                          ..._incoming.map(
+                            (r) => Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: _IncomingTile(request: r),
                             ),
-                          ],
-                        )
-                      : _empty
-                          ? const Padding(
-                              padding: EdgeInsets.all(16),
-                              child: StaffEmptyCard(
-                                icon: Icons.swap_horiz,
-                                message:
-                                    'Nothing upcoming. New assignments and open requests will show here.',
-                              ),
-                            )
-                          : ListView(
-                              padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
-                              children: [
-                                _Section(
-                                  title: 'Assigned to you',
-                                  hint: 'Shifts the hospital asked you to take',
-                                  count: _incoming.length,
-                                  accent: AppColors.success,
-                                ),
-                                const SizedBox(height: 8),
-                                if (_incoming.isEmpty)
-                                  const StaffEmptyCard(
-                                    compact: true,
-                                    icon: Icons.event_available_outlined,
-                                    message: 'No upcoming cover shifts.',
-                                  )
-                                else
-                                  ..._incoming.map(
-                                    (r) => Padding(
-                                      padding: const EdgeInsets.only(bottom: 8),
-                                      child: _IncomingTile(request: r),
-                                    ),
-                                  ),
-                                const SizedBox(height: 18),
-                                _Section(
-                                  title: 'Your requests',
-                                  hint: 'Cover you asked the hospital to find',
-                                  count: _outgoing.length,
-                                  accent: const Color(0xFFB2660A),
-                                ),
-                                const SizedBox(height: 8),
-                                if (_outgoing.isEmpty)
-                                  const StaffEmptyCard(
-                                    compact: true,
-                                    icon: Icons.hourglass_top_outlined,
-                                    message: 'No open cover requests.',
-                                  )
-                                else
-                                  ..._outgoing.map(
-                                    (r) => Padding(
-                                      padding: const EdgeInsets.only(bottom: 8),
-                                      child: _OutgoingTile(request: r),
-                                    ),
-                                  ),
-                              ],
+                          ),
+                        const SizedBox(height: 18),
+                        _Section(
+                          title: 'Your requests',
+                          hint: 'Cover you asked the hospital to find',
+                          count: _outgoing.length,
+                          accent: const Color(0xFFB2660A),
+                        ),
+                        const SizedBox(height: 8),
+                        if (_outgoing.isEmpty)
+                          const StaffEmptyCard(
+                            compact: true,
+                            icon: Icons.hourglass_top_outlined,
+                            message: 'No cover requests yet.',
+                          )
+                        else
+                          ..._outgoing.map(
+                            (r) => Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: _OutgoingTile(request: r),
                             ),
+                          ),
+                      ],
+                    ),
             ),
           ],
         ),
@@ -313,7 +313,9 @@ class _IncomingTile extends StatelessWidget {
             height: 42,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
+              border: Border.all(
+                color: AppColors.success.withValues(alpha: 0.3),
+              ),
             ),
             clipBehavior: Clip.antiAlias,
             child: NetworkAvatar(
@@ -380,11 +382,29 @@ class _OutgoingTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final waiting = request.isPending;
+    final approved = request.isApproved;
+    final replacementName = request.replacementName?.trim();
+    final coveredBy = replacementName?.isNotEmpty == true
+        ? replacementName!
+        : 'another staff member';
+    final statusText = waiting
+        ? 'Waiting for the hospital to pick cover'
+        : approved
+        ? 'Covered by $coveredBy'
+        : 'Hospital declined — this shift stays yours';
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: StaffSurfaces.card(
-        color: waiting ? const Color(0xFFFFF8EE) : null,
-        borderColor: waiting ? const Color(0xFFF5B168) : null,
+        color: waiting
+            ? const Color(0xFFFFF8EE)
+            : approved
+            ? const Color(0xFFF0FDF4)
+            : null,
+        borderColor: waiting
+            ? const Color(0xFFF5B168)
+            : approved
+            ? AppColors.success.withValues(alpha: 0.35)
+            : null,
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -396,15 +416,23 @@ class _OutgoingTile extends StatelessWidget {
             decoration: BoxDecoration(
               color: waiting
                   ? const Color(0xFFFFF4E5)
+                  : approved
+                  ? const Color(0xFFDCFCE7)
                   : StaffSurfaces.softPanelDeep,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
               waiting
                   ? Icons.hourglass_top_outlined
+                  : approved
+                  ? Icons.check_circle_outline
                   : Icons.highlight_off,
               size: 20,
-              color: waiting ? const Color(0xFFB2660A) : AppColors.error,
+              color: waiting
+                  ? const Color(0xFFB2660A)
+                  : approved
+                  ? AppColors.success
+                  : AppColors.error,
             ),
           ),
           const SizedBox(width: 10),
@@ -424,9 +452,7 @@ class _OutgoingTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  waiting
-                      ? 'Waiting for the hospital to pick cover'
-                      : 'Hospital declined — this shift stays yours',
+                  statusText,
                   style: const TextStyle(
                     fontSize: 12.5,
                     color: StaffSurfaces.textSecondary,
@@ -434,10 +460,20 @@ class _OutgoingTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 6),
                 StaffStatusChip(
-                  label: waiting ? 'Waiting' : 'Declined',
-                  tone: waiting ? StaffChipTone.warning : StaffChipTone.danger,
+                  label: waiting
+                      ? 'Waiting'
+                      : approved
+                      ? 'Approved'
+                      : 'Declined',
+                  tone: waiting
+                      ? StaffChipTone.warning
+                      : approved
+                      ? StaffChipTone.success
+                      : StaffChipTone.danger,
                   icon: waiting
                       ? Icons.hourglass_top_outlined
+                      : approved
+                      ? Icons.check_circle_outline
                       : Icons.highlight_off,
                 ),
               ],

@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { deferEffectCallback } from '../../../shared/utils/deferEffectCallback.js';
+import { useEffect, useRef, useState } from 'react';
 import staffService from '../services/staffService';
 
 export default function AddStaffRequestModal({ isOpen, onClose, onSendRequest, isSubmitting = false }) {
@@ -24,7 +25,7 @@ export default function AddStaffRequestModal({ isOpen, onClose, onSendRequest, i
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen]);
 
-  useEffect(() => {
+  useEffect(() => deferEffectCallback(() => {
     if (!isOpen) return undefined;
 
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -63,7 +64,7 @@ export default function AddStaffRequestModal({ isOpen, onClose, onSendRequest, i
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [query, isOpen, selected]);
+  }), [query, isOpen, selected]);
 
   if (!isOpen) return null;
 
@@ -98,7 +99,7 @@ export default function AddStaffRequestModal({ isOpen, onClose, onSendRequest, i
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    const registrationNumber = selected?.registrationNumber?.trim() || query.trim();
+    const registrationNumber = selected?.registrationNumber?.trim();
     if (!registrationNumber) {
       setError('Search by name, email, or Vaxora ID, then select a practitioner.');
       return;
