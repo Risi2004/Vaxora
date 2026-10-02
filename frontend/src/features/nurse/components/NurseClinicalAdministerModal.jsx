@@ -20,6 +20,7 @@ export default function NurseClinicalAdministerModal({
   lotOptions = [],
 }) {
   const [formData, setFormData] = useState(emptyAdministration);
+  const [submitting, setSubmitting] = useState(false);
 
   const usableLots = useMemo(() => {
     const vaccineName = String(patient?.vaccine || '').trim().toLowerCase();
@@ -39,6 +40,7 @@ export default function NurseClinicalAdministerModal({
   useEffect(() => {
     if (!isOpen) return;
     const firstLot = usableLots[0];
+    setSubmitting(false);
     setFormData({
       ...emptyAdministration,
       dosage: patient?.hasDosage ? patient.dose : '',
@@ -58,7 +60,7 @@ export default function NurseClinicalAdministerModal({
     }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.consentConfirmed || !formData.vitalsConfirmed) {
       alert('Please confirm informed consent and pre-vaccination vitals checklist.');
@@ -68,16 +70,23 @@ export default function NurseClinicalAdministerModal({
       alert('Select the vaccine lot being administered from hospital inventory.');
       return;
     }
-    onCertify({
-      ...patient,
-      administrationDetails: formData,
-      administeredAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    });
-    onClose();
+    setSubmitting(true);
+    try {
+      await onCertify({
+        ...patient,
+        administrationDetails: formData,
+        administeredAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      });
+      onClose();
+    } catch {
+      // Parent shows toast; keep modal open so the nurse can retry.
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
-    <div className="doctor-modal-overlay" onClick={onClose}>
+    <div className="doctor-modal-overlay" onClick={submitting ? undefined : onClose}>
       <div className="doctor-modal-card" onClick={(e) => e.stopPropagation()}>
         <div className="doctor-modal-header" style={{ background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)' }}>
           <div>
@@ -86,7 +95,7 @@ export default function NurseClinicalAdministerModal({
               Nurse Immunization Record • National Vaccine Registry
             </p>
           </div>
-          <button type="button" className="doctor-modal-close-btn" onClick={onClose}>
+          <button type="button" className="doctor-modal-close-btn" onClick={onClose} disabled={submitting}>
             &times;
           </button>
         </div>
@@ -130,6 +139,7 @@ export default function NurseClinicalAdministerModal({
                   value={formData.batchId}
                   onChange={(e) => handleLotChange(e.target.value)}
                   required
+                  disabled={submitting}
                 >
                   <option value="">Select the lot being administered</option>
                   {usableLots.map((lot) => (
@@ -164,6 +174,7 @@ export default function NurseClinicalAdministerModal({
                   className="doctor-form-select"
                   value={formData.injectionSite}
                   onChange={(e) => setFormData({ ...formData, injectionSite: e.target.value })}
+                  disabled={submitting}
                 >
                   <option value="Left Deltoid">Left Deltoid (Upper Arm)</option>
                   <option value="Right Deltoid">Right Deltoid (Upper Arm)</option>
@@ -178,6 +189,7 @@ export default function NurseClinicalAdministerModal({
                   className="doctor-form-select"
                   value={formData.route}
                   onChange={(e) => setFormData({ ...formData, route: e.target.value })}
+                  disabled={submitting}
                 >
                   <option value="Intramuscular (IM)">Intramuscular (IM)</option>
                   <option value="Subcutaneous (SC)">Subcutaneous (SC)</option>
@@ -193,6 +205,7 @@ export default function NurseClinicalAdministerModal({
                   type="checkbox"
                   checked={formData.consentConfirmed}
                   onChange={(e) => setFormData({ ...formData, consentConfirmed: e.target.checked })}
+                  disabled={submitting}
                 />
                 Informed patient consent verified &amp; physician order confirmed
               </label>
@@ -201,6 +214,7 @@ export default function NurseClinicalAdministerModal({
                   type="checkbox"
                   checked={formData.vitalsConfirmed}
                   onChange={(e) => setFormData({ ...formData, vitalsConfirmed: e.target.checked })}
+                  disabled={submitting}
                 />
                 Pre-administration vitals checked (BP, Temp, Pulse stable)
               </label>
@@ -214,21 +228,22 @@ export default function NurseClinicalAdministerModal({
                 value={formData.notes}
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                 placeholder="Enter nursing observations, site reaction checks, or care instructions..."
+                disabled={submitting}
               />
             </div>
           </div>
 
           <div className="doctor-modal-footer">
-            <button type="button" className="doctor-btn-cancel" onClick={onClose}>
+            <button type="button" className="doctor-btn-cancel" onClick={onClose} disabled={submitting}>
               Cancel
             </button>
             <button
               type="submit"
               className="doctor-btn-submit"
               style={{ background: '#0284c7' }}
-              disabled={usableLots.length === 0}
+              disabled={usableLots.length === 0 || submitting}
             >
-              Confirm Dose &amp; Transfer to Observation
+              {submitting ? 'Confirming…' : 'Confirm Dose & Transfer to Observation'}
             </button>
           </div>
         </form>
