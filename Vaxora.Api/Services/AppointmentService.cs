@@ -707,6 +707,20 @@ public class AppointmentService : IAppointmentService
         appointment.Status = nextStatus;
         appointment.UpdatedAt = DateTime.UtcNow;
 
+        // Hospital desk: confirming a PendingPayment booking records payment as settled.
+        if (isHospitalOwner &&
+            string.Equals(nextStatus, "Confirmed", StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(previousStatus, "PendingPayment", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(appointment.PaymentStatus, "Paid", StringComparison.OrdinalIgnoreCase))
+        {
+            appointment.PaymentStatus = "Paid";
+            if (string.IsNullOrWhiteSpace(appointment.PaymentMethod) ||
+                string.Equals(appointment.PaymentMethod, "PayHere", StringComparison.OrdinalIgnoreCase))
+            {
+                appointment.PaymentMethod = "Hospital";
+            }
+        }
+
         var doseIsBeingGiven =
             (nextStatus is "Observation" or "Completed") &&
             !string.Equals(previousStatus, "Observation", StringComparison.OrdinalIgnoreCase) &&

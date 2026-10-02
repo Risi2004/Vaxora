@@ -38,16 +38,19 @@ export function queueStatusLabel(status) {
 
 /**
  * Display model for the hospital Appointments manage table Action column.
- * Returns { kind, label, tone } where kind is 'actions-pending' | 'badge' | 'badge-cancel'.
+ * Returns { kind, label, tone } where kind is:
+ * 'actions-pending' | 'actions-payment' | 'badge' | 'badge-cancel'
  */
 export function getAppointmentActionDisplay(dbStatus) {
   const s = normalizeAppointmentStatus(dbStatus);
 
+  // Legacy hospital-approval status (rarely used today).
   if (s === 'pending') {
     return { kind: 'actions-pending', label: 'Pending', tone: 'pending' };
   }
+  // Paid bookings waiting for PayHere / desk payment — hospital can record cash payment.
   if (s === 'pendingpayment') {
-    return { kind: 'badge', label: 'Awaiting payment', tone: 'pending' };
+    return { kind: 'actions-payment', label: 'Awaiting payment', tone: 'pending' };
   }
   if (s === 'confirmed' || s === 'accepted') {
     return { kind: 'badge-cancel', label: 'Confirmed ✓', tone: 'accepted' };

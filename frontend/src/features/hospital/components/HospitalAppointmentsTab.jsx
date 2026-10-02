@@ -328,7 +328,7 @@ export default function HospitalAppointmentsTab() {
   const handleAcceptAppointment = async (id) => {
     try {
       await appointmentService.updateAppointmentStatus(id, { status: 'Confirmed' });
-      showToast('Patient appointment confirmed successfully!');
+      showToast('Appointment confirmed (payment recorded if it was awaiting payment).');
       await loadHospitalAppointments();
     } catch (err) {
       alert(`Failed to confirm appointment: ${err.message}`);
@@ -839,6 +839,31 @@ export default function HospitalAppointmentsTab() {
                                   type="button"
                                   className="btn-hospital-cancel-action"
                                   title="Decline Appointment"
+                                  onClick={() => handleRejectAppointment(item.id || item.Id)}
+                                >
+                                  ✕ Decline
+                                </button>
+                              </div>
+                            );
+                          }
+                          if (display.kind === 'actions-payment') {
+                            return (
+                              <div className="hospital-action-buttons-wrapper">
+                                <span className={`mockup-status-badge ${display.tone}`}>
+                                  {display.label}
+                                </span>
+                                <button
+                                  type="button"
+                                  className="btn-hospital-confirm-action"
+                                  title="Record desk/cash payment and confirm the appointment"
+                                  onClick={() => handleAcceptAppointment(item.id || item.Id)}
+                                >
+                                  Mark paid
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn-hospital-cancel-action"
+                                  title="Decline unpaid appointment"
                                   onClick={() => handleRejectAppointment(item.id || item.Id)}
                                 >
                                   ✕ Decline

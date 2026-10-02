@@ -191,7 +191,10 @@ export default function HospitalInventoryTab() {
   }, [inventory, searchQuery, statusFilter, categoryFilter]);
 
   const totalVials = inventory.reduce((acc, curr) => acc + curr.available, 0);
-  const totalDoses = inventory.reduce((acc, curr) => acc + curr.available * curr.dosesPerVial, 0);
+  const totalDoses = inventory.reduce(
+    (acc, curr) => acc + (curr.availableDoses ?? curr.available * curr.dosesPerVial),
+    0
+  );
   const lowStockCount = inventory.filter((item) => item.available <= item.minThreshold).length;
   const expiringCount = inventory.filter((item) => item.expiryStatus === 'expiring_soon').length;
 
@@ -525,7 +528,11 @@ export default function HospitalInventoryTab() {
                   <tr><td colSpan="8" className="empty-table-cell">No vaccines match the selected criteria.</td></tr>
                 ) : (
                   filteredInventory.map((item) => {
-                    const pct = Math.min(100, Math.round((item.available / item.capacity) * 100));
+                    const received = Math.max(item.capacity || 0, item.available || 0);
+                    const pct = received > 0
+                      ? Math.min(100, Math.round((item.available / received) * 100))
+                      : 0;
+                    const doseCount = item.availableDoses ?? item.available * item.dosesPerVial;
                     const isLow = item.available <= item.minThreshold;
                     const isExpiring = item.expiryStatus === 'expiring_soon';
                     return (
@@ -550,7 +557,7 @@ export default function HospitalInventoryTab() {
                           <div className="stock-level-cell">
                             <div className="stock-numbers">
                               <strong>{item.available}</strong>
-                              <span className="cap-total">/ {item.capacity} vials</span>
+                              <span className="cap-total"> available / {item.capacity} received</span>
                               <span className="pct-text">({pct}%)</span>
                             </div>
                             <div className="stock-progress-track">
@@ -561,7 +568,7 @@ export default function HospitalInventoryTab() {
                         </td>
                         <td>
                           <div className="doses-cell">
-                            <strong>{(item.available * item.dosesPerVial).toLocaleString()}</strong>
+                            <strong>{doseCount.toLocaleString()}</strong>
                             <small>{item.dosesPerVial} dose/vial</small>
                           </div>
                         </td>
@@ -596,7 +603,11 @@ export default function HospitalInventoryTab() {
         ) : (
           <div className="inventory-cards-grid">
             {filteredInventory.map((item) => {
-              const pct = Math.min(100, Math.round((item.available / item.capacity) * 100));
+              const received = Math.max(item.capacity || 0, item.available || 0);
+              const pct = received > 0
+                ? Math.min(100, Math.round((item.available / received) * 100))
+                : 0;
+              const doseCount = item.availableDoses ?? item.available * item.dosesPerVial;
               const isLow = item.available <= item.minThreshold;
               return (
                 <div key={item.id} className={`inventory-card-item ${isLow ? 'card-low-stock' : ''}`}>
@@ -617,13 +628,13 @@ export default function HospitalInventoryTab() {
                   </div>
                   <div className="inv-card-stock-block">
                     <div className="stock-header-flex">
-                      <span>Stock on Hand:</span>
+                      <span>On hand / received:</span>
                       <strong>{item.available} / {item.capacity} vials</strong>
                     </div>
                     <div className="stock-progress-track">
                       <div className={`stock-progress-fill ${item.statusColor}`} style={{ width: `${pct}%` }} />
                     </div>
-                    <div className="doses-sub-line">Provides &asymp; {(item.available * item.dosesPerVial).toLocaleString()} doses ({item.dosesPerVial}/vial)</div>
+                    <div className="doses-sub-line">Provides &asymp; {doseCount.toLocaleString()} doses ({item.dosesPerVial}/vial)</div>
                   </div>
                   <div className="inv-card-actions">
                     <button type="button" className="btn-card-audit" onClick={() => setSelectedAuditVaccine(item)}>Audit Ledger</button>

@@ -510,9 +510,16 @@ public class InventoryService : IInventoryService
             throw new InvalidOperationException($"Cannot adjust — result would be negative ({newQty}).");
 
         batch.QuantityAvailable = newQty;
+        // Positive adjustments are additional receipts — keep Received in sync so
+        // Available never appears to exceed Received/"capacity" in the UI.
+        if (dto.Delta > 0 && batch.QuantityAvailable > batch.QuantityReceived)
+            batch.QuantityReceived = batch.QuantityAvailable;
+
         batch.UpdatedAt = DateTime.UtcNow;
         if (batch.QuantityAvailable == 0 && batch.Status == BatchStatus.Active)
             batch.Status = BatchStatus.Depleted;
+        else if (batch.QuantityAvailable > 0 && batch.Status == BatchStatus.Depleted)
+            batch.Status = BatchStatus.Active;
 
         _context.InventoryTransactions.Add(new InventoryTransaction
         {
