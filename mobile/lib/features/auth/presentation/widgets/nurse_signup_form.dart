@@ -158,7 +158,7 @@ class _NurseSignupFormState extends State<NurseSignupForm> {
                 icon: Icon(
                   _showPassword ? Icons.visibility_off : Icons.visibility,
                   size: 20,
-                  color: const Color(0xFF64748B),
+                  color: const Color(0xFF667B83),
                 ),
                 onPressed: () => setState(() => _showPassword = !_showPassword),
               ),
@@ -181,7 +181,7 @@ class _NurseSignupFormState extends State<NurseSignupForm> {
                 icon: Icon(
                   _showConfirmPassword ? Icons.visibility_off : Icons.visibility,
                   size: 20,
-                  color: const Color(0xFF64748B),
+                  color: const Color(0xFF667B83),
                 ),
                 onPressed: () => setState(() => _showConfirmPassword = !_showConfirmPassword),
               ),
@@ -217,7 +217,7 @@ class _NurseSignupFormState extends State<NurseSignupForm> {
               borderRadius: BorderRadius.circular(10),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF174296).withValues(alpha: 0.35),
+                  color: const Color(0xFF087F78).withValues(alpha: 0.35),
                   blurRadius: 10,
                   offset: const Offset(0, 4),
                 ),

@@ -154,7 +154,7 @@ class _FileUploadPickerBoxState extends State<FileUploadPickerBox> {
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
-                      color: Color(0xFF281966),
+                      color: AppColors.primaryDark,
                     ),
                   ),
                 ),
