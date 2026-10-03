@@ -14,19 +14,19 @@ import 'network_avatar.dart';
 /// - AppColors.error  → destructive / warnings
 /// - AppColors.success→ success chips / banners
 class StaffSurfaces {
-  static const Color pageBg = Color(0xFFF4F7FB);
-  static const Color cardBg = Color(0xFFFFFFFF);
-  static const Color cardBorder = Color(0xFFDCE6F2);
-  static const Color softPanel = Color(0xFFEDF3FA);
-  static const Color softPanelDeep = Color(0xFFDEEAF6);
-  static const Color accentBar = Color(0xFF9BB8D9);
-  static const Color textPrimary = Color(0xFF1E3A5F);
-  static const Color textSecondary = Color(0xFF5E6E85);
-  static const Color textMutedSoft = Color(0xFF8A97A8);
-  static const Color appBarBg = Color(0xFFFFFFFF);
-  static const Color divider = Color(0xFFE8EEF5);
-  static const Color chipNeutralBg = Color(0xFFEEF2F7);
-  static const Color chipNeutralBorder = Color(0xFFDCE4EE);
+  static const Color pageBg = AppColors.background;
+  static const Color cardBg = AppColors.surface;
+  static const Color cardBorder = AppColors.borderCard;
+  static const Color softPanel = Color(0xFFEAF5F2);
+  static const Color softPanelDeep = Color(0xFFD9ECE7);
+  static const Color accentBar = AppColors.accentTeal;
+  static const Color textPrimary = AppColors.textTitle;
+  static const Color textSecondary = AppColors.textMuted;
+  static const Color textMutedSoft = Color(0xFF84969B);
+  static const Color appBarBg = AppColors.surface;
+  static const Color divider = AppColors.borderLight;
+  static const Color chipNeutralBg = AppColors.surfaceSubtle;
+  static const Color chipNeutralBorder = AppColors.borderCard;
   static const Color dangerBorder = Color(0xFFFECACA);
   static const double cardRadius = 14;
 
@@ -34,7 +34,7 @@ class StaffSurfaces {
   static Color get brandSoft => AppColors.brandBlue.withValues(alpha: 0.88);
 
   /// Full brand blue — primary filled buttons only.
-  static const Color cta = AppColors.brandBlue;
+  static const Color cta = AppColors.primary;
 
   static Color get navSelected => cta;
   static const Color navIdle = textMutedSoft;

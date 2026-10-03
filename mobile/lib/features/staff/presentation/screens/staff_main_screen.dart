@@ -4,6 +4,7 @@ import '../../data/repositories/staff_repository.dart';
 import '../widgets/staff_common_widgets.dart';
 import 'staff_affiliations_screen.dart';
 import 'staff_appointments_screen.dart';
+import 'staff_home_screen.dart';
 import 'staff_profile_screen.dart';
 import 'staff_shifts_screen.dart';
 
@@ -34,12 +35,13 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
 
   void _onTabSelected(int i) {
     setState(() => _index = i);
-    if (i == 2) _refreshPendingCount();
+    if (i == 3) _refreshPendingCount();
   }
 
   @override
   Widget build(BuildContext context) {
     final screens = [
+      StaffHomeScreen(onNavigateTab: _onTabSelected),
       const StaffShiftsScreen(),
       const StaffAppointmentsScreen(),
       StaffAffiliationsScreen(onChanged: _refreshPendingCount),
@@ -71,25 +73,31 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
               children: [
                 _navItem(
                   index: 0,
+                  icon: Icons.home_outlined,
+                  activeIcon: Icons.home,
+                  label: 'Home',
+                ),
+                _navItem(
+                  index: 1,
                   icon: Icons.calendar_month_outlined,
                   activeIcon: Icons.calendar_month,
                   label: 'Shifts',
                 ),
                 _navItem(
-                  index: 1,
+                  index: 2,
                   icon: Icons.event_note_outlined,
                   activeIcon: Icons.event_note,
                   label: 'Clinic',
                 ),
                 _navItem(
-                  index: 2,
+                  index: 3,
                   icon: Icons.local_hospital_outlined,
                   activeIcon: Icons.local_hospital,
                   label: 'Hospitals',
                   badgeCount: _pendingInvites,
                 ),
                 _navItem(
-                  index: 3,
+                  index: 4,
                   icon: Icons.person_outline,
                   activeIcon: Icons.person,
                   label: 'Profile',
