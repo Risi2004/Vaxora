@@ -3,6 +3,7 @@ import '../../../../core/network/api_constants.dart';
 import '../models/batch_model.dart';
 import '../models/inventory_summary_model.dart';
 import '../models/audit_entry_model.dart';
+import '../models/formulary_entry_model.dart';
 
 class InventoryRepository {
   // ============ LIST ============
@@ -49,6 +50,64 @@ class InventoryRepository {
       }
     } catch (_) {}
     return null;
+  }
+
+  // ============ FORMULARY ============
+  static Future<List<FormularyEntryModel>> getFormulary() async {
+    try {
+      final response = await ApiClient.get(ApiConstants.inventoryFormulary);
+      if (response is List) {
+        return response
+            .map((e) => FormularyEntryModel.fromJson(e as Map<String, dynamic>))
+            .toList();
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  static Future<FormularyEntryModel?> registerFormulary({
+    required String vaccineName,
+    String? manufacturer,
+  }) async {
+    final response = await ApiClient.post(
+      ApiConstants.inventoryFormulary,
+      body: {
+        'vaccineName': vaccineName,
+        'manufacturer': manufacturer ?? '',
+      },
+    );
+    if (response is Map<String, dynamic>) {
+      return FormularyEntryModel.fromJson(response);
+    }
+    throw ApiException('Failed to register vaccine.');
+  }
+
+  static Future<void> removeFormulary(String id) async {
+    await ApiClient.delete(ApiConstants.formularyEntry(id));
+  }
+
+  // ============ RESTOCK ============
+  static Future<Map<String, dynamic>> restockBatch({
+    required String vaccineName,
+    required String lotNumber,
+    required int quantity,
+    required String storageUnit,
+    required String expiryDate,
+    required String supplier,
+  }) async {
+    final response = await ApiClient.post(
+      ApiConstants.inventoryRestock,
+      body: {
+        'vaccineName': vaccineName,
+        'lotNumber': lotNumber,
+        'quantity': quantity,
+        'storageUnit': storageUnit,
+        'expiryDate': expiryDate,
+        'supplier': supplier,
+      },
+    );
+    if (response is Map<String, dynamic>) return response;
+    throw ApiException('Failed to log restock.');
   }
 
   // ============ BUSINESS OPERATIONS ============

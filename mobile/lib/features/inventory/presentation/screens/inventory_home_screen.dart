@@ -10,6 +10,8 @@ import 'hospital_ai_screen.dart';
 import 'hospital_alerts_screen.dart';
 import 'qr_scanner_screen.dart';
 import '../widgets/batch_card.dart';
+import 'formulary_screen.dart';
+import 'restock_screen.dart';
 
 class InventoryHomeScreen extends StatefulWidget {
   const InventoryHomeScreen({super.key});
@@ -70,6 +72,32 @@ class _InventoryHomeScreenState extends State<InventoryHomeScreen> {
     if (mounted) await provider.refresh();
   }
 
+  Future<void> _openFormulary() async {
+    final provider = context.read<InventoryProvider>();
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ChangeNotifierProvider.value(
+          value: provider,
+          child: const FormularyScreen(),
+        ),
+      ),
+    );
+    if (mounted) await provider.refresh();
+  }
+
+  Future<void> _openRestock() async {
+    final provider = context.read<InventoryProvider>();
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ChangeNotifierProvider.value(
+          value: provider,
+          child: const RestockScreen(),
+        ),
+      ),
+    );
+    if (mounted) await provider.refresh();
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<InventoryProvider>();
@@ -82,6 +110,16 @@ class _InventoryHomeScreenState extends State<InventoryHomeScreen> {
         subtitle: 'Hospital · Inventory',
         photoUrl: _logoUrl,
         actions: [
+          StaffHeaderAction(
+            icon: Icons.vaccines_outlined,
+            tooltip: 'Vaccine formulary',
+            onPressed: _openFormulary,
+          ),
+          StaffHeaderAction(
+            icon: Icons.add_box_outlined,
+            tooltip: 'Log restock',
+            onPressed: _openRestock,
+          ),
           StaffHeaderAction(
             icon: Icons.notifications_outlined,
             tooltip: 'Stock alerts',
@@ -101,6 +139,7 @@ class _InventoryHomeScreenState extends State<InventoryHomeScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'inventory-home-scan-qr',
         onPressed: _openScanner,
         backgroundColor: StaffSurfaces.cta,
         foregroundColor: Colors.white,

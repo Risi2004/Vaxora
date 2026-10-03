@@ -64,6 +64,10 @@ class ApiConstants {
   static const String inventoryExpiring = '/inventory/batches/expiring';
   static const String inventorySummary = '/inventory/summary';
   static const String inventoryVaults = '/inventory/vaults';
+  static const String inventoryFormulary = '/inventory/formulary';
+static String formularyEntry(String id) => '/inventory/formulary/$id';
+// same path — the HTTP method changes, not the URL
+static const String inventoryRestock = '/inventory/batches';
 
   // Inventory AI draft execution (approval-gated)
   static const String inventoryAgentExecuteDraft = '/inventory/agent/execute-draft';
