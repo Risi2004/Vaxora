@@ -140,12 +140,12 @@ class CarePlanPdfService {
         '${DateTime.now().minute.toString().padLeft(2, '0')}';
 
     // Colour palette — matches the web
-    const brandBlue = PdfColor.fromInt(0xFF19469D);
-    const textTitle = PdfColor.fromInt(0xFF1E1B4B);
+    const brandBlue = PdfColor.fromInt(0xFF123E5D);
+    const textTitle = PdfColor.fromInt(0xFF12384B);
     const textBody = PdfColor.fromInt(0xFF334155);
-    const textMuted = PdfColor.fromInt(0xFF64748B);
-    const border = PdfColor.fromInt(0xFFE2E8F0);
-    const surfaceSubtle = PdfColor.fromInt(0xFFF8FAFC);
+    const textMuted = PdfColor.fromInt(0xFF667B83);
+    const border = PdfColor.fromInt(0xFFE1E9E6);
+    const surfaceSubtle = PdfColor.fromInt(0xFFF5F8F7);
 
     // ---- Load Unicode-capable fonts ----
     // Load bundled Noto Sans fonts. These ship with the app, so there's
@@ -508,7 +508,7 @@ class CarePlanPdfService {
     final sev = w.severity.toUpperCase();
     PdfColor bg = PdfColor.fromInt(0xFFEFF6FF);
     PdfColor borderColor = PdfColor.fromInt(0xFF3B82F6);
-    PdfColor fg = PdfColor.fromInt(0xFF1E40AF);
+    PdfColor fg = PdfColor.fromInt(0xFF087F78);
     PdfColor badgeBg = PdfColor.fromInt(0xFFBFDBFE);
 
     if (sev == 'CRITICAL') {
@@ -584,7 +584,7 @@ class CarePlanPdfService {
       margin: const pw.EdgeInsets.only(bottom: 6),
       padding: const pw.EdgeInsets.all(9),
       decoration: pw.BoxDecoration(
-        color: PdfColor.fromInt(0xFFF8FAFC),
+        color: PdfColor.fromInt(0xFFF5F8F7),
         border: pw.Border.all(color: border, width: 0.5),
         borderRadius: pw.BorderRadius.circular(4),
       ),
@@ -680,7 +680,7 @@ class CarePlanPdfService {
             pw.Text(
               'Due within ${v.dueWithinDays} days',
               style: pw.TextStyle(
-                color: PdfColor.fromInt(0xFF1D4ED8),
+                color: PdfColor.fromInt(0xFF066D68),
                 fontSize: 7.5,
                 fontWeight: pw.FontWeight.bold,
               ),

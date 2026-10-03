@@ -12,6 +12,9 @@ import '../widgets/agent_booking_sheet.dart';
 import '../widgets/digital_certificate_sheet.dart';
 import 'qr_verification_screen.dart';
 
+String _formatShortDate(DateTime date) =>
+    '${(date.year % 100).toString().padLeft(2, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+
 class PatientHistoryScreen extends StatefulWidget {
   const PatientHistoryScreen({super.key});
 
@@ -69,8 +72,7 @@ class _PatientHistoryScreenState extends State<PatientHistoryScreen> {
       builder: (ctx) => DigitalCertificateSheet(
         vaccineName: rec.vaccineName,
         dose: 'Dose ${rec.doseNumber}',
-        administeredDate:
-            '${rec.administeredAt.year}-${rec.administeredAt.month.toString().padLeft(2, '0')}-${rec.administeredAt.day.toString().padLeft(2, '0')}',
+        administeredDate: _formatShortDate(rec.administeredAt),
         administeredBy: rec.administeredByName,
         centerName: rec.notes?.isNotEmpty == true
             ? rec.notes!
@@ -104,7 +106,7 @@ class _PatientHistoryScreenState extends State<PatientHistoryScreen> {
     final totalDoses = _timeline?.totalDoses ?? 0;
     final distinctVaccines = _timeline?.distinctVaccines ?? 0;
     final lastVaccinated = _timeline?.lastVaccinatedAt != null
-        ? '${_timeline!.lastVaccinatedAt!.year}-${_timeline!.lastVaccinatedAt!.month.toString().padLeft(2, '0')}-${_timeline!.lastVaccinatedAt!.day.toString().padLeft(2, '0')}'
+        ? _formatShortDate(_timeline!.lastVaccinatedAt!)
         : '—';
 
     return Scaffold(
@@ -180,8 +182,7 @@ class _PatientHistoryScreenState extends State<PatientHistoryScreen> {
               )
             else if (_timeline != null && _timeline!.records.isNotEmpty)
               ..._timeline!.records.map((rec) {
-                final adminDateStr =
-                    '${rec.administeredAt.year}-${rec.administeredAt.month.toString().padLeft(2, '0')}-${rec.administeredAt.day.toString().padLeft(2, '0')}';
+                final adminDateStr = _formatShortDate(rec.administeredAt);
                 return Container(
                   margin: const EdgeInsets.only(bottom: 10),
                   padding: const EdgeInsets.all(14),

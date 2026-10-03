@@ -704,7 +704,7 @@ class _AgentBookingSheetState extends State<AgentBookingSheet> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
               decoration: BoxDecoration(
-                color: isUser ? Colors.white24 : const Color(0xFFE2E8F0),
+                color: isUser ? Colors.white24 : const Color(0xFFE1E9E6),
                 borderRadius: BorderRadius.circular(4),
               ),
               child: Text(

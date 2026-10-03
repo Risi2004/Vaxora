@@ -621,7 +621,7 @@ class _CarePlanLoaderState extends State<CarePlanLoader> {
       border = const Color(0xFFF59E0B);
     } else {
       bg = const Color(0xFFEFF6FF);
-      fg = const Color(0xFF1E40AF);
+      fg = AppColors.primary;
       border = const Color(0xFF3B82F6);
     }
     return Container(
@@ -664,7 +664,7 @@ class _CarePlanLoaderState extends State<CarePlanLoader> {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
+        color: const Color(0xFFF5F8F7),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.borderLight),
       ),
@@ -755,7 +755,7 @@ class _CarePlanLoaderState extends State<CarePlanLoader> {
               style: const TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
-                color: Color(0xFF1E40AF),
+                color: AppColors.primary,
               ),
             ),
         ],
@@ -870,7 +870,7 @@ class _PdfPreviewPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: const Color(0xFFF5F8F7),
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
