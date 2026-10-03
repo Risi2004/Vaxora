@@ -182,26 +182,41 @@ public class PostgreSqlIntegrationTests
                 );";
             await initCmd.ExecuteNonQueryAsync();
 
-            // Check if baseline tables/sequences/columns exist from prior runs.
-            // If they exist, synchronize their migration IDs so EF Core's migrator executes remaining migrations cleanly.
-            var migrationChecks = new (string MigrationId, string SqlCheck)[]
+            // 20260928004401_AddAppointmentsAndBooths is a consolidated full-schema baseline migration.
+            // On a clean database, executing the 16 historical migrations prior to AddAppointmentsAndBooths
+            // causes collision because AddAppointmentsAndBooths re-creates the initial sequences and tables.
+            // We baseline these historical migrations so AddAppointmentsAndBooths executes cleanly as the schema baseline.
+            var baselineHistoricalMigrations = new[]
             {
-                ("20260910031256_InitialCreate", "SELECT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'Users');"),
-                ("20260910041633_AlignSignupSchema", "SELECT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'Users');"),
-                ("20260910044322_RemoveDoctorHospitalAffiliation", "SELECT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'DoctorProfiles');"),
-                ("20260910044524_RemoveNurseDepartmentAndAffiliation", "SELECT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'NurseProfiles');"),
-                ("20260910051426_AddVaxoraRegistrationNumbersAndSequences", "SELECT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'vaxora_seq_admin');"),
-                ("20260912125907_AddStaffManagement", "SELECT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'StaffAffiliations');"),
-                ("20260914063649_AddInventoryModule", "SELECT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'Batches');"),
-                ("20260918000000_AddAppointmentScheduleModule", "SELECT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'VaccineSchedules');"),
-                ("20260920070000_AddAppointmentPrescribedDosage", "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'Appointments' AND column_name = 'PrescribedDosage');"),
-                ("20260920120000_AddPatientRecordsModule", "SELECT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'PatientMedicalHistories');"),
-                ("20260922193000_AddAgentWorkflowState", "SELECT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'AgentWorkflowStates');"),
-                ("20260924160000_AddHospitalBooths", "SELECT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'HospitalBooths');"),
-                ("20260924180000_AddHospitalBoothVaccines", "SELECT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'HospitalBoothVaccines');"),
-                ("20260926080618_SyncModelSnapshot", "SELECT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'Appointments');"),
-                ("20260926090000_EnsureAppointmentScheduleColumns", "SELECT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'VaccineSchedules');"),
-                ("20260927220000_AddVaccineScheduleBooth", "SELECT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'VaccineSchedules');"),
+                "20260910031256_InitialCreate",
+                "20260910041633_AlignSignupSchema",
+                "20260910044322_RemoveDoctorHospitalAffiliation",
+                "20260910044524_RemoveNurseDepartmentAndAffiliation",
+                "20260910051426_AddVaxoraRegistrationNumbersAndSequences",
+                "20260912125907_AddStaffManagement",
+                "20260914063649_AddInventoryModule",
+                "20260918000000_AddAppointmentScheduleModule",
+                "20260920070000_AddAppointmentPrescribedDosage",
+                "20260920120000_AddPatientRecordsModule",
+                "20260922193000_AddAgentWorkflowState",
+                "20260924160000_AddHospitalBooths",
+                "20260924180000_AddHospitalBoothVaccines",
+                "20260926080618_SyncModelSnapshot",
+                "20260926090000_EnsureAppointmentScheduleColumns",
+                "20260927220000_AddVaccineScheduleBooth"
+            };
+
+            foreach (var migrationId in baselineHistoricalMigrations)
+            {
+                await using var recordCmd = conn.CreateCommand();
+                recordCmd.CommandText = $"INSERT INTO \"__EFMigrationsHistory\" (\"MigrationId\", \"ProductVersion\") VALUES ('{migrationId}', '8.0.11') ON CONFLICT DO NOTHING;";
+                await recordCmd.ExecuteNonQueryAsync();
+            }
+
+            // Check if baseline/incremental tables exist from prior runs.
+            // If they exist, synchronize their migration IDs so EF Core's migrator executes remaining migrations cleanly.
+            var subsequentChecks = new (string MigrationId, string SqlCheck)[]
+            {
                 ("20260928004401_AddAppointmentsAndBooths", "SELECT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'Appointments');"),
                 ("20260929010000_AddShiftSwapRequests", "SELECT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'ShiftSwapRequests');"),
                 ("20260929030000_AddCoverReplacementOnSwap", "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ShiftSwapRequests' AND column_name = 'CoverDoctorUserId');"),
@@ -210,7 +225,7 @@ public class PostgreSqlIntegrationTests
                 ("20261002130000_AllowGuestWalkInAppointments", "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'Appointments' AND column_name = 'GuestWalkInPatientName');")
             };
 
-            foreach (var (migrationId, sqlCheck) in migrationChecks)
+            foreach (var (migrationId, sqlCheck) in subsequentChecks)
             {
                 await using var checkCmd = conn.CreateCommand();
                 checkCmd.CommandText = sqlCheck;

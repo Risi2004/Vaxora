@@ -33,6 +33,20 @@ jobs:
   api:
     name: API
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: vaxora_test
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: vaxora_test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -48,6 +62,8 @@ jobs:
         run: dotnet build Vaxora.Api/Vaxora.Api.Tests/Vaxora.Api.Tests.csproj --configuration Release --no-restore
       - name: Run tests
         run: dotnet test Vaxora.Api/Vaxora.Api.Tests/Vaxora.Api.Tests.csproj --configuration Release --no-build --no-restore
+        env:
+          TEST_POSTGRESQL_CONNECTION: Host=localhost;Port=5432;Database=vaxora_test_db;Username=vaxora_test;Password=test_password
 
   frontend:
     name: Frontend
@@ -65,6 +81,9 @@ jobs:
       - name: Build
         working-directory: frontend
         run: npm run build
+      - name: Run tests
+        working-directory: frontend
+        run: npm test
 
   agent:
     name: Agent
