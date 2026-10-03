@@ -42,6 +42,7 @@ class ApiConstants {
 
   // Patient Clinical & Vaccination endpoints
   static const String updateProfile = '/auth/profile';
+  static const String updateProfilePhoto = '/auth/profile/photo';
   static const String patientVaccinations = '/patient-vaccinations';
   static const String patientMedicalHistory = '/patient-medical-history';
   static const String availableSchedules = '/schedule/available';

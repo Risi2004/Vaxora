@@ -1,3 +1,5 @@
+import 'package:image_picker/image_picker.dart';
+
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_constants.dart';
 import '../../../../core/services/storage_service.dart';
@@ -139,6 +141,13 @@ class AuthRepository {
     String? fullName,
     String? phoneNumber,
     DateTime? dateOfBirth,
+    String? specialization,
+    String? hospitalName,
+    String? hospitalType,
+    String? operatingHours,
+    String? address,
+    String? district,
+    String? province,
   }) async {
     final body = <String, dynamic>{};
     if (fullName != null) body['fullName'] = fullName.trim();
@@ -146,6 +155,13 @@ class AuthRepository {
     if (dateOfBirth != null) {
       body['dateOfBirth'] = dateOfBirth.toIso8601String();
     }
+    if (specialization != null) body['specialization'] = specialization.trim();
+    if (hospitalName != null) body['hospitalName'] = hospitalName.trim();
+    if (hospitalType != null) body['hospitalType'] = hospitalType.trim();
+    if (operatingHours != null) body['operatingHours'] = operatingHours.trim();
+    if (address != null) body['address'] = address.trim();
+    if (district != null) body['district'] = district.trim();
+    if (province != null) body['province'] = province.trim();
 
     final response = await ApiClient.put(
       ApiConstants.updateProfile,
@@ -186,11 +202,45 @@ class AuthRepository {
       if (dateOfBirth != null) {
         merged['dateOfBirth'] = dateOfBirth.toIso8601String();
       }
+      if (specialization != null) merged['specialization'] = specialization.trim();
+      if (hospitalName != null) merged['name'] = hospitalName.trim();
+      final details = Map<String, dynamic>.from(
+        (merged['profileDetails'] as Map?)?.cast<String, dynamic>() ?? const {},
+      );
+      if (specialization != null) details['specialization'] = specialization.trim();
+      if (hospitalName != null) details['hospitalName'] = hospitalName.trim();
+      if (phoneNumber != null && hospitalName != null) {
+        details['contactNumber'] = phoneNumber.trim();
+      }
+      if (hospitalType != null) details['hospitalType'] = hospitalType.trim();
+      if (operatingHours != null) details['operatingHours'] = operatingHours.trim();
+      if (address != null) details['address'] = address.trim();
+      if (district != null) details['district'] = district.trim();
+      if (province != null) details['province'] = province.trim();
+      if (details.isNotEmpty) merged['profileDetails'] = details;
       await StorageService.saveUser(merged);
       return UserModel.fromJson(merged);
     }
 
     throw ApiException('Profile updated but could not refresh user data.');
+  }
+
+  static Future<UserModel> updateProfilePhoto(XFile photo) async {
+    final response = await ApiClient.postMultipartFile(
+      ApiConstants.updateProfilePhoto,
+      fieldName: 'photo',
+      bytes: await photo.readAsBytes(),
+      filename: photo.name,
+    );
+
+    if (response is Map<String, dynamic>) {
+      final raw = Map<String, dynamic>.from(response);
+      final user = UserModel.fromJson(raw);
+      await _persistUser(user, raw);
+      return user;
+    }
+
+    throw ApiException('Profile photo uploaded but the response was invalid.');
   }
 
   static Future<void> logout() async {
