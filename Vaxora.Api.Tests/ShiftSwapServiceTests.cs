@@ -156,6 +156,44 @@ public class ShiftSwapServiceTests
         Assert.Equal(1, await context.ShiftSwapRequests.CountAsync());
     }
 
+    [Fact]
+    public async Task DecideAsync_reassigns_shift_and_returns_approved_status_to_both_staff_members()
+    {
+        await using var context = TestDb.CreateContext();
+        var hospital = TestDb.AddHospital(context);
+        var requester = TestDb.AddDoctor(context, "requester@example.com", "VAX-D-2010");
+        var replacement = TestDb.AddDoctor(context, "replacement@example.com", "VAX-D-2011");
+        var requesterAffiliation = TestDb.AddActiveAffiliation(context, hospital, requester);
+        var replacementAffiliation = TestDb.AddActiveAffiliation(context, hospital, replacement);
+        var shift = TestDb.AddFutureShift(context, requesterAffiliation, hospital);
+        await context.SaveChangesAsync();
+
+        var service = CreateService(context);
+        var request = await service.CreateAsync(requester.Id, new CreateShiftSwapRequestDto
+        {
+            ShiftId = shift.Id,
+            Reason = "Clinic conflict"
+        });
+
+        var decided = await service.DecideAsync(hospital.Id, request.Id, new ShiftSwapDecisionDto
+        {
+            Approved = true,
+            ReplacementAffiliationId = replacementAffiliation.Id
+        });
+
+        var updatedShift = await context.StaffShifts.SingleAsync(s => s.Id == shift.Id);
+        var requesterHistory = Assert.Single(await service.ListForStaffAsync(requester.Id));
+        var replacementHistory = Assert.Single(await service.ListForStaffAsync(replacement.Id));
+
+        Assert.Equal("Approved", decided.Status);
+        Assert.Equal(replacementAffiliation.Id, updatedShift.AffiliationId);
+        Assert.Equal("Approved", requesterHistory.Status);
+        Assert.Equal("Outgoing", requesterHistory.Direction);
+        Assert.Equal($"Dr. {replacement.DoctorProfile!.FullName}", requesterHistory.ReplacementName);
+        Assert.Equal("Incoming", replacementHistory.Direction);
+        Assert.Equal(requester.Id, replacementHistory.RequesterUserId);
+    }
+
     private static ShiftSwapService CreateService(Vaxora.Api.Data.ApplicationDbContext context) =>
         new(context, new FakeAgentGateway(), NullLogger<ShiftSwapService>.Instance);
 }

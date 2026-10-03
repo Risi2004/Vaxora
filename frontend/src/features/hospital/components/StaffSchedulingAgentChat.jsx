@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import agentService from '../../patient/services/agentService';
 import staffService from '../services/staffService';
 import { IconBot, IconClose } from '../../../shared/icons/AppIcons';
+import { proposalIdentity } from './proposalIdentity';
 
 function speakDate(iso) {
   const [year, month, day] = String(iso || '').slice(0, 10).split('-').map(Number);
@@ -205,10 +206,6 @@ function shiftPayload(proposal) {
     boothOrStation: proposal.boothOrStation || null,
     notes: proposal.notes || 'Approved via Staff Scheduling Agent',
   };
-}
-
-function proposalIdentity(p) {
-  return `${p.affiliationId}|${String(p.shiftDate).slice(0, 10)}|${p.startTime}|${p.endTime}`;
 }
 
 function proposalSlot(p) {

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { IconClock, IconClose, IconSearch, IconShield } from '../../../shared/icons/AppIcons';
 
 export default function AdminFeedbackTab() {

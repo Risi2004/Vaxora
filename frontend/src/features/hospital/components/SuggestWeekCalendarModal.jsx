@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { IconClose, IconRefresh } from '../../../shared/icons/AppIcons';
 import { RoleAvatarIcon } from './HospitalIcons';
+import { proposalIdentity } from './proposalIdentity';
 
 function formatDayHeader(dateInput) {
   const date = new Date(`${dateInput}T00:00:00`);
@@ -14,10 +15,6 @@ function formatDayRange(from, to) {
   const a = new Date(`${from}T00:00:00`);
   const b = new Date(`${to}T00:00:00`);
   return `${a.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${b.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
-}
-
-function proposalIdentity(p) {
-  return `${p.affiliationId}|${String(p.shiftDate).slice(0, 10)}|${p.startTime}|${p.endTime}`;
 }
 
 const roleStyleMap = {
@@ -329,5 +326,3 @@ export default function SuggestWeekCalendarModal({
     </div>
   );
 }
-
-export { proposalIdentity };

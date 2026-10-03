@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { deferEffectCallback } from '../../../shared/utils/deferEffectCallback.js';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import staffAppointmentService from '../services/staffAppointmentService';
 import { IconCalendar } from '../../../shared/icons/AppIcons';
 import StaffSubpageHeader from './StaffSubpageHeader';
@@ -80,13 +81,13 @@ export default function StaffAppointmentsPanel({
     }
   }, [selectedHospitalUserId, filterDate]);
 
-  useEffect(() => {
+  useEffect(() => deferEffectCallback(() => {
     loadHospitals();
-  }, [loadHospitals]);
+  }), [loadHospitals]);
 
-  useEffect(() => {
+  useEffect(() => deferEffectCallback(() => {
     loadAppointments();
-  }, [loadAppointments]);
+  }), [loadAppointments]);
 
   const facilityTitle = selectedHospital
     ? `${selectedHospital.hospitalName || 'Hospital'}${facilitySuffix}`

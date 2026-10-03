@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { authService, getUser, subscribeAuthUser } from "../../auth";
 import { patientVaccinationService } from "../services/patientVaccinationService";
 import { IconClose, IconShield } from "../../../shared/icons/AppIcons";

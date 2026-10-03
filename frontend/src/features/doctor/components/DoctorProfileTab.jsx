@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { deferEffectCallback } from '../../../shared/utils/deferEffectCallback.js';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { authService } from '../../auth';
 import { IconFile, IconShield } from '../../../shared/icons/AppIcons';
 import StaffSubpageHeader from '../../staff/components/StaffSubpageHeader';
@@ -44,7 +45,7 @@ export default function DoctorProfileTab() {
     setTimeout(() => setNotification(''), 3500);
   };
 
-  const populateState = (user) => {
+  const populateState = useCallback((user) => {
     const details = user.profileDetails || {};
     const createdDate = details.createdAt || user.createdAt
       ? new Date(details.createdAt || user.createdAt).toLocaleDateString()
@@ -68,9 +69,9 @@ export default function DoctorProfileTab() {
       ...prev,
       specialization: details.specialization || 'Certified Medical Practitioner (SLMC Verified)',
     }));
-  };
+  }, []);
 
-  const loadDoctorProfile = async () => {
+  const loadDoctorProfile = useCallback(async () => {
     try {
       const cached = authService.getUser();
       if (cached) populateState(cached);
@@ -82,11 +83,11 @@ export default function DoctorProfileTab() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [populateState]);
 
-  useEffect(() => {
+  useEffect(() => deferEffectCallback(() => {
     loadDoctorProfile();
-  }, []);
+  }), [loadDoctorProfile]);
 
   const handlePersonalChange = (e) => {
     const { name, value } = e.target;

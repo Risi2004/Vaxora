@@ -153,11 +153,15 @@ public class StaffManagementService : IStaffManagementService
             .ToListAsync();
 
         var candidateIds = candidates.Select(c => c.Id).ToList();
+        var singleHospitalNurseIds = candidates
+            .Where(c => c.Role == UserRole.NURSE)
+            .Select(c => c.Id)
+            .ToList();
         var blockedIds = await _context.StaffAffiliations
             .AsNoTracking()
             .Where(a =>
-                a.HospitalUserId == hospitalUserId &&
-                candidateIds.Contains(a.StaffUserId) &&
+                ((a.HospitalUserId == hospitalUserId && candidateIds.Contains(a.StaffUserId)) ||
+                 singleHospitalNurseIds.Contains(a.StaffUserId)) &&
                 (a.Status == AffiliationStatus.Pending || a.Status == AffiliationStatus.Active))
             .Select(a => a.StaffUserId)
             .ToListAsync();

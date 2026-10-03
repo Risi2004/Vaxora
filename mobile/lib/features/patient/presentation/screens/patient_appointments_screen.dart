@@ -14,11 +14,13 @@ import '../widgets/payhere_checkout_sheet.dart';
 class PatientAppointmentsScreen extends StatefulWidget {
   final List<PatientAppointment>? initialAppointments;
   final Function(Map<String, dynamic> appointmentData)? onAppointmentBooked;
+  final VoidCallback? onAppointmentsChanged;
 
   const PatientAppointmentsScreen({
     super.key,
     this.initialAppointments,
     this.onAppointmentBooked,
+    this.onAppointmentsChanged,
   });
 
   @override
@@ -225,6 +227,7 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen> {
                   });
                 }
                 _loadBackendAppointments();
+                widget.onAppointmentsChanged?.call();
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
@@ -283,30 +286,18 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen> {
           }).toList();
         });
         _loadBackendAppointments();
+        widget.onAppointmentsChanged?.call();
       },
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final now = DateTime.now();
-    final todayStart = DateTime(now.year, now.month, now.day);
-
-    bool isUpcoming(PatientAppointment a) {
-      final statusLower = a.status.toLowerCase();
-      if (statusLower == 'completed' || statusLower == 'cancelled') {
-        return false;
-      }
-      try {
-        final aptDate = DateTime.parse(a.date);
-        return !aptDate.isBefore(todayStart);
-      } catch (_) {
-        return true;
-      }
-    }
-
-    final upcomingList = _appointments.where(isUpcoming).toList();
-    final pastList = _appointments.where((a) => !isUpcoming(a)).toList();
+    final upcomingList =
+        _appointments.where(isUpcomingPatientAppointment).toList();
+    final pastList = _appointments
+        .where((a) => !isUpcomingPatientAppointment(a))
+        .toList();
     final filteredAppointments = _selectedFilter == 0 ? upcomingList : pastList;
 
     return Scaffold(

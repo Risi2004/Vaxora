@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { deferEffectCallback } from '../../../shared/utils/deferEffectCallback.js';
+import { useState, useEffect, useCallback } from 'react';
 import { authService } from '../../auth';
 import {
   IconClock,
@@ -41,9 +42,9 @@ export default function AdminUsersTab() {
     }
   }, []);
 
-  useEffect(() => {
+  useEffect(() => deferEffectCallback(() => {
     loadUsers();
-  }, [loadUsers]);
+  }), [loadUsers]);
 
   // Handle status toggle (Active <-> Suspended)
   const handleToggleStatus = async (user) => {

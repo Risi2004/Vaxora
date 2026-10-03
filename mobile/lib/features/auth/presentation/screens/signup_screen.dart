@@ -57,7 +57,7 @@ class _SignupScreenState extends State<SignupScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: const Color(0xFFF5F8F7),
       body: SingleChildScrollView(
         child: Column(
           children: [
@@ -81,7 +81,7 @@ class _SignupScreenState extends State<SignupScreen> {
                   border: Border.all(color: AppColors.borderAuthCard, width: 2.5),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF281966).withValues(alpha: 0.06),
+                      color: AppColors.primaryDark.withValues(alpha: 0.06),
                       blurRadius: 20,
                       offset: const Offset(0, 6),
                     ),

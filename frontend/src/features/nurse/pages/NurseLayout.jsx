@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { Outlet } from 'react-router-dom';
 import { NurseNavbar } from '../components';
 import '../../../styles/doctor.css';

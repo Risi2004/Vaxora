@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authService, getUser } from '../../auth';
 import {
@@ -81,6 +81,7 @@ export default function AdminDashboardOverview() {
         }
       } catch (err) {
         console.warn('Failed to load dashboard overview telemetry:', err);
+        showToast('Some dashboard data could not be loaded. Please refresh to try again.');
       } finally {
         setLoading(false);
       }

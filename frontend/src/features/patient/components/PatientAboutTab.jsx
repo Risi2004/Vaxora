@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { IconRocket, IconShield } from '../../../shared/icons/AppIcons';
 
 export default function PatientAboutTab() {

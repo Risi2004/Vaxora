@@ -5,7 +5,6 @@ import 'dart:io' show Platform;
 class ApiConstants {
   // Configurable compile-time environment URLs (via --dart-define=API_URL=... and --dart-define=AGENT_URL=...)
   static const String _envApiUrl = String.fromEnvironment('API_URL');
-  static const String _envAgentUrl = String.fromEnvironment('AGENT_URL');
 
   // Local development fallbacks (Android Emulator: 10.0.2.2, iOS/Desktop/Web: localhost)
   static String get _localFallback {
@@ -22,13 +21,6 @@ class ApiConstants {
       return trimmed.endsWith('/api') ? trimmed : '$trimmed/api';
     }
     return _localFallback;
-  }
-
-  static String get agentUrl {
-    if (_envAgentUrl.isNotEmpty) {
-      return _envAgentUrl.trim().replaceAll(RegExp(r'/+$'), '');
-    }
-    return 'http://10.0.2.2:8001';
   }
 
   // Auth endpoints
@@ -50,6 +42,7 @@ class ApiConstants {
 
   // Patient Clinical & Vaccination endpoints
   static const String updateProfile = '/auth/profile';
+  static const String updateProfilePhoto = '/auth/profile/photo';
   static const String patientVaccinations = '/patient-vaccinations';
   static const String patientMedicalHistory = '/patient-medical-history';
   static const String availableSchedules = '/schedule/available';

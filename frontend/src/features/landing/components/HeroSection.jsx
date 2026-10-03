@@ -1,4 +1,4 @@
-import React from 'react';
+
 import heroVaccine from '../../../assets/images/hero_vaccine.jpg';
 
 export default function HeroSection({ onBookClick }) {

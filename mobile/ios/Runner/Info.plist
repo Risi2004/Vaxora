@@ -70,5 +70,9 @@
 	<string>Vaxora adds your assigned clinic shifts to your device calendar so you can get reminders.</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>Vaxora adds your assigned clinic shifts to your device calendar so you can get reminders.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Vaxora uses the camera when you choose to take a profile photo.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Vaxora accesses your photos when you choose a profile photo from your library.</string>
 </dict>
 </plist>

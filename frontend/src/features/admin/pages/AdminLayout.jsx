@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { deferEffectCallback } from '../../../shared/utils/deferEffectCallback.js';
+import { useState, useEffect, useCallback } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import AdminSidebar from '../components/AdminSidebar';
 import { authService } from '../../auth';
@@ -24,11 +25,11 @@ export default function AdminLayout() {
     }
   }, []);
 
-  useEffect(() => {
+  useEffect(() => deferEffectCallback(() => {
     fetchLivePendingCount();
     const interval = setInterval(fetchLivePendingCount, 15000);
     return () => clearInterval(interval);
-  }, [fetchLivePendingCount, location.pathname]);
+  }), [fetchLivePendingCount, location.pathname]);
 
   const getPageTitle = (pathname) => {
     if (pathname.includes('/admin/users')) return 'National User Directory';

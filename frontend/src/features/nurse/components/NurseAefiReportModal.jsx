@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import { deferEffectCallback } from '../../../shared/utils/deferEffectCallback.js';
+import { useEffect, useState } from 'react';
 
 const tomorrowIso = () => {
   const d = new Date();
@@ -26,7 +27,7 @@ export default function NurseAefiReportModal({ isOpen, onClose, onSubmitReport, 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => {
+  useEffect(() => deferEffectCallback(() => {
     if (!isOpen) return;
     setError('');
     setSubmitting(false);
@@ -37,7 +38,7 @@ export default function NurseAefiReportModal({ isOpen, onClose, onSubmitReport, 
       patientName: patient?.name || '',
       vaccineName: patient?.vaccine && patient.vaccine !== '—' ? patient.vaccine : '',
     });
-  }, [isOpen, patient?.id, patient?.token, patient?.name, patient?.vaccine]);
+  }), [isOpen, patient?.id, patient?.token, patient?.name, patient?.vaccine]);
 
   if (!isOpen) return null;
 

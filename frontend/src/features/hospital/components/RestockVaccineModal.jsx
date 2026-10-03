@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 const DEFAULT_LIST = [
   'Pfizer-BioNTech Bivalent (mRNA)',

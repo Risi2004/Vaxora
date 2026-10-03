@@ -337,7 +337,7 @@ class _PayHereCheckoutSheetState extends State<PayHereCheckoutSheet> {
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF8FAFC),
+                          color: const Color(0xFFF5F8F7),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(color: AppColors.borderLight),
                         ),
@@ -603,7 +603,7 @@ class _PayHereCheckoutSheetState extends State<PayHereCheckoutSheet> {
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFF1F5F9),
+                            color: const Color(0xFFF1F6F4),
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: const Column(
@@ -626,7 +626,7 @@ class _PayHereCheckoutSheetState extends State<PayHereCheckoutSheet> {
                         Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFF8FAFC),
+                            color: const Color(0xFFF5F8F7),
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(color: AppColors.borderLight),
                           ),
@@ -708,7 +708,7 @@ class _PayHereCheckoutSheetState extends State<PayHereCheckoutSheet> {
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
-            color: isSelected ? const Color(0xFFEFF6FF) : const Color(0xFFF8FAFC),
+            color: isSelected ? const Color(0xFFEFF6FF) : const Color(0xFFF5F8F7),
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
               color: isSelected ? const Color(0xFF003366) : AppColors.borderLight,
@@ -739,7 +739,7 @@ class _PayHereCheckoutSheetState extends State<PayHereCheckoutSheet> {
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
+        color: const Color(0xFFF5F8F7),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: AppColors.borderLight),
       ),

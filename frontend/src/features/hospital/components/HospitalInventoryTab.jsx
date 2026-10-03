@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { deferEffectCallback } from '../../../shared/utils/deferEffectCallback.js';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import RestockVaccineModal from './RestockVaccineModal';
 import VaccineWastageModal from './VaccineWastageModal';
 import BatchAuditModal from './BatchAuditModal';
@@ -90,7 +91,7 @@ export default function HospitalInventoryTab() {
     }
   }, []);
 
-  useEffect(() => { loadAll(); }, [loadAll]);
+  useEffect(() => deferEffectCallback(() => { loadAll(); }), [loadAll]);
 
   const handleRegisterNewVaccine = async (vaccineName, mfr = '') => {
     const trimmed = vaccineName.trim();
@@ -189,6 +190,11 @@ export default function HospitalInventoryTab() {
       return true;
     });
   }, [inventory, searchQuery, statusFilter, categoryFilter]);
+
+  const inventoryCategories = useMemo(
+    () => [...new Set(inventory.map((item) => item.category).filter(Boolean))].sort(),
+    [inventory]
+  );
 
   const totalVials = inventory.reduce((acc, curr) => acc + curr.available, 0);
   const totalDoses = inventory.reduce(
@@ -489,6 +495,15 @@ export default function HospitalInventoryTab() {
             )}
           </div>
           <div className="inventory-filter-pills">
+            <label className="inventory-category-filter">
+              <span className="sr-only">Filter by vaccine category</span>
+              <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
+                <option value="all">All categories</option>
+                {inventoryCategories.map((category) => (
+                  <option key={category} value={category}>{category}</option>
+                ))}
+              </select>
+            </label>
             <div className="filter-pill-group" role="tablist" aria-label="Stock filters">
               <button type="button" className={`filter-pill ${statusFilter === 'all' ? 'active' : ''}`} onClick={() => setStatusFilter('all')}>All ({inventory.length})</button>
               <button type="button" className={`filter-pill ${statusFilter === 'low' ? 'active' : ''}`} onClick={() => setStatusFilter('low')}>Low stock ({lowStockCount})</button>

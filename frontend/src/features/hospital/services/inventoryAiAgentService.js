@@ -11,19 +11,6 @@ const getApiBase = () => {
 
 const API_BASE = getApiBase();
 
-const getAgentBase = () => {
-  const envUrl = import.meta.env.VITE_AGENT_URL;
-  if (envUrl && typeof envUrl === 'string' && envUrl.trim()) {
-    return envUrl.trim().replace(/\/+$/, '');
-  }
-  // When running against deployed backend, proxy through ASP.NET Core gateway
-  if (API_BASE && API_BASE !== '/api') {
-    return API_BASE.replace(/\/api$/, '');
-  }
-  return 'http://localhost:8001';
-};
-
-const AGENT_BASE = getAgentBase();
 const getToken = () => localStorage.getItem('vaxora_token');
 
 
@@ -32,7 +19,8 @@ async function agentRequest(endpoint, options = {}) {
   const headers = { ...(options.headers || {}), 'Content-Type': 'application/json' };
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  const response = await fetch(`${AGENT_BASE}${endpoint}`, { ...options, headers });
+  // Agent traffic must pass through the ASP.NET gateway for caller authorization.
+  const response = await fetch(`${API_BASE}${endpoint}`, { ...options, headers });
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
@@ -48,7 +36,7 @@ export const aiAgentService = {
    * @param {object} patientInfo - { name, role, email } of the current user
    */
   async run(objective, patientInfo = null) {
-    return await agentRequest('/api/agent/chat', {
+    return await agentRequest('/agent/chat', {
       method: 'POST',
       body: JSON.stringify({
         messages: [{ role: 'user', content: objective }],
@@ -58,7 +46,7 @@ export const aiAgentService = {
   },
 
   async health() {
-    return await agentRequest('/api/agent/health', { method: 'GET' });
+    return await agentRequest('/agent/health', { method: 'GET' });
   },
 };
 

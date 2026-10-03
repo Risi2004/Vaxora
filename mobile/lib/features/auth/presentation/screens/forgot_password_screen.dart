@@ -86,7 +86,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: const Color(0xFFF5F8F7),
       body: SingleChildScrollView(
         child: Column(
           children: [
@@ -108,7 +108,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                   border: Border.all(color: AppColors.borderAuthCard, width: 2.5),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF281966).withValues(alpha: 0.06),
+                      color: AppColors.primaryDark.withValues(alpha: 0.06),
                       blurRadius: 20,
                       offset: const Offset(0, 6),
                     ),
@@ -163,7 +163,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 13,
-                          color: Color(0xFF64748B),
+                          color: Color(0xFF667B83),
                           height: 1.4,
                         ),
                       ),
@@ -239,7 +239,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                         textAlign: TextAlign.center,
                         style: const TextStyle(
                           fontSize: 13,
-                          color: Color(0xFF64748B),
+                          color: Color(0xFF667B83),
                           height: 1.4,
                         ),
                       ),
@@ -268,7 +268,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                                   icon: Icon(
                                     _showNewPassword ? Icons.visibility_off : Icons.visibility,
                                     size: 20,
-                                    color: const Color(0xFF64748B),
+                                    color: const Color(0xFF667B83),
                                   ),
                                   onPressed: () =>
                                       setState(() => _showNewPassword = !_showNewPassword),
@@ -290,7 +290,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                                   icon: Icon(
                                     _showConfirmPassword ? Icons.visibility_off : Icons.visibility,
                                     size: 20,
-                                    color: const Color(0xFF64748B),
+                                    color: const Color(0xFF667B83),
                                   ),
                                   onPressed: () => setState(
                                       () => _showConfirmPassword = !_showConfirmPassword),

@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { deferEffectCallback } from '../../../shared/utils/deferEffectCallback.js';
+import { useState, useEffect, useCallback } from 'react';
 import { authService } from '../../auth';
 import {
   IconClock,
@@ -57,9 +58,9 @@ export default function AdminApprovalsTab() {
     }
   }, []);
 
-  useEffect(() => {
+  useEffect(() => deferEffectCallback(() => {
     fetchPendingApprovals();
-  }, [fetchPendingApprovals]);
+  }), [fetchPendingApprovals]);
 
   // Approve Request
   const handleApprove = async (req) => {

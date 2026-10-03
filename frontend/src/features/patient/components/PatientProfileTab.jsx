@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { authService } from "../../auth";
 import { appointmentService } from "../services/appointmentService";
 import { patientVaccinationService } from "../services/patientVaccinationService";
 import PatientSubpageHeader from './PatientSubpageHeader';
+import { deferEffectCallback } from '../../../shared/utils/deferEffectCallback.js';
 
 // ---------- Helpers ----------
 const formatDate = (iso) => {
@@ -61,21 +62,7 @@ export default function PatientProfileTab() {
   };
 
   // ---------- Load live patient profile ----------
-  const loadProfile = async () => {
-    try {
-      const cached = authService.getUser();
-      if (cached) populateState(cached);
-
-      const freshUser = await authService.getMe();
-      if (freshUser) populateState(freshUser);
-    } catch (err) {
-      console.warn("Could not fetch latest patient profile:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const populateState = (user) => {
+  const populateState = useCallback((user) => {
     const details = user.profileDetails || {};
     const dobFormatted = details.dateOfBirth
       ? new Date(details.dateOfBirth).toISOString().split("T")[0]
@@ -91,11 +78,23 @@ export default function PatientProfileTab() {
       status: user.status || "Active",
       profilePhotoUrl: user.profilePhotoUrl || details.profilePhotoUrl || null,
     });
-  };
-
-  useEffect(() => {
-    loadProfile();
   }, []);
+
+  const loadProfile = useCallback(async () => {
+    try {
+      const cached = authService.getUser();
+      if (cached) populateState(cached);
+
+      const freshUser = await authService.getMe();
+      if (freshUser) populateState(freshUser);
+    } catch (err) {
+      console.warn("Could not fetch latest patient profile:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [populateState]);
+
+  useEffect(() => deferEffectCallback(loadProfile), [loadProfile]);
 
   // ---------- Load real appointment + vaccination history ----------
   useEffect(() => {

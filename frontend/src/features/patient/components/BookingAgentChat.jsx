@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import agentService from '../services/agentService';
 
 const formatMarkdownText = (text, isUser = false) => {

@@ -71,6 +71,7 @@ class _PatientMainScreenState extends State<PatientMainScreen> {
       PatientAppointmentsScreen(
         initialAppointments: _appointments,
         onAppointmentBooked: _onAppointmentBooked,
+        onAppointmentsChanged: _loadAppointments,
       ),
       const PatientHistoryScreen(),
       const PatientFeedbackScreen(),
@@ -85,7 +86,10 @@ class _PatientMainScreenState extends State<PatientMainScreen> {
       ),
       bottomNavigationBar: StaffBottomNav(
         index: _currentIndex,
-        onSelect: (i) => setState(() => _currentIndex = i),
+        onSelect: (i) {
+          setState(() => _currentIndex = i);
+          if (i == 1) _loadAppointments();
+        },
         destinations: [
           const StaffNavDestination(
             icon: Icons.dashboard_outlined,
@@ -96,9 +100,7 @@ class _PatientMainScreenState extends State<PatientMainScreen> {
             icon: Icons.calendar_today_outlined,
             activeIcon: Icons.calendar_month,
             label: 'Bookings',
-            badgeCount: _appointments
-                .where((a) => a.status.toLowerCase() != 'completed')
-                .length,
+            badgeCount: _appointments.where(isUpcomingPatientAppointment).length,
           ),
           const StaffNavDestination(
             icon: Icons.verified_user_outlined,

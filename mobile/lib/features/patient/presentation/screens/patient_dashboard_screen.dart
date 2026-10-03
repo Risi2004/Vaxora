@@ -358,7 +358,7 @@ class _PatientDashboardScreenState extends State<PatientDashboardScreen> {
                     icon: const Icon(Icons.auto_awesome, size: 18),
                     label: const Text('AI care plan'),
                     style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFF0EA5E9),
+                      backgroundColor: const Color(0xFF168B91),
                       foregroundColor: Colors.white,
                       elevation: 0,
                       padding: const EdgeInsets.symmetric(vertical: 12),
