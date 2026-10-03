@@ -212,3 +212,26 @@ internal sealed class FakeRegistrationNumberService : IRegistrationNumberService
     public Task<string> GenerateRegistrationNumberAsync(UserRole role) =>
         Task.FromResult($"VAX-{role.ToString()[0]}-{Random.Shared.Next(1000, 9999)}");
 }
+
+internal sealed class FakeR2StorageService : IR2StorageService
+{
+    public Task<string> UploadFileAsync(Microsoft.AspNetCore.Http.IFormFile file, string folderPrefix, string customFileName = "") =>
+        Task.FromResult($"https://fake-r2.vaxora.lk/{folderPrefix}/test.png");
+
+    public Task<string> GetPresignedUrlAsync(string objectKey, int expiryMinutes = 60) =>
+        Task.FromResult($"https://fake-r2.vaxora.lk/{objectKey}?token=valid");
+
+    public Task<bool> DeleteFileAsync(string objectKey) => Task.FromResult(true);
+}
+
+internal sealed class FakeVaccinationCardService : IVaccinationCardService
+{
+    public byte[] GenerateVaccinationCardPdf(
+        string patientName,
+        string registrationNumber,
+        string nicNumber,
+        DateTime? dateOfBirth,
+        string? phoneNumber,
+        DateTime issuanceDate) =>
+        new byte[] { 0x25, 0x50, 0x44, 0x46 }; // %PDF
+}
