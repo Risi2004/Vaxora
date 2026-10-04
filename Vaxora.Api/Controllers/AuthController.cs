@@ -234,8 +234,13 @@ public class AuthController : ControllerBase
     [Authorize]
     [HttpPost("profile/photo")]
     [Consumes("multipart/form-data")]
-    public async Task<IActionResult> UpdateProfilePhoto([FromForm] IFormFile photo)
+    public async Task<IActionResult> UpdateProfilePhoto([FromForm] ProfilePhotoUploadDto request)
     {
+        if (request?.Photo == null || request.Photo.Length == 0)
+        {
+            return BadRequest(new { message = "No photo file uploaded." });
+        }
+
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
             ?? User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)?.Value;
 
@@ -246,7 +251,7 @@ public class AuthController : ControllerBase
 
         try
         {
-            var updatedUser = await _authService.UpdateProfilePhotoAsync(userId, photo);
+            var updatedUser = await _authService.UpdateProfilePhotoAsync(userId, request.Photo);
             return Ok(updatedUser);
         }
         catch (KeyNotFoundException)
