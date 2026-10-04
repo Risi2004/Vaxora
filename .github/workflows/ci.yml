@@ -167,15 +167,18 @@ jobs:
         working-directory: frontend
         run: npx playwright install --with-deps chromium
 
+      - name: Build Backend
+        run: dotnet build Vaxora.Api/Vaxora.Api.csproj --configuration Release
+
       - name: Start Backend API
-        run: dotnet run --project Vaxora.Api/Vaxora.Api.csproj &
+        run: dotnet run --project Vaxora.Api/Vaxora.Api.csproj --no-build --configuration Release > backend.log 2>&1 &
         env:
           ConnectionStrings__DefaultConnection: Host=localhost;Port=5432;Database=vaxora_test_db;Username=vaxora_test;Password=test_password;SSL Mode=Prefer;Trust Server Certificate=true
           ASPNETCORE_URLS: http://localhost:5004
           ASPNETCORE_ENVIRONMENT: Development
 
       - name: Start Agent Service
-        run: python agent/main.py &
+        run: python agent/main.py > agent.log 2>&1 &
         env:
           PORT: 8001
           VAXORA_API_BASE_URL: http://localhost:5004/api
@@ -183,7 +186,7 @@ jobs:
 
       - name: Start Frontend Server
         working-directory: frontend
-        run: npm run dev &
+        run: npm run dev > ../frontend.log 2>&1 &
         env:
           VITE_API_URL: http://localhost:5004
 
@@ -193,14 +196,21 @@ jobs:
             API_OK=$(curl -s http://localhost:5004/api/health | grep -c "healthy" || true)
             FRONTEND_OK=$(curl -s http://localhost:5173 > /dev/null && echo 1 || echo 0)
             AGENT_OK=$(curl -s http://localhost:8001/api/agent/health | grep -c "healthy" || true)
-            if [ "$API_OK" -ge 1 ] && [ "$FRONTEND_OK" -eq 1 ] && [ "$AGENT_OK" -ge 1 ]; then
-              echo "All services (API, Frontend, Agent) are online and healthy!"
+            LOGIN_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://localhost:5004/api/auth/login -H "Content-Type: application/json" -d '{"email":"patient1@vaxora.lk","password":"Password123!"}' || echo "000")
+            if [ "$API_OK" -ge 1 ] && [ "$FRONTEND_OK" -eq 1 ] && [ "$AGENT_OK" -ge 1 ] && [ "$LOGIN_CODE" -eq 200 ]; then
+              echo "All services (API, Frontend, Agent) and seeded database accounts are online and verified!"
               exit 0
             fi
-            echo "Waiting for services to become healthy... ($i/45) [API: $API_OK, Frontend: $FRONTEND_OK, Agent: $AGENT_OK]"
+            echo "Waiting for services... ($i/45) [API: $API_OK, Frontend: $FRONTEND_OK, Agent: $AGENT_OK, PatientLoginCode: $LOGIN_CODE]"
             sleep 2
           done
-          echo "Services failed to start in time"
+          echo "=== Backend Log ==="
+          cat backend.log || true
+          echo "=== Agent Log ==="
+          cat agent.log || true
+          echo "=== Frontend Log ==="
+          cat frontend.log || true
+          echo "Services or seeded database accounts failed to start in time"
           exit 1
 
       - name: Run Playwright E2E Tests
@@ -214,3 +224,15 @@ jobs:
           name: playwright-report
           path: frontend/playwright-report/
           retention-days: 14
+
+      - name: Upload Service Logs
+        uses: actions/upload-artifact@v4
+        if: ${{ failure() }}
+        with:
+          name: service-logs
+          path: |
+            backend.log
+            agent.log
+            frontend.log
+          retention-days: 7
+

@@ -30,10 +30,10 @@ var builder = WebApplication.CreateBuilder(args);
 
 // 1. Configure Database Connection (Neon PostgreSQL / Npgsql)
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-if (string.IsNullOrWhiteSpace(connectionString))
+if (string.IsNullOrWhiteSpace(connectionString) || connectionString.Contains("PASTE_YOUR_ORIGINAL_CONNECTION_STRING_HERE"))
 {
-    connectionString = builder.Configuration["DATABASE_URL"]
-        ?? Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")
+    connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")
+        ?? builder.Configuration["DATABASE_URL"]
         ?? Environment.GetEnvironmentVariable("DATABASE_URL")
         ?? "Host=localhost;Database=vaxoradb;Username=postgres;Password=postgres";
 }
