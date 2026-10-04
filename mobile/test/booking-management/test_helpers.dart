@@ -3,9 +3,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:http/http.dart' as http;
-import 'package:mobile/core/services/storage_service.dart';
 import 'package:mobile/features/patient/presentation/widgets/appointment_card.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -53,7 +50,9 @@ class _TestMockHttpClient implements HttpClient {
 }
 
 class _TestMockHttpRequest implements HttpClientRequest {
+  @override
   final String method;
+  @override
   final Uri uri;
   final Future<MockHttpResponse> Function(String method, Uri uri, dynamic body) handler;
   final StringBuffer _buffer = StringBuffer();

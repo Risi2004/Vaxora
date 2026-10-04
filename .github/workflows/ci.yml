@@ -102,3 +102,19 @@ jobs:
       - name: Run StaffSchedulingAgent evaluation suite
         working-directory: agent
         run: python -m pytest -q
+
+  mobile:
+    name: Mobile
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: "stable"
+          cache: true
+      - name: Install dependencies
+        working-directory: mobile
+        run: flutter pub get
+      - name: Run tests
+        working-directory: mobile
+        run: flutter test
