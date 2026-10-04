@@ -155,3 +155,7 @@ __pycache__/
 __pycache__/
 *.pyc
 .vscode/settings.json
+build/
+**/build/
+mobile/android/build/
+mobile/build/
