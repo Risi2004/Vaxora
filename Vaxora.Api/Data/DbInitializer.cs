@@ -202,12 +202,62 @@ public static class DbInitializer
                 logger.LogInformation("Test hospital account seeded: {Email} / {Password}",
                     testHospitalEmail, testHospitalPassword);
             }
+
+            // ============ SEED TEST PATIENT (DEV ONLY) ============
+            const string testPatientEmail = "patient1@vaxora.lk";
+            const string testPatientPassword = "Password123!";
+
+            var existingPatient = await context.Users
+                .FirstOrDefaultAsync(u => u.Email.ToLower() == testPatientEmail.ToLower());
+
+            if (existingPatient == null)
+            {
+                var patientUser = new User
+                {
+                    Id = Guid.NewGuid(),
+                    Email = testPatientEmail,
+                    PasswordHash = passwordHasher.HashPassword(testPatientPassword),
+                    Role = UserRole.PATIENT,
+                    Status = UserStatus.Active,
+                    PhoneNumber = "0771234567",
+                    RegistrationNumber = "VAX-P-1003",
+                    CreatedAt = DateTime.UtcNow
+                };
+                context.Users.Add(patientUser);
+
+                var patientProfile = new PatientProfile
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = patientUser.Id,
+                    FullName = "Kamal Perera",
+                    NicNumber = "199512345678",
+                    DateOfBirth = new DateTime(1995, 5, 15, 0, 0, 0, DateTimeKind.Utc),
+                    PhoneNumber = "0771234567",
+                    CreatedAt = DateTime.UtcNow
+                };
+                context.PatientProfiles.Add(patientProfile);
+
+                context.AuditLogs.Add(new AuditLog
+                {
+                    UserId = patientUser.Id,
+                    UserEmail = patientUser.Email,
+                    Role = "PATIENT",
+                    Action = "SYSTEM_SEED",
+                    Details = "Test patient account provisioned on startup (dev only)",
+                    Timestamp = DateTime.UtcNow
+                });
+
+                await context.SaveChangesAsync();
+                logger.LogInformation("Test patient account seeded: {Email} / {Password}",
+                    testPatientEmail, testPatientPassword);
+            }
             // ============ END DEV-ONLY ============
             // Seed National Vaccines if not exists
             if (!await context.Vaccines.AnyAsync())
             {
                 var defaultVaccines = new List<Vaccine>
                 {
+                    new Vaccine { Name = "AstraZeneca", Manufacturer = "AstraZeneca", Category = VaccineCategory.Routine, DosesPerVial = 1, RequiredTemp = "+2°C to +8°C Chilled", DefaultMinThreshold = 100 },
                     new Vaccine { Name = "Pfizer Bivalent mRNA", Manufacturer = "Pfizer-BioNTech", Category = VaccineCategory.MRNA, DosesPerVial = 6, RequiredTemp = "-80°C to -60°C Deep Freeze", DefaultMinThreshold = 200 },
                     new Vaccine { Name = "Hepatitis B Recombinant", Manufacturer = "Serum Institute of India", Category = VaccineCategory.Routine, DosesPerVial = 10, RequiredTemp = "+2°C to +8°C Chilled", DefaultMinThreshold = 300 },
                     new Vaccine { Name = "Moderna Spikevax", Manufacturer = "Moderna Inc.", Category = VaccineCategory.MRNA, DosesPerVial = 10, RequiredTemp = "-25°C to -15°C Frozen", DefaultMinThreshold = 150 },
@@ -219,6 +269,55 @@ public static class DbInitializer
                 context.Vaccines.AddRange(defaultVaccines);
                 await context.SaveChangesAsync();
                 logger.LogInformation("National immunization vaccines successfully initialized.");
+            }
+
+            // Ensure test hospital has AstraZeneca formulary & schedule
+            var hospitalUserInstance = await context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == testHospitalEmail.ToLower());
+            if (hospitalUserInstance != null)
+            {
+                var hospitalProf = await context.HospitalProfiles.FirstOrDefaultAsync(p => p.UserId == hospitalUserInstance.Id);
+                var astraVaccine = await context.Vaccines.FirstOrDefaultAsync(v => v.Name == "AstraZeneca");
+
+                if (hospitalProf != null && astraVaccine != null)
+                {
+                    var hasFormulary = await context.HospitalFormularies.AnyAsync(f => f.HospitalProfileId == hospitalProf.Id && f.VaccineId == astraVaccine.Id);
+                    if (!hasFormulary)
+                    {
+                        context.HospitalFormularies.Add(new HospitalFormulary
+                        {
+                            Id = Guid.NewGuid(),
+                            HospitalProfileId = hospitalProf.Id,
+                            VaccineId = astraVaccine.Id,
+                            RegisteredAt = DateTime.UtcNow
+                        });
+                        await context.SaveChangesAsync();
+                    }
+
+                    var hasSchedule = await context.VaccineSchedules.AnyAsync(s => s.HospitalUserId == hospitalUserInstance.Id && s.VaccineName == "AstraZeneca");
+                    if (!hasSchedule)
+                    {
+                        context.VaccineSchedules.Add(new VaccineSchedule
+                        {
+                            Id = Guid.NewGuid(),
+                            HospitalUserId = hospitalUserInstance.Id,
+                            HospitalProfileId = hospitalProf.Id,
+                            DoctorName = "Dr. Test Doctor",
+                            NurseName = "Nurse Test Nurse",
+                            VaccineId = astraVaccine.Id,
+                            VaccineName = "AstraZeneca",
+                            ScheduleType = "Weekly",
+                            DaysOfWeek = "Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday",
+                            StartDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-1)),
+                            EndDate = DateOnly.FromDateTime(DateTime.UtcNow.AddYears(1)),
+                            StartTime = "09:00",
+                            EndTime = "11:00",
+                            Status = "Active",
+                            Price = 1000.00m,
+                            CreatedAt = DateTime.UtcNow
+                        });
+                        await context.SaveChangesAsync();
+                    }
+                }
             }
         }
         catch (Exception ex)

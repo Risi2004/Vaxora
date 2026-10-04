@@ -118,3 +118,80 @@ jobs:
       - name: Run tests
         working-directory: mobile
         run: flutter test
+
+  e2e:
+    name: E2E Tests (Playwright)
+    runs-on: ubuntu-latest
+    needs: [api, frontend]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: vaxora_test
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: vaxora_test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Frontend Dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Install Playwright Browsers
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Start Backend API
+        run: dotnet run --project Vaxora.Api/Vaxora.Api.csproj &
+        env:
+          ConnectionStrings__DefaultConnection: Host=localhost;Port=5432;Database=vaxora_test_db;Username=vaxora_test;Password=test_password;SSL Mode=Prefer;Trust Server Certificate=true
+          ASPNETCORE_URLS: http://localhost:5004
+          ASPNETCORE_ENVIRONMENT: Development
+
+      - name: Start Frontend Server
+        working-directory: frontend
+        run: npm run dev &
+        env:
+          VITE_API_URL: http://localhost:5004
+
+      - name: Wait for Services
+        run: |
+          for i in $(seq 1 30); do
+            if curl -s http://localhost:5004/api/health > /dev/null && curl -s http://localhost:5174 > /dev/null; then
+              echo "Both API and Frontend are online!"
+              exit 0
+            fi
+            echo "Waiting for services to become healthy... ($i/30)"
+            sleep 2
+          done
+          echo "Services failed to start in time"
+          exit 1
+
+      - name: Run Playwright E2E Tests
+        working-directory: frontend
+        run: npx playwright test
+
+      - name: Upload Playwright Report
+        uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+          retention-days: 14
