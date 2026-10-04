@@ -3,8 +3,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile/core/network/api_client.dart';
-import 'package:mobile/core/services/storage_service.dart';
-import 'package:mobile/features/patient/data/models/appointment_model.dart';
 import 'package:mobile/features/patient/data/repositories/appointment_repository.dart';
 import 'package:mobile/features/patient/presentation/screens/patient_appointments_screen.dart';
 import 'test_helpers.dart';
