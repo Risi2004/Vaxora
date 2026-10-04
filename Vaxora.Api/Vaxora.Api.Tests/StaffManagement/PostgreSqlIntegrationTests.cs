@@ -9,8 +9,16 @@ namespace Vaxora.Api.Tests.StaffManagement;
 /// <summary>
 /// Staff Management — real PostgreSQL CRUD for affiliations, shifts, swaps, agent workflows.
 /// </summary>
+[Collection("PostgreSql")]
 public class PostgreSqlIntegrationTests
 {
+    private readonly PostgreSqlFixture _postgres;
+
+    public PostgreSqlIntegrationTests(PostgreSqlFixture postgres)
+    {
+        _postgres = postgres;
+    }
+
     private static string GetRequiredPostgreSqlConnectionString()
     {
         var conn = Environment.GetEnvironmentVariable("TEST_POSTGRESQL_CONNECTION")
@@ -69,6 +77,9 @@ public class PostgreSqlIntegrationTests
                 Assert.Fail($"PostgreSQL unavailable: {ex.Message}");
             }
         }
+
+        // CI Postgres starts empty; migrate before touching staff/swap tables.
+        _postgres.EnsureMigrated(connectionString);
 
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseNpgsql(connectionString)

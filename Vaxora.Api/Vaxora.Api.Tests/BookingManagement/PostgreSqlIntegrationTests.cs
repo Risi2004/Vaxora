@@ -6,8 +6,16 @@ using Vaxora.Api.Models;
 
 namespace Vaxora.Api.Tests.BookingManagement;
 
+[Collection("PostgreSql")]
 public class PostgreSqlIntegrationTests
 {
+    private readonly PostgreSqlFixture _postgres;
+
+    public PostgreSqlIntegrationTests(PostgreSqlFixture postgres)
+    {
+        _postgres = postgres;
+    }
+
     private static string GetRequiredPostgreSqlConnectionString()
     {
         var conn = Environment.GetEnvironmentVariable("TEST_POSTGRESQL_CONNECTION")
@@ -100,6 +108,8 @@ public class PostgreSqlIntegrationTests
             }
         }
 
+        _postgres.EnsureMigrated(connectionString);
+
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseNpgsql(connectionString)
             .Options;
@@ -171,73 +181,10 @@ public class PostgreSqlIntegrationTests
             {
                 Assert.Fail($"PostgreSQL instance at '{conn.Host}' is unavailable: {ex.Message}");
             }
-
-            // Ensure __EFMigrationsHistory table exists in public schema
-            await using var initCmd = conn.CreateCommand();
-            initCmd.CommandText = @"
-                CREATE TABLE IF NOT EXISTS ""__EFMigrationsHistory"" (
-                    ""MigrationId"" character varying(150) NOT NULL,
-                    ""ProductVersion"" character varying(32) NOT NULL,
-                    CONSTRAINT ""PK___EFMigrationsHistory"" PRIMARY KEY (""MigrationId"")
-                );";
-            await initCmd.ExecuteNonQueryAsync();
-
-            // 20260928004401_AddAppointmentsAndBooths is a consolidated full-schema baseline migration.
-            // On a clean database, executing the 16 historical migrations prior to AddAppointmentsAndBooths
-            // causes collision because AddAppointmentsAndBooths re-creates the initial sequences and tables.
-            // We baseline these historical migrations so AddAppointmentsAndBooths executes cleanly as the schema baseline.
-            var baselineHistoricalMigrations = new[]
-            {
-                "20260910031256_InitialCreate",
-                "20260910041633_AlignSignupSchema",
-                "20260910044322_RemoveDoctorHospitalAffiliation",
-                "20260910044524_RemoveNurseDepartmentAndAffiliation",
-                "20260910051426_AddVaxoraRegistrationNumbersAndSequences",
-                "20260912125907_AddStaffManagement",
-                "20260914063649_AddInventoryModule",
-                "20260918000000_AddAppointmentScheduleModule",
-                "20260920070000_AddAppointmentPrescribedDosage",
-                "20260920120000_AddPatientRecordsModule",
-                "20260922193000_AddAgentWorkflowState",
-                "20260924160000_AddHospitalBooths",
-                "20260924180000_AddHospitalBoothVaccines",
-                "20260926080618_SyncModelSnapshot",
-                "20260926090000_EnsureAppointmentScheduleColumns",
-                "20260927220000_AddVaccineScheduleBooth"
-            };
-
-            foreach (var migrationId in baselineHistoricalMigrations)
-            {
-                await using var recordCmd = conn.CreateCommand();
-                recordCmd.CommandText = $"INSERT INTO \"__EFMigrationsHistory\" (\"MigrationId\", \"ProductVersion\") VALUES ('{migrationId}', '8.0.11') ON CONFLICT DO NOTHING;";
-                await recordCmd.ExecuteNonQueryAsync();
-            }
-
-            // Check if baseline/incremental tables exist from prior runs.
-            // If they exist, synchronize their migration IDs so EF Core's migrator executes remaining migrations cleanly.
-            var subsequentChecks = new (string MigrationId, string SqlCheck)[]
-            {
-                ("20260928004401_AddAppointmentsAndBooths", "SELECT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'Appointments');"),
-                ("20260929010000_AddShiftSwapRequests", "SELECT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'ShiftSwapRequests');"),
-                ("20260929030000_AddCoverReplacementOnSwap", "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ShiftSwapRequests' AND column_name = 'CoverDoctorUserId');"),
-                ("20261001120000_AddAgentWorkflowExecutionEvidence", "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'AgentWorkflowStates' AND column_name = 'Evidence');"),
-                ("20261002120000_AddBatchOpenVialDosesRemaining", "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'Batches' AND column_name = 'OpenVialDosesRemaining');"),
-                ("20261002130000_AllowGuestWalkInAppointments", "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'Appointments' AND column_name = 'GuestWalkInPatientName');")
-            };
-
-            foreach (var (migrationId, sqlCheck) in subsequentChecks)
-            {
-                await using var checkCmd = conn.CreateCommand();
-                checkCmd.CommandText = sqlCheck;
-                var exists = (bool?)await checkCmd.ExecuteScalarAsync() ?? false;
-                if (exists)
-                {
-                    await using var recordCmd = conn.CreateCommand();
-                    recordCmd.CommandText = $"INSERT INTO \"__EFMigrationsHistory\" (\"MigrationId\", \"ProductVersion\") VALUES ('{migrationId}', '8.0.11') ON CONFLICT DO NOTHING;";
-                    await recordCmd.ExecuteNonQueryAsync();
-                }
-            }
         }
+
+        // Shared helper baselines historical migrations then runs EF Migrate.
+        _postgres.EnsureMigrated(connectionString);
 
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseNpgsql(connectionString)
@@ -245,18 +192,12 @@ public class PostgreSqlIntegrationTests
 
         await using var context = new ApplicationDbContext(options);
 
-        // 1. Verify connection
         var canConnect = await context.Database.CanConnectAsync();
         Assert.True(canConnect, "Expected to successfully connect to PostgreSQL database.");
 
-        // 2. Query all defined migrations from code
         var allMigrations = context.Database.GetMigrations().ToList();
         Assert.NotEmpty(allMigrations);
 
-        // 3. EXECUTE EF CORE MIGRATION ENGINE AGAINST REAL POSTGRESQL DATABASE
-        await context.Database.MigrateAsync();
-
-        // 4. Verify applied migrations in PostgreSQL __EFMigrationsHistory
         var finalApplied = await context.Database.GetAppliedMigrationsAsync();
         Assert.NotEmpty(finalApplied);
 
@@ -280,6 +221,8 @@ public class PostgreSqlIntegrationTests
                 Assert.Fail($"PostgreSQL instance at '{conn.Host}' is unavailable: {ex.Message}");
             }
         }
+
+        _postgres.EnsureMigrated(connectionString);
 
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseNpgsql(connectionString)
