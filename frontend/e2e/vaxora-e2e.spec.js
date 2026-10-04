@@ -209,4 +209,110 @@ test.describe('Vaxora E2E Testing Suite', () => {
 
     await freshContext.close();
   });
+
+  // ---------------------------------------------------------------------------
+  // 6. Agentic AI Booking Workflow (End-to-End)
+  // ---------------------------------------------------------------------------
+  test('6. Complete Agentic AI autonomous booking workflow', async ({ page }) => {
+    // Accommodate multi-step LLM reasoning, inventory discovery & tool execution
+    test.setTimeout(120000);
+
+    // Step 1: Log in as a valid user
+    await page.goto('/login');
+    await page.fill('input[name="email"]', TEST_PATIENT.email);
+    await page.fill('input[name="password"]', TEST_PATIENT.password);
+    await page.click('button[type="submit"]');
+    await expect(page).toHaveURL(/\/patient\/dashboard/);
+
+    // Step 2: Open Booking Management and launch AI Booking Agent
+    await page.goto('/patient/appointments');
+    await expect(page).toHaveURL(/\/patient\/appointments/);
+
+    // Ensure PayHere SDK popup does not block the UI during automated test execution
+    await page.evaluate(() => {
+      if (window.payhere) {
+        window.payhere.startPayment = (payment) => {
+          console.log('[Mock PayHere] startPayment bypassed for test:', payment);
+        };
+      }
+    });
+
+    const openAgentBtn = page.getByRole('button', { name: /Open Booking Agent/i });
+    await expect(openAgentBtn).toBeVisible({ timeout: 10000 });
+    await openAgentBtn.click();
+
+    // Verify Agent modal is rendered and agent is online
+    const agentHeading = page.getByRole('heading', { name: 'Vaxora AI Booking Concierge' });
+    await expect(agentHeading).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('Agent Online')).toBeVisible({ timeout: 15000 });
+
+    // Step 3 & 4: Submit a realistic vaccine booking request through UI & verify request reaches backend
+    const chatInput = page.locator('textarea[placeholder*="Ask anything or request to book"]');
+    await expect(chatInput).toBeVisible();
+    await chatInput.fill('Book the earliest AstraZeneca appointment at Royal Hospitals');
+
+    // Intercept backend /api/agent/chat response to verify request reaches the ASP.NET Core gateway
+    const proposalResponsePromise = page.waitForResponse(
+      (res) => res.url().includes('/api/agent/chat') && res.status() === 200,
+      { timeout: 60000 }
+    );
+
+    const sendBtn = page.locator('button:has-text("Send")');
+    await expect(sendBtn).toBeEnabled();
+    await sendBtn.click();
+
+    // Step 4 verification: Request reached backend and returned 200 OK
+    const proposalRes = await proposalResponsePromise;
+    expect(proposalRes.ok()).toBeTruthy();
+
+    // Step 5: Verify Agentic AI booking workflow is triggered and proposal card is displayed
+    await expect(page.getByText('Booking Proposal (Approval Required)')).toBeVisible({ timeout: 35000 });
+    await expect(page.locator('text=💉 Vaccine:').first()).toBeVisible();
+    await expect(page.locator('text=🏥 Hospital:').first()).toBeVisible();
+
+    // Step 6: Verify the agent successfully performs the booking upon human approval
+    const approveBtn = page.getByRole('button', { name: /Approve & Book/i });
+    await expect(approveBtn).toBeVisible();
+
+    const bookingResponsePromise = page.waitForResponse(
+      (res) => res.url().includes('/api/agent/chat') && res.status() === 200,
+      { timeout: 60000 }
+    );
+
+    await approveBtn.click();
+
+    const bookingRes = await bookingResponsePromise;
+    expect(bookingRes.ok()).toBeTruthy();
+    const bookingJson = await bookingRes.json();
+    expect(bookingJson.booking).toBeDefined();
+    expect(bookingJson.booking.success).toBe(true);
+
+    const bookedAppointmentId = bookingJson.booking.appointment?.id || bookingJson.booking.appointment?.Id;
+    expect(bookedAppointmentId).toBeTruthy();
+
+    // Step 8: Verify booking confirmation / result card is displayed to the user
+    await expect(page.getByText(/Appointment (Confirmed|Reserved)/i).first()).toBeVisible({ timeout: 20000 });
+    await expect(page.getByText(/Appointment ID:/i).first()).toBeVisible();
+    await expect(page.getByText(bookedAppointmentId).first()).toBeVisible();
+
+    // Step 7: Verify that the booking is persisted successfully in the database and visible in Appointments
+    await page.evaluate(() => {
+      const ph = document.getElementById('ph-container');
+      if (ph) ph.remove();
+    });
+
+    const closeAgentBtn = page.locator('button[title="Close Booking Agent"]');
+    await closeAgentBtn.click();
+    await expect(agentHeading).not.toBeVisible();
+
+    // Verify Appointments table reflects the persisted booking
+    const table = page.locator('.custom-appointments-table');
+    await expect(table).toBeVisible();
+
+    const bookingRow = table.locator('tbody tr').filter({ hasText: 'AstraZeneca' }).first();
+    await expect(bookingRow).toBeVisible({ timeout: 15000 });
+    await expect(bookingRow.locator('.td-vaccine')).toContainText('AstraZeneca');
+    await expect(bookingRow.locator('.td-location')).toContainText('Royal Hospitals');
+  });
 });
+
