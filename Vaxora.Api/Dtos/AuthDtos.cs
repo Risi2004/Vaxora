@@ -205,3 +205,8 @@ public class AdminUserItemDto
     public DateTime? LastLoginAt { get; set; }
     public object? Profile { get; set; }
 }
+
+public class ProfilePhotoUploadDto
+{
+    public IFormFile Photo { get; set; } = null!;
+}
