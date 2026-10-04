@@ -27,6 +27,8 @@ scratch/
 /frontend/pnpm-debug.log*
 /frontend/.vercel
 .vercel
+/frontend/playwright-report/
+/frontend/test-results/
 
 
 # Frontend Environments
