@@ -288,7 +288,7 @@ public static class DbInitializer
                             Id = Guid.NewGuid(),
                             HospitalProfileId = hospitalProf.Id,
                             VaccineId = astraVaccine.Id,
-                            CreatedAt = DateTime.UtcNow
+                            RegisteredAt = DateTime.UtcNow
                         });
                         await context.SaveChangesAsync();
                     }
