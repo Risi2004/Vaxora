@@ -5,7 +5,7 @@ using Vaxora.Api.Dtos;
 using Vaxora.Api.Models;
 using Vaxora.Api.Services;
 
-namespace Vaxora.Api.Tests;
+namespace Vaxora.Api.Tests.StaffManagement;
 
 public class ShiftSwapServiceTests
 {

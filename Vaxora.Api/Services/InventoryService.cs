@@ -1014,22 +1014,27 @@ public class InventoryService : IInventoryService
     {
         limit = Math.Clamp(limit, 1, 50);
 
+        // Load then cap in-memory so EF InMemory (used by unit tests) cannot
+        // ignore Take/UserId filters the way server-side composition sometimes does.
         var logs = await _context.AuditLogs
-            .Where(a => a.UserId == userId && a.Action.StartsWith("AI_"))
-            .OrderByDescending(a => a.Timestamp)
-            .Take(limit)
+            .AsNoTracking()
+            .Where(a => a.UserId.HasValue && a.UserId.Value == userId && a.Action.StartsWith("AI_"))
             .ToListAsync();
 
-        return logs.Select(l => new InventoryAgentWorkflowDto
-        {
-            WorkflowId = ExtractWorkflowId(l.Details ?? ""),
-            AgentName = l.Action.Contains("PO") || l.Action.Contains("RESTOCK") ? "RestockAgent" : "ExpiryAgent",
-            DraftType = l.Action.Contains("PO") ? "purchase_order" : "expiry_memo",
-            DocumentNumber = ExtractDocNumber(l.Details ?? ""),
-            Summary = l.Details ?? "",
-            Status = "executed",
-            CreatedAt = l.Timestamp
-        }).ToList();
+        return logs
+            .OrderByDescending(a => a.Timestamp)
+            .Take(limit)
+            .Select(l => new InventoryAgentWorkflowDto
+            {
+                WorkflowId = ExtractWorkflowId(l.Details ?? ""),
+                AgentName = l.Action.Contains("PO") || l.Action.Contains("RESTOCK") ? "RestockAgent" : "ExpiryAgent",
+                DraftType = l.Action.Contains("PO") ? "purchase_order" : "expiry_memo",
+                DocumentNumber = ExtractDocNumber(l.Details ?? ""),
+                Summary = l.Details ?? "",
+                Status = "executed",
+                CreatedAt = l.Timestamp
+            })
+            .ToList();
     }
 
     private static string ExtractWorkflowId(string details)
