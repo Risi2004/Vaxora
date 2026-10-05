@@ -1,6 +1,7 @@
 import json
 import logging
 import httpx
+import re
 from typing import List, Dict, Any, Optional
 from openai import AsyncOpenAI
 
@@ -34,6 +35,23 @@ except ImportError:
         tool_cancel_appointment,
         tool_propose_cancellation_for_approval
     )
+
+try:
+    from .inventory.state_store import state_store
+except ImportError:
+    try:
+        from inventory.state_store import state_store
+    except ImportError:
+        state_store = None
+
+try:
+    from .evaluation.booking_golden import validate_booking_proposal
+except ImportError:
+    try:
+        from evaluation.booking_golden import validate_booking_proposal
+    except ImportError:
+        def validate_booking_proposal(proposal):
+            return {"valid": True, "issues": []}
 
 logger = logging.getLogger("vaxora-booking-agent")
 
@@ -84,7 +102,62 @@ You are STRICTLY FORBIDDEN from executing permanent database changes (`book_appo
 
 5. FORMATTING:
    Keep responses concise, clear, and structured with clean bullet points. Avoid messy asterisks.
+
+6. STRICT MEDICAL / CLINICAL ADVICE BOUNDARY:
+   You are an administrative booking agent, NOT a medical doctor.
+   You are strictly forbidden from prescribing vaccines, diagnosing conditions, or advising patients on what vaccines they should take based on vague inquiries (e.g. 'What vaccines can I take now?', 'Which vaccine should I take?').
+   Always politely decline medical recommendations and advise the patient to consult a qualified physician or healthcare professional.
 """
+
+INJECTION_PATTERNS = [
+    r"ignore\s+(all\s+)?(prior|previous|above|system)\s+instructions?",
+    r"disregard\s+(all\s+)?(prior|previous|above|rules?)",
+    r"system\s*prompt",
+    r"\bjailbreak\b",
+    r"developer\s+mode",
+    r"you\s+are\s+now\s+in\s+DAN\s+mode",
+    r"system\s+override",
+    r"admin\s+override",
+    r"\bforce_book\b",
+    r"\bdirect_book\b",
+    r"\bdelete_appointment\b",
+    r"\bbypass_payment\b",
+    r"\bpurge_appointments\b",
+    r"\bdirect_cancel\b",
+]
+
+CLINICAL_ADVICE_PATTERNS = [
+    r"what\s+vaccines?\s+can\s+i\s+take",
+    r"which\s+vaccines?\s+(should|can|must)\s+i\s+take",
+    r"what\s+vaccines?\s+(do|should)\s+i\s+need",
+    r"what\s+vaccines?\s+am\s+i\s+eligible\s+for",
+    r"can\s+i\s+take\s+a?\s*vaccine\s+if",
+    r"recommend\s+a\s+vaccine\s+for\s+me",
+    r"is\s+it\s+safe\s+for\s+me\s+to\s+take",
+    r"should\s+i\s+get\s+vaccinated",
+    r"what\s+dose\s+do\s+i\s+need",
+    r"\bdiagnos(e|is)\b",
+    r"my\s+symptoms?\s+(are|is)",
+]
+
+
+def check_prompt_injection(text: str) -> Optional[str]:
+    if not text:
+        return None
+    for pattern in INJECTION_PATTERNS:
+        if re.search(pattern, text, re.IGNORECASE):
+            return f"Prohibited instruction or prompt-injection pattern detected: {pattern}"
+    return None
+
+
+def check_clinical_advice_inquiry(text: str) -> Optional[str]:
+    if not text:
+        return None
+    for pattern in CLINICAL_ADVICE_PATTERNS:
+        if re.search(pattern, text, re.IGNORECASE):
+            return f"Out-of-scope clinical/medical advice inquiry detected: {pattern}"
+    return None
+
 
 class BookingAgent:
     """
@@ -207,11 +280,116 @@ class BookingAgent:
         self,
         messages: List[Dict[str, Any]],
         token: Optional[str] = None,
-        patient_info: Optional[Dict[str, Any]] = None
+        patient_info: Optional[Dict[str, Any]] = None,
+        user_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """
-        Runs the conversational tool-calling agent loop.
+        Runs the conversational tool-calling agent loop with:
+        1. Multi-step structured planning (plan + completedSteps tracking)
+        2. Runtime deterministic business-rule validation
+        3. Durable workflow state persistence
         """
+        last_user_message = ""
+        for m in reversed(messages):
+            if m.get("role") == "user":
+                last_user_message = str(m.get("content") or "").strip()
+                break
+
+        is_cancellation = any(kw in last_user_message.lower() for kw in ["cancel", "delete appointment", "revoke"])
+
+        if is_cancellation:
+            plan = [
+                {"step": 1, "action": "Query patient active appointment registry", "status": "in_progress"},
+                {"step": 2, "action": "Locate matching appointment details and check cancellation eligibility", "status": "pending"},
+                {"step": 3, "action": "Format cancellation review proposal for patient approval", "status": "pending"},
+            ]
+        else:
+            plan = [
+                {"step": 1, "action": "Search hospital clinic inventory and scheduled dates", "status": "in_progress"},
+                {"step": 2, "action": "Inspect 20-minute open time slots matching patient preferences", "status": "pending"},
+                {"step": 3, "action": "Validate slot availability, fee structure, and business rules", "status": "pending"},
+                {"step": 4, "action": "Prepare structured booking review proposal for patient approval", "status": "pending"},
+            ]
+
+        workflow_id = None
+        if state_store:
+            try:
+                workflow_id = state_store.create(
+                    agent_name=self.name,
+                    user_id=user_id or (patient_info.get("nic") or patient_info.get("email") if patient_info else "anonymous"),
+                    objective=last_user_message or "Vaccine booking and scheduling consultation"
+                )
+            except Exception as se:
+                logger.warning(f"Failed to create workflow in state store: {se}")
+
+        # 1. Deterministic Prompt Injection / Adversarial Jailbreak Check
+        injection_issue = check_prompt_injection(last_user_message)
+        if injection_issue:
+            logger.warning(f"[{self.name}] Prompt injection blocked: {injection_issue}")
+            if state_store and workflow_id:
+                try:
+                    state_store.set_approval(workflow_id, "failed")
+                    state_store.set_outcome(workflow_id, "SafeFailure")
+                    state_store.set_validation(workflow_id, [{"valid": False, "issues": [injection_issue]}])
+                except Exception:
+                    pass
+            return {
+                "agent": self.name,
+                "role": "assistant",
+                "content": "Security Alert: This request contains prohibited system instructions or prompt injection attempts and was safely blocked. Vaxora booking operations require standard verified user requests.",
+                "workflowId": workflow_id,
+                "plan": [],
+                "completedSteps": [],
+                "toolResults": [],
+                "validation": {"valid": False, "issues": [injection_issue]},
+                "proposal": None,
+                "proposals": [],
+                "booking": None,
+                "cancellation": None,
+                "approvalRequired": False,
+                "finalOutcome": "SafeFailure",
+            }
+
+        # 2. Deterministic Clinical / Medical Advice Boundary Check
+        clinical_issue = check_clinical_advice_inquiry(last_user_message)
+        if clinical_issue:
+            logger.info(f"[{self.name}] Clinical medical advice inquiry redirected: {clinical_issue}")
+            if state_store and workflow_id:
+                try:
+                    state_store.set_approval(workflow_id, "not_required")
+                    state_store.set_outcome(workflow_id, "Completed")
+                    state_store.set_validation(workflow_id, [{"valid": False, "issues": [clinical_issue]}])
+                except Exception:
+                    pass
+            return {
+                "agent": self.name,
+                "role": "assistant",
+                "content": (
+                    "As an administrative appointment booking agent, I cannot provide clinical medical advice "
+                    "or determine which vaccines you should receive. Please consult a qualified doctor or healthcare "
+                    "professional to evaluate your medical history and clinical eligibility. "
+                    "Once you know which vaccine you require (e.g., Pfizer, AstraZeneca, Sinopharm), I would be "
+                    "glad to help you find an available clinic and schedule your appointment."
+                ),
+                "workflowId": workflow_id,
+                "plan": [],
+                "completedSteps": [],
+                "toolResults": [],
+                "validation": {"valid": False, "issues": [clinical_issue]},
+                "proposal": None,
+                "proposals": [],
+                "booking": None,
+                "cancellation": None,
+                "approvalRequired": False,
+                "finalOutcome": "Completed",
+            }
+
+        if state_store and workflow_id:
+            try:
+                state_store.set_plan(workflow_id, plan)
+            except Exception as se:
+                logger.warning(f"Failed to set plan in state store: {se}")
+
         conversation = [{"role": "system", "content": BOOKING_AGENT_SYSTEM_PROMPT}]
         if patient_info:
             conversation.append({
@@ -223,8 +401,11 @@ class BookingAgent:
         max_iterations = 6
         iteration = 0
         proposal_data = None
+        cancellation_proposal_data = None
         booking_result = None
         cancellation_result = None
+        completed_steps = []
+        tool_results = []
 
         while iteration < max_iterations:
             iteration += 1
@@ -233,13 +414,29 @@ class BookingAgent:
                 msg = await self._call_llm(conversation, tools=TOOLS_SCHEMA)
             except Exception as e:
                 logger.error(f"LLM call failed: {e}")
+                err_msg = f"I encountered an issue connecting to the AI model service ({self.model}): {str(e)}. Please verify your OpenRouter configuration and API key."
+                if state_store and workflow_id:
+                    try:
+                        state_store.set_approval(workflow_id, "failed")
+                        state_store.set_outcome(workflow_id, "Failed")
+                        state_store.update(workflow_id, errors_json=json.dumps([str(e)]))
+                    except Exception:
+                        pass
                 return {
                     "agent": self.name,
                     "role": "assistant",
-                    "content": f"I encountered an issue connecting to the AI model service ({self.model}): {str(e)}. Please verify your OpenRouter configuration and API key.",
+                    "content": err_msg,
+                    "workflowId": workflow_id,
+                    "plan": plan,
+                    "completedSteps": completed_steps,
+                    "toolResults": tool_results,
+                    "validation": {"valid": False, "issues": [str(e)]},
                     "proposal": None,
+                    "proposals": [],
                     "booking": None,
-                    "cancellation": None
+                    "cancellation": None,
+                    "approvalRequired": False,
+                    "finalOutcome": "Failed"
                 }
 
             tool_calls = msg.get("tool_calls") or []
@@ -266,12 +463,49 @@ class BookingAgent:
 
                     tool_output = await self.execute_tool(fn_name, fn_args, token)
 
+                    # Update structured plan status based on tool execution
+                    if is_cancellation:
+                        if fn_name == "get_my_appointments":
+                            plan[0]["status"] = "completed"
+                            plan[1]["status"] = "in_progress"
+                        elif fn_name == "propose_cancellation_for_approval":
+                            plan[0]["status"] = "completed"
+                            plan[1]["status"] = "completed"
+                            plan[2]["status"] = "awaiting_user_approval"
+                    else:
+                        if fn_name in ("get_available_vaccines_and_hospitals", "get_available_dates"):
+                            plan[0]["status"] = "completed"
+                            plan[1]["status"] = "in_progress"
+                        elif fn_name == "get_available_slots":
+                            plan[0]["status"] = "completed"
+                            plan[1]["status"] = "completed"
+                            plan[2]["status"] = "in_progress"
+                        elif fn_name in ("autonomous_find_and_propose", "propose_booking_for_approval"):
+                            plan[0]["status"] = "completed"
+                            plan[1]["status"] = "completed"
+                            plan[2]["status"] = "completed"
+                            plan[3]["status"] = "awaiting_user_approval"
+
+                    completed_steps.append(f"{fn_name}")
+                    tool_results.append({
+                        "tool": fn_name,
+                        "arguments": fn_args,
+                        "success": tool_output.get("success", True) if isinstance(tool_output, dict) else True,
+                    })
+
+                    if state_store and workflow_id:
+                        try:
+                            state_store.append_tool_call(workflow_id, fn_name, fn_args, tool_output)
+                            state_store.append_step(workflow_id, {"step": fn_name, "status": "completed"})
+                        except Exception as se:
+                            logger.warning(f"Failed to record tool call to state store: {se}")
+
                     if fn_name == "propose_booking_for_approval":
                         proposal_data = fn_args
                     elif fn_name == "autonomous_find_and_propose" and tool_output.get("proposal"):
                         proposal_data = tool_output.get("proposal")
                     elif fn_name == "propose_cancellation_for_approval" and tool_output.get("proposal"):
-                        proposal_data = tool_output.get("proposal")
+                        cancellation_proposal_data = tool_output.get("proposal")
 
                     if fn_name == "book_appointment" and tool_output.get("success"):
                         booking_result = tool_output
@@ -284,24 +518,57 @@ class BookingAgent:
                         "content": json.dumps(tool_output)
                     })
             else:
-                final_content = msg.get("content") or msg.get("reasoning") or "How else can I help you with your booking?"
-                return {
-                    "agent": self.name,
-                    "role": "assistant",
-                    "content": final_content,
-                    "proposal": proposal_data,
-                    "booking": booking_result,
-                    "cancellation": cancellation_result
-                }
+                break
 
-        final_content = msg.get("content") or msg.get("reasoning") or "I have processed your request."
+        final_content = msg.get("content") or msg.get("reasoning") or "I have processed your booking request."
+
+        # Deterministic validation
+        validation_result = {"valid": True, "issues": []}
+        if proposal_data:
+            validation_result = validate_booking_proposal(proposal_data)
+            if not validation_result.get("valid"):
+                logger.warning(f"Booking proposal failed validation: {validation_result.get('issues')}")
+        elif cancellation_proposal_data:
+            c_issues = []
+            if not cancellation_proposal_data.get("appointment_id"):
+                c_issues.append("Missing appointment_id in cancellation proposal")
+            validation_result = {"valid": len(c_issues) == 0, "issues": c_issues}
+
+        proposals_list = []
+        if proposal_data:
+            proposals_list.append(proposal_data)
+        elif cancellation_proposal_data:
+            proposals_list.append(cancellation_proposal_data)
+
+        has_proposals = len(proposals_list) > 0
+        approval_required = has_proposals
+        final_outcome = "AwaitingApproval" if has_proposals else ("Completed" if (booking_result or cancellation_result or not tool_calls) else "Completed")
+
+        # Persist final state to durable store
+        if state_store and workflow_id:
+            try:
+                state_store.set_validation(workflow_id, [validation_result])
+                state_store.set_approval(workflow_id, "awaiting_approval" if has_proposals else "completed")
+                state_store.set_outcome(workflow_id, final_outcome)
+                state_store.set_plan(workflow_id, plan)
+            except Exception as se:
+                logger.warning(f"Failed to finalize workflow state in store: {se}")
+
         return {
             "agent": self.name,
             "role": "assistant",
             "content": final_content,
+            "workflowId": workflow_id,
+            "plan": plan,
+            "completedSteps": completed_steps,
+            "toolResults": tool_results,
+            "validation": validation_result,
             "proposal": proposal_data,
+            "proposals": proposals_list,
             "booking": booking_result,
-            "cancellation": cancellation_result
+            "cancellation": cancellation_result or cancellation_proposal_data,
+            "approvalRequired": approval_required,
+            "finalOutcome": final_outcome
         }
 
 booking_agent = BookingAgent()
