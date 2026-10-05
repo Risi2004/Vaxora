@@ -1,12 +1,13 @@
-import { getToken } from '../../auth/services/authService';
+import { getToken } from "../../auth/services/authService";
 
 const getApiBase = () => {
-  const envUrl = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL;
-  if (envUrl && typeof envUrl === 'string' && envUrl.trim()) {
-    const trimmed = envUrl.trim().replace(/\/+$/, '');
-    return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`;
+  const envUrl =
+    import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL;
+  if (envUrl && typeof envUrl === "string" && envUrl.trim()) {
+    const trimmed = envUrl.trim().replace(/\/+$/, "");
+    return trimmed.endsWith("/api") ? trimmed : `${trimmed}/api`;
   }
-  return '/api';
+  return "/api";
 };
 
 const API_BASE = getApiBase();
@@ -14,7 +15,7 @@ const API_BASE = getApiBase();
 async function apiRequest(endpoint, options = {}) {
   const token = getToken();
   const headers = {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
     ...(options.headers || {}),
   };
 
@@ -27,16 +28,16 @@ async function apiRequest(endpoint, options = {}) {
     headers,
   });
 
-  const contentType = response.headers.get('content-type');
-  const isJson = contentType && contentType.includes('application/json');
+  const contentType = response.headers.get("content-type");
+  const isJson = contentType && contentType.includes("application/json");
   const data = isJson ? await response.json() : await response.text();
 
   if (!response.ok) {
-    let errorMessage = 'Request failed';
-    if (typeof data === 'object' && data !== null) {
+    let errorMessage = "Request failed";
+    if (typeof data === "object" && data !== null) {
       if (data.message) errorMessage = data.message;
       else if (data.title) errorMessage = data.title;
-    } else if (typeof data === 'string' && data) {
+    } else if (typeof data === "string" && data) {
       errorMessage = data;
     }
     throw new Error(errorMessage);
@@ -48,12 +49,12 @@ async function apiRequest(endpoint, options = {}) {
 function buildQuery(params = {}) {
   const query = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && String(value).trim() !== '') {
+    if (value !== undefined && value !== null && String(value).trim() !== "") {
       query.set(key, value);
     }
   });
   const qs = query.toString();
-  return qs ? `?${qs}` : '';
+  return qs ? `?${qs}` : "";
 }
 
 export const clinicalPatientService = {
@@ -71,9 +72,35 @@ export const clinicalPatientService = {
 
   updateDosage(appointmentId, dosage) {
     return apiRequest(`/clinical/appointments/${appointmentId}/dosage`, {
-      method: 'PUT',
+      method: "PUT",
       body: JSON.stringify({ dosage }),
     });
+  },
+
+  // ============================================================
+  // Added: clinical data entry — medical history & visits
+  // ============================================================
+
+  /** Create a medical history record (diagnosis, allergy, medication, surgery). */
+  createMedicalHistory(patientProfileId, data) {
+    return apiRequest(
+      `/patient-medical-history/patients/${encodeURIComponent(patientProfileId)}`,
+      {
+        method: "POST",
+        body: JSON.stringify(data),
+      },
+    );
+  },
+
+  /** Record a patient visit with vitals, diagnosis, and treatment plan. */
+  createVisit(patientProfileId, data) {
+    return apiRequest(
+      `/patient-visits/patients/${encodeURIComponent(patientProfileId)}`,
+      {
+        method: "POST",
+        body: JSON.stringify(data),
+      },
+    );
   },
 };
 
