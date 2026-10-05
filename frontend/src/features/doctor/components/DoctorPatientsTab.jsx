@@ -1,7 +1,6 @@
 import { deferEffectCallback } from '../../../shared/utils/deferEffectCallback.js';
 import { useCallback, useEffect, useState } from 'react';
 import clinicalPatientService from '../services/clinicalPatientService';
-import staffService from '../../hospital/services/staffService';
 import staffAppointmentService from '../../staff/services/staffAppointmentService';
 import { IconCheck, IconClose, IconPencil, IconSearch } from '../../../shared/icons/AppIcons';
 import StaffSubpageHeader from '../../staff/components/StaffSubpageHeader';
@@ -81,23 +80,12 @@ export default function DoctorPatientsTab() {
   const [closingMissedId, setClosingMissedId] = useState(null);
   const [notification, setNotification] = useState('');
   const [error, setError] = useState('');
-  const [isOnDuty, setIsOnDuty] = useState(false);
   const [recordFilter, setRecordFilter] = useState('all');
 
   const showToast = (message) => {
     setNotification(message);
     setTimeout(() => setNotification(''), 3000);
   };
-
-  const loadDutyStatus = useCallback(async () => {
-    try {
-      const list = await staffService.getMyAffiliations();
-      const active = Array.isArray(list) ? list : [];
-      setIsOnDuty(active.some((a) => a.isOnDutyNow));
-    } catch {
-      setIsOnDuty(false);
-    }
-  }, []);
 
   const loadRecent = useCallback(async () => {
     setRecentLoading(true);
@@ -113,15 +101,7 @@ export default function DoctorPatientsTab() {
 
   useEffect(() => deferEffectCallback(() => {
     loadRecent();
-    loadDutyStatus();
-  }), [loadRecent, loadDutyStatus]);
-
-  useEffect(() => deferEffectCallback(() => {
-    if (!isOnDuty && editingDosageId) {
-      setEditingDosageId(null);
-      setDosageInput('');
-    }
-  }), [isOnDuty, editingDosageId]);
+  }), [loadRecent]);
 
   useEffect(() => deferEffectCallback(() => {
     const q = searchQuery.trim();
@@ -175,7 +155,6 @@ export default function DoctorPatientsTab() {
       setShowDropdown(false);
       setSearchQuery(mapped.name || displayName || vaxoraId);
       showToast(`Record loaded: ${mapped.name} (${mapped.vaxoraId})`);
-      await loadDutyStatus();
     } catch (err) {
       setError(err.message || 'Failed to load patient.');
     } finally {
@@ -184,11 +163,6 @@ export default function DoctorPatientsTab() {
   };
 
   const handleSaveDosage = async (pvId) => {
-    if (!isOnDuty) {
-      setError('You need an active shift to prescribe dosage.');
-      setEditingDosageId(null);
-      return;
-    }
     const row = selectedPatient?.pendingVaccines?.find((pv) => pv.id === pvId);
     if (row?.isOverdue) {
       setError('Past incomplete visits cannot be prescribed. Mark them missed or ask the patient to rebook.');
@@ -584,19 +558,9 @@ export default function DoctorPatientsTab() {
                                   <button
                                     type="button"
                                     className="ph-dosage-icon-btn is-edit"
-                                    disabled={!isOnDuty}
-                                    title={
-                                      isOnDuty
-                                        ? 'Edit dosage'
-                                        : 'Active shift required to prescribe dosage'
-                                    }
-                                    aria-label={
-                                      isOnDuty
-                                        ? 'Edit dosage'
-                                        : 'Active shift required to prescribe dosage'
-                                    }
+                                    title="Edit dosage"
+                                    aria-label="Edit dosage"
                                     onClick={() => {
-                                      if (!isOnDuty) return;
                                       setEditingDosageId(pv.id);
                                       setDosageInput(pv.dosage || '');
                                     }}

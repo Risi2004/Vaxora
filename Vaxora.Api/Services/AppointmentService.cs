@@ -52,10 +52,10 @@ public class AppointmentService : IAppointmentService
         };
 
     /// <summary>
-    /// Clinical transitions that require the doctor/nurse to be on an active shift.
-    /// Hospital owners are exempt (they update without a staff shift).
+    /// Clinical session transitions that only doctors/nurses may perform (not hospital desk).
+    /// Also used for payment-settled checks before administration.
     /// </summary>
-    private static readonly HashSet<string> OnDutyRequiredStatuses =
+    private static readonly HashSet<string> ClinicalSessionStatuses =
         new(StringComparer.OrdinalIgnoreCase)
         {
             "Administering",
@@ -808,24 +808,45 @@ public class AppointmentService : IAppointmentService
                 a.Status != "Rejected" &&
                 a.AppointmentDate == sessionDate);
 
-        if (!hospitalWide)
+        List<Appointment> appointments;
+        if (hospitalWide)
         {
-            query = query.Where(a =>
-                a.DoctorUserId == staffUserId ||
-                a.NurseUserId == staffUserId ||
-                (a.VaccineScheduleId != null &&
-                 _context.VaccineSchedules.Any(v =>
-                     v.Id == a.VaccineScheduleId &&
-                     (v.DoctorUserId == staffUserId || v.NurseUserId == staffUserId))));
+            appointments = await query
+                .OrderBy(a => a.AppointmentDate)
+                .ThenBy(a => a.StartTime)
+                .ThenBy(a => a.CreatedAt)
+                .ToListAsync();
+        }
+        else
+        {
+            // "My patients" = bookings that overlap this staff member's shifts today.
+            // Schedules stay hospital-wide; shifts decide who works the floor.
+            var shiftRows = await _context.StaffShifts
+                .AsNoTracking()
+                .Where(s =>
+                    s.Affiliation.StaffUserId == staffUserId &&
+                    s.Affiliation.HospitalUserId == hospitalUserId &&
+                    s.Affiliation.Status == AffiliationStatus.Active &&
+                    s.ShiftDate == sessionDate)
+                .Select(s => new { s.StartTime, s.EndTime, s.BoothId })
+                .ToListAsync();
+
+            var shifts = shiftRows
+                .Select(s => (s.StartTime, s.EndTime, s.BoothId))
+                .ToList();
+
+            var rows = await query
+                .OrderBy(a => a.AppointmentDate)
+                .ThenBy(a => a.StartTime)
+                .ThenBy(a => a.CreatedAt)
+                .ToListAsync();
+
+            appointments = rows
+                .Where(a => AppointmentVisibleOnStaffShift(a, staffUserId, shifts))
+                .ToList();
         }
 
-        var appointments = await query
-            .OrderBy(a => a.AppointmentDate)
-            .ThenBy(a => a.StartTime)
-            .ThenBy(a => a.CreatedAt)
-            .ToListAsync();
-
-        var scopeLabel = hospitalWide ? "hospital" : "my_panel";
+        var scopeLabel = hospitalWide ? "hospital" : "my_shift";
         var dateLabel = sessionDate.ToString("yyyy-MM-dd");
         var auditDetails =
             $"Staff viewed clinical appointment list scope={scopeLabel} hospital={hospitalUserId} date={dateLabel} recordCount={appointments.Count}";
@@ -874,7 +895,6 @@ public class AppointmentService : IAppointmentService
             throw new UnauthorizedAccessException("You are not affiliated with this hospital.");
 
         await EnsureStaffAssignedToAppointmentAsync(appointment, staffUserId);
-        await StaffDutyHelper.EnsureStaffOnDutyAsync(_context, staffUserId, appointment.HospitalUserId);
 
         _context.AuditLogs.Add(new AuditLog
         {
@@ -942,18 +962,13 @@ public class AppointmentService : IAppointmentService
         }
 
         // Clinical session transitions are doctor/nurse only — hospital can monitor, not administer.
-        if (OnDutyRequiredStatuses.Contains(nextStatus))
+        if (ClinicalSessionStatuses.Contains(nextStatus))
         {
             if (isHospitalOwner)
             {
                 throw new UnauthorizedAccessException(
-                    "Clinical status changes (Administering, Observation, Completed) must be performed by on-duty clinical staff.");
+                    "Clinical status changes (Administering, Observation, Completed) must be performed by clinical staff.");
             }
-
-            await StaffDutyHelper.EnsureStaffOnDutyAsync(
-                _context,
-                actorUserId,
-                appointment.HospitalUserId);
         }
 
         // Returning a patient from an active clinical session to the waiting queue is also a clinical action.
@@ -967,17 +982,12 @@ public class AppointmentService : IAppointmentService
             if (isHospitalOwner)
             {
                 throw new UnauthorizedAccessException(
-                    "Returning a patient to the waiting queue must be performed by on-duty clinical staff.");
+                    "Returning a patient to the waiting queue must be performed by clinical staff.");
             }
-
-            await StaffDutyHelper.EnsureStaffOnDutyAsync(
-                _context,
-                actorUserId,
-                appointment.HospitalUserId);
         }
 
         // Dose/session transitions require settled payment (free bookings are Paid at create).
-        if (OnDutyRequiredStatuses.Contains(nextStatus) &&
+        if (ClinicalSessionStatuses.Contains(nextStatus) &&
             !string.Equals(appointment.PaymentStatus, "Paid", StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException(
@@ -1080,7 +1090,7 @@ public class AppointmentService : IAppointmentService
             ?? throw new UnauthorizedAccessException("Invalid user.");
 
         if (actor.Role is not (UserRole.DOCTOR or UserRole.NURSE))
-            throw new UnauthorizedAccessException("Only on-duty clinical staff can report AEFI.");
+            throw new UnauthorizedAccessException("Only clinical staff can report AEFI.");
 
         if (actor.Status != UserStatus.Active)
             throw new InvalidOperationException("Staff account must be Active.");
@@ -1094,8 +1104,6 @@ public class AppointmentService : IAppointmentService
             throw new UnauthorizedAccessException("You are not affiliated with this hospital.");
 
         await EnsureStaffAssignedToAppointmentAsync(appointment, actorUserId);
-
-        await StaffDutyHelper.EnsureStaffOnDutyAsync(_context, actorUserId, appointment.HospitalUserId);
 
         if (string.Equals(appointment.Status, "Cancelled", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(appointment.Status, "Rejected", StringComparison.OrdinalIgnoreCase))
@@ -1894,21 +1902,88 @@ public class AppointmentService : IAppointmentService
 
     private async Task EnsureStaffAssignedToAppointmentAsync(Appointment appointment, Guid staffUserId)
     {
+        // Explicit assignment (rare) still binds the booking to that clinician.
         if (appointment.DoctorUserId == staffUserId || appointment.NurseUserId == staffUserId)
             return;
 
+        Guid? scheduleDoctorId = null;
+        Guid? scheduleNurseId = null;
         if (appointment.VaccineScheduleId is Guid scheduleId)
         {
             var schedule = await _context.VaccineSchedules.AsNoTracking()
                 .FirstOrDefaultAsync(v => v.Id == scheduleId);
-            if (schedule != null &&
-                (schedule.DoctorUserId == staffUserId || schedule.NurseUserId == staffUserId))
+            if (schedule != null)
             {
-                return;
+                scheduleDoctorId = schedule.DoctorUserId;
+                scheduleNurseId = schedule.NurseUserId;
+                if (schedule.DoctorUserId == staffUserId || schedule.NurseUserId == staffUserId)
+                    return;
             }
         }
 
+        var hasExplicitAssignment =
+            appointment.DoctorUserId.HasValue ||
+            appointment.NurseUserId.HasValue ||
+            scheduleDoctorId.HasValue ||
+            scheduleNurseId.HasValue;
+
+        // Normal path: schedules are hospital-wide; affiliation gates who can act.
+        if (!hasExplicitAssignment)
+            return;
+
         throw new UnauthorizedAccessException("This appointment is not assigned to your clinical panel.");
+    }
+
+    private static bool AppointmentVisibleOnStaffShift(
+        Appointment appointment,
+        Guid staffUserId,
+        IReadOnlyList<(TimeOnly StartTime, TimeOnly EndTime, Guid? BoothId)> shifts)
+    {
+        if (appointment.DoctorUserId == staffUserId || appointment.NurseUserId == staffUserId)
+            return true;
+
+        // Keep in-progress clinical sessions visible even if the clock edged past shift end.
+        var status = appointment.Status ?? string.Empty;
+        if (status.Equals("Administering", StringComparison.OrdinalIgnoreCase) ||
+            status.Equals("Observation", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (shifts.Count == 0)
+            return false;
+
+        if (!TryGetAppointmentSlotTimes(appointment, out var slotStart, out var slotEnd))
+        {
+            // No parseable slot — show if they have any shift that day.
+            return true;
+        }
+
+        return shifts.Any(shift =>
+            slotStart < shift.EndTime &&
+            slotEnd > shift.StartTime);
+    }
+
+    private static bool TryGetAppointmentSlotTimes(Appointment appointment, out TimeOnly start, out TimeOnly end)
+    {
+        start = default;
+        end = default;
+
+        if (TimeOnly.TryParse(appointment.StartTime, out start) &&
+            TimeOnly.TryParse(appointment.EndTime, out end) &&
+            end > start)
+        {
+            return true;
+        }
+
+        var slot = appointment.TimeSlot ?? string.Empty;
+        var parts = slot.Split('-', 2, StringSplitOptions.TrimEntries);
+        if (parts.Length != 2)
+            return false;
+
+        return TimeOnly.TryParse(parts[0], out start) &&
+               TimeOnly.TryParse(parts[1], out end) &&
+               end > start;
     }
 
     private static AppointmentResponseDto MapToStaffListDto(Appointment a)

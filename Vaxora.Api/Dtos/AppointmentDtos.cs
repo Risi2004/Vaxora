@@ -92,7 +92,7 @@ public class AppointmentResponseDto
     public DateTime? UpdatedAt { get; set; }
 }
 
-/// <summary>Patient identifiers for on-duty staff after explicit contact reveal.</summary>
+/// <summary>Patient identifiers for affiliated staff after explicit contact reveal.</summary>
 public class StaffAppointmentPatientContactDto
 {
     public Guid AppointmentId { get; set; }
