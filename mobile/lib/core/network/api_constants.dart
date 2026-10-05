@@ -109,4 +109,6 @@ static const String inventoryRestock = '/inventory/batches';
 
   static String appointmentStatus(String id) => '/appointments/$id/status';
   static String appointmentAefi(String id) => '/appointments/$id/aefi';
+  static String appointmentDosage(String id) =>
+      '/clinical/appointments/$id/dosage';
 }

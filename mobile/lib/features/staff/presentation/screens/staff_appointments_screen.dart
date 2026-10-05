@@ -12,6 +12,7 @@ import '../utils/staff_date_utils.dart';
 import '../widgets/network_avatar.dart';
 import '../widgets/staff_administer_sheet.dart';
 import '../widgets/staff_aefi_sheet.dart';
+import '../widgets/staff_prescribe_sheet.dart';
 import '../widgets/staff_common_widgets.dart';
 
 const _observationWindowMinutes = 15;
@@ -45,6 +46,7 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
   bool _updating = false;
   String? _error;
   bool _allowHospitalSwitch = true;
+  bool _isDoctor = false;
   String _facilitySuffix = '';
   String? _activePatientId;
 
@@ -66,6 +68,7 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
     if (mounted) {
       setState(() {
         _allowHospitalSwitch = !isNurse;
+        _isDoctor = role.contains('DOCTOR');
         _facilitySuffix = isNurse ? ' · Nursing Station' : '';
         if (user != null) {
           _displayName = user['name']?.toString().trim().isNotEmpty == true
@@ -234,6 +237,27 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
       await _loadAppointments();
     } catch (e) {
       _toast(e is ApiException ? e.message : 'Failed to update status.');
+    } finally {
+      if (mounted) setState(() => _updating = false);
+    }
+  }
+
+  Future<void> _prescribe(StaffAppointmentModel patient) async {
+    final dosage = await showStaffPrescribeSheet(
+      context: context,
+      patient: patient,
+    );
+    if (dosage == null) return;
+    setState(() => _updating = true);
+    try {
+      await StaffRepository.updateDosage(
+        appointmentId: patient.id,
+        dosage: dosage,
+      );
+      await _loadAppointments();
+      _toast('Dose prescribed for ${patient.patientName}');
+    } catch (e) {
+      _toast(e is ApiException ? e.message : 'Failed to prescribe dose.');
     } finally {
       if (mounted) setState(() => _updating = false);
     }
@@ -665,6 +689,8 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
                     appointment: a,
                     busy: _updating,
                     onDuty: _isOnDuty,
+                    canPrescribe: _isDoctor,
+                    onPrescribe: () => _prescribe(a),
                     onExamine: () => _examine(a),
                     onCertify: () => _certify(a),
                     onDischarge: () => _discharge(a),
@@ -986,6 +1012,8 @@ class _AppointmentCard extends StatelessWidget {
   final StaffAppointmentModel appointment;
   final bool busy;
   final bool onDuty;
+  final bool canPrescribe;
+  final VoidCallback onPrescribe;
   final VoidCallback onExamine;
   final VoidCallback onCertify;
   final VoidCallback onDischarge;
@@ -994,6 +1022,8 @@ class _AppointmentCard extends StatelessWidget {
     required this.appointment,
     required this.busy,
     required this.onDuty,
+    required this.canPrescribe,
+    required this.onPrescribe,
     required this.onExamine,
     required this.onCertify,
     required this.onDischarge,
@@ -1129,6 +1159,22 @@ class _AppointmentCard extends StatelessWidget {
                       fontSize: 11.5,
                       fontWeight: FontWeight.w600,
                       color: StaffSurfaces.textSecondary,
+                    ),
+                  ),
+                ],
+                if (canPrescribe &&
+                    onDuty &&
+                    appointment.uiStatus == 'waiting') ...[
+                  const SizedBox(height: 4),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      onPressed: busy ? null : onPrescribe,
+                      icon: const Icon(Icons.medication_outlined, size: 18),
+                      label: Text(
+                        appointment.hasDosage ? 'Edit dose' : 'Prescribe dose',
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
                     ),
                   ),
                 ],
