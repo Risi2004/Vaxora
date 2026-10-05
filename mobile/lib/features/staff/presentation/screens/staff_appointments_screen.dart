@@ -413,12 +413,12 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
   }
 
   Future<void> _pickDate() async {
-    final initial = DateTime.tryParse(_filterDate) ?? DateTime.now();
+    final initial = DateTime.tryParse(_filterDate) ?? hospitalNow();
     final picked = await showDatePicker(
       context: context,
       initialDate: initial,
-      firstDate: DateTime.now().subtract(const Duration(days: 365)),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
+      firstDate: hospitalNow().subtract(const Duration(days: 365)),
+      lastDate: hospitalNow().add(const Duration(days: 365)),
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
@@ -451,7 +451,7 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
         ? null
         : (_isOnDuty ? 'On duty' : 'No active shift');
     final active = _activePatient;
-    final now = DateTime.now();
+    final now = hospitalNow();
 
     return Scaffold(
       backgroundColor: StaffSurfaces.pageBg,
