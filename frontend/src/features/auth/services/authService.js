@@ -278,14 +278,11 @@ export const authService = {
 
   // 12. Delete Account
   async deleteAccount() {
-    try {
-      const data = await apiRequest('/auth/account', {
-        method: 'DELETE',
-      });
-      return data;
-    } finally {
-      clearAuth();
-    }
+    const data = await apiRequest('/auth/account', {
+      method: 'DELETE',
+    });
+    clearAuth();
+    return data;
   },
 
   // ================= ADMIN VERIFICATION & DASHBOARD APIS =================

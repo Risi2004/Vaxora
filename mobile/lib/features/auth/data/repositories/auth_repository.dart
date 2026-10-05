@@ -441,4 +441,9 @@ class AuthRepository {
   static Future<void> logout() async {
     await StorageService.clearAuth();
   }
+
+  static Future<void> deleteAccount() async {
+    await ApiClient.delete(ApiConstants.deleteAccount);
+    await StorageService.clearAuth();
+  }
 }

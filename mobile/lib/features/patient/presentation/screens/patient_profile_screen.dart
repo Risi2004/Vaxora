@@ -177,6 +177,81 @@ class _PatientProfileScreenState extends State<PatientProfileScreen> {
     );
   }
 
+  void _handleDeleteAccount() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: StaffSurfaces.cardBg,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(StaffSurfaces.cardRadius),
+        ),
+        title: const Text(
+          'Delete Account Permanently?',
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            color: AppColors.error,
+          ),
+        ),
+        content: const Text(
+          'This will permanently delete your Vaxora patient account, personal records, and vaccination history. This action cannot be undone.',
+          style: TextStyle(fontSize: 13.5, color: StaffSurfaces.textSecondary, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: StaffSurfaces.textSecondary,
+              ),
+            ),
+          ),
+          FilledButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              try {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Deleting account...'),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+                await AuthRepository.deleteAccount();
+                if (!mounted) return;
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (context) => const LoginScreen()),
+                  (route) => false,
+                );
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    backgroundColor: AppColors.error,
+                    content: Text('Your Vaxora account has been permanently deleted.'),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              } catch (e) {
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    backgroundColor: AppColors.error,
+                    content: Text('Failed to delete account: $e'),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
+            },
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.error,
+              elevation: 0,
+            ),
+            child: const Text('Yes, Delete Account'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -415,6 +490,21 @@ class _PatientProfileScreenState extends State<PatientProfileScreen> {
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                       side: const BorderSide(color: StaffSurfaces.dangerBorder),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                FilledButton.icon(
+                  onPressed: _handleDeleteAccount,
+                  icon: const Icon(Icons.delete_forever_outlined, size: 18),
+                  label: const Text('Delete Account'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.error,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
                     ),
                   ),
                 ),
