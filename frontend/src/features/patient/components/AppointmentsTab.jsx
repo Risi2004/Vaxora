@@ -1064,7 +1064,7 @@ export default function AppointmentsTab() {
                 )}
               </div>
 
-              {/* 4. 20-Minute Time Slot picker — up to 3 patients per band */}
+              {/* 4. Compact scrollable slots — seat info only on light hover */}
               <div className="book-form-group">
                 <label
                   className={`book-form-label ${!isDateSelected ? 'disabled' : ''}`}
@@ -1072,28 +1072,24 @@ export default function AppointmentsTab() {
                 >
                   Time Slot (20-Minute Sessions) <span style={{ color: '#dc2626' }}>*</span>
                 </label>
-                <p className="slot-capacity-note">
-                  Each time band can take up to <strong>3 patients</strong>. Hover a slot to see how many seats are left.
-                </p>
 
                 {!isDateSelected ? (
-                  <span className="field-helper-hint">
-                    Select a date to view available 20-min slots
-                  </span>
+                  <span className="field-helper-hint">Select a date to load time bands</span>
                 ) : loadingSlots ? (
-                  <span className="field-helper-hint">
-                    Checking open seats for each 20-minute band…
-                  </span>
+                  <span className="field-helper-hint">Loading time bands…</span>
                 ) : availableSlots.length === 0 ? (
                   <span className="field-helper-hint hint-warning" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                     <IconShield size={14} /> No open time bands on this date. Pick another day.
                   </span>
+                ) : availableSlots.every((s) => s.isBooked || s.IsBooked) ? (
+                  <span className="field-helper-hint hint-warning" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    <IconShield size={14} /> Every band is full. Try another date.
+                  </span>
                 ) : (
                   <div
-                    className="slot-chip-grid"
+                    className="slot-list"
                     role="listbox"
                     aria-labelledby="select-time-label"
-                    aria-required="true"
                   >
                     {availableSlots.map((slotObj) => {
                       const slotText = slotObj.slot || slotObj.Slot;
@@ -1105,10 +1101,10 @@ export default function AppointmentsTab() {
                       const isFull = Boolean(slotObj.isBooked || slotObj.IsBooked) || seatsLeft <= 0;
                       const isSelected = formData.time === slotText;
                       const tip = isFull
-                        ? `${slotText} — all ${capacity} seats are taken. Choose another time.`
-                        : booked === 0
-                          ? `${slotText} — all ${capacity} seats free. You can book this time.`
-                          : `${slotText} — ${seatsLeft} of ${capacity} seats left (${booked} already booked).`;
+                        ? `All ${capacity} seats taken`
+                        : seatsLeft === capacity
+                          ? `All ${capacity} seats free`
+                          : `${seatsLeft} of ${capacity} seats left`;
 
                       return (
                         <button
@@ -1117,33 +1113,33 @@ export default function AppointmentsTab() {
                           role="option"
                           aria-selected={isSelected}
                           aria-disabled={isFull}
+                          aria-label={`${slotText}, ${tip}`}
                           disabled={isFull}
-                          title={tip}
                           className={[
-                            'slot-chip',
+                            'slot-list-row',
                             isFull ? 'is-full' : 'is-open',
                             isSelected ? 'is-selected' : '',
-                            seatsLeft === 1 && !isFull ? 'is-nearly-full' : '',
                           ].filter(Boolean).join(' ')}
                           onClick={() => {
                             if (isFull) return;
                             setFormData((prev) => ({ ...prev, time: slotText }));
                           }}
                         >
-                          <span className="slot-chip-time">{slotText}</span>
-                          <span className="slot-chip-seats" aria-hidden="true">
-                            {Array.from({ length: capacity }, (_, i) => (
-                              <span
-                                key={i}
-                                className={`slot-seat-dot ${i < booked ? 'is-taken' : 'is-free'}`}
-                              />
-                            ))}
-                          </span>
-                          <span className="slot-chip-status">
-                            {isFull ? 'Full' : seatsLeft === capacity ? 'Open' : `${seatsLeft} left`}
-                          </span>
-                          <span className="slot-chip-tooltip" role="tooltip">
-                            {tip}
+                          <span
+                            className={`slot-status-dot ${isFull ? 'is-red' : 'is-green'}`}
+                            aria-hidden="true"
+                          />
+                          <span className="slot-list-time">{slotText}</span>
+                          <span className="slot-hover-tip" role="tooltip">
+                            <span className="slot-chip-seats" aria-hidden="true">
+                              {Array.from({ length: capacity }, (_, i) => (
+                                <span
+                                  key={i}
+                                  className={`slot-seat-dot ${i < booked ? 'is-taken' : 'is-free'}`}
+                                />
+                              ))}
+                            </span>
+                            <span>{tip}</span>
                           </span>
                         </button>
                       );
@@ -1151,24 +1147,7 @@ export default function AppointmentsTab() {
                   </div>
                 )}
 
-                {/* Keep required value for form validation */}
                 <input type="hidden" name="time" value={formData.time} required={isDateSelected} />
-
-                {isDateSelected && !loadingSlots && availableSlots.length > 0 && (
-                  availableSlots.every((s) => s.isBooked || s.IsBooked) ? (
-                    <span className="field-helper-hint hint-warning" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', marginTop: 8 }}>
-                      <IconShield size={14} /> Every band on this date is full (3 patients each). Try another date.
-                    </span>
-                  ) : formData.time ? (
-                    <span className="field-helper-hint hint-success" style={{ marginTop: 8 }}>
-                      Selected: <strong>{formData.time}</strong>
-                    </span>
-                  ) : (
-                    <span className="field-helper-hint" style={{ marginTop: 8 }}>
-                      Tap a time band to reserve one of its 3 seats
-                    </span>
-                  )
-                )}
               </div>
             </div>
 
@@ -1463,56 +1442,47 @@ export default function AppointmentsTab() {
                             )}
                           </div>
                         </td>
-                        <td style={{ textAlign: 'center' }}>
+                        <td className="td-status">
                           <span
+                            className="apt-status-pill"
                             style={{
-                              display: 'inline-block',
-                              padding: '4px 10px',
-                              borderRadius: '12px',
-                              fontSize: '0.78rem',
-                              fontWeight: 700,
                               backgroundColor: statusDisplay.backgroundColor,
                               color: statusDisplay.color,
+                              borderColor: statusDisplay.color,
                             }}
                           >
                             {statusDisplay.label}
                           </span>
                         </td>
                         <td className="td-action">
-                          {canCancelByStatus ? (
-                            isEligibleForCancellation(apt.appointmentDate || apt.date) ? (
-                              <button
-                                type="button"
-                                className="btn-cancel-appointment"
-                                onClick={() => handleCancel(apt)}
-                                title="Cancel appointment at least 1 day in advance"
-                              >
-                                Cancel
-                              </button>
+                          <div className="apt-action-cell">
+                            {canCancelByStatus ? (
+                              isEligibleForCancellation(apt.appointmentDate || apt.date) ? (
+                                <button
+                                  type="button"
+                                  className="btn-cancel-appointment"
+                                  onClick={() => handleCancel(apt)}
+                                  title="Cancel appointment at least 1 day in advance"
+                                >
+                                  Cancel
+                                </button>
+                              ) : (
+                                <span
+                                  className="apt-action-muted"
+                                  title="Appointments cannot be cancelled online within 24 hours of the session. Please contact the hospital directly."
+                                >
+                                  Locked
+                                </span>
+                              )
+                            ) : (apt.status || '').toLowerCase() === 'cancelled' ||
+                              (apt.status || '').toLowerCase() === 'rejected' ? (
+                              <span className="apt-action-muted is-cancelled">—</span>
+                            ) : (apt.status || '').toLowerCase() === 'completed' ? (
+                              <span className="apt-action-muted is-done">Done</span>
                             ) : (
-                              <span
-                                style={{
-                                  fontSize: '0.76rem',
-                                  color: '#64748b',
-                                  fontStyle: 'italic',
-                                  display: 'inline-block',
-                                  padding: '4px 8px',
-                                  background: '#f1f5f9',
-                                  borderRadius: '6px',
-                                }}
-                                title="Appointments cannot be cancelled online within 24 hours of the session. Please contact the hospital directly."
-                              >
-                                Locked (Same-Day)
-                              </span>
-                            )
-                          ) : (apt.status || '').toLowerCase() === 'cancelled' ||
-                            (apt.status || '').toLowerCase() === 'rejected' ? (
-                            <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Cancelled</span>
-                          ) : (apt.status || '').toLowerCase() === 'completed' ? (
-                            <span style={{ fontSize: '0.8rem', color: '#15803d', fontWeight: 600 }}>Done</span>
-                          ) : (
-                            <span style={{ fontSize: '0.76rem', color: '#64748b' }}>In progress</span>
-                          )}
+                              <span className="apt-action-muted">—</span>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );

@@ -1355,81 +1355,122 @@
   font-weight: 600;
 }
 
-.slot-capacity-note {
-  margin: 0 0 10px;
-  font-size: 0.84rem;
-  color: #64748b;
-  line-height: 1.4;
-}
-
-.slot-chip-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
-  gap: 10px;
-}
-
-.slot-chip {
-  position: relative;
+.slot-list {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
-  padding: 12px 14px;
+  gap: 2px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 6px;
+  border: 1px solid #d4dce8;
   border-radius: 12px;
-  border: 1.5px solid #d4dce8;
   background: #ffffff;
-  text-align: left;
-  cursor: pointer;
+}
+
+.slot-list-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr);
+  align-items: center;
+  column-gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
   font-family: inherit;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #0f172a;
+  cursor: pointer;
+  text-align: left;
 }
 
-.slot-chip.is-open:hover {
-  border-color: #1d1854;
-  box-shadow: 0 6px 16px -10px rgba(29, 24, 84, 0.45);
-  transform: translateY(-1px);
-}
-
-.slot-chip.is-selected {
-  border-color: #1d1854;
-  background: #eef2ff;
-  box-shadow: 0 0 0 2px rgba(29, 24, 84, 0.15);
-}
-
-.slot-chip.is-nearly-full {
-  border-color: #f59e0b;
-}
-
-.slot-chip.is-full {
+.slot-list-row:hover:not(:disabled),
+.slot-list-row:focus-visible:not(:disabled) {
   background: #f8fafc;
   border-color: #e2e8f0;
+}
+
+.slot-list-row.is-selected {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.slot-list-row.is-full {
   color: #94a3b8;
   cursor: not-allowed;
-  opacity: 0.85;
 }
 
-.slot-chip-time {
-  font-size: 0.88rem;
-  font-weight: 700;
-  color: inherit;
+.slot-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  flex-shrink: 0;
 }
 
-.slot-chip.is-open .slot-chip-time,
-.slot-chip.is-selected .slot-chip-time {
-  color: #0f172a;
+.slot-status-dot.is-green {
+  background: #16a34a;
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.15);
+}
+
+.slot-status-dot.is-red {
+  background: #dc2626;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12);
+}
+
+.slot-list-time {
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.slot-hover-tip {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%) translateX(4px);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #334155;
+  font-size: 0.76rem;
+  font-weight: 600;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  box-shadow: 0 8px 18px -12px rgba(15, 23, 42, 0.28);
+  transition: opacity 0.12s ease, transform 0.12s ease;
+  z-index: 4;
+}
+
+.slot-list-row:hover .slot-hover-tip,
+.slot-list-row:focus-visible .slot-hover-tip {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+}
+
+.slot-list-row.is-full:hover .slot-hover-tip {
+  opacity: 1;
 }
 
 .slot-chip-seats {
   display: inline-flex;
-  gap: 5px;
+  gap: 4px;
 }
 
 .slot-seat-dot {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: 999px;
   border: 1.5px solid #94a3b8;
-  background: transparent;
+  background: #ffffff;
 }
 
 .slot-seat-dot.is-taken {
@@ -1437,76 +1478,8 @@
   border-color: #1d1854;
 }
 
-.slot-chip.is-full .slot-seat-dot.is-taken {
-  background: #94a3b8;
-  border-color: #94a3b8;
-}
-
 .slot-seat-dot.is-free {
   background: #ffffff;
-}
-
-.slot-chip-status {
-  font-size: 0.74rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  color: #64748b;
-}
-
-.slot-chip.is-selected .slot-chip-status {
-  color: #1d1854;
-}
-
-.slot-chip.is-nearly-full .slot-chip-status {
-  color: #b45309;
-}
-
-.slot-chip.is-full .slot-chip-status {
-  color: #94a3b8;
-}
-
-.slot-chip-tooltip {
-  position: absolute;
-  left: 50%;
-  bottom: calc(100% + 8px);
-  transform: translateX(-50%) translateY(4px);
-  width: max-content;
-  max-width: 240px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: #0f172a;
-  color: #f8fafc;
-  font-size: 0.76rem;
-  font-weight: 500;
-  line-height: 1.35;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.15s ease, transform 0.15s ease;
-  z-index: 5;
-  box-shadow: 0 8px 20px -10px rgba(15, 23, 42, 0.55);
-}
-
-.slot-chip-tooltip::after {
-  content: '';
-  position: absolute;
-  top: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  border: 6px solid transparent;
-  border-top-color: #0f172a;
-}
-
-.slot-chip:hover .slot-chip-tooltip,
-.slot-chip:focus-visible .slot-chip-tooltip {
-  opacity: 1;
-  transform: translateX(-50%) translateY(0);
-}
-
-@media (max-width: 600px) {
-  .slot-chip-grid {
-    grid-template-columns: 1fr 1fr;
-  }
 }
 
 .book-btn-wrap {
@@ -1760,22 +1733,87 @@
 }
 
 .btn-cancel-appointment {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 108px;
+  min-height: 34px;
   background-color: #e51d27;
   color: #ffffff;
   font-family: 'Lora', 'Playfair Display', Georgia, serif;
-  font-size: 0.95rem;
+  font-size: 0.88rem;
   font-weight: 700;
-  padding: 6px 24px;
-  border: none;
+  padding: 6px 16px;
+  border: 1.5px solid #e51d27;
   border-radius: 12px;
   cursor: pointer;
-  box-shadow: 0 2px 6px rgba(229, 29, 39, 0.3);
-  transition: all var(--transition-fast);
+  box-sizing: border-box;
+  line-height: 1;
+  box-shadow: none;
 }
 
 .btn-cancel-appointment:hover {
-  background-color: #c9101a;
-  transform: translateY(-1px);
+  filter: brightness(0.95);
+}
+
+.td-status,
+.td-action {
+  text-align: center;
+  vertical-align: middle;
+}
+
+.apt-status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 108px;
+  min-height: 34px;
+  padding: 6px 14px;
+  border-radius: 12px;
+  border: 1.5px solid;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1;
+  box-sizing: border-box;
+  white-space: nowrap;
+}
+
+.apt-action-cell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 108px;
+  min-height: 34px;
+  vertical-align: middle;
+}
+
+.apt-action-muted {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 108px;
+  min-height: 34px;
+  padding: 6px 14px;
+  border-radius: 12px;
+  border: 1.5px solid #cbd5e1;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1;
+  box-sizing: border-box;
+}
+
+.apt-action-muted.is-done {
+  border-color: #86efac;
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.apt-action-muted.is-cancelled {
+  border-color: transparent;
+  background: transparent;
+  color: #94a3b8;
 }
 
 .empty-appointments-cell {
