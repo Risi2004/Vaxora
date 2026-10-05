@@ -6,6 +6,7 @@ import { appointmentService } from '../../src/features/patient/services/appointm
 // Mock appointment service
 vi.mock('../../src/features/patient/services/appointmentService', () => ({
   appointmentService: {
+    getVaccinesWithHospitals: vi.fn(),
     getPatientAppointments: vi.fn(),
     getAvailableDates: vi.fn(),
     getAvailableSlots: vi.fn(),
@@ -20,6 +21,7 @@ vi.mock('../../src/features/patient/services/appointmentService', () => ({
 describe('Booking Management - Cancellation & Status Updates (Scenario 9)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    appointmentService.getVaccinesWithHospitals.mockResolvedValue([]);
     window.alert = vi.fn();
     window.confirm = vi.fn(() => true);
 
@@ -231,5 +233,26 @@ describe('Booking Management - Cancellation & Status Updates (Scenario 9)', () =
       })
     );
     expect(result.success).toBe(true);
+  });
+
+  it('service layer requests vaccines and hospitals from the configured API base', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      headers: {
+        get: (h) => (h === 'content-type' ? 'application/json' : null),
+      },
+      json: async () => [],
+    });
+
+    const { appointmentService: realService } = await vi.importActual(
+      '../../src/features/patient/services/appointmentService'
+    );
+
+    await realService.getVaccinesWithHospitals();
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/inventory/vaccines-with-hospitals'),
+      expect.objectContaining({ method: 'GET' })
+    );
   });
 });

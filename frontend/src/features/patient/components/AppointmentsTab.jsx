@@ -245,49 +245,43 @@ export default function AppointmentsTab() {
     const fetchVaccines = async () => {
       try {
         setLoadingVaccines(true);
-        const token = localStorage.getItem('vaxora_token') || sessionStorage.getItem('vaxora_token');
-        const res = await fetch('/api/inventory/vaccines-with-hospitals', {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-        if (res.ok) {
-          const apiVaccines = await res.json();
-          if (Array.isArray(apiVaccines)) {
-            const vaccineMap = new Map();
-            apiVaccines.forEach((v) => {
-              const vName = (v.name || '').trim();
-              if (!vName) return;
-              const key = vName.toLowerCase();
-              const hospList = (v.hospitals || []).map((h) => ({
-                id: h.id, // Hospital user or profile ID
-                userId: h.userId || h.id,
-                name: h.name,
-                location: h.district || h.location || 'Sri Lanka',
-                type: h.type || 'Approved Hospital',
-              }));
+        const apiVaccines = await appointmentService.getVaccinesWithHospitals();
+        if (Array.isArray(apiVaccines)) {
+          const vaccineMap = new Map();
+          apiVaccines.forEach((v) => {
+            const vName = (v.name || '').trim();
+            if (!vName) return;
+            const key = vName.toLowerCase();
+            const hospList = (v.hospitals || []).map((h) => ({
+              id: h.id, // Hospital user or profile ID
+              userId: h.userId || h.id,
+              name: h.name,
+              location: h.district || h.location || 'Sri Lanka',
+              type: h.type || 'Approved Hospital',
+            }));
 
-              if (!vaccineMap.has(key)) {
-                vaccineMap.set(key, {
-                  id: v.id,
-                  name: vName,
-                  category: v.category || 'Routine',
-                  manufacturer: v.manufacturer || '',
-                  hospitals: hospList,
-                });
-              } else {
-                // Merge hospitals without duplicates
-                const existing = vaccineMap.get(key);
-                const existingHospIds = new Set(existing.hospitals.map((h) => h.id || h.userId));
-                hospList.forEach((h) => {
-                  if (!existingHospIds.has(h.id || h.userId)) {
-                    existing.hospitals.push(h);
-                    existingHospIds.add(h.id || h.userId);
-                  }
-                });
-              }
-            });
+            if (!vaccineMap.has(key)) {
+              vaccineMap.set(key, {
+                id: v.id,
+                name: vName,
+                category: v.category || 'Routine',
+                manufacturer: v.manufacturer || '',
+                hospitals: hospList,
+              });
+            } else {
+              // Merge hospitals without duplicates
+              const existing = vaccineMap.get(key);
+              const existingHospIds = new Set(existing.hospitals.map((h) => h.id || h.userId));
+              hospList.forEach((h) => {
+                if (!existingHospIds.has(h.id || h.userId)) {
+                  existing.hospitals.push(h);
+                  existingHospIds.add(h.id || h.userId);
+                }
+              });
+            }
+          });
 
-            setVaccinesList(Array.from(vaccineMap.values()));
-          }
+          setVaccinesList(Array.from(vaccineMap.values()));
         }
       } catch (err) {
         console.error('Error fetching vaccines with hospitals:', err);

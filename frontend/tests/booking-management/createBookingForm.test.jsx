@@ -7,6 +7,7 @@ import { appointmentService } from '../../src/features/patient/services/appointm
 // Mock appointment service
 vi.mock('../../src/features/patient/services/appointmentService', () => ({
   appointmentService: {
+    getVaccinesWithHospitals: vi.fn(),
     getPatientAppointments: vi.fn(),
     getAvailableDates: vi.fn(),
     getAvailableSlots: vi.fn(),
@@ -42,10 +43,20 @@ describe('Booking Management - Create Booking Form & Validation', () => {
       json: async () => mockVaccines,
     });
 
+    appointmentService.getVaccinesWithHospitals.mockResolvedValue(mockVaccines);
     appointmentService.getPatientAppointments.mockResolvedValue([]);
   });
 
   // 3. Create booking form renders correctly
+  it('loads vaccine choices through the appointment API service', async () => {
+    render(<AppointmentsTab />);
+
+    expect(await screen.findByRole('option', {
+      name: 'COVID-19 mRNA Booster (Moderna) (Routine)',
+    })).toBeInTheDocument();
+    expect(appointmentService.getVaccinesWithHospitals).toHaveBeenCalledTimes(1);
+  });
+
   it('renders booking form fields and disabled states according to workflow steps', async () => {
     const { container } = render(<AppointmentsTab />);
 
