@@ -265,8 +265,6 @@ public class ApiIntegrationTests : IDisposable
                 HospitalUserId = hospitalUserId,
                 VaccineId = vaccineId,
                 VaccineName = "Pfizer Comirnaty",
-                DoctorName = "Dr. Gamage",
-                NurseName = "Nurse Silva",
                 ScheduleType = "OneTime",
                 SpecificDate = scheduleDate,
                 StartTime = "09:00",

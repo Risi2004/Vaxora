@@ -1010,7 +1010,7 @@ export default function AppointmentsTab() {
                               type="button"
                               className={`cal-cell available ${isSelected ? 'selected' : ''}`}
                               onClick={() => handleSelectDate(cell.dateStr)}
-                              title={`${cell.dateStr} (${session?.dayOfWeek || ''}): ${session?.startTime || '09:00'} - ${session?.endTime || '11:00'} • Dr. ${session?.doctorName || 'Physician'}`}
+                              title={`${cell.dateStr} (${session?.dayOfWeek || ''}): ${session?.startTime || '09:00'} - ${session?.endTime || '11:00'}`}
                             >
                               <span>{cell.day}</span>
                               <span className="cal-available-dot" />
@@ -1055,10 +1055,10 @@ export default function AppointmentsTab() {
                             {selectedDateInfo.startTime} - {selectedDateInfo.endTime}
                           </span>
                         </div>
-                        {selectedDateInfo.doctorName && (
+                        {selectedDateInfo.formattedPrice && (
                           <div className="cal-detail-sub">
                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                              <IconDoctor size={14} /> Dr. {selectedDateInfo.doctorName.replace(/^Dr\.\s*/i, '')}
+                              <IconDoctor size={14} /> Clinic staff are scheduled separately
                             </span>
                             {selectedDateInfo.formattedPrice && (
                               <span className="cal-fee-tag">• {selectedDateInfo.formattedPrice}</span>

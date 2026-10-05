@@ -220,8 +220,6 @@ async def tool_get_available_vaccines_and_hospitals(token: Optional[str] = None)
                     h_copy["formattedPrice"] = matched_sched.get("formattedPrice") or (f"LKR {price:,.2f}" if price > 0 else "Free (0 LKR)")
                     h_copy["is_free"] = price <= 0
                     h_copy["vaccineScheduleId"] = matched_sched.get("id")
-                    h_copy["doctorName"] = matched_sched.get("doctorName")
-                    h_copy["nurseName"] = matched_sched.get("nurseName")
                     matched_prices.append(price)
                 else:
                     h_copy["price"] = 0.0
@@ -285,9 +283,8 @@ async def tool_autonomous_find_and_propose(
         # 1. Resolve hospital and vaccine name
         hid, vname = await _resolve_hospital_and_vaccine(hospital_name_or_id, vaccine_name, token=token)
 
-        # 2. Get schedule details for hospital name, price, doctor, etc.
+        # 2. Get schedule details for hospital name and price.
         hospital_name = "Hospital Center"
-        doctor_name = None
         schedule_id = None
         vaccine_id = None
         price = 0.0
@@ -301,7 +298,6 @@ async def tool_autonomous_find_and_propose(
                 s_vname = str(s.get("vaccineName") or "").strip().lower()
                 if (s_huid == str(hid).lower() or not hid) and (s_vname == vname.lower() or s_vname in vname.lower() or vname.lower() in s_vname):
                     hospital_name = s.get("hospitalName") or hospital_name
-                    doctor_name = s.get("doctorName")
                     schedule_id = s.get("id")
                     vaccine_id = s.get("vaccineId")
                     price = float(s.get("price") or 0.0)
@@ -411,8 +407,7 @@ async def tool_autonomous_find_and_propose(
             "appointment_date": selected_date,
             "time_slot": selected_slot,
             "price": price,
-            "is_free": is_free,
-            "doctor_name": doctor_name
+            "is_free": is_free
         }
 
         return {
@@ -785,8 +780,7 @@ TOOLS_SCHEMA = [
                     "appointment_date": {"type": "string", "description": "Date in 'YYYY-MM-DD' format"},
                     "time_slot": {"type": "string", "description": "Time slot like '09:00 AM - 09:20 AM'"},
                     "price": {"type": "number", "description": "Vaccine fee in LKR (0 for free)"},
-                    "is_free": {"type": "boolean", "description": "True if free, False if paid"},
-                    "doctor_name": {"type": "string", "description": "Assigned doctor if any"}
+                    "is_free": {"type": "boolean", "description": "True if free, False if paid"}
                 },
                 "required": ["hospital_user_id", "hospital_name", "vaccine_name", "appointment_date", "time_slot", "is_free"]
             }

@@ -460,10 +460,6 @@ export default function HospitalAppointmentsTab() {
     const selectedVac = vaccines.find((v) => v.name === scheduleForm.vaccineType);
 
     const payload = {
-      doctorUserId: null,
-      doctorName: '',
-      nurseUserId: null,
-      nurseName: '',
       boothId: scheduleForm.boothId,
       vaccineId: selectedVac?.id || null,
       vaccineName: scheduleForm.vaccineType,

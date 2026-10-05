@@ -7,8 +7,6 @@ public class AvailableDateDto
     public string Date { get; set; } = string.Empty; // "2026-09-16"
     public string DayOfWeek { get; set; } = string.Empty; // "Wednesday"
     public string DisplayText { get; set; } = string.Empty; // "2026-09-16 (Wednesday) - 09:00 AM to 11:00 AM"
-    public string? DoctorName { get; set; }
-    public string? NurseName { get; set; }
     public Guid? BoothId { get; set; }
     public string? BoothLabel { get; set; }
     public string StartTime { get; set; } = string.Empty;

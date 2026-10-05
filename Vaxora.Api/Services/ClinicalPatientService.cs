@@ -150,7 +150,7 @@ public class ClinicalPatientService : IClinicalPatientService
             .ToListAsync();
 
         // Overdue (missed) visits first so clinicians clear them before today's queue.
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = StaffDutyHelper.HospitalToday();
         pendingAppointments = pendingAppointments
             .OrderByDescending(a => a.AppointmentDate < today)
             .ThenBy(a => a.AppointmentDate)
@@ -280,7 +280,7 @@ public class ClinicalPatientService : IClinicalPatientService
         }
 
         // Past incomplete visits need to be closed or rebooked — not prescribed retrospectively.
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = StaffDutyHelper.HospitalToday();
         if (appointment.AppointmentDate < today)
         {
             throw new InvalidOperationException(
@@ -338,7 +338,7 @@ public class ClinicalPatientService : IClinicalPatientService
 
     private static ClinicalPendingVaccineDto MapPending(Appointment a)
     {
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = StaffDutyHelper.HospitalToday();
         var isOverdue = a.AppointmentDate < today;
         return new ClinicalPendingVaccineDto
         {

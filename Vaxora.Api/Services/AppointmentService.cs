@@ -134,11 +134,7 @@ public class AppointmentService : IAppointmentService
                     {
                         Date = date.ToString("yyyy-MM-dd"),
                         DayOfWeek = dayName,
-                        DisplayText = string.IsNullOrWhiteSpace(schedule.DoctorName)
-                            ? $"{date:yyyy-MM-dd} ({dayName}) - {formattedTime}"
-                            : $"{date:yyyy-MM-dd} ({dayName}) - {formattedTime} (Dr. {schedule.DoctorName})",
-                        DoctorName = schedule.DoctorName,
-                        NurseName = schedule.NurseName,
+                        DisplayText = $"{date:yyyy-MM-dd} ({dayName}) - {formattedTime}",
                         BoothId = schedule.BoothId,
                         BoothLabel = schedule.BoothLabel,
                         StartTime = schedule.StartTime,
@@ -186,11 +182,7 @@ public class AppointmentService : IAppointmentService
                         {
                             Date = cur.ToString("yyyy-MM-dd"),
                             DayOfWeek = dayName,
-                            DisplayText = string.IsNullOrWhiteSpace(schedule.DoctorName)
-                                ? $"{cur:yyyy-MM-dd} ({dayName}) - {formattedTime}"
-                                : $"{cur:yyyy-MM-dd} ({dayName}) - {formattedTime} (Dr. {schedule.DoctorName})",
-                            DoctorName = schedule.DoctorName,
-                            NurseName = schedule.NurseName,
+                            DisplayText = $"{cur:yyyy-MM-dd} ({dayName}) - {formattedTime}",
                             BoothId = schedule.BoothId,
                             BoothLabel = schedule.BoothLabel,
                             StartTime = schedule.StartTime,
@@ -273,9 +265,7 @@ public class AppointmentService : IAppointmentService
             matchingSchedules.Add(new VaccineSchedule
             {
                 StartTime = "09:00",
-                EndTime = "11:00",
-                DoctorName = "Physician on Duty",
-                NurseName = "Staff Nurse"
+                EndTime = "11:00"
             });
         }
 
@@ -489,10 +479,6 @@ public class AppointmentService : IAppointmentService
             VaccineScheduleId = schedule?.Id ?? dto.VaccineScheduleId,
             VaccineId = schedule?.VaccineId ?? dto.VaccineId,
             VaccineName = dto.VaccineName.Trim(),
-            DoctorUserId = schedule?.DoctorUserId,
-            DoctorName = schedule?.DoctorName,
-            NurseUserId = schedule?.NurseUserId,
-            NurseName = schedule?.NurseName,
             AppointmentDate = dto.AppointmentDate,
             TimeSlot = dto.TimeSlot.Trim(),
             Status = appointmentStatus,
@@ -663,10 +649,6 @@ public class AppointmentService : IAppointmentService
             VaccineScheduleId = schedule?.Id,
             VaccineId = schedule?.VaccineId,
             VaccineName = vaccineName,
-            DoctorUserId = schedule?.DoctorUserId,
-            DoctorName = schedule?.DoctorName,
-            NurseUserId = schedule?.NurseUserId,
-            NurseName = schedule?.NurseName,
             AppointmentDate = today,
             TimeSlot = timeSlot,
             StartTime = start.ToString("HH:mm"),

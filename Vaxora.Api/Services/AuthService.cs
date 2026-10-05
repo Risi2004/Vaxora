@@ -1182,14 +1182,7 @@ public class AuthService : IAuthService
         }
         else
         {
-            // For Doctor or Nurse, unlink from schedules and appointments without breaking hospital history
-            var staffSchedules = await _context.VaccineSchedules.Where(s => s.DoctorUserId == userId || s.NurseUserId == userId).ToListAsync();
-            foreach (var s in staffSchedules)
-            {
-                if (s.DoctorUserId == userId) s.DoctorUserId = null;
-                if (s.NurseUserId == userId) s.NurseUserId = null;
-            }
-
+            // For Doctor or Nurse, unlink from appointments without breaking hospital history.
             var staffAppointments = await _context.Appointments
                 .Where(a => a.DoctorUserId == userId || a.NurseUserId == userId || a.PrescribedByDoctorUserId == userId)
                 .ToListAsync();

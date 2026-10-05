@@ -4,14 +4,6 @@ namespace Vaxora.Api.Dtos;
 
 public class CreateVaccineScheduleDto
 {
-    public Guid? DoctorUserId { get; set; }
-
-    public string? DoctorName { get; set; }
-
-    public Guid? NurseUserId { get; set; }
-
-    public string? NurseName { get; set; }
-
     [Required]
     public Guid BoothId { get; set; }
 
@@ -85,10 +77,6 @@ public class VaccineScheduleDto
     public Guid Id { get; set; }
     public Guid HospitalUserId { get; set; }
     public string HospitalName { get; set; } = string.Empty;
-    public Guid? DoctorUserId { get; set; }
-    public string DoctorName { get; set; } = string.Empty;
-    public Guid? NurseUserId { get; set; }
-    public string NurseName { get; set; } = string.Empty;
     public Guid? BoothId { get; set; }
     public string? BoothLabel { get; set; }
     public Guid? VaccineId { get; set; }

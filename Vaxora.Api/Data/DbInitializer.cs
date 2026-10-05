@@ -397,8 +397,6 @@ public static class DbInitializer
                             Id = Guid.NewGuid(),
                             HospitalUserId = hospitalUserInstance.Id,
                             HospitalProfileId = hospitalProf.Id,
-                            DoctorName = "Dr. Test Doctor",
-                            NurseName = "Nurse Test Nurse",
                             VaccineId = astraVaccine.Id,
                             VaccineName = "AstraZeneca",
                             ScheduleType = "Weekly",

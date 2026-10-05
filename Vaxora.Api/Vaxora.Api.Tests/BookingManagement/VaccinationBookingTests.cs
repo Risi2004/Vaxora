@@ -23,8 +23,6 @@ public class VaccinationBookingTests
         {
             HospitalUserId = hospital.Id,
             VaccineName = "Pfizer-BioNTech",
-            DoctorName = "Dr. Silva",
-            NurseName = "Nurse Perera",
             ScheduleType = "OneTime",
             SpecificDate = scheduleDate,
             StartTime = "09:00",
@@ -69,8 +67,6 @@ public class VaccinationBookingTests
         {
             HospitalUserId = hospital.Id,
             VaccineName = "Sinopharm",
-            DoctorName = "Dr. Silva",
-            NurseName = "Nurse Perera",
             ScheduleType = "OneTime",
             SpecificDate = scheduleDate,
             StartTime = "09:00",
@@ -112,8 +108,6 @@ public class VaccinationBookingTests
         {
             HospitalUserId = hospital.Id,
             VaccineName = "Moderna",
-            DoctorName = "Dr. Fernando",
-            NurseName = "Nurse Silva",
             ScheduleType = "OneTime",
             SpecificDate = appointmentDate,
             StartTime = "10:00",
@@ -162,8 +156,6 @@ public class VaccinationBookingTests
         {
             HospitalUserId = hospital.Id,
             VaccineName = "Moderna",
-            DoctorName = "Dr. Fernando",
-            NurseName = "Nurse Silva",
             ScheduleType = "OneTime",
             SpecificDate = appointmentDate,
             StartTime = "10:00",
@@ -250,8 +242,6 @@ public class VaccinationBookingTests
         {
             HospitalUserId = hospital.Id,
             VaccineName = "Rabies Vaccine",
-            DoctorName = "Dr. Perera",
-            NurseName = "Nurse Fernando",
             ScheduleType = "OneTime",
             SpecificDate = targetDate,
             StartTime = "09:00",
