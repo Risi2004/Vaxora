@@ -9,12 +9,12 @@ public interface IClinicalPatientService
 {
     Task<List<ClinicalPatientSearchResultDto>> SearchPatientsAsync(
         string query,
-        int limit = 10,
-        Guid? viewerUserId = null);
+        Guid viewerUserId,
+        int limit = 10);
     Task<ClinicalPatientDetailDto> GetPatientByVaxoraIdAsync(
         string vaxoraId,
-        Guid? viewerUserId = null);
-    Task<List<ClinicalRecentUpdateDto>> GetRecentDosageUpdatesAsync(int limit = 10);
+        Guid viewerUserId);
+    Task<List<ClinicalRecentUpdateDto>> GetRecentDosageUpdatesAsync(Guid viewerUserId, int limit = 10);
     Task<ClinicalPendingVaccineDto> UpdatePrescribedDosageAsync(Guid doctorUserId, Guid appointmentId, UpdatePrescribedDosageDto dto);
 }
 
@@ -27,18 +27,23 @@ public class ClinicalPatientService : IClinicalPatientService
     };
 
     private readonly ApplicationDbContext _context;
+    private readonly IClinicalScopeService _clinicalScope;
     private readonly ILogger<ClinicalPatientService> _logger;
 
-    public ClinicalPatientService(ApplicationDbContext context, ILogger<ClinicalPatientService> logger)
+    public ClinicalPatientService(
+        ApplicationDbContext context,
+        ILogger<ClinicalPatientService> logger,
+        IClinicalScopeService? clinicalScope = null)
     {
         _context = context;
+        _clinicalScope = clinicalScope ?? new ClinicalScopeService(context);
         _logger = logger;
     }
 
     public async Task<List<ClinicalPatientSearchResultDto>> SearchPatientsAsync(
         string query,
-        int limit = 10,
-        Guid? viewerUserId = null)
+        Guid viewerUserId,
+        int limit = 10)
     {
         var term = query?.Trim() ?? string.Empty;
         if (term.Length < 2)
@@ -46,8 +51,15 @@ public class ClinicalPatientService : IClinicalPatientService
 
         limit = Math.Clamp(limit, 1, 20);
         var like = $"%{term}%";
+        var viewer = await GetActiveClinicalViewerAsync(viewerUserId);
+        if (viewer == null)
+            return new List<ClinicalPatientSearchResultDto>();
 
-        var patients = await _context.PatientProfiles
+        var allowedHospitalProfileIds = await GetHospitalProfileIdsAsync(viewer);
+        if (allowedHospitalProfileIds.Length == 0)
+            return new List<ClinicalPatientSearchResultDto>();
+
+        var patientQuery = _context.PatientProfiles
             .AsNoTracking()
             .Include(p => p.User)
             .Where(p =>
@@ -58,18 +70,27 @@ public class ClinicalPatientService : IClinicalPatientService
                     EF.Functions.ILike(p.FullName, like) ||
                     EF.Functions.ILike(p.NicNumber, like) ||
                     EF.Functions.ILike(p.User.Email, like)
-                ))
+                ) &&
+                (
+                    _context.Appointments.AsNoTracking().Any(a =>
+                        a.PatientProfileId == p.Id &&
+                        a.HospitalProfileId.HasValue &&
+                        allowedHospitalProfileIds.Contains(a.HospitalProfileId.Value)) ||
+                    _context.PatientVisits.AsNoTracking().Any(v =>
+                        v.PatientProfileId == p.Id &&
+                        v.HospitalProfileId.HasValue &&
+                        allowedHospitalProfileIds.Contains(v.HospitalProfileId.Value))
+                ));
+
+        var patients = await patientQuery
             .OrderBy(p => p.FullName)
             .Take(limit)
             .ToListAsync();
 
-        if (viewerUserId is Guid viewerId)
-        {
-            await LogClinicalPhiViewAsync(
-                viewerId,
-                "CLINICAL_PATIENT_SEARCH",
-                $"Searched patients queryLength={term.Length} resultCount={patients.Count}");
-        }
+        await LogClinicalPhiViewAsync(
+            viewerUserId,
+            "CLINICAL_PATIENT_SEARCH",
+            $"Searched patients queryLength={term.Length} resultCount={patients.Count}");
 
         return patients.Select(p => new ClinicalPatientSearchResultDto
         {
@@ -85,7 +106,7 @@ public class ClinicalPatientService : IClinicalPatientService
 
     public async Task<ClinicalPatientDetailDto> GetPatientByVaxoraIdAsync(
         string vaxoraId,
-        Guid? viewerUserId = null)
+        Guid viewerUserId)
     {
         var reg = (vaxoraId ?? string.Empty).Trim().ToUpperInvariant();
         if (string.IsNullOrWhiteSpace(reg))
@@ -101,6 +122,16 @@ public class ClinicalPatientService : IClinicalPatientService
 
         if (patient.User.Role != UserRole.PATIENT)
             throw new InvalidOperationException("The provided Vaxora ID does not belong to a patient.");
+
+        var viewer = await GetActiveClinicalViewerAsync(viewerUserId);
+        if (viewer == null || !await _clinicalScope.CanAccessPatientAsync(
+                viewerUserId,
+                viewer.Role.ToString(),
+                patient.Id))
+        {
+            // Keep inaccessible records indistinguishable from unknown IDs.
+            throw new KeyNotFoundException("No patient found with that Vaxora ID.");
+        }
 
         var history = await _context.PatientVaccinationRecords
             .AsNoTracking()
@@ -126,13 +157,10 @@ public class ClinicalPatientService : IClinicalPatientService
             .ThenBy(a => a.StartTime)
             .ToList();
 
-        if (viewerUserId is Guid viewerId)
-        {
-            await LogClinicalPhiViewAsync(
-                viewerId,
-                "CLINICAL_PATIENT_DETAIL_VIEW",
-                $"Viewed patient profile vaxoraId={reg} patientUserId={patient.UserId}");
-        }
+        await LogClinicalPhiViewAsync(
+            viewerUserId,
+            "CLINICAL_PATIENT_DETAIL_VIEW",
+            $"Viewed patient profile vaxoraId={reg} patientUserId={patient.UserId}");
 
         return new ClinicalPatientDetailDto
         {
@@ -156,14 +184,26 @@ public class ClinicalPatientService : IClinicalPatientService
         };
     }
 
-    public async Task<List<ClinicalRecentUpdateDto>> GetRecentDosageUpdatesAsync(int limit = 10)
+    public async Task<List<ClinicalRecentUpdateDto>> GetRecentDosageUpdatesAsync(Guid viewerUserId, int limit = 10)
     {
+        var viewer = await GetActiveClinicalViewerAsync(viewerUserId);
+        if (viewer == null)
+            return new List<ClinicalRecentUpdateDto>();
+
+        var allowedHospitalProfileIds = await GetHospitalProfileIdsAsync(viewer);
+        if (allowedHospitalProfileIds.Length == 0)
+            return new List<ClinicalRecentUpdateDto>();
+
         limit = Math.Clamp(limit, 1, 20);
 
         var updates = await _context.Appointments
             .AsNoTracking()
             .Include(a => a.PatientUser)
-            .Where(a => a.DosageUpdatedAt != null && !string.IsNullOrWhiteSpace(a.PrescribedDosage))
+            .Where(a =>
+                a.DosageUpdatedAt != null &&
+                !string.IsNullOrWhiteSpace(a.PrescribedDosage) &&
+                a.HospitalProfileId.HasValue &&
+                allowedHospitalProfileIds.Contains(a.HospitalProfileId.Value))
             .OrderByDescending(a => a.DosageUpdatedAt)
             .Take(limit)
             .ToListAsync();
@@ -179,6 +219,22 @@ public class ClinicalPatientService : IClinicalPatientService
             UpdatedAt = a.DosageUpdatedAt!.Value,
             RelativeTime = ToRelativeTime(a.DosageUpdatedAt.Value)
         }).ToList();
+    }
+
+    private async Task<User?> GetActiveClinicalViewerAsync(Guid viewerUserId)
+    {
+        return await _context.Users
+            .AsNoTracking()
+            .FirstOrDefaultAsync(u =>
+                u.Id == viewerUserId &&
+                u.Status == UserStatus.Active &&
+                (u.Role == UserRole.DOCTOR || u.Role == UserRole.NURSE));
+    }
+
+    private async Task<Guid[]> GetHospitalProfileIdsAsync(User viewer)
+    {
+        var ids = await _clinicalScope.GetHospitalProfileIdsAsync(viewer.Id, viewer.Role.ToString());
+        return ids?.ToArray() ?? Array.Empty<Guid>();
     }
 
     public async Task<ClinicalPendingVaccineDto> UpdatePrescribedDosageAsync(

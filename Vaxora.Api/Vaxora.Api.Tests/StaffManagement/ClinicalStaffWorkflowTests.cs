@@ -39,6 +39,8 @@ public class ClinicalStaffWorkflowTests
     {
         await using var context = TestDb.CreateContext();
         var hospital = TestDb.AddHospital(context);
+        var doctor = TestDb.AddDoctor(context, "doctor@example.com", "VAX-D-3006");
+        TestDb.AddActiveAffiliation(context, hospital, doctor);
         var patient = new User
         {
             Email = "patient@example.com",
@@ -67,7 +69,7 @@ public class ClinicalStaffWorkflowTests
         await context.SaveChangesAsync();
 
         var service = new ClinicalPatientService(context, NullLogger<ClinicalPatientService>.Instance);
-        var detail = await service.GetPatientByVaxoraIdAsync("VAX-P-3001");
+        var detail = await service.GetPatientByVaxoraIdAsync("VAX-P-3001", doctor.Id);
 
         var pending = Assert.Single(detail.PendingVaccines);
         Assert.True(pending.IsOverdue);

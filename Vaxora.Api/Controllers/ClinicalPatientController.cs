@@ -31,8 +31,8 @@ public class ClinicalPatientController : ControllerBase
         {
             var result = await _service.SearchPatientsAsync(
                 q ?? string.Empty,
-                limit,
-                viewerUserId);
+                viewerUserId,
+                limit);
             return Ok(result);
         }
         catch (Exception ex)
@@ -45,9 +45,12 @@ public class ClinicalPatientController : ControllerBase
     [HttpGet("patients/recent")]
     public async Task<IActionResult> GetRecent([FromQuery] int limit = 10)
     {
+        if (!TryGetUserId(out var viewerUserId))
+            return Unauthorized(new { message = "Invalid identity claim." });
+
         try
         {
-            var result = await _service.GetRecentDosageUpdatesAsync(limit);
+            var result = await _service.GetRecentDosageUpdatesAsync(viewerUserId, limit);
             return Ok(result);
         }
         catch (Exception ex)
