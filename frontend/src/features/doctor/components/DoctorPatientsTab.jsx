@@ -56,9 +56,7 @@ function isPastDate(dateStr) {
 }
 
 function statusPill(status, { overdue = false } = {}) {
-  if (overdue) {
-    return { label: "Missed", tone: "is-missed" };
-  }
+  if (overdue) return { label: "Missed", tone: "is-missed" };
   const raw = String(status || "Pending").trim();
   const key = raw.toLowerCase();
   if (key === "completed") return { label: "Completed", tone: "is-completed" };
@@ -71,6 +69,71 @@ function statusPill(status, { overdue = false } = {}) {
     return { label: raw, tone: "is-cancelled" };
   }
   return { label: raw || "Pending", tone: "is-pending" };
+}
+
+// ---- Medical history helpers ----
+
+const HISTORY_GROUPS = [
+  { key: "Diagnosis", label: "Diagnoses" },
+  { key: "Allergy", label: "Allergies" },
+  { key: "Medication", label: "Medications" },
+  { key: "Surgery", label: "Surgeries" },
+  { key: "Other", label: "Other" },
+];
+
+function severityTone(severity) {
+  const s = String(severity || "").toLowerCase();
+  if (s === "critical" || s === "severe") return "is-missed";
+  if (s === "moderate") return "is-payment";
+  if (s === "mild") return "is-confirmed";
+  return "is-pending";
+}
+
+function statusTone(status) {
+  const s = String(status || "").toLowerCase();
+  if (s === "active" || s === "chronic") return "is-payment";
+  if (s === "resolved" || s === "inremission") return "is-completed";
+  return "is-pending";
+}
+
+function MedicalHistoryRow({ record }) {
+  const hasDesc = record.description && record.description.trim();
+  const hasIcd = record.icd10Code && record.icd10Code.trim();
+  return (
+    <tr key={record.id}>
+      <td>
+        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          <strong style={{ color: "#1e1b4b", fontSize: "0.9rem" }}>
+            {record.title}
+          </strong>
+          {hasDesc && (
+            <span style={{ fontSize: "0.78rem", color: "#64748b" }}>
+              {hasDesc}
+            </span>
+          )}
+          {hasIcd && (
+            <span style={{ fontSize: "0.72rem", color: "#94a3b8" }}>
+              ICD-10: {hasIcd}
+            </span>
+          )}
+        </div>
+      </td>
+      <td>{record.recordType || "—"}</td>
+      <td>
+        <span className={`ph-status-pill ${severityTone(record.severity)}`}>
+          {record.severity || "—"}
+        </span>
+      </td>
+      <td>
+        <span className={`ph-status-pill ${statusTone(record.status)}`}>
+          {record.status || "—"}
+        </span>
+      </td>
+      <td style={{ fontSize: "0.82rem", color: "#64748b" }}>
+        {record.recordedByName || "—"}
+      </td>
+    </tr>
+  );
 }
 
 export default function DoctorPatientsTab() {
@@ -91,7 +154,12 @@ export default function DoctorPatientsTab() {
   const [isOnDuty, setIsOnDuty] = useState(false);
   const [recordFilter, setRecordFilter] = useState("all");
 
-  // Added: modal visibility for the two new clinical data entry flows
+  // NEW: medical history state
+  const [medicalHistory, setMedicalHistory] = useState(null);
+  const [loadingMedicalHistory, setLoadingMedicalHistory] = useState(false);
+  const [medicalHistoryError, setMedicalHistoryError] = useState("");
+
+  // NEW: modal visibility
   const [showAddHistory, setShowAddHistory] = useState(false);
   const [showRecordVisit, setShowRecordVisit] = useState(false);
 
@@ -122,6 +190,27 @@ export default function DoctorPatientsTab() {
     }
   }, []);
 
+  // NEW: fetch medical history when a patient is selected
+  const loadMedicalHistory = useCallback(async (patientProfileId) => {
+    if (!patientProfileId) {
+      setMedicalHistory(null);
+      setMedicalHistoryError("");
+      return;
+    }
+    setLoadingMedicalHistory(true);
+    setMedicalHistoryError("");
+    try {
+      const data =
+        await clinicalPatientService.getMedicalHistory(patientProfileId);
+      setMedicalHistory(data);
+    } catch (err) {
+      setMedicalHistory(null);
+      setMedicalHistoryError(err.message || "Failed to load medical history.");
+    } finally {
+      setLoadingMedicalHistory(false);
+    }
+  }, []);
+
   useEffect(
     () =>
       deferEffectCallback(() => {
@@ -140,6 +229,15 @@ export default function DoctorPatientsTab() {
         }
       }),
     [isOnDuty, editingDosageId],
+  );
+
+  // NEW: reload medical history whenever the selected patient changes
+  useEffect(
+    () =>
+      deferEffectCallback(() => {
+        loadMedicalHistory(selectedPatient?.patientProfileId);
+      }),
+    [selectedPatient?.patientProfileId, loadMedicalHistory],
   );
 
   useEffect(
@@ -185,6 +283,8 @@ export default function DoctorPatientsTab() {
     setShowDropdown(false);
     setError("");
     setRecordFilter("all");
+    setMedicalHistory(null);
+    setMedicalHistoryError("");
   };
 
   const loadPatientByVaxoraId = async (vaxoraId, displayName) => {
@@ -292,6 +392,24 @@ export default function DoctorPatientsTab() {
       setClosingMissedId(null);
     }
   };
+
+  // Group medical history by record type
+  const groupedHistory = (() => {
+    const records = Array.isArray(medicalHistory?.records)
+      ? medicalHistory.records
+      : [];
+    const byType = {};
+    records.forEach((r) => {
+      const key = r.recordType || "Other";
+      if (!byType[key]) byType[key] = [];
+      byType[key].push(r);
+    });
+    return byType;
+  })();
+
+  const hasMedicalHistory = Object.values(groupedHistory).some(
+    (arr) => arr.length > 0,
+  );
 
   return (
     <div className="staff-workspace-page">
@@ -493,7 +611,6 @@ export default function DoctorPatientsTab() {
                       ← Back to search
                     </button>
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                      {/* Added: clinical data entry buttons */}
                       <button
                         type="button"
                         className="doctor-filter-btn"
@@ -830,6 +947,128 @@ export default function DoctorPatientsTab() {
                     </table>
                   </div>
                 </div>
+
+                {/* ============================================================
+              NEW: Medical History section
+             ============================================================ */}
+                <div
+                  className="doctor-appointment-inner-card"
+                  style={{ marginTop: 16 }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginBottom: 12,
+                      flexWrap: "wrap",
+                      gap: 8,
+                    }}
+                  >
+                    <h3
+                      className="ph-appointments-section-label"
+                      style={{ margin: 0 }}
+                    >
+                      Medical history
+                    </h3>
+                    <div
+                      style={{
+                        fontSize: "0.88rem",
+                        color: "#64748b",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {loadingMedicalHistory
+                        ? "Loading…"
+                        : medicalHistory
+                          ? `${medicalHistory.totalRecords || 0} record${(medicalHistory.totalRecords || 0) === 1 ? "" : "s"} · ${medicalHistory.activeConditions || 0} active · ${medicalHistory.criticalOrSevere || 0} critical`
+                          : "—"}
+                    </div>
+                  </div>
+
+                  {medicalHistoryError && (
+                    <div
+                      role="alert"
+                      style={{
+                        background: "#fef2f2",
+                        color: "#b91c1c",
+                        border: "1px solid #fecaca",
+                        borderRadius: "10px",
+                        padding: "10px 14px",
+                        marginBottom: "14px",
+                        fontSize: "0.85rem",
+                      }}
+                    >
+                      {medicalHistoryError}
+                    </div>
+                  )}
+
+                  {loadingMedicalHistory ? (
+                    <p
+                      className="empty-table-cell"
+                      style={{ margin: 0, padding: 24, textAlign: "center" }}
+                    >
+                      Loading medical history…
+                    </p>
+                  ) : !hasMedicalHistory ? (
+                    <div
+                      style={{
+                        padding: 24,
+                        textAlign: "center",
+                        fontSize: "0.9rem",
+                        color: "#64748b",
+                        fontStyle: "italic",
+                      }}
+                    >
+                      No medical history on file. Use the &quot;+ Add Medical
+                      History&quot; button above to record a diagnosis, allergy,
+                      medication, or surgery.
+                    </div>
+                  ) : (
+                    <div className="doctor-appointments-table-wrapper">
+                      <table className="doctor-appointments-mockup-table">
+                        <thead>
+                          <tr>
+                            <th style={{ width: "40%" }}>Record</th>
+                            <th style={{ width: "12%" }}>Type</th>
+                            <th style={{ width: "12%" }}>Severity</th>
+                            <th style={{ width: "14%" }}>Status</th>
+                            <th style={{ width: "22%" }}>Recorded By</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {HISTORY_GROUPS.map((group) => {
+                            const rows = groupedHistory[group.key] || [];
+                            if (rows.length === 0) return null;
+                            return (
+                              <>
+                                <tr
+                                  key={`group-${group.key}`}
+                                  className="ph-record-row-missed"
+                                >
+                                  <td
+                                    colSpan={5}
+                                    style={{
+                                      fontWeight: 700,
+                                      color: "#1e1b4b",
+                                      fontSize: "0.8rem",
+                                      letterSpacing: 0.4,
+                                    }}
+                                  >
+                                    {group.label.toUpperCase()} ({rows.length})
+                                  </td>
+                                </tr>
+                                {rows.map((r) => (
+                                  <MedicalHistoryRow key={r.id} record={r} />
+                                ))}
+                              </>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
               </>
             )}
           </>
@@ -847,13 +1086,14 @@ export default function DoctorPatientsTab() {
         )}
       </div>
 
-      {/* Added: clinical data entry modals */}
+      {/* Clinical data entry modals */}
       <AddMedicalHistoryModal
         isOpen={showAddHistory}
         onClose={() => setShowAddHistory(false)}
         patient={selectedPatient}
         onSaved={() => {
           showToast("Medical history record added.");
+          loadMedicalHistory(selectedPatient?.patientProfileId);
           if (selectedPatient?.vaxoraId) {
             loadPatientByVaxoraId(selectedPatient.vaxoraId);
           }

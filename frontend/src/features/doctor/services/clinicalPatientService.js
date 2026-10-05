@@ -78,10 +78,9 @@ export const clinicalPatientService = {
   },
 
   // ============================================================
-  // Added: clinical data entry — medical history & visits
+  // Clinical data entry — medical history & visits
   // ============================================================
 
-  /** Create a medical history record (diagnosis, allergy, medication, surgery). */
   createMedicalHistory(patientProfileId, data) {
     return apiRequest(
       `/patient-medical-history/patients/${encodeURIComponent(patientProfileId)}`,
@@ -92,7 +91,6 @@ export const clinicalPatientService = {
     );
   },
 
-  /** Record a patient visit with vitals, diagnosis, and treatment plan. */
   createVisit(patientProfileId, data) {
     return apiRequest(
       `/patient-visits/patients/${encodeURIComponent(patientProfileId)}`,
@@ -100,6 +98,16 @@ export const clinicalPatientService = {
         method: "POST",
         body: JSON.stringify(data),
       },
+    );
+  },
+
+  // ============================================================
+  // Read-only: patient's medical history timeline
+  // ============================================================
+
+  getMedicalHistory(patientProfileId) {
+    return apiRequest(
+      `/patient-medical-history/patients/${encodeURIComponent(patientProfileId)}/timeline`,
     );
   },
 };
