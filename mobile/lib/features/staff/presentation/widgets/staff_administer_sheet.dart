@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../inventory/data/models/batch_model.dart';
+import '../../../inventory/presentation/screens/qr_scanner_screen.dart';
 import '../../data/models/staff_appointment_model.dart';
 import 'staff_common_widgets.dart';
 
@@ -97,6 +98,15 @@ class _StaffAdministerSheetState extends State<_StaffAdministerSheet> {
   void dispose() {
     _notesCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _scanLot() async {
+    final scanned = await Navigator.of(context).push<BatchModel>(
+      MaterialPageRoute(
+        builder: (_) => QrScannerScreen(pickFromLots: _usableLots),
+      ),
+    );
+    if (scanned != null && mounted) setState(() => _batchId = scanned.id);
   }
 
   void _submit() {
@@ -210,6 +220,15 @@ class _StaffAdministerSheetState extends State<_StaffAdministerSheet> {
                   ? null
                   : (v) => setState(() => _batchId = v),
             ),
+            if (usable.isNotEmpty)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: _scanLot,
+                  icon: const Icon(Icons.qr_code_scanner, size: 18),
+                  label: const Text('Scan vial QR to select lot'),
+                ),
+              ),
             if (usable.isEmpty) ...[
               const SizedBox(height: 8),
               Text(
