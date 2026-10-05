@@ -90,7 +90,7 @@ public class AppointmentService : IAppointmentService
 
         var schedules = await _context.VaccineSchedules
             .AsNoTracking()
-            .Where(s => (s.HospitalUserId == resolvedHospitalUserId || (resolvedProfileId.HasValue && s.HospitalProfileId == resolvedProfileId.Value)) &&
+            .Where(s => (s.HospitalUserId == resolvedHospitalUserId || (resolvedProfileId != null && s.HospitalProfileId == resolvedProfileId)) &&
                         s.Status == "Active" &&
                         s.VaccineName.ToLower().Contains(vName))
             .ToListAsync();
@@ -100,7 +100,7 @@ public class AppointmentService : IAppointmentService
             // Fallback: check all active schedules for this hospital if vaccine matching is broad
             schedules = await _context.VaccineSchedules
                 .AsNoTracking()
-                .Where(s => (s.HospitalUserId == resolvedHospitalUserId || (resolvedProfileId.HasValue && s.HospitalProfileId == resolvedProfileId.Value)) && s.Status == "Active")
+                .Where(s => (s.HospitalUserId == resolvedHospitalUserId || (resolvedProfileId != null && s.HospitalProfileId == resolvedProfileId)) && s.Status == "Active")
                 .ToListAsync();
         }
 
@@ -216,7 +216,7 @@ public class AppointmentService : IAppointmentService
         var vName = vaccineName.Trim().ToLowerInvariant();
         var schedules = await _context.VaccineSchedules
             .AsNoTracking()
-            .Where(s => (s.HospitalUserId == resolvedHospitalUserId || (resolvedProfileId.HasValue && s.HospitalProfileId == resolvedProfileId.Value)) &&
+            .Where(s => (s.HospitalUserId == resolvedHospitalUserId || (resolvedProfileId != null && s.HospitalProfileId == resolvedProfileId)) &&
                         s.Status == "Active" &&
                         (string.IsNullOrWhiteSpace(vName) || s.VaccineName.ToLower().Contains(vName)))
             .ToListAsync();
@@ -259,7 +259,7 @@ public class AppointmentService : IAppointmentService
         // Fetch already booked appointments for this hospital and date (not cancelled)
         var bookedAppointments = await _context.Appointments
             .AsNoTracking()
-            .Where(a => (a.HospitalUserId == resolvedHospitalUserId || (resolvedProfileId.HasValue && a.HospitalProfileId == resolvedProfileId.Value)) &&
+            .Where(a => (a.HospitalUserId == resolvedHospitalUserId || (resolvedProfileId != null && a.HospitalProfileId == resolvedProfileId)) &&
                         a.AppointmentDate == date &&
                         a.Status != "Cancelled" &&
                         a.Status != "Rejected")
