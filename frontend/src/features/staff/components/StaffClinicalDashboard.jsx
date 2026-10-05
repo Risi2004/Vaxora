@@ -3,6 +3,7 @@ import { getUser } from '../../auth/services/authService';
 import inventoryService from '../../hospital/services/inventoryService';
 import staffService from '../../hospital/services/staffService';
 import clinicalPatientService from '../../doctor/services/clinicalPatientService';
+import ClinicalPrescribeModal from '../../doctor/components/ClinicalPrescribeModal';
 import staffAppointmentService from '../services/staffAppointmentService';
 import { hospitalToday } from '../../hospital/utils/hospitalDate';
 import {
@@ -86,6 +87,8 @@ export default function StaffClinicalDashboard({
   const [filterStatus, setFilterStatus] = useState('all');
   const [toastMessage, setToastMessage] = useState(null);
   const [user] = useState(() => getUser());
+  const isDoctor = String(user?.role || '').toUpperCase() === 'DOCTOR';
+  const [prescribeTargetId, setPrescribeTargetId] = useState(null);
   const [affiliations, setAffiliations] = useState([]);
   const [selectedHospitalUserId, setSelectedHospitalUserId] = useState('');
   const [todayAppointments, setTodayAppointments] = useState([]);
@@ -253,6 +256,7 @@ export default function StaffClinicalDashboard({
       return {
         id,
         token: `T-${short}`,
+        patientProfileId: a.patientProfileId || null,
         name: a.patientName || 'Patient',
         vaccine: a.vaccineName || '—',
         dose: a.prescribedDosage || 'Dosage not set',
@@ -816,6 +820,16 @@ export default function StaffClinicalDashboard({
           </div>
 
           <div className="doctor-spotlight-actions">
+            {isDoctor && activePatient.status !== 'completed' && activePatient.status !== 'cancelled' && (
+              <button
+                type="button"
+                className="doctor-btn-defer"
+                onClick={() => setPrescribeTargetId(activePatient.id)}
+                disabled={statusUpdating}
+              >
+                {activePatient.hasDosage ? 'Edit prescribed dose' : 'Prescribe dose'}
+              </button>
+            )}
             <button
               type="button"
               className="doctor-btn-defer"
@@ -1048,6 +1062,16 @@ export default function StaffClinicalDashboard({
                         </td>
                         <td>
                           <div className="queue-action-btns">
+                            {isDoctor && p.status === 'waiting' && !p.hasDosage && (
+                              <button
+                                type="button"
+                                className="btn-queue-action"
+                                onClick={() => setPrescribeTargetId(p.id)}
+                                disabled={statusUpdating}
+                              >
+                                Prescribe
+                              </button>
+                            )}
                             {p.status === 'waiting' && (
                               <button
                                 type="button"
@@ -1226,6 +1250,16 @@ export default function StaffClinicalDashboard({
           </div>
         </div>
       </div>
+
+      <ClinicalPrescribeModal
+        isOpen={Boolean(prescribeTargetId)}
+        onClose={() => setPrescribeTargetId(null)}
+        patient={patients.find((p) => p.id === prescribeTargetId) || null}
+        onSaved={async (p, dose) => {
+          showToast(`Prescribed ${dose} for ${p.name}`);
+          await loadDashboardData(selectedHospitalUserId);
+        }}
+      />
 
       <AdministerModal
         isOpen={isAdministerModalOpen}
