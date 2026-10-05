@@ -102,10 +102,12 @@ class InventoryRepository {
     required String storageUnit,
     required String expiryDate,
     required String supplier,
+    String? category,
   }) async {
     final response = await ApiClient.post(
       ApiConstants.inventoryRestock,
       body: {
+        if (category != null && category.isNotEmpty) 'category': category,
         'vaccineName': vaccineName,
         'lotNumber': lotNumber,
         'quantity': quantity,
