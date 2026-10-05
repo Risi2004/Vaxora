@@ -14,7 +14,11 @@ public interface IAppointmentService
     Task<AppointmentResponseDto> CreateWalkInAppointmentAsync(Guid hospitalUserId, CreateWalkInAppointmentDto dto);
     Task<List<AppointmentResponseDto>> GetPatientAppointmentsAsync(Guid patientUserId);
     Task<List<AppointmentResponseDto>> GetHospitalAppointmentsAsync(Guid hospitalUserId, DateOnly? date = null, string? status = null);
-    Task<List<AppointmentResponseDto>> GetStaffHospitalAppointmentsAsync(Guid staffUserId, Guid hospitalUserId, DateOnly? date = null);
+    Task<List<AppointmentResponseDto>> GetStaffHospitalAppointmentsAsync(
+        Guid staffUserId,
+        Guid hospitalUserId,
+        DateOnly? date = null,
+        string? scope = null);
     /// <summary>
     /// Update appointment status. Actor may be the owning hospital, or an active
     /// doctor/nurse affiliated with that hospital.
@@ -760,7 +764,8 @@ public class AppointmentService : IAppointmentService
     public async Task<List<AppointmentResponseDto>> GetStaffHospitalAppointmentsAsync(
         Guid staffUserId,
         Guid hospitalUserId,
-        DateOnly? date = null)
+        DateOnly? date = null,
+        string? scope = null)
     {
         var staff = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == staffUserId);
         if (staff == null || staff.Role is not (UserRole.DOCTOR or UserRole.NURSE))
@@ -777,6 +782,9 @@ public class AppointmentService : IAppointmentService
         if (!isAffiliated)
             throw new UnauthorizedAccessException("You are not affiliated with this hospital.");
 
+        var hospitalWide =
+            string.Equals(scope?.Trim(), "hospital", StringComparison.OrdinalIgnoreCase);
+
         var query = _context.Appointments
             .AsNoTracking()
             .Where(a =>
@@ -786,6 +794,17 @@ public class AppointmentService : IAppointmentService
 
         if (date.HasValue)
             query = query.Where(a => a.AppointmentDate == date.Value);
+
+        if (!hospitalWide)
+        {
+            query = query.Where(a =>
+                a.DoctorUserId == staffUserId ||
+                a.NurseUserId == staffUserId ||
+                (a.VaccineScheduleId != null &&
+                 _context.VaccineSchedules.Any(v =>
+                     v.Id == a.VaccineScheduleId &&
+                     (v.DoctorUserId == staffUserId || v.NurseUserId == staffUserId))));
+        }
 
         var appointments = await query
             .OrderBy(a => a.AppointmentDate)
@@ -821,6 +840,8 @@ public class AppointmentService : IAppointmentService
 
             if (!isAffiliated)
                 throw new UnauthorizedAccessException("You are not affiliated with this hospital.");
+
+            await EnsureStaffAssignedToAppointmentAsync(appointment, actorUserId);
         }
 
         var requestedStatus = (dto.Status ?? string.Empty).Trim();
@@ -990,6 +1011,8 @@ public class AppointmentService : IAppointmentService
 
         if (!isAffiliated)
             throw new UnauthorizedAccessException("You are not affiliated with this hospital.");
+
+        await EnsureStaffAssignedToAppointmentAsync(appointment, actorUserId);
 
         await StaffDutyHelper.EnsureStaffOnDutyAsync(_context, actorUserId, appointment.HospitalUserId);
 
@@ -1786,6 +1809,25 @@ public class AppointmentService : IAppointmentService
         if (Enum.TryParse<InjectionSite>(raw.Replace(" ", string.Empty), true, out var parsed))
             return parsed;
         return null;
+    }
+
+    private async Task EnsureStaffAssignedToAppointmentAsync(Appointment appointment, Guid staffUserId)
+    {
+        if (appointment.DoctorUserId == staffUserId || appointment.NurseUserId == staffUserId)
+            return;
+
+        if (appointment.VaccineScheduleId is Guid scheduleId)
+        {
+            var schedule = await _context.VaccineSchedules.AsNoTracking()
+                .FirstOrDefaultAsync(v => v.Id == scheduleId);
+            if (schedule != null &&
+                (schedule.DoctorUserId == staffUserId || schedule.NurseUserId == staffUserId))
+            {
+                return;
+            }
+        }
+
+        throw new UnauthorizedAccessException("This appointment is not assigned to your clinical panel.");
     }
 
     private static AppointmentResponseDto MapToDto(Appointment a)

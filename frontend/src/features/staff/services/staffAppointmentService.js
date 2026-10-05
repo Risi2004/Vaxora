@@ -61,11 +61,12 @@ export const staffAppointmentService = {
     return apiRequest('/staff/my-affiliations');
   },
 
-  getHospitalAppointments(hospitalUserId, date) {
+  getHospitalAppointments(hospitalUserId, date, scope = 'my') {
     return apiRequest(
       `/appointments/staff${buildQuery({
         hospitalUserId,
         date: date || undefined,
+        scope: scope === 'hospital' ? 'hospital' : undefined,
       })}`
     );
   },

@@ -211,7 +211,8 @@ public class AppointmentsController : ControllerBase
     [Authorize(Roles = "DOCTOR,NURSE")]
     public async Task<IActionResult> GetStaffHospitalAppointments(
         [FromQuery] Guid hospitalUserId,
-        [FromQuery] string? date = null)
+        [FromQuery] string? date = null,
+        [FromQuery] string? scope = null)
     {
         var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (!Guid.TryParse(userIdStr, out var staffUserId))
@@ -228,7 +229,11 @@ public class AppointmentsController : ControllerBase
 
         try
         {
-            var list = await _appointmentService.GetStaffHospitalAppointmentsAsync(staffUserId, hospitalUserId, parsedDate);
+            var list = await _appointmentService.GetStaffHospitalAppointmentsAsync(
+                staffUserId,
+                hospitalUserId,
+                parsedDate,
+                scope);
             return Ok(list);
         }
         catch (UnauthorizedAccessException)

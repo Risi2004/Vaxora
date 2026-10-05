@@ -102,6 +102,8 @@ export default function StaffClinicalDashboard({
   const [loadError, setLoadError] = useState('');
   const [now, setNow] = useState(() => Date.now());
   const [hospitalMenuOpen, setHospitalMenuOpen] = useState(false);
+  /** 'my' = assigned doctor/nurse panel; 'hospital' = full floor view */
+  const [panelScope, setPanelScope] = useState('my');
   const toastTimerRef = useRef(null);
   const hospitalMenuRef = useRef(null);
 
@@ -138,7 +140,8 @@ export default function StaffClinicalDashboard({
     };
   }, [hospitalMenuOpen]);
 
-  const loadDashboardData = useCallback(async (hospitalOverride) => {
+  const loadDashboardData = useCallback(async (hospitalOverride, scopeOverride) => {
+    const listScope = scopeOverride ?? panelScope;
     setStatsLoading(true);
     setLoadError('');
     try {
@@ -163,7 +166,11 @@ export default function StaffClinicalDashboard({
       }
 
       const [appts, lots] = await Promise.all([
-        staffAppointmentService.getHospitalAppointments(hospitalId, toDateInputValue()),
+        staffAppointmentService.getHospitalAppointments(
+          hospitalId,
+          toDateInputValue(),
+          listScope
+        ),
         inventoryService.getInventory(hospitalId).catch(() => []),
       ]);
       const rows = Array.isArray(appts) ? appts : [];
@@ -187,7 +194,7 @@ export default function StaffClinicalDashboard({
     } finally {
       setStatsLoading(false);
     }
-  }, [selectedHospitalUserId]);
+  }, [selectedHospitalUserId, panelScope]);
 
   useEffect(() => {
     let cancelled = false;
@@ -456,6 +463,7 @@ export default function StaffClinicalDashboard({
     setActivePatientId(null);
     setFilterStatus('all');
     setSearchQuery('');
+    setPanelScope('my');
     loadDashboardData(hospitalUserId);
   };
 
@@ -861,8 +869,36 @@ export default function StaffClinicalDashboard({
                 Today&apos;s Consultation Queue
               </h2>
               <p className="section-title-desc">
-                Live patient flow for today&apos;s session at your affiliated hospital
+                {panelScope === 'hospital'
+                  ? 'All patients booked at this hospital today'
+                  : 'Patients assigned to you on today\u2019s schedule'}
               </p>
+            </div>
+            <div className="queue-panel-scope-switch" role="group" aria-label="Queue visibility">
+              <button
+                type="button"
+                className={`queue-scope-btn${panelScope === 'my' ? ' active' : ''}`}
+                onClick={() => {
+                  if (panelScope === 'my') return;
+                  setPanelScope('my');
+                  loadDashboardData(selectedHospitalUserId, 'my');
+                }}
+                disabled={statsLoading || statusUpdating}
+              >
+                My patients
+              </button>
+              <button
+                type="button"
+                className={`queue-scope-btn${panelScope === 'hospital' ? ' active' : ''}`}
+                onClick={() => {
+                  if (panelScope === 'hospital') return;
+                  setPanelScope('hospital');
+                  loadDashboardData(selectedHospitalUserId, 'hospital');
+                }}
+                disabled={statsLoading || statusUpdating}
+              >
+                Whole hospital
+              </button>
             </div>
           </div>
 
@@ -959,7 +995,9 @@ export default function StaffClinicalDashboard({
                       {statsLoading
                         ? "Loading today's appointments..."
                         : patients.length === 0
-                          ? 'No appointments for today at your affiliated hospital.'
+                          ? panelScope === 'hospital'
+                            ? 'No appointments for today at your affiliated hospital.'
+                            : 'No patients assigned to you for today. Try whole-hospital view or check your schedule assignment.'
                           : 'No patients matching your search criteria.'}
                     </td>
                   </tr>

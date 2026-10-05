@@ -1435,6 +1435,15 @@
   padding-bottom: 12px;
 }
 
+.queue-panel-scope-switch {
+  display: flex;
+  gap: 4px;
+  background: #eef2ff;
+  padding: 3px;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
 .queue-controls-bar {
   display: flex;
   align-items: center;
