@@ -141,7 +141,7 @@ describe('Booking Management - Booking List and Details', () => {
     expect(screen.getByText('✓ Paid Online')).toBeInTheDocument();
 
     // Verify Status badge
-    expect(screen.getByText('Confirmed')).toBeInTheDocument();
+    expect(document.querySelector('.apt-status-pill')).toHaveTextContent('Confirmed');
   });
 
   it('displays subsidized badge when fee is zero and payment due badge when unpaid', async () => {
