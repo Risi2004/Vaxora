@@ -180,12 +180,17 @@ class _BookAppointmentSheetState extends State<BookAppointmentSheet> {
         "${_selectedDate!.year}-${_selectedDate!.month.toString().padLeft(2, '0')}-${_selectedDate!.day.toString().padLeft(2, '0')}";
 
     try {
+      final paymentMethod = (_selectedSchedule != null && _selectedSchedule!.price > 0)
+          ? 'PayHere'
+          : 'Free';
+
       final appt = await AppointmentRepository.bookAppointment(
         hospitalUserId: hospitalUserId,
         vaccineName: _selectedVaccine!,
         appointmentDate: dateStr,
         timeSlot: _selectedSlot!,
         notes: _notesController.text.trim(),
+        paymentMethod: paymentMethod,
       );
 
       if (mounted) {

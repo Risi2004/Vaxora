@@ -26,6 +26,9 @@ class ApiConstants {
   // Auth endpoints
   static const String login = '/auth/login';
   static const String signupPatient = '/auth/signup/patient';
+  static const String signupDoctor = '/auth/signup/doctor';
+  static const String signupNurse = '/auth/signup/nurse';
+  static const String signupHospital = '/auth/signup/hospital';
   static const String currentUser = '/auth/me';
 
   // Appointment endpoints

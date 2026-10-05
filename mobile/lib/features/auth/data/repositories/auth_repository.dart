@@ -1,11 +1,31 @@
+import 'dart:io' show File;
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_constants.dart';
 import '../../../../core/services/storage_service.dart';
+import '../models/selected_file.dart';
 import '../models/user_model.dart';
 
 class AuthRepository {
+  static Future<http.MultipartFile> _createMultipartFile(
+    String fieldName,
+    SelectedFile file,
+  ) async {
+    if (kIsWeb || file.path == null) {
+      final bytes = file.bytes ??
+          (file.path != null ? await File(file.path!).readAsBytes() : <int>[]);
+      return http.MultipartFile.fromBytes(fieldName, bytes, filename: file.name);
+    }
+    return await http.MultipartFile.fromPath(
+      fieldName,
+      file.path!,
+      filename: file.name,
+    );
+  }
+
   /// Persist API user payload + normalized fields so photo URLs are not dropped.
   static Future<void> _persistUser(
     UserModel user, [
@@ -86,6 +106,7 @@ class AuthRepository {
     required String nicNumber,
     required String dateOfBirth,
     String? phoneNumber,
+    SelectedFile? profilePhoto,
   }) async {
     final fields = <String, String>{
       'Email': email.trim(),
@@ -99,16 +120,190 @@ class AuthRepository {
       fields['PhoneNumber'] = phoneNumber.trim();
     }
 
+    final files = <http.MultipartFile>[];
+    if (profilePhoto != null && profilePhoto.hasContent) {
+      files.add(await _createMultipartFile('ProfilePhoto', profilePhoto));
+    }
+
     final response = await ApiClient.postMultipart(
       ApiConstants.signupPatient,
       fields: fields,
+      files: files,
+    );
+
+    if (response is Map<String, dynamic>) {
+      final token = response['token']?.toString();
+      if (token != null && token.isNotEmpty) {
+        await StorageService.saveToken(token);
+      }
+      if (response['user'] != null && response['user'] is Map<String, dynamic>) {
+        final userMap = Map<String, dynamic>.from(response['user'] as Map<String, dynamic>);
+        final user = UserModel.fromJson(userMap);
+        await _persistUser(user, userMap);
+      }
+      return response;
+    }
+
+    return {'message': 'Patient registration submitted successfully.'};
+  }
+
+  static Future<Map<String, dynamic>> registerDoctor({
+    required String email,
+    required String password,
+    required String fullName,
+    required String slmcNumber,
+    String? specialization,
+    String? phoneNumber,
+    SelectedFile? profilePhoto,
+    SelectedFile? slmcCertificate,
+    SelectedFile? supportingDocument,
+  }) async {
+    final fields = <String, String>{
+      'Email': email.trim(),
+      'Password': password,
+      'FullName': fullName.trim(),
+      'SlmcNumber': slmcNumber.trim(),
+    };
+
+    if (specialization != null && specialization.trim().isNotEmpty) {
+      fields['Specialization'] = specialization.trim();
+    }
+    if (phoneNumber != null && phoneNumber.trim().isNotEmpty) {
+      fields['PhoneNumber'] = phoneNumber.trim();
+    }
+
+    final files = <http.MultipartFile>[];
+    if (profilePhoto != null && profilePhoto.hasContent) {
+      files.add(await _createMultipartFile('ProfilePhoto', profilePhoto));
+    }
+    if (slmcCertificate != null && slmcCertificate.hasContent) {
+      files.add(await _createMultipartFile('SlmcCertificate', slmcCertificate));
+    }
+    if (supportingDocument != null && supportingDocument.hasContent) {
+      files.add(await _createMultipartFile('SupportingDocument', supportingDocument));
+    }
+
+    final response = await ApiClient.postMultipart(
+      ApiConstants.signupDoctor,
+      fields: fields,
+      files: files,
     );
 
     if (response is Map<String, dynamic>) {
       return response;
     }
 
-    return {'message': 'Patient registration submitted successfully.'};
+    return {'message': 'Doctor registration submitted successfully.'};
+  }
+
+  static Future<Map<String, dynamic>> registerNurse({
+    required String email,
+    required String password,
+    required String fullName,
+    required String slncNumber,
+    String? phoneNumber,
+    SelectedFile? profilePhoto,
+    SelectedFile? slncCertificate,
+    SelectedFile? supportingDocument,
+  }) async {
+    final fields = <String, String>{
+      'Email': email.trim(),
+      'Password': password,
+      'FullName': fullName.trim(),
+      'SlncNumber': slncNumber.trim(),
+    };
+
+    if (phoneNumber != null && phoneNumber.trim().isNotEmpty) {
+      fields['PhoneNumber'] = phoneNumber.trim();
+    }
+
+    final files = <http.MultipartFile>[];
+    if (profilePhoto != null && profilePhoto.hasContent) {
+      files.add(await _createMultipartFile('ProfilePhoto', profilePhoto));
+    }
+    if (slncCertificate != null && slncCertificate.hasContent) {
+      files.add(await _createMultipartFile('SlncCertificate', slncCertificate));
+    }
+    if (supportingDocument != null && supportingDocument.hasContent) {
+      files.add(await _createMultipartFile('SupportingDocument', supportingDocument));
+    }
+
+    final response = await ApiClient.postMultipart(
+      ApiConstants.signupNurse,
+      fields: fields,
+      files: files,
+    );
+
+    if (response is Map<String, dynamic>) {
+      return response;
+    }
+
+    return {'message': 'Nurse registration submitted successfully.'};
+  }
+
+  static Future<Map<String, dynamic>> registerHospital({
+    required String email,
+    required String password,
+    required String hospitalName,
+    required String registrationNumber,
+    String? hospitalType,
+    String? operatingHours,
+    String? address,
+    String? district,
+    String? province,
+    String? contactNumber,
+    SelectedFile? logo,
+    SelectedFile? registrationCertificate,
+    SelectedFile? mohDocument,
+  }) async {
+    final fields = <String, String>{
+      'Email': email.trim(),
+      'Password': password,
+      'HospitalName': hospitalName.trim(),
+      'RegistrationNumber': registrationNumber.trim(),
+    };
+
+    if (hospitalType != null && hospitalType.trim().isNotEmpty) {
+      fields['HospitalType'] = hospitalType.trim();
+    }
+    if (operatingHours != null && operatingHours.trim().isNotEmpty) {
+      fields['OperatingHours'] = operatingHours.trim();
+    }
+    if (address != null && address.trim().isNotEmpty) {
+      fields['Address'] = address.trim();
+    }
+    if (district != null && district.trim().isNotEmpty) {
+      fields['District'] = district.trim();
+    }
+    if (province != null && province.trim().isNotEmpty) {
+      fields['Province'] = province.trim();
+    }
+    if (contactNumber != null && contactNumber.trim().isNotEmpty) {
+      fields['ContactNumber'] = contactNumber.trim();
+    }
+
+    final files = <http.MultipartFile>[];
+    if (logo != null && logo.hasContent) {
+      files.add(await _createMultipartFile('Logo', logo));
+    }
+    if (registrationCertificate != null && registrationCertificate.hasContent) {
+      files.add(await _createMultipartFile('RegistrationCertificate', registrationCertificate));
+    }
+    if (mohDocument != null && mohDocument.hasContent) {
+      files.add(await _createMultipartFile('MohDocument', mohDocument));
+    }
+
+    final response = await ApiClient.postMultipart(
+      ApiConstants.signupHospital,
+      fields: fields,
+      files: files,
+    );
+
+    if (response is Map<String, dynamic>) {
+      return response;
+    }
+
+    return {'message': 'Hospital registration submitted successfully.'};
   }
 
   static Future<UserModel?> getCurrentUser({bool forceRefresh = false}) async {

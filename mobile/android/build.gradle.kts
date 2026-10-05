@@ -42,6 +42,26 @@ subprojects {
             }
         }
     }
+    plugins.withId("com.android.library") {
+        if (!plugins.hasPlugin("org.jetbrains.kotlin.android")) {
+            try {
+                plugins.apply("org.jetbrains.kotlin.android")
+            } catch (_: Throwable) { }
+        }
+    }
+    tasks.matching { it.name.contains("Kotlin") }.configureEach {
+        try {
+            val compilerOptions = this.javaClass.getMethod("getCompilerOptions").invoke(this)
+            val jvmTarget = compilerOptions.javaClass.getMethod("getJvmTarget").invoke(compilerOptions)
+            val jvmTargetEnum = Class.forName("org.jetbrains.kotlin.gradle.dsl.JvmTarget").getField("JVM_17").get(null)
+            jvmTarget.javaClass.getMethod("set", Object::class.java).invoke(jvmTarget, jvmTargetEnum)
+        } catch (_: Throwable) {
+            try {
+                val kotlinOptions = this.javaClass.getMethod("getKotlinOptions").invoke(this)
+                kotlinOptions.javaClass.getMethod("setJvmTarget", String::class.java).invoke(kotlinOptions, "17")
+            } catch (_: Throwable) { }
+        }
+    }
 }
 
 tasks.register<Delete>("clean") {

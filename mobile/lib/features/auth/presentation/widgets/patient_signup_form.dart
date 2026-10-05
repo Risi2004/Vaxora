@@ -22,6 +22,7 @@ class _PatientSignupFormState extends State<PatientSignupForm> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
+  SelectedFile? _profilePhoto;
   bool _showPassword = false;
   bool _showConfirmPassword = false;
   bool _isLoading = false;
@@ -102,6 +103,7 @@ class _PatientSignupFormState extends State<PatientSignupForm> {
       nicNumber: _nicController.text,
       dateOfBirth: _dobController.text,
       phoneNumber: _phoneController.text.trim().isNotEmpty ? _phoneController.text : null,
+      profilePhoto: _profilePhoto,
     ).then((_) {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -145,9 +147,11 @@ class _PatientSignupFormState extends State<PatientSignupForm> {
           ],
 
           // Profile Photo
-          const FileUploadPickerBox(
+          FileUploadPickerBox(
             label: 'Profile Photo (Optional)',
             placeholder: 'Upload Profile Photo (JPG/PNG)',
+            allowedExtensions: const ['jpg', 'jpeg', 'png', 'webp'],
+            onFileSelected: (file) => setState(() => _profilePhoto = file),
           ),
           const SizedBox(height: 12),
 
