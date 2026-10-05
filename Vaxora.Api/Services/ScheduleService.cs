@@ -206,6 +206,25 @@ public class ScheduleService : IScheduleService
             throw new KeyNotFoundException("Schedule slot not found.");
         }
 
+        var today = StaffDutyHelper.HospitalToday();
+        var blockingStatuses = new[] { "Cancelled", "Rejected" };
+
+        var openAppointments = await _context.Appointments
+            .AsNoTracking()
+            .Where(a =>
+                a.VaccineScheduleId == scheduleId &&
+                a.AppointmentDate >= today &&
+                !blockingStatuses.Contains(a.Status))
+            .CountAsync();
+
+        if (openAppointments > 0)
+        {
+            throw new InvalidOperationException(
+                $"Cannot cancel this schedule: {openAppointments} upcoming appointment" +
+                $"{(openAppointments == 1 ? "" : "s")} still linked to it. " +
+                "Cancel or complete those appointments first.");
+        }
+
         schedule.Status = "Cancelled";
         await _context.SaveChangesAsync();
 

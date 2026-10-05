@@ -395,7 +395,9 @@ export default function HospitalAppointmentsTab() {
 
   // Cancel schedule in database
   const handleCancelSchedule = async (id) => {
-    if (!window.confirm('Are you sure you want to cancel this immunization schedule slot?')) {
+    if (!window.confirm(
+      'Cancel this immunization schedule? This is blocked if patients still have upcoming appointments on it.'
+    )) {
       return;
     }
 
@@ -404,7 +406,7 @@ export default function HospitalAppointmentsTab() {
       showToast('Schedule slot cancelled.', 'success');
       await loadSchedules();
     } catch (err) {
-      showToast(`Failed to cancel schedule: ${err.message}`, 'error');
+      showToast(err.message || 'Failed to cancel schedule.', 'error');
     }
   };
 
