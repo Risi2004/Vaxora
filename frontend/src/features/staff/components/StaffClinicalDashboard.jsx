@@ -96,8 +96,6 @@ export default function StaffClinicalDashboard({
   const [loadError, setLoadError] = useState('');
   const [now, setNow] = useState(() => Date.now());
   const [hospitalMenuOpen, setHospitalMenuOpen] = useState(false);
-  /** 'my' = assigned doctor/nurse panel; 'hospital' = full floor view */
-  const [panelScope, setPanelScope] = useState('my');
   const [contactCache, setContactCache] = useState({});
   const [contactLoadingId, setContactLoadingId] = useState(null);
   const toastTimerRef = useRef(null);
@@ -136,8 +134,7 @@ export default function StaffClinicalDashboard({
     };
   }, [hospitalMenuOpen]);
 
-  const loadDashboardData = useCallback(async (hospitalOverride, scopeOverride) => {
-    const listScope = scopeOverride ?? panelScope;
+  const loadDashboardData = useCallback(async (hospitalOverride) => {
     setStatsLoading(true);
     setLoadError('');
     try {
@@ -162,11 +159,7 @@ export default function StaffClinicalDashboard({
       }
 
       const [appts, lots] = await Promise.all([
-        staffAppointmentService.getHospitalAppointments(
-          hospitalId,
-          hospitalToday(),
-          listScope
-        ),
+        staffAppointmentService.getHospitalAppointments(hospitalId, hospitalToday()),
         inventoryService.getInventory(hospitalId).catch(() => []),
       ]);
       const rows = Array.isArray(appts) ? appts : [];
@@ -190,7 +183,7 @@ export default function StaffClinicalDashboard({
     } finally {
       setStatsLoading(false);
     }
-  }, [selectedHospitalUserId, panelScope]);
+  }, [selectedHospitalUserId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -875,36 +868,8 @@ export default function StaffClinicalDashboard({
                 Today&apos;s Consultation Queue
               </h2>
               <p className="section-title-desc">
-                {panelScope === 'hospital'
-                  ? 'All patients booked at this hospital today'
-                  : 'Patients whose slots overlap your shifts today'}
+                All patients booked at this hospital today
               </p>
-            </div>
-            <div className="queue-panel-scope-switch" role="group" aria-label="Queue visibility">
-              <button
-                type="button"
-                className={`queue-scope-btn${panelScope === 'my' ? ' active' : ''}`}
-                onClick={() => {
-                  if (panelScope === 'my') return;
-                  setPanelScope('my');
-                  loadDashboardData(selectedHospitalUserId, 'my');
-                }}
-                disabled={statsLoading || statusUpdating}
-              >
-                My shift
-              </button>
-              <button
-                type="button"
-                className={`queue-scope-btn${panelScope === 'hospital' ? ' active' : ''}`}
-                onClick={() => {
-                  if (panelScope === 'hospital') return;
-                  setPanelScope('hospital');
-                  loadDashboardData(selectedHospitalUserId, 'hospital');
-                }}
-                disabled={statsLoading || statusUpdating}
-              >
-                Whole hospital
-              </button>
             </div>
           </div>
 
@@ -1001,9 +966,7 @@ export default function StaffClinicalDashboard({
                       {statsLoading
                         ? "Loading today's appointments..."
                         : patients.length === 0
-                          ? panelScope === 'hospital'
-                            ? 'No appointments for today at your affiliated hospital.'
-                            : 'No patients overlapping your shifts today. Check Staff → Shifts, or switch to whole-hospital view.'
+                          ? 'No appointments for today at your affiliated hospital.'
                           : 'No patients matching your search criteria.'}
                     </td>
                   </tr>

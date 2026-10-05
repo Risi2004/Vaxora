@@ -222,11 +222,6 @@ public class ClinicalPatientService : IClinicalPatientService
                 "This visit date has already passed. Mark it missed or ask the patient to rebook before prescribing dosage.");
         }
 
-        await StaffDutyHelper.EnsureStaffOnDutyAsync(
-            _context,
-            doctorUserId,
-            appointment.HospitalUserId);
-
         var doctorName = doctor.DoctorProfile?.FullName is { Length: > 0 } name
             ? $"Dr. {name}"
             : doctor.Email;

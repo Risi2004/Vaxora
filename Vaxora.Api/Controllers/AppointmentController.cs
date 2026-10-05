@@ -212,8 +212,7 @@ public class AppointmentsController : ControllerBase
     [Authorize(Roles = "DOCTOR,NURSE")]
     public async Task<IActionResult> GetStaffHospitalAppointments(
         [FromQuery] Guid hospitalUserId,
-        [FromQuery] string? date = null,
-        [FromQuery] string? scope = null)
+        [FromQuery] string? date = null)
     {
         var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (!Guid.TryParse(userIdStr, out var staffUserId))
@@ -233,8 +232,7 @@ public class AppointmentsController : ControllerBase
             var list = await _appointmentService.GetStaffHospitalAppointmentsAsync(
                 staffUserId,
                 hospitalUserId,
-                parsedDate,
-                scope);
+                parsedDate);
             return Ok(list);
         }
         catch (UnauthorizedAccessException)
@@ -253,7 +251,7 @@ public class AppointmentsController : ControllerBase
     }
 
     /// <summary>
-    /// On-duty assigned staff: reveal patient NIC/phone/email for one appointment.
+    /// Affiliated staff: reveal patient NIC/phone/email for one appointment.
     /// </summary>
     [HttpGet("{id:guid}/staff-contact")]
     [Authorize(Roles = "DOCTOR,NURSE")]

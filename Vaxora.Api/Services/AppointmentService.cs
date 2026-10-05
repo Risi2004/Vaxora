@@ -17,8 +17,7 @@ public interface IAppointmentService
     Task<List<AppointmentResponseDto>> GetStaffHospitalAppointmentsAsync(
         Guid staffUserId,
         Guid hospitalUserId,
-        DateOnly? date = null,
-        string? scope = null);
+        DateOnly? date = null);
     Task<StaffAppointmentPatientContactDto> GetStaffAppointmentPatientContactAsync(
         Guid staffUserId,
         Guid appointmentId);
@@ -767,8 +766,7 @@ public class AppointmentService : IAppointmentService
     public async Task<List<AppointmentResponseDto>> GetStaffHospitalAppointmentsAsync(
         Guid staffUserId,
         Guid hospitalUserId,
-        DateOnly? date = null,
-        string? scope = null)
+        DateOnly? date = null)
     {
         var staff = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == staffUserId);
         if (staff == null || staff.Role is not (UserRole.DOCTOR or UserRole.NURSE))
@@ -785,9 +783,6 @@ public class AppointmentService : IAppointmentService
         if (!isAffiliated)
             throw new UnauthorizedAccessException("You are not affiliated with this hospital.");
 
-        var hospitalWide =
-            string.Equals(scope?.Trim(), "hospital", StringComparison.OrdinalIgnoreCase);
-
         // Clinical floor list is session-scoped: hospital-local today only (±1 day).
         // Broader history remains on hospital/admin appointment screens.
         var hospitalToday = StaffDutyHelper.HospitalToday();
@@ -800,56 +795,21 @@ public class AppointmentService : IAppointmentService
                 $"Clinical queue is limited to today's hospital session ({hospitalToday:yyyy-MM-dd}) ± 1 day. Use hospital appointments for wider history.");
         }
 
-        var query = _context.Appointments
+        var appointments = await _context.Appointments
             .AsNoTracking()
             .Where(a =>
                 a.HospitalUserId == hospitalUserId &&
                 a.Status != "Cancelled" &&
                 a.Status != "Rejected" &&
-                a.AppointmentDate == sessionDate);
+                a.AppointmentDate == sessionDate)
+            .OrderBy(a => a.AppointmentDate)
+            .ThenBy(a => a.StartTime)
+            .ThenBy(a => a.CreatedAt)
+            .ToListAsync();
 
-        List<Appointment> appointments;
-        if (hospitalWide)
-        {
-            appointments = await query
-                .OrderBy(a => a.AppointmentDate)
-                .ThenBy(a => a.StartTime)
-                .ThenBy(a => a.CreatedAt)
-                .ToListAsync();
-        }
-        else
-        {
-            // "My patients" = bookings that overlap this staff member's shifts today.
-            // Schedules stay hospital-wide; shifts decide who works the floor.
-            var shiftRows = await _context.StaffShifts
-                .AsNoTracking()
-                .Where(s =>
-                    s.Affiliation.StaffUserId == staffUserId &&
-                    s.Affiliation.HospitalUserId == hospitalUserId &&
-                    s.Affiliation.Status == AffiliationStatus.Active &&
-                    s.ShiftDate == sessionDate)
-                .Select(s => new { s.StartTime, s.EndTime, s.BoothId })
-                .ToListAsync();
-
-            var shifts = shiftRows
-                .Select(s => (s.StartTime, s.EndTime, s.BoothId))
-                .ToList();
-
-            var rows = await query
-                .OrderBy(a => a.AppointmentDate)
-                .ThenBy(a => a.StartTime)
-                .ThenBy(a => a.CreatedAt)
-                .ToListAsync();
-
-            appointments = rows
-                .Where(a => AppointmentVisibleOnStaffShift(a, staffUserId, shifts))
-                .ToList();
-        }
-
-        var scopeLabel = hospitalWide ? "hospital" : "my_shift";
         var dateLabel = sessionDate.ToString("yyyy-MM-dd");
         var auditDetails =
-            $"Staff viewed clinical appointment list scope={scopeLabel} hospital={hospitalUserId} date={dateLabel} recordCount={appointments.Count}";
+            $"Staff viewed clinical appointment list hospital={hospitalUserId} date={dateLabel} recordCount={appointments.Count}";
 
         _context.AuditLogs.Add(new AuditLog
         {
@@ -893,8 +853,6 @@ public class AppointmentService : IAppointmentService
 
         if (!isAffiliated)
             throw new UnauthorizedAccessException("You are not affiliated with this hospital.");
-
-        await EnsureStaffAssignedToAppointmentAsync(appointment, staffUserId);
 
         _context.AuditLogs.Add(new AuditLog
         {
@@ -941,8 +899,6 @@ public class AppointmentService : IAppointmentService
 
             if (!isAffiliated)
                 throw new UnauthorizedAccessException("You are not affiliated with this hospital.");
-
-            await EnsureStaffAssignedToAppointmentAsync(appointment, actorUserId);
         }
 
         var requestedStatus = (dto.Status ?? string.Empty).Trim();
@@ -1102,8 +1058,6 @@ public class AppointmentService : IAppointmentService
 
         if (!isAffiliated)
             throw new UnauthorizedAccessException("You are not affiliated with this hospital.");
-
-        await EnsureStaffAssignedToAppointmentAsync(appointment, actorUserId);
 
         if (string.Equals(appointment.Status, "Cancelled", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(appointment.Status, "Rejected", StringComparison.OrdinalIgnoreCase))
@@ -1898,92 +1852,6 @@ public class AppointmentService : IAppointmentService
         if (Enum.TryParse<InjectionSite>(raw.Replace(" ", string.Empty), true, out var parsed))
             return parsed;
         return null;
-    }
-
-    private async Task EnsureStaffAssignedToAppointmentAsync(Appointment appointment, Guid staffUserId)
-    {
-        // Explicit assignment (rare) still binds the booking to that clinician.
-        if (appointment.DoctorUserId == staffUserId || appointment.NurseUserId == staffUserId)
-            return;
-
-        Guid? scheduleDoctorId = null;
-        Guid? scheduleNurseId = null;
-        if (appointment.VaccineScheduleId is Guid scheduleId)
-        {
-            var schedule = await _context.VaccineSchedules.AsNoTracking()
-                .FirstOrDefaultAsync(v => v.Id == scheduleId);
-            if (schedule != null)
-            {
-                scheduleDoctorId = schedule.DoctorUserId;
-                scheduleNurseId = schedule.NurseUserId;
-                if (schedule.DoctorUserId == staffUserId || schedule.NurseUserId == staffUserId)
-                    return;
-            }
-        }
-
-        var hasExplicitAssignment =
-            appointment.DoctorUserId.HasValue ||
-            appointment.NurseUserId.HasValue ||
-            scheduleDoctorId.HasValue ||
-            scheduleNurseId.HasValue;
-
-        // Normal path: schedules are hospital-wide; affiliation gates who can act.
-        if (!hasExplicitAssignment)
-            return;
-
-        throw new UnauthorizedAccessException("This appointment is not assigned to your clinical panel.");
-    }
-
-    private static bool AppointmentVisibleOnStaffShift(
-        Appointment appointment,
-        Guid staffUserId,
-        IReadOnlyList<(TimeOnly StartTime, TimeOnly EndTime, Guid? BoothId)> shifts)
-    {
-        if (appointment.DoctorUserId == staffUserId || appointment.NurseUserId == staffUserId)
-            return true;
-
-        // Keep in-progress clinical sessions visible even if the clock edged past shift end.
-        var status = appointment.Status ?? string.Empty;
-        if (status.Equals("Administering", StringComparison.OrdinalIgnoreCase) ||
-            status.Equals("Observation", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        if (shifts.Count == 0)
-            return false;
-
-        if (!TryGetAppointmentSlotTimes(appointment, out var slotStart, out var slotEnd))
-        {
-            // No parseable slot — show if they have any shift that day.
-            return true;
-        }
-
-        return shifts.Any(shift =>
-            slotStart < shift.EndTime &&
-            slotEnd > shift.StartTime);
-    }
-
-    private static bool TryGetAppointmentSlotTimes(Appointment appointment, out TimeOnly start, out TimeOnly end)
-    {
-        start = default;
-        end = default;
-
-        if (TimeOnly.TryParse(appointment.StartTime, out start) &&
-            TimeOnly.TryParse(appointment.EndTime, out end) &&
-            end > start)
-        {
-            return true;
-        }
-
-        var slot = appointment.TimeSlot ?? string.Empty;
-        var parts = slot.Split('-', 2, StringSplitOptions.TrimEntries);
-        if (parts.Length != 2)
-            return false;
-
-        return TimeOnly.TryParse(parts[0], out start) &&
-               TimeOnly.TryParse(parts[1], out end) &&
-               end > start;
     }
 
     private static AppointmentResponseDto MapToStaffListDto(Appointment a)

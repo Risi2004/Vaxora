@@ -1435,15 +1435,6 @@
   padding-bottom: 12px;
 }
 
-.queue-panel-scope-switch {
-  display: flex;
-  gap: 4px;
-  background: #eef2ff;
-  padding: 3px;
-  border-radius: 8px;
-  flex-shrink: 0;
-}
-
 .queue-contact-reveal-btn {
   margin-top: 4px;
   padding: 0;
