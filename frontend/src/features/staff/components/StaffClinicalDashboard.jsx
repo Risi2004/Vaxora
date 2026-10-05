@@ -468,7 +468,6 @@ export default function StaffClinicalDashboard({
     setActivePatientId(null);
     setFilterStatus('all');
     setSearchQuery('');
-    setPanelScope('my');
     setContactCache({});
     loadDashboardData(hospitalUserId);
   };
