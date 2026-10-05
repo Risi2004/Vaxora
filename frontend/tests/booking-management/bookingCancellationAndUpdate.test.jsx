@@ -85,15 +85,19 @@ describe('Booking Management - Cancellation & Status Updates (Scenario 9)', () =
   });
 
   // 9b. Same-day appointments are locked from online cancellation
-  it('prevents online cancellation for same-day appointments and displays Locked (Same-Day) indicator', async () => {
-    const todayStr = new Date().toISOString().split('T')[0];
+  it('prevents online cancellation for imminent appointments and displays the Locked indicator', async () => {
+    const start = new Date(Date.now() + 2 * 60 * 60 * 1000 + 330 * 60 * 1000);
+    const todayStr = start.toISOString().slice(0, 10);
+    const slotStart =
+      `:`;
 
     const mockAppointments = [
       {
         id: 'apt-same-day',
         vaccineName: 'COVID-19 mRNA Booster (Moderna)',
         appointmentDate: todayStr,
-        timeSlot: '14:00 - 14:20',
+        startTime: slotStart,
+        timeSlot: ` - 23:59`,
         hospitalName: 'National Hospital Colombo',
         fee: 0,
         paymentStatus: 'Paid',
@@ -109,7 +113,7 @@ describe('Booking Management - Cancellation & Status Updates (Scenario 9)', () =
     await screen.findByText('COVID-19 mRNA Booster (Moderna)');
 
     // "Locked (Same-Day)" badge should be displayed
-    expect(screen.getByText('Locked (Same-Day)')).toBeInTheDocument();
+    expect(screen.getByText('Locked')).toBeInTheDocument();
 
     // Cancel button should NOT be present for same-day appointments
     expect(screen.queryByRole('button', { name: /^Cancel$/i })).not.toBeInTheDocument();
