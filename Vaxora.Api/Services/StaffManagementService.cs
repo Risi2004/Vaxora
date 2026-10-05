@@ -364,6 +364,19 @@ public class StaffManagementService : IStaffManagementService
         affiliation.DutyUpdatedAt = DateTime.UtcNow;
         affiliation.DutyUpdatedByUserId = hospitalUserId;
 
+        // If staff no longer belongs to any hospital, revoke refresh session so
+        // a phone/browser cannot keep renewing access after roster removal.
+        var stillAffiliated = await _context.StaffAffiliations.AnyAsync(a =>
+            a.StaffUserId == affiliation.StaffUserId &&
+            a.Id != affiliation.Id &&
+            a.Status == AffiliationStatus.Active);
+
+        if (!stillAffiliated && affiliation.StaffUser != null)
+        {
+            affiliation.StaffUser.RefreshToken = null;
+            affiliation.StaffUser.RefreshTokenExpiryTime = null;
+        }
+
         var hospital = await _context.Users.FirstAsync(u => u.Id == hospitalUserId);
         _context.AuditLogs.Add(new AuditLog
         {
@@ -371,7 +384,9 @@ public class StaffManagementService : IStaffManagementService
             UserEmail = hospital.Email,
             Role = "HOSPITAL",
             Action = "STAFF_REMOVED",
-            Details = $"Hospital removed staff {affiliation.StaffUser.RegistrationNumber} from roster"
+            Details = stillAffiliated
+                ? $"Hospital removed staff {affiliation.StaffUser.RegistrationNumber} from roster"
+                : $"Hospital removed staff {affiliation.StaffUser.RegistrationNumber} from roster; refresh session revoked (no remaining affiliations)"
         });
 
         await _context.SaveChangesAsync();

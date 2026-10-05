@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using System.Globalization;
 using Xunit;
 using Vaxora.Api.Data;
 using Vaxora.Api.Dtos;
@@ -22,8 +23,6 @@ public class VaccinationBookingTests
         {
             HospitalUserId = hospital.Id,
             VaccineName = "Pfizer-BioNTech",
-            DoctorName = "Dr. Silva",
-            NurseName = "Nurse Perera",
             ScheduleType = "OneTime",
             SpecificDate = scheduleDate,
             StartTime = "09:00",
@@ -68,8 +67,6 @@ public class VaccinationBookingTests
         {
             HospitalUserId = hospital.Id,
             VaccineName = "Sinopharm",
-            DoctorName = "Dr. Silva",
-            NurseName = "Nurse Perera",
             ScheduleType = "OneTime",
             SpecificDate = scheduleDate,
             StartTime = "09:00",
@@ -97,12 +94,13 @@ public class VaccinationBookingTests
     }
 
     [Fact]
-    public async Task BookAppointmentAsync_rejects_slot_collision_when_slot_already_booked()
+    public async Task BookAppointmentAsync_allows_up_to_three_patients_per_20min_slot_then_rejects()
     {
         await using var context = TestDb.CreateContext();
         var hospital = TestDb.AddHospital(context);
-        var patient1 = AddPatient(context, "patient3@example.com", "VAX-P-4003");
-        var patient2 = AddPatient(context, "patient4@example.com", "VAX-P-4004");
+        var patients = Enumerable.Range(1, 4)
+            .Select(i => AddPatient(context, $"patient-cap{i}@example.com", $"VAX-P-4{i:000}"))
+            .ToList();
         var appointmentDate = StaffDutyHelper.HospitalToday().AddDays(2);
         const string slot = "10:00 AM - 10:20 AM";
 
@@ -110,8 +108,6 @@ public class VaccinationBookingTests
         {
             HospitalUserId = hospital.Id,
             VaccineName = "Moderna",
-            DoctorName = "Dr. Fernando",
-            NurseName = "Nurse Silva",
             ScheduleType = "OneTime",
             SpecificDate = appointmentDate,
             StartTime = "10:00",
@@ -123,29 +119,27 @@ public class VaccinationBookingTests
         await context.SaveChangesAsync();
 
         var service = CreateService(context);
-
-        // First patient books slot successfully
-        await service.BookAppointmentAsync(patient1.Id, new BookAppointmentRequestDto
+        var dtoFor = (Guid patientId) => new BookAppointmentRequestDto
         {
             HospitalUserId = hospital.Id,
             VaccineName = "Moderna",
             VaccineScheduleId = schedule.Id,
             AppointmentDate = appointmentDate,
             TimeSlot = slot
-        });
+        };
 
-        // Second patient attempts booking the exact same slot
+        // First 3 seats succeed
+        for (var i = 0; i < 3; i++)
+        {
+            var booked = await service.BookAppointmentAsync(patients[i].Id, dtoFor(patients[i].Id));
+            Assert.Equal("Confirmed", booked.Status);
+        }
+
+        // 4th patient is rejected — band is full
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            service.BookAppointmentAsync(patient2.Id, new BookAppointmentRequestDto
-            {
-                HospitalUserId = hospital.Id,
-                VaccineName = "Moderna",
-                VaccineScheduleId = schedule.Id,
-                AppointmentDate = appointmentDate,
-                TimeSlot = slot
-            }));
+            service.BookAppointmentAsync(patients[3].Id, dtoFor(patients[3].Id)));
 
-        Assert.Contains("already booked", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("full", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -162,8 +156,6 @@ public class VaccinationBookingTests
         {
             HospitalUserId = hospital.Id,
             VaccineName = "Moderna",
-            DoctorName = "Dr. Fernando",
-            NurseName = "Nurse Silva",
             ScheduleType = "OneTime",
             SpecificDate = appointmentDate,
             StartTime = "10:00",
@@ -250,8 +242,6 @@ public class VaccinationBookingTests
         {
             HospitalUserId = hospital.Id,
             VaccineName = "Rabies Vaccine",
-            DoctorName = "Dr. Perera",
-            NurseName = "Nurse Fernando",
             ScheduleType = "OneTime",
             SpecificDate = targetDate,
             StartTime = "09:00",
@@ -281,7 +271,10 @@ public class VaccinationBookingTests
         var slots = await service.GetAvailableTimeSlotsAsync(hospital.Id, "Rabies Vaccine", targetDate);
 
         Assert.Equal(3, slots.Count);
-        Assert.True(slots[0].IsBooked);
+        Assert.False(slots[0].IsBooked); // 1 of 3 seats taken — still open
+        Assert.Equal(1, slots[0].BookedCount);
+        Assert.Equal(3, slots[0].Capacity);
+        Assert.Equal(2, slots[0].SeatsRemaining);
         Assert.Equal("09:00 AM - 09:20 AM", slots[0].Slot);
         Assert.False(slots[1].IsBooked);
         Assert.Equal("09:20 AM - 09:40 AM", slots[1].Slot);
@@ -383,6 +376,42 @@ public class VaccinationBookingTests
         Assert.True(cancelled);
         var stored = await context.Appointments.SingleAsync(a => a.Id == appointment.Id);
         Assert.Equal("Cancelled", stored.Status);
+    }
+
+    [Fact]
+    public async Task CancelAppointmentAsync_blocks_patient_cancellation_within_24_hours()
+    {
+        await using var context = TestDb.CreateContext();
+        var hospital = TestDb.AddHospital(context);
+        var patient = AddPatient(context, "patient-within-cutoff@example.com", "VAX-P-4015");
+        var appointmentStart = StaffDutyHelper.HospitalNow().AddHours(12);
+
+        var appointment = new Appointment
+        {
+            HospitalUserId = hospital.Id,
+            PatientUserId = patient.Id,
+            PatientName = "Patient Within Cutoff",
+            VaccineName = "Polio",
+            AppointmentDate = DateOnly.FromDateTime(appointmentStart),
+            TimeSlot = $"{appointmentStart.ToString("hh:mm tt", CultureInfo.InvariantCulture)} - " +
+                       $"{appointmentStart.AddMinutes(20).ToString("hh:mm tt", CultureInfo.InvariantCulture)}",
+            Status = "Confirmed",
+            PaymentStatus = "Paid"
+        };
+        context.Appointments.Add(appointment);
+        await context.SaveChangesAsync();
+
+        var service = CreateService(context);
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.CancelAppointmentAsync(patient.Id, appointment.Id, isHospital: false));
+
+        Assert.Contains("at least 24 hours", ex.Message, StringComparison.OrdinalIgnoreCase);
+
+        var hospitalCancelled = await service.CancelAppointmentAsync(
+            hospital.Id,
+            appointment.Id,
+            isHospital: true);
+        Assert.True(hospitalCancelled);
     }
 
     [Fact]

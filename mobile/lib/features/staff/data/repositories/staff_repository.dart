@@ -141,6 +141,17 @@ class StaffRepository {
     throw ApiException('Failed to update appointment status.');
   }
 
+  /// Doctor-only: prescribe or amend the dose before the nurse administers it.
+  static Future<void> updateDosage({
+    required String appointmentId,
+    required String dosage,
+  }) async {
+    await ApiClient.put(
+      ApiConstants.appointmentDosage(appointmentId),
+      body: {'dosage': dosage.trim()},
+    );
+  }
+
   /// Clinical AEFI report: care, dose documentation, and follow-up visit.
   static Future<Map<String, dynamic>> reportAefi({
     required String appointmentId,
