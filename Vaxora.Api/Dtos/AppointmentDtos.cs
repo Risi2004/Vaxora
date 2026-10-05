@@ -23,8 +23,16 @@ public class TimeSlotDto
     public string Slot { get; set; } = string.Empty; // "09:00 AM - 09:20 AM"
     public string StartTime { get; set; } = string.Empty; // "09:00"
     public string EndTime { get; set; } = string.Empty; // "09:20"
+    /// <summary>True when this 20-min band has reached capacity (typically 3 patients).</summary>
     public bool IsBooked { get; set; }
-    public string DisplayStatus => IsBooked ? "Booked (Unavailable)" : "Available";
+    public int BookedCount { get; set; }
+    public int Capacity { get; set; } = 3;
+    public int SeatsRemaining => Math.Max(0, Capacity - BookedCount);
+    public string DisplayStatus => IsBooked
+        ? "Full (Unavailable)"
+        : SeatsRemaining == Capacity
+            ? "Available"
+            : $"{SeatsRemaining} seat(s) left";
 }
 
 public class BookAppointmentRequestDto

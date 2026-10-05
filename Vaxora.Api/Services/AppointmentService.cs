@@ -104,7 +104,8 @@ public class AppointmentService : IAppointmentService
                 .ToListAsync();
         }
 
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = StaffDutyHelper.HospitalToday();
+        var now = TimeOnly.FromDateTime(StaffDutyHelper.HospitalNow());
         var maxLookahead = today.AddDays(60);
         var availableDates = new List<AvailableDateDto>();
 
@@ -114,8 +115,10 @@ public class AppointmentService : IAppointmentService
 
             if (!isWeekly)
             {
-                // One-time schedule
-                if (schedule.SpecificDate.HasValue && schedule.SpecificDate.Value >= today)
+                // One-time schedule — skip fully elapsed windows
+                if (schedule.SpecificDate.HasValue &&
+                    schedule.SpecificDate.Value >= today &&
+                    HasBookableRemainder(schedule.SpecificDate.Value, schedule.EndTime, today, now))
                 {
                     var date = schedule.SpecificDate.Value;
                     var dayName = date.DayOfWeek.ToString();
@@ -161,6 +164,9 @@ public class AppointmentService : IAppointmentService
 
                 for (var cur = startDate; cur <= endDate; cur = cur.AddDays(1))
                 {
+                    if (!HasBookableRemainder(cur, schedule.EndTime, today, now))
+                        continue;
+
                     var dayName = cur.DayOfWeek.ToString();
                     var dayShort = dayName[..Math.Min(3, dayName.Length)];
 
@@ -198,6 +204,17 @@ public class AppointmentService : IAppointmentService
             .Select(g => g.First())
             .OrderBy(d => d.Date)
             .ToList();
+    }
+
+    /// <summary>False when the clinic window for this date has already ended.</summary>
+    private static bool HasBookableRemainder(DateOnly date, string? endTimeStr, DateOnly today, TimeOnly now)
+    {
+        if (date < today) return false;
+        if (date > today) return true;
+        if (!TryParseTime(endTimeStr ?? string.Empty, out var endTime)) return true;
+        // Need at least one 20-min band still available → last slot starts at end-20.
+        var lastSlotStart = endTime.AddMinutes(-20);
+        return lastSlotStart >= now;
     }
 
     public async Task<List<TimeSlotDto>> GetAvailableTimeSlotsAsync(Guid hospitalUserId, string vaccineName, DateOnly date)
@@ -265,11 +282,19 @@ public class AppointmentService : IAppointmentService
                         a.Status != "Rejected")
             .ToListAsync();
 
-        var bookedSlots = bookedAppointments
-            .Select(a => a.TimeSlot.Trim())
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var bookedCounts = bookedAppointments
+            .GroupBy(a => a.TimeSlot.Trim(), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.Count(), StringComparer.OrdinalIgnoreCase);
 
+        var capacity = ScheduleStockPlanner.PatientsPerSlot;
         var slots = new List<TimeSlotDto>();
+        var today = StaffDutyHelper.HospitalToday();
+        var now = TimeOnly.FromDateTime(StaffDutyHelper.HospitalNow());
+
+        if (date < today)
+        {
+            return new List<TimeSlotDto>();
+        }
 
         foreach (var sch in matchingSchedules)
         {
@@ -277,8 +302,18 @@ public class AppointmentService : IAppointmentService
 
             foreach (var slot in scheduleSlots)
             {
-                var isBooked = bookedSlots.Contains(slot.Slot);
-                slot.IsBooked = isBooked;
+                // Hide slots that already started (or finished starting) for today.
+                if (date == today &&
+                    TryParseTime(slot.StartTime, out var slotStart) &&
+                    slotStart < now)
+                {
+                    continue;
+                }
+
+                bookedCounts.TryGetValue(slot.Slot, out var count);
+                slot.Capacity = capacity;
+                slot.BookedCount = count;
+                slot.IsBooked = count >= capacity;
                 slots.Add(slot);
             }
         }
@@ -312,17 +347,22 @@ public class AppointmentService : IAppointmentService
 
         var resolvedHospitalUserId = hospital.Id;
 
-        // Validate slot collision: 20-minute slots cannot be booked more than once
-        var existingAppointment = await _context.Appointments
-            .FirstOrDefaultAsync(a => a.HospitalUserId == resolvedHospitalUserId &&
-                                      a.AppointmentDate == dto.AppointmentDate &&
-                                      a.TimeSlot == dto.TimeSlot &&
-                                      a.Status != "Cancelled" &&
-                                      a.Status != "Rejected");
+        EnsureAppointmentNotInPast(dto.AppointmentDate, dto.TimeSlot);
 
-        if (existingAppointment != null)
+        // Capacity: up to PatientsPerSlot concurrent patients per 20-minute band
+        var slotCapacity = ScheduleStockPlanner.PatientsPerSlot;
+        var existingInSlot = await _context.Appointments
+            .CountAsync(a => a.HospitalUserId == resolvedHospitalUserId &&
+                             a.AppointmentDate == dto.AppointmentDate &&
+                             a.TimeSlot == dto.TimeSlot &&
+                             a.Status != "Cancelled" &&
+                             a.Status != "Rejected");
+
+        if (existingInSlot >= slotCapacity)
         {
-            throw new InvalidOperationException($"The slot '{dto.TimeSlot}' on {dto.AppointmentDate:yyyy-MM-dd} is already booked by another patient. Please select a different time slot.");
+            throw new InvalidOperationException(
+                $"The slot '{dto.TimeSlot}' on {dto.AppointmentDate:yyyy-MM-dd} is full " +
+                $"({slotCapacity} patients). Please select a different time slot.");
         }
 
         // Find matching active schedule for doctor/nurse attribution and fee calculation
@@ -1447,6 +1487,43 @@ public class AppointmentService : IAppointmentService
         }
 
         return result;
+    }
+
+    private static void EnsureAppointmentNotInPast(DateOnly appointmentDate, string? timeSlot)
+    {
+        var today = StaffDutyHelper.HospitalToday();
+        if (appointmentDate < today)
+        {
+            throw new InvalidOperationException("Cannot book an appointment on a past date.");
+        }
+
+        if (appointmentDate > today)
+        {
+            return;
+        }
+
+        var now = TimeOnly.FromDateTime(StaffDutyHelper.HospitalNow());
+        if (!TryParseSlotStart(timeSlot, out var slotStart))
+        {
+            throw new InvalidOperationException("Selected time slot is invalid.");
+        }
+
+        if (slotStart < now)
+        {
+            throw new InvalidOperationException("Cannot book a time slot that has already started. Please choose a later slot.");
+        }
+    }
+
+    private static bool TryParseSlotStart(string? timeSlot, out TimeOnly start)
+    {
+        start = default;
+        if (string.IsNullOrWhiteSpace(timeSlot)) return false;
+
+        // Formats: "09:00 AM - 09:20 AM" or "09:00-09:20" or single start time
+        var raw = timeSlot.Trim();
+        var dash = raw.IndexOf('-');
+        var startPart = dash >= 0 ? raw[..dash].Trim() : raw;
+        return TryParseTime(startPart, out start);
     }
 
     private static bool TryParseTime(string timeStr, out TimeOnly time)
