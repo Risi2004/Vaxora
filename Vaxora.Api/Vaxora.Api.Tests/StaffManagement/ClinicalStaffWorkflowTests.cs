@@ -83,6 +83,7 @@ public class ClinicalStaffWorkflowTests
         var affiliation = TestDb.AddActiveAffiliation(context, hospital, doctor);
         TestDb.AddLiveShift(context, affiliation, hospital);
         var appointment = TestDb.AddAppointment(context, hospital, status: "Confirmed");
+        appointment.PrescribedDosage = "0.5ml";
         await context.SaveChangesAsync();
 
         var service = CreateAppointmentService(context);
@@ -129,6 +130,7 @@ public class ClinicalStaffWorkflowTests
         var affiliation = TestDb.AddActiveAffiliation(context, hospital, doctor);
         TestDb.AddLiveShift(context, affiliation, hospital);
         var appointment = TestDb.AddAppointment(context, hospital, status: "Confirmed");
+        appointment.PrescribedDosage = "0.5ml";
         await context.SaveChangesAsync();
 
         var service = CreateAppointmentService(context);
@@ -138,6 +140,28 @@ public class ClinicalStaffWorkflowTests
             new UpdateAppointmentStatusDto { Status = "Administering" });
 
         Assert.Equal("Administering", updated.Status);
+    }
+
+    [Fact]
+    public async Task Staff_cannot_start_administering_without_a_prescribed_dose()
+    {
+        await using var context = TestDb.CreateContext();
+        var hospital = TestDb.AddHospital(context);
+        var nurse = TestDb.AddDoctor(context, "nurse@example.com", "VAX-D-3005");
+        var affiliation = TestDb.AddActiveAffiliation(context, hospital, nurse);
+        TestDb.AddLiveShift(context, affiliation, hospital);
+        var appointment = TestDb.AddAppointment(context, hospital, status: "Confirmed");
+        appointment.PrescribedDosage = null;
+        await context.SaveChangesAsync();
+
+        var service = CreateAppointmentService(context);
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.UpdateAppointmentStatusAsync(
+                nurse.Id,
+                appointment.Id,
+                new UpdateAppointmentStatusDto { Status = "Administering" }));
+
+        Assert.Contains("must prescribe the dose", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
