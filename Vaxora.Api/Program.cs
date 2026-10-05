@@ -86,6 +86,7 @@ builder.Services.AddScoped<IPatientVaccinationService, PatientVaccinationService
 builder.Services.AddScoped<IPatientMedicalHistoryService, PatientMedicalHistoryService>();
 builder.Services.AddScoped<IPatientVisitService, PatientVisitService>();
 builder.Services.AddScoped<IClinicalPatientService, ClinicalPatientService>();
+builder.Services.AddScoped<IFeedbackService, FeedbackService>();
 
 // Internal Agentic AI service gateway. Clients call this API, never the agent directly.
 var envAgentUrl = Environment.GetEnvironmentVariable("AGENT_SERVICE_URL")
