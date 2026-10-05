@@ -253,7 +253,7 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
     }
     StaffAppointmentModel? next;
     for (final a in _appointments) {
-      if (a.uiStatus == 'waiting' && a.isPaymentSettled) {
+      if (a.uiStatus == 'waiting' && a.isPaymentSettled && a.hasDosage) {
         next = a;
         break;
       }
@@ -261,8 +261,12 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
     if (next == null) {
       final unpaidWaiting =
           _appointments.any((a) => a.uiStatus == 'waiting' && !a.isPaymentSettled);
+      final awaitingDose = _appointments.any(
+          (a) => a.uiStatus == 'waiting' && a.isPaymentSettled && !a.hasDosage);
       _toast(
-        unpaidWaiting
+        awaitingDose
+            ? 'Paid patients are waiting for a doctor to prescribe their dose.'
+            : unpaidWaiting
             ? 'No paid patients waiting. Unpaid appointments cannot be administered yet.'
             : 'No more waiting patients in today’s queue.',
       );
@@ -280,6 +284,10 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
     }
     if (!patient.isPaymentSettled) {
       _toast('Payment must be settled before starting consultation.');
+      return;
+    }
+    if (!patient.hasDosage) {
+      _toast('A doctor must prescribe the dose before this patient can be examined.');
       return;
     }
     setState(() => _activePatientId = patient.id);
@@ -1027,9 +1035,15 @@ class _AppointmentCard extends StatelessWidget {
     Widget? action;
     if (a.uiStatus == 'waiting') {
       action = TextButton(
-        onPressed: busy || !onDuty || !a.isPaymentSettled ? null : onExamine,
+        onPressed: busy || !onDuty || !a.isPaymentSettled || !a.hasDosage
+            ? null
+            : onExamine,
         child: Text(
-          !a.isPaymentSettled ? 'Unpaid' : 'Examine',
+          !a.isPaymentSettled
+              ? 'Unpaid'
+              : !a.hasDosage
+                  ? 'Awaiting dose'
+                  : 'Examine',
           style: const TextStyle(fontWeight: FontWeight.w700),
         ),
       );
