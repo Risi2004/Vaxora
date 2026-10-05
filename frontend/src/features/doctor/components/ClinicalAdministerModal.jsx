@@ -1,5 +1,6 @@
 import { deferEffectCallback } from '../../../shared/utils/deferEffectCallback.js';
 import { useEffect, useMemo, useState } from 'react';
+import ClinicalContextPanel from './ClinicalContextPanel';
 
 /** Blank administration record. Confirmations start unticked so the clinician must sign off. */
 const emptyAdministration = {
@@ -19,6 +20,7 @@ export default function ClinicalAdministerModal({
   patient,
   onCertify,
   lotOptions = [],
+  isDoctor = false,
 }) {
   const [formData, setFormData] = useState(emptyAdministration);
   const [submitting, setSubmitting] = useState(false);
@@ -76,7 +78,7 @@ export default function ClinicalAdministerModal({
       await onCertify({
         ...patient,
         administrationDetails: formData,
-        administeredAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        administeredAt: new Date().toISOString(),
       });
       onClose();
     } catch {
@@ -132,6 +134,8 @@ export default function ClinicalAdministerModal({
               </div>
             </div>
 
+            <ClinicalContextPanel patientProfileId={patient.patientProfileId} />
+
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
               <div className="doctor-form-group">
                 <label className="doctor-form-label">Vaccine Lot / Batch #</label>
@@ -157,15 +161,24 @@ export default function ClinicalAdministerModal({
               </div>
 
               <div className="doctor-form-group">
-                <label className="doctor-form-label">Dosage &amp; Volume</label>
+                <label className="doctor-form-label">
+                  {isDoctor ? 'Dosage & Volume' : 'Prescribed dose (confirm)'}
+                </label>
                 <input
                   type="text"
                   className="doctor-form-input"
                   value={formData.dosage}
                   onChange={(e) => setFormData({ ...formData, dosage: e.target.value })}
                   required
+                  readOnly={!isDoctor}
                   disabled={submitting}
+                  title={isDoctor ? undefined : 'Set by the prescribing doctor'}
                 />
+                {!isDoctor && (
+                  <p style={{ margin: '6px 0 0', fontSize: '0.75rem', color: '#64748b' }}>
+                    Prescribed by {patient.prescribedBy || 'the doctor'}. Contact the doctor to change it.
+                  </p>
+                )}
               </div>
             </div>
 

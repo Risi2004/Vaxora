@@ -46,6 +46,12 @@ async function apiRequest(endpoint, options = {}) {
 }
 
 export const appointmentService = {
+  getVaccinesWithHospitals() {
+    return apiRequest('/inventory/vaccines-with-hospitals', {
+      method: 'GET',
+    });
+  },
+
   // 1. Get available dates for a hospital & vaccine based on hospital schedules
   getAvailableDates(hospitalUserId, vaccineName) {
     const query = new URLSearchParams({

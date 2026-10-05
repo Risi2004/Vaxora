@@ -1094,12 +1094,14 @@ export default function HospitalDashboardOverview() {
         booths={boothCards.map((b) => ({ id: b.id, label: b.boothName }))}
       />
 
-      <RestockVaccineModal
-        isOpen={isRestockOpen}
-        onClose={() => setIsRestockOpen(false)}
-        onAddStock={handleAddStock}
-        registeredVaccines={formularyVaccines.map((f) => f.vaccineName || f.name)}
-      />
+      {isRestockOpen && (
+        <RestockVaccineModal
+          isOpen={isRestockOpen}
+          onClose={() => setIsRestockOpen(false)}
+          onAddStock={handleAddStock}
+          registeredVaccines={formularyVaccines.map((f) => f.vaccineName || f.name)}
+        />
+      )}
     </div>
   );
 }

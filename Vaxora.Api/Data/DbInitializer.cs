@@ -65,7 +65,8 @@ public static class DbInitializer
                     ("20260929030000_AddCoverReplacementOnSwap", "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ShiftSwapRequests' AND column_name = 'CoverDoctorUserId');"),
                     ("20261001120000_AddAgentWorkflowExecutionEvidence", "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'AgentWorkflows' AND column_name = 'CompletedStepsJson');"),
                     ("20261002120000_AddBatchOpenVialDosesRemaining", "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'Batches' AND column_name = 'OpenVialDosesRemaining');"),
-                    ("20261002130000_AllowGuestWalkInAppointments", "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'Appointments' AND column_name = 'GuestWalkInPatientName');")
+                    ("20261002130000_AllowGuestWalkInAppointments", "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'Appointments' AND column_name = 'GuestWalkInPatientName');"),
+                    ("20261005120000_AddHospitalFormularyPrice", "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'HospitalFormularies' AND column_name = 'Price');")
                 };
 
                 foreach (var (migrationId, sqlCheck) in subsequentChecks)
@@ -396,8 +397,6 @@ public static class DbInitializer
                             Id = Guid.NewGuid(),
                             HospitalUserId = hospitalUserInstance.Id,
                             HospitalProfileId = hospitalProf.Id,
-                            DoctorName = "Dr. Test Doctor",
-                            NurseName = "Nurse Test Nurse",
                             VaccineId = astraVaccine.Id,
                             VaccineName = "AstraZeneca",
                             ScheduleType = "Weekly",

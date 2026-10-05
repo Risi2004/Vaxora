@@ -76,7 +76,7 @@ export default function NurseClinicalAdministerModal({
       await onCertify({
         ...patient,
         administrationDetails: formData,
-        administeredAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        administeredAt: new Date().toISOString(),
       });
       onClose();
     } catch {
