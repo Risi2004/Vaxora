@@ -6,6 +6,7 @@ import { staffService } from '../services/staffService';
 import { appointmentService } from '../../patient/services/appointmentService';
 import HospitalSubpageHero from './HospitalSubpageHero';
 import { getAppointmentActionDisplay } from '../utils/appointmentStatus';
+import { IconCalendar, IconRefresh } from '../../../shared/icons/AppIcons';
 
 const DAYS_OF_WEEK = [
   { key: 'Monday', label: 'Mon' },
@@ -610,14 +611,14 @@ export default function HospitalAppointmentsTab() {
                   className={`schedule-type-btn ${scheduleForm.scheduleType === 'OneTime' ? 'active' : ''}`}
                   onClick={() => setScheduleForm((prev) => ({ ...prev, scheduleType: 'OneTime' }))}
                 >
-                  <span>🗓️</span> Single Date Only
+                  Single Date Only
                 </button>
                 <button
                   type="button"
                   className={`schedule-type-btn ${scheduleForm.scheduleType === 'Weekly' ? 'active' : ''}`}
                   onClick={() => setScheduleForm((prev) => ({ ...prev, scheduleType: 'Weekly' }))}
                 >
-                  <span>🔁</span> Recurring Weekly
+                  Recurring Weekly
                 </button>
               </div>
             </div>
@@ -956,7 +957,7 @@ export default function HospitalAppointmentsTab() {
               disabled={loadingSchedules}
               title="Refresh schedules from database"
             >
-              🔄 Refresh
+              <IconRefresh size={14} /> Refresh
             </button>
           </div>
 
@@ -993,7 +994,7 @@ export default function HospitalAppointmentsTab() {
                       <td style={{ fontSize: '0.92rem' }}>
                         {item.scheduleType === 'Weekly' ? (
                           <div>
-                            <span style={{ fontWeight: 700, color: '#1e40af' }}>🔁 Weekly: </span>
+                            <span style={{ fontWeight: 700, color: '#1e40af' }}>Weekly: </span>
                             <span>{item.daysOfWeek?.join(', ') || 'Weekly'}</span>
                             {item.startDate && item.endDate && (
                               <div style={{ fontSize: '0.78rem', color: '#475569', marginTop: '2px' }}>
@@ -1003,7 +1004,7 @@ export default function HospitalAppointmentsTab() {
                           </div>
                         ) : (
                           <div>
-                            <span style={{ fontWeight: 700, color: '#0f766e' }}>🗓️ One-Time: </span>
+                            <span style={{ fontWeight: 700, color: '#0f766e' }}>One-Time: </span>
                             <span>{item.specificDate || item.date}</span>
                           </div>
                         )}
@@ -1047,9 +1048,9 @@ export default function HospitalAppointmentsTab() {
 
             {/* Filter Date Bar */}
             <div className="hospital-filter-group">
-              <label htmlFor="hospital-filter-date" className="hospital-filter-label">
-                <span>📅</span> Filter Date:
-              </label>
+                <label htmlFor="hospital-filter-date" className="hospital-filter-label">
+                  <IconCalendar size={14} aria-hidden="true" /> Filter Date:
+                </label>
               <input
                 id="hospital-filter-date"
                 type="date"
