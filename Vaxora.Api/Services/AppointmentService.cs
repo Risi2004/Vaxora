@@ -812,6 +812,22 @@ public class AppointmentService : IAppointmentService
             .ThenBy(a => a.CreatedAt)
             .ToListAsync();
 
+        var scopeLabel = hospitalWide ? "hospital" : "my_panel";
+        var dateLabel = date?.ToString("yyyy-MM-dd") ?? "unspecified";
+        var auditDetails =
+            $"Staff viewed clinical appointment list scope={scopeLabel} hospital={hospitalUserId} date={dateLabel} recordCount={appointments.Count}";
+
+        _context.AuditLogs.Add(new AuditLog
+        {
+            UserId = staffUserId,
+            UserEmail = staff.Email,
+            Role = staff.Role.ToString(),
+            Action = "STAFF_CLINICAL_QUEUE_VIEW",
+            Details = auditDetails.Length > 1000 ? auditDetails[..1000] : auditDetails,
+            Timestamp = DateTime.UtcNow
+        });
+        await _context.SaveChangesAsync();
+
         return appointments.Select(MapToDto).ToList();
     }
 

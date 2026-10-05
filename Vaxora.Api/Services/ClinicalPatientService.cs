@@ -7,8 +7,13 @@ namespace Vaxora.Api.Services;
 
 public interface IClinicalPatientService
 {
-    Task<List<ClinicalPatientSearchResultDto>> SearchPatientsAsync(string query, int limit = 10);
-    Task<ClinicalPatientDetailDto> GetPatientByVaxoraIdAsync(string vaxoraId);
+    Task<List<ClinicalPatientSearchResultDto>> SearchPatientsAsync(
+        string query,
+        int limit = 10,
+        Guid? viewerUserId = null);
+    Task<ClinicalPatientDetailDto> GetPatientByVaxoraIdAsync(
+        string vaxoraId,
+        Guid? viewerUserId = null);
     Task<List<ClinicalRecentUpdateDto>> GetRecentDosageUpdatesAsync(int limit = 10);
     Task<ClinicalPendingVaccineDto> UpdatePrescribedDosageAsync(Guid doctorUserId, Guid appointmentId, UpdatePrescribedDosageDto dto);
 }
@@ -30,7 +35,10 @@ public class ClinicalPatientService : IClinicalPatientService
         _logger = logger;
     }
 
-    public async Task<List<ClinicalPatientSearchResultDto>> SearchPatientsAsync(string query, int limit = 10)
+    public async Task<List<ClinicalPatientSearchResultDto>> SearchPatientsAsync(
+        string query,
+        int limit = 10,
+        Guid? viewerUserId = null)
     {
         var term = query?.Trim() ?? string.Empty;
         if (term.Length < 2)
@@ -55,6 +63,14 @@ public class ClinicalPatientService : IClinicalPatientService
             .Take(limit)
             .ToListAsync();
 
+        if (viewerUserId is Guid viewerId)
+        {
+            await LogClinicalPhiViewAsync(
+                viewerId,
+                "CLINICAL_PATIENT_SEARCH",
+                $"Searched patients queryLength={term.Length} resultCount={patients.Count}");
+        }
+
         return patients.Select(p => new ClinicalPatientSearchResultDto
         {
             PatientProfileId = p.Id,
@@ -67,7 +83,9 @@ public class ClinicalPatientService : IClinicalPatientService
         }).ToList();
     }
 
-    public async Task<ClinicalPatientDetailDto> GetPatientByVaxoraIdAsync(string vaxoraId)
+    public async Task<ClinicalPatientDetailDto> GetPatientByVaxoraIdAsync(
+        string vaxoraId,
+        Guid? viewerUserId = null)
     {
         var reg = (vaxoraId ?? string.Empty).Trim().ToUpperInvariant();
         if (string.IsNullOrWhiteSpace(reg))
@@ -107,6 +125,14 @@ public class ClinicalPatientService : IClinicalPatientService
             .ThenBy(a => a.AppointmentDate)
             .ThenBy(a => a.StartTime)
             .ToList();
+
+        if (viewerUserId is Guid viewerId)
+        {
+            await LogClinicalPhiViewAsync(
+                viewerId,
+                "CLINICAL_PATIENT_DETAIL_VIEW",
+                $"Viewed patient profile vaxoraId={reg} patientUserId={patient.UserId}");
+        }
 
         return new ClinicalPatientDetailDto
         {
@@ -229,6 +255,25 @@ public class ClinicalPatientService : IClinicalPatientService
             doctorUserId, dosage, appointmentId);
 
         return MapPending(appointment);
+    }
+
+    private async Task LogClinicalPhiViewAsync(Guid viewerUserId, string action, string details)
+    {
+        var viewer = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == viewerUserId);
+        if (viewer == null)
+            return;
+
+        var text = details.Length > 1000 ? details[..1000] : details;
+        _context.AuditLogs.Add(new AuditLog
+        {
+            UserId = viewerUserId,
+            UserEmail = viewer.Email,
+            Role = viewer.Role.ToString(),
+            Action = action,
+            Details = text,
+            Timestamp = DateTime.UtcNow
+        });
+        await _context.SaveChangesAsync();
     }
 
     private static ClinicalPendingVaccineDto MapPending(Appointment a)
