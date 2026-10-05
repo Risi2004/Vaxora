@@ -1,0 +1,181 @@
+"""
+SE3090 Agentic AI evaluation — BookingAgent golden cases.
+
+Runs without calling an LLM. Rule-based assertions cover:
+domain objective, planning, allow-listed tools, structured proposal schemas,
+deterministic validation, human-in-the-loop approval gate, and safe failure
+on forbidden or injected write operations.
+"""
+
+from __future__ import annotations
+
+from datetime import date, timedelta
+import pytest
+
+from evaluation.booking_golden import (
+    ALLOWED_BOOKING_TOOLS,
+    FORBIDDEN_WRITE_TOOLS,
+    GOLDEN_CASES,
+    REQUIRED_BOOKING_PROPOSAL_FIELDS,
+    REQUIRED_CANCELLATION_PROPOSAL_FIELDS,
+    evaluate_all,
+    evaluate_trajectory,
+    validate_booking_proposal,
+)
+from bookingagent import BookingAgent
+from tools import TOOLS_SCHEMA
+from orchestrator import MultiAgentOrchestrator
+
+
+def test_booking_golden_cases_all_pass():
+    results = evaluate_all()
+    failures = {case_id: msgs for case_id, msgs in results.items() if msgs}
+    assert not failures, failures
+
+
+def test_each_shipped_booking_golden_case_is_self_consistent():
+    for case_id, case in GOLDEN_CASES.items():
+        assert case["id"] == case_id
+        failures = evaluate_trajectory(case)
+        assert failures == [], f"Case '{case_id}' failed: {failures}"
+
+
+def test_booking_tool_schema_matches_runtime_tools():
+    schema_names = {
+        item["function"]["name"] for item in TOOLS_SCHEMA if "function" in item
+    }
+    assert schema_names == set(ALLOWED_BOOKING_TOOLS)
+    assert schema_names.isdisjoint(FORBIDDEN_WRITE_TOOLS)
+
+
+@pytest.mark.asyncio
+async def test_booking_agent_execute_tool_blocks_forbidden_writes():
+    agent = BookingAgent()
+    for tool in ("force_book", "direct_book", "delete_appointment", "bypass_payment", "purge_appointments"):
+        result = await agent.execute_tool(tool, {}, token=None)
+        assert result.get("success") is False
+        assert result.get("blocked") is True
+        assert "not permitted" in str(result.get("error") or "").lower()
+
+    for tool in ("unknown_tool", "random_action"):
+        result = await agent.execute_tool(tool, {}, token=None)
+        assert result.get("success") is False
+        assert "error" in result
+
+
+def test_validate_booking_proposal_rejects_past_date():
+    yesterday = (date.today() - timedelta(days=1)).isoformat()
+    proposal = {
+        "hospital_user_id": "22222222-2222-2222-2222-222222222222",
+        "hospital_name": "Royal Hospital",
+        "vaccine_name": "AstraZeneca",
+        "appointment_date": yesterday,
+        "time_slot": "09:00 AM - 09:20 AM",
+        "is_free": True,
+    }
+    res = validate_booking_proposal(proposal)
+    assert res["valid"] is False
+    assert any("in the past" in issue for issue in res["issues"])
+
+
+def test_validate_booking_proposal_rejects_missing_fields():
+    proposal = {
+        "hospital_user_id": "",
+        "hospital_name": "Royal Hospital",
+        "vaccine_name": "AstraZeneca",
+        # missing appointment_date and time_slot
+        "is_free": True,
+    }
+    res = validate_booking_proposal(proposal)
+    assert res["valid"] is False
+    assert any("Missing required" in issue for issue in res["issues"])
+
+
+def test_validate_booking_proposal_rejects_malformed_slot():
+    future_date = (date.today() + timedelta(days=7)).isoformat()
+    proposal = {
+        "hospital_user_id": "22222222-2222-2222-2222-222222222222",
+        "hospital_name": "Royal Hospital",
+        "vaccine_name": "AstraZeneca",
+        "appointment_date": future_date,
+        "time_slot": "WheneverYouAreFree",
+        "is_free": False,
+    }
+    res = validate_booking_proposal(proposal)
+    assert res["valid"] is False
+    assert any("does not match expected range format" in issue for issue in res["issues"])
+
+
+def test_validate_booking_proposal_accepts_valid_proposal():
+    future_date = (date.today() + timedelta(days=5)).isoformat()
+    proposal = {
+        "hospital_user_id": "22222222-2222-2222-2222-222222222222",
+        "hospital_name": "Royal Hospital",
+        "vaccine_name": "COVID-19 (Pfizer)",
+        "appointment_date": future_date,
+        "time_slot": "10:00 AM - 10:20 AM",
+        "is_free": True,
+    }
+    res = validate_booking_proposal(proposal)
+    assert res["valid"] is True
+    assert res["issues"] == []
+
+
+@pytest.mark.asyncio
+async def test_propose_booking_for_approval_returns_pending_status():
+    agent = BookingAgent()
+    future_date = (date.today() + timedelta(days=4)).isoformat()
+    result = await agent.execute_tool(
+        "propose_booking_for_approval",
+        {
+            "hospital_user_id": "22222222-2222-2222-2222-222222222222",
+            "hospital_name": "Royal Hospital",
+            "vaccine_name": "AstraZeneca",
+            "appointment_date": future_date,
+            "time_slot": "09:00 AM - 09:20 AM",
+            "is_free": False,
+            "price": 1000.0,
+        },
+        token=None,
+    )
+    assert result.get("success") is True
+    assert result.get("status") == "proposal_pending_user_approval"
+    proposal = result.get("proposal")
+    assert proposal is not None
+    assert proposal["hospital_user_id"] == "22222222-2222-2222-2222-222222222222"
+    assert proposal["appointment_date"] == future_date
+    assert proposal["time_slot"] == "09:00 AM - 09:20 AM"
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_routes_booking_query_to_booking_agent():
+    orch = MultiAgentOrchestrator()
+    target = await orch.route_intent(
+        [{"role": "user", "content": "Book me the earliest Pfizer appointment at Royal Hospital"}],
+        allowed_agents=["BookingAgent", "StaffSchedulingAgent"],
+    )
+    assert target == "BookingAgent"
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_routes_cancellation_to_booking_agent():
+    orch = MultiAgentOrchestrator()
+    target = await orch.route_intent(
+        [{"role": "user", "content": "I want to cancel my appointment for AstraZeneca tomorrow"}],
+        allowed_agents=["BookingAgent", "StaffSchedulingAgent"],
+    )
+    assert target == "BookingAgent"
+
+
+def test_malformed_booking_golden_case_fails_loudly():
+    bad = {
+        "id": "broken_booking_case",
+        "objective": "",
+        "plan": [],
+        "tool_trace": [],
+        "final": {},
+    }
+    failures = evaluate_trajectory(bad)
+    assert failures
+    assert any("missing domain objective" in f for f in failures)
+    assert any("plan must include at least one step" in f for f in failures)
