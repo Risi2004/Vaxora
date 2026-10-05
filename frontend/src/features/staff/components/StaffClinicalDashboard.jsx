@@ -321,16 +321,21 @@ export default function StaffClinicalDashboard({
 
   const handleCallNext = async () => {
     const nextWaiting = patients.find(
-      (p) => p.status === 'waiting' && isPaymentSettled(p)
+      (p) => p.status === 'waiting' && isPaymentSettled(p) && p.hasDosage
     );
     if (!nextWaiting) {
       const unpaidWaiting = patients.some(
         (p) => p.status === 'waiting' && !isPaymentSettled(p)
       );
+      const undosedWaiting = patients.some(
+        (p) => p.status === 'waiting' && isPaymentSettled(p) && !p.hasDosage
+      );
       showToast(
-        unpaidWaiting
-          ? 'No paid patients waiting. Unpaid appointments cannot be administered yet.'
-          : "No more waiting patients in today's queue."
+        undosedWaiting
+          ? 'Paid patients are waiting for a doctor to prescribe their dose.'
+          : unpaidWaiting
+            ? 'No paid patients waiting. Unpaid appointments cannot be administered yet.'
+            : "No more waiting patients in today's queue."
       );
       return;
     }
@@ -363,6 +368,10 @@ export default function StaffClinicalDashboard({
         showToast('Payment must be settled before starting consultation.');
         return;
       }
+      if (!patient.hasDosage) {
+        showToast('A doctor must prescribe the dose before administration.');
+        return;
+      }
       try {
         setActivePatientId(patient.id);
         await persistStatus(patient.id, 'Administering');
@@ -393,12 +402,8 @@ export default function StaffClinicalDashboard({
       setStatusUpdating(true);
       const dosage = String(details.dosage || '').trim();
       const currentDose = certifiedData.hasDosage ? String(certifiedData.dose || '').trim() : '';
-      if (dosage && dosage !== currentDose) {
-        try {
-          await clinicalPatientService.updateDosage(certifiedData.id, dosage);
-        } catch {
-          // Dosage update is doctor-only; nurses keep prescribed dosage read-only.
-        }
+      if (isDoctor && dosage && dosage !== currentDose) {
+        await clinicalPatientService.updateDosage(certifiedData.id, dosage);
       }
       await staffAppointmentService.updateAppointmentStatus(
         certifiedData.id,
@@ -1077,11 +1082,13 @@ export default function StaffClinicalDashboard({
                                 type="button"
                                 className="btn-queue-action"
                                 onClick={() => handleSelectPatient(p)}
-                                disabled={!isPaymentSettled(p) || statusUpdating}
+                                disabled={!isPaymentSettled(p) || !p.hasDosage || statusUpdating}
                                 title={
                                   !isPaymentSettled(p)
                                     ? 'Payment must be settled first'
-                                    : undefined
+                                    : !p.hasDosage
+                                      ? 'Waiting for the doctor to prescribe a dose'
+                                      : undefined
                                 }
                               >
                                 Examine
@@ -1267,6 +1274,7 @@ export default function StaffClinicalDashboard({
         patient={activePatient}
         onCertify={handleCertifyAdministration}
         lotOptions={inventoryLots}
+        isDoctor={isDoctor}
       />
 
       <AefiModal
