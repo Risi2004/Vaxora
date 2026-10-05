@@ -1355,6 +1355,160 @@
   font-weight: 600;
 }
 
+.slot-capacity-note {
+  margin: 0 0 10px;
+  font-size: 0.84rem;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.slot-chip-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  gap: 10px;
+}
+
+.slot-chip {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1.5px solid #d4dce8;
+  background: #ffffff;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.slot-chip.is-open:hover {
+  border-color: #1d1854;
+  box-shadow: 0 6px 16px -10px rgba(29, 24, 84, 0.45);
+  transform: translateY(-1px);
+}
+
+.slot-chip.is-selected {
+  border-color: #1d1854;
+  background: #eef2ff;
+  box-shadow: 0 0 0 2px rgba(29, 24, 84, 0.15);
+}
+
+.slot-chip.is-nearly-full {
+  border-color: #f59e0b;
+}
+
+.slot-chip.is-full {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+  color: #94a3b8;
+  cursor: not-allowed;
+  opacity: 0.85;
+}
+
+.slot-chip-time {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: inherit;
+}
+
+.slot-chip.is-open .slot-chip-time,
+.slot-chip.is-selected .slot-chip-time {
+  color: #0f172a;
+}
+
+.slot-chip-seats {
+  display: inline-flex;
+  gap: 5px;
+}
+
+.slot-seat-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  border: 1.5px solid #94a3b8;
+  background: transparent;
+}
+
+.slot-seat-dot.is-taken {
+  background: #1d1854;
+  border-color: #1d1854;
+}
+
+.slot-chip.is-full .slot-seat-dot.is-taken {
+  background: #94a3b8;
+  border-color: #94a3b8;
+}
+
+.slot-seat-dot.is-free {
+  background: #ffffff;
+}
+
+.slot-chip-status {
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.slot-chip.is-selected .slot-chip-status {
+  color: #1d1854;
+}
+
+.slot-chip.is-nearly-full .slot-chip-status {
+  color: #b45309;
+}
+
+.slot-chip.is-full .slot-chip-status {
+  color: #94a3b8;
+}
+
+.slot-chip-tooltip {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%) translateY(4px);
+  width: max-content;
+  max-width: 240px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #0f172a;
+  color: #f8fafc;
+  font-size: 0.76rem;
+  font-weight: 500;
+  line-height: 1.35;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  z-index: 5;
+  box-shadow: 0 8px 20px -10px rgba(15, 23, 42, 0.55);
+}
+
+.slot-chip-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: #0f172a;
+}
+
+.slot-chip:hover .slot-chip-tooltip,
+.slot-chip:focus-visible .slot-chip-tooltip {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+@media (max-width: 600px) {
+  .slot-chip-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 .book-btn-wrap {
   display: flex;
   justify-content: center;
@@ -1394,12 +1548,161 @@
   margin-top: 38px;
 }
 
+.appointments-list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
 .appointments-section-heading {
   font-family: 'Lora', 'Playfair Display', Georgia, serif;
   font-size: 1.45rem;
   font-weight: 700;
   color: #1d1854;
-  margin-bottom: 18px;
+  margin-bottom: 0;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.appointments-list-count {
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.appointments-refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border: 1px solid #d4dce8;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #1d1854;
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.appointments-refresh-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.appointments-filter-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(170px, 0.75fr) minmax(260px, 1fr);
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+}
+
+.appointments-filter-search {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  padding: 0 12px;
+  height: 40px;
+  background: #ffffff;
+  border: 1px solid #d4dce8;
+  border-radius: 10px;
+  color: #64748b;
+}
+
+.appointments-filter-search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 0.88rem;
+  font-family: inherit;
+  color: #0f172a;
+}
+
+.appointments-filter-field {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  height: 40px;
+  padding: 0 10px 0 12px;
+  background: #ffffff;
+  border: 1px solid #d4dce8;
+  border-radius: 10px;
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.appointments-filter-field select {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 0.86rem;
+  font-weight: 600;
+  font-family: inherit;
+  color: #0f172a;
+  cursor: pointer;
+  max-width: none;
+}
+
+.appointments-filter-pills {
+  display: inline-flex;
+  align-items: center;
+  justify-content: stretch;
+  gap: 4px;
+  width: 100%;
+  padding: 3px;
+  background: #ffffff;
+  border: 1px solid #d4dce8;
+  border-radius: 999px;
+}
+
+.appointments-filter-pill {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: #475569;
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-family: inherit;
+  padding: 7px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.appointments-filter-pill.active {
+  background: #1d1854;
+  color: #ffffff;
+}
+
+@media (max-width: 800px) {
+  .appointments-filter-bar {
+    grid-template-columns: 1fr;
+  }
+
+  .appointments-filter-pills {
+    width: 100%;
+  }
 }
 
 .appointments-table-container {

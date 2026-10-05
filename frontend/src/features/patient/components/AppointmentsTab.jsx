@@ -2,12 +2,53 @@ import { deferEffectCallback } from '../../../shared/utils/deferEffectCallback.j
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { appointmentService } from '../services/appointmentService';
 import BookingAgentChat from './BookingAgentChat';
-import { IconCalendar, IconClock, IconDoctor, IconHospital, IconRefresh, IconShield } from '../../../shared/icons/AppIcons';
+import { IconCalendar, IconClock, IconDoctor, IconHospital, IconRefresh, IconSearch, IconShield } from '../../../shared/icons/AppIcons';
 import PatientSubpageHeader from './PatientSubpageHeader';
 import {
   canPatientCancelByStatus,
   getPatientAppointmentStatusDisplay,
+  normalizePatientAppointmentStatus,
 } from '../utils/appointmentStatusDisplay';
+
+const ACTIVE_APPOINTMENT_STATUSES = new Set([
+  'confirmed',
+  'accepted',
+  'pending',
+  'pendingpayment',
+  'administering',
+  'insession',
+  'observation',
+]);
+
+function appointmentDateKey(apt) {
+  return String(apt.appointmentDate || apt.date || '').slice(0, 10);
+}
+
+function todayKey() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function normalizeSlotTo24h(slotStart) {
+  const raw = String(slotStart || '').trim();
+  if (!raw) return '';
+  // Already 24h HH:mm
+  if (/^\d{1,2}:\d{2}$/.test(raw)) {
+    const [h, m] = raw.split(':');
+    return `${String(h).padStart(2, '0')}:${m}:00`;
+  }
+  const match = raw.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (!match) return '';
+  let hour = parseInt(match[1], 10);
+  const minute = match[2];
+  const mer = match[3].toUpperCase();
+  if (mer === 'PM' && hour < 12) hour += 12;
+  if (mer === 'AM' && hour === 12) hour = 0;
+  return `${String(hour).padStart(2, '0')}:${minute}:00`;
+}
 
 const STEP_ICONS = {
   hospital: IconHospital,
@@ -53,6 +94,9 @@ export default function AppointmentsTab() {
 
   const [appointments, setAppointments] = useState([]);
   const [notification, setNotification] = useState('');
+  const [listSearch, setListSearch] = useState('');
+  const [listStatus, setListStatus] = useState('active'); // active | all | specific
+  const [listDateScope, setListDateScope] = useState('upcoming'); // upcoming | past | all
 
   // Payment integration states
   const [selectedFee, setSelectedFee] = useState(0);
@@ -79,6 +123,44 @@ export default function AppointmentsTab() {
       setLoadingAppointments(false);
     }
   }, []);
+
+  const filteredAppointments = useMemo(() => {
+    const q = listSearch.trim().toLowerCase();
+    const today = todayKey();
+
+    return appointments.filter((apt) => {
+      const status = normalizePatientAppointmentStatus(apt.status);
+      const date = appointmentDateKey(apt);
+
+      if (listStatus === 'active') {
+        if (!ACTIVE_APPOINTMENT_STATUSES.has(status)) return false;
+      } else if (listStatus !== 'all' && status !== listStatus) {
+        return false;
+      }
+
+      if (listDateScope === 'upcoming' && date && date < today) return false;
+      if (listDateScope === 'past' && date && date >= today) return false;
+
+      if (q) {
+        const haystack = [
+          apt.vaccineName,
+          apt.vaccine,
+          apt.hospitalName,
+          apt.location,
+          apt.doctorName,
+          apt.timeSlot,
+          apt.time,
+          apt.boothLabel,
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
+
+      return true;
+    });
+  }, [appointments, listSearch, listStatus, listDateScope]);
 
   /** Wait for authoritative PayHere IPN (client cannot forge Paid). */
   const syncPayHereConfirmation = useCallback(async (appointmentId) => {
@@ -412,6 +494,28 @@ export default function AppointmentsTab() {
     if (!formData.vaccine || !formData.hospitalUserId || !formData.date || !formData.time) {
       alert('Please complete all steps (Vaccine, Hospital, Date, and Time).');
       return;
+    }
+
+    const todayLocal = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Colombo' });
+    if (formData.date < todayLocal) {
+      alert('That appointment date is in the past. Please pick another date.');
+      return;
+    }
+    if (formData.date === todayLocal) {
+      const slotStart = String(formData.time).split('-')[0]?.trim() || '';
+      const nowHm = new Date().toLocaleTimeString('en-GB', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+        timeZone: 'Asia/Colombo',
+      });
+      // Compare via Date when slot is 12h ("09:00 AM") or 24h
+      const parsed = Date.parse(`1970-01-01T${normalizeSlotTo24h(slotStart)}`);
+      const nowParsed = Date.parse(`1970-01-01T${nowHm}:00`);
+      if (!Number.isNaN(parsed) && !Number.isNaN(nowParsed) && parsed < nowParsed) {
+        alert('That time slot has already started. Please choose a later slot.');
+        return;
+      }
     }
 
     const isFree = selectedFee <= 0;
@@ -960,65 +1064,110 @@ export default function AppointmentsTab() {
                 )}
               </div>
 
-              {/* 4. 20-Minute Time Slot Dropdown (Unlocked after Date is chosen) */}
+              {/* 4. 20-Minute Time Slot picker — up to 3 patients per band */}
               <div className="book-form-group">
                 <label
                   className={`book-form-label ${!isDateSelected ? 'disabled' : ''}`}
-                  htmlFor="select-time"
+                  id="select-time-label"
                 >
                   Time Slot (20-Minute Sessions) <span style={{ color: '#dc2626' }}>*</span>
                 </label>
-                <div className={`select-dropdown-wrap ${!isDateSelected ? 'disabled' : ''}`}>
-                  <select
-                    id="select-time"
-                    name="time"
-                    value={formData.time}
-                    onChange={handleTimeChange}
-                    className="book-form-select"
-                    disabled={!isDateSelected || loadingSlots}
-                    required
-                  >
-                    <option value="" disabled>
-                      {!isDateSelected
-                        ? 'Select Date first...'
-                        : loadingSlots
-                        ? 'Loading 20-minute slots...'
-                        : availableSlots.length === 0
-                        ? 'No slots available'
-                        : 'Select 20-Min Time Slot'}
-                    </option>
-                    {availableSlots.map((slotObj) => {
-                      const slotText = slotObj.slot || slotObj.Slot;
-                      const isBooked = slotObj.isBooked || slotObj.IsBooked;
-                      return (
-                        <option
-                          key={slotText}
-                          value={slotText}
-                          disabled={isBooked}
-                          style={isBooked ? { color: '#94a3b8', background: '#f1f5f9' } : { color: '#0f172a' }}
-                        >
-                          {isBooked ? `⛔ ${slotText} (Booked - Unavailable)` : `🟢 ${slotText} (Available)`}
-                        </option>
-                      );
-                    })}
-                  </select>
-                </div>
+                <p className="slot-capacity-note">
+                  Each time band can take up to <strong>3 patients</strong>. Hover a slot to see how many seats are left.
+                </p>
+
                 {!isDateSelected ? (
                   <span className="field-helper-hint">
                     Select a date to view available 20-min slots
                   </span>
                 ) : loadingSlots ? (
                   <span className="field-helper-hint">
-                    Calculating 20-minute intervals and checking existing bookings...
+                    Checking open seats for each 20-minute band…
                   </span>
-                ) : availableSlots.filter((s) => !s.isBooked && !s.IsBooked).length === 0 ? (
+                ) : availableSlots.length === 0 ? (
                   <span className="field-helper-hint hint-warning" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                    <IconShield size={14} /> All 20-minute slots on this date are fully booked. Please select another date.
+                    <IconShield size={14} /> No open time bands on this date. Pick another day.
                   </span>
                 ) : (
-                  <span className="field-helper-hint hint-success">
-                    ✓ {availableSlots.filter((s) => !s.isBooked && !s.IsBooked).length} slot(s) open for booking (each slot = 20 min)
-                  </span>
+                  <div
+                    className="slot-chip-grid"
+                    role="listbox"
+                    aria-labelledby="select-time-label"
+                    aria-required="true"
+                  >
+                    {availableSlots.map((slotObj) => {
+                      const slotText = slotObj.slot || slotObj.Slot;
+                      const capacity = Number(slotObj.capacity ?? slotObj.Capacity ?? 3);
+                      const booked = Number(slotObj.bookedCount ?? slotObj.BookedCount ?? 0);
+                      const seatsLeft = Number(
+                        slotObj.seatsRemaining ?? slotObj.SeatsRemaining ?? Math.max(0, capacity - booked)
+                      );
+                      const isFull = Boolean(slotObj.isBooked || slotObj.IsBooked) || seatsLeft <= 0;
+                      const isSelected = formData.time === slotText;
+                      const tip = isFull
+                        ? `${slotText} — all ${capacity} seats are taken. Choose another time.`
+                        : booked === 0
+                          ? `${slotText} — all ${capacity} seats free. You can book this time.`
+                          : `${slotText} — ${seatsLeft} of ${capacity} seats left (${booked} already booked).`;
+
+                      return (
+                        <button
+                          key={slotText}
+                          type="button"
+                          role="option"
+                          aria-selected={isSelected}
+                          aria-disabled={isFull}
+                          disabled={isFull}
+                          title={tip}
+                          className={[
+                            'slot-chip',
+                            isFull ? 'is-full' : 'is-open',
+                            isSelected ? 'is-selected' : '',
+                            seatsLeft === 1 && !isFull ? 'is-nearly-full' : '',
+                          ].filter(Boolean).join(' ')}
+                          onClick={() => {
+                            if (isFull) return;
+                            setFormData((prev) => ({ ...prev, time: slotText }));
+                          }}
+                        >
+                          <span className="slot-chip-time">{slotText}</span>
+                          <span className="slot-chip-seats" aria-hidden="true">
+                            {Array.from({ length: capacity }, (_, i) => (
+                              <span
+                                key={i}
+                                className={`slot-seat-dot ${i < booked ? 'is-taken' : 'is-free'}`}
+                              />
+                            ))}
+                          </span>
+                          <span className="slot-chip-status">
+                            {isFull ? 'Full' : seatsLeft === capacity ? 'Open' : `${seatsLeft} left`}
+                          </span>
+                          <span className="slot-chip-tooltip" role="tooltip">
+                            {tip}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Keep required value for form validation */}
+                <input type="hidden" name="time" value={formData.time} required={isDateSelected} />
+
+                {isDateSelected && !loadingSlots && availableSlots.length > 0 && (
+                  availableSlots.every((s) => s.isBooked || s.IsBooked) ? (
+                    <span className="field-helper-hint hint-warning" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', marginTop: 8 }}>
+                      <IconShield size={14} /> Every band on this date is full (3 patients each). Try another date.
+                    </span>
+                  ) : formData.time ? (
+                    <span className="field-helper-hint hint-success" style={{ marginTop: 8 }}>
+                      Selected: <strong>{formData.time}</strong>
+                    </span>
+                  ) : (
+                    <span className="field-helper-hint" style={{ marginTop: 8 }}>
+                      Tap a time band to reserve one of its 3 seats
+                    </span>
+                  )
                 )}
               </div>
             </div>
@@ -1148,21 +1297,73 @@ export default function AppointmentsTab() {
 
         {/* Appointments Lower Section */}
         <div className="appointments-list-section">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <div className="appointments-list-header">
             <h2 className="appointments-section-heading" style={{ margin: 0 }}>
               Appointments
+              {!loadingAppointments && (
+                <span className="appointments-list-count">
+                  {filteredAppointments.length}
+                  {filteredAppointments.length !== appointments.length
+                    ? ` of ${appointments.length}`
+                    : ''}
+                </span>
+              )}
             </h2>
             <button
               type="button"
-              className="hospital-filter-btn"
+              className="appointments-refresh-btn"
               onClick={loadMyAppointments}
               disabled={loadingAppointments}
-              style={{ padding: '6px 14px', fontSize: '0.85rem' }}
             >
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                <IconRefresh size={14} /> Refresh
-              </span>
+              <IconRefresh size={14} /> Refresh
             </button>
+          </div>
+
+          <div className="appointments-filter-bar" role="search" aria-label="Filter appointments">
+            <label className="appointments-filter-search">
+              <IconSearch size={15} aria-hidden="true" />
+              <input
+                type="search"
+                value={listSearch}
+                onChange={(e) => setListSearch(e.target.value)}
+                placeholder="Search vaccine, hospital, doctor…"
+                aria-label="Search appointments"
+              />
+            </label>
+
+            <label className="appointments-filter-field">
+              <span>Status</span>
+              <select
+                value={listStatus}
+                onChange={(e) => setListStatus(e.target.value)}
+                aria-label="Filter by status"
+              >
+                <option value="active">Active</option>
+                <option value="all">All statuses</option>
+                <option value="confirmed">Confirmed</option>
+                <option value="pendingpayment">Awaiting payment</option>
+                <option value="pending">Pending</option>
+                <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </label>
+
+            <div className="appointments-filter-pills" role="group" aria-label="Filter by date">
+              {[
+                { id: 'upcoming', label: 'Upcoming' },
+                { id: 'past', label: 'Past' },
+                { id: 'all', label: 'All dates' },
+              ].map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  className={`appointments-filter-pill ${listDateScope === opt.id ? 'active' : ''}`}
+                  onClick={() => setListDateScope(opt.id)}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="appointments-table-container">
@@ -1191,8 +1392,14 @@ export default function AppointmentsTab() {
                       No current appointments scheduled. Select a vaccine above to book your slot.
                     </td>
                   </tr>
+                ) : filteredAppointments.length === 0 ? (
+                  <tr>
+                    <td colSpan="7" className="empty-appointments-cell">
+                      No appointments match these filters. Try All statuses or All dates.
+                    </td>
+                  </tr>
                 ) : (
-                  appointments.map((apt) => {
+                  filteredAppointments.map((apt) => {
                     const feeNum = Number(apt.fee ?? apt.Fee ?? 0);
                     const payStatus = apt.paymentStatus || apt.PaymentStatus || 'Paid';
                     const statusDisplay = getPatientAppointmentStatusDisplay(apt.status);
