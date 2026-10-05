@@ -331,6 +331,45 @@ public class AppointmentService : IAppointmentService
             .ToList();
     }
 
+    private async Task InsertWithinSlotCapacityAsync(Appointment appointment, int slotCapacity)
+    {
+        if (!_context.Database.IsNpgsql())
+        {
+            _context.Appointments.Add(appointment);
+            await _context.SaveChangesAsync();
+            return;
+        }
+
+        var lockKey = $"slot:{appointment.HospitalUserId}:{appointment.AppointmentDate:yyyyMMdd}:{appointment.TimeSlot}";
+        var strategy = _context.Database.CreateExecutionStrategy();
+        await strategy.ExecuteAsync(async () =>
+        {
+            await using var tx = await _context.Database.BeginTransactionAsync();
+            await _context.Database.ExecuteSqlInterpolatedAsync(
+                $"SELECT pg_advisory_xact_lock(hashtextextended({lockKey}, 0))");
+
+            var booked = await _context.Appointments
+                .CountAsync(a => a.HospitalUserId == appointment.HospitalUserId &&
+                                 a.AppointmentDate == appointment.AppointmentDate &&
+                                 a.TimeSlot == appointment.TimeSlot &&
+                                 a.Status != "Cancelled" &&
+                                 a.Status != "Rejected");
+            if (booked >= slotCapacity)
+            {
+                throw new InvalidOperationException(
+                    $"The slot '{appointment.TimeSlot}' on {appointment.AppointmentDate:yyyy-MM-dd} is full " +
+                    $"({slotCapacity} patients). Please select a different time slot.");
+            }
+
+            if (_context.Entry(appointment).State == EntityState.Detached)
+            {
+                _context.Appointments.Add(appointment);
+            }
+            await _context.SaveChangesAsync();
+            await tx.CommitAsync();
+        });
+    }
+
     public async Task<AppointmentResponseDto> BookAppointmentAsync(Guid patientUserId, BookAppointmentRequestDto dto)
     {
         var patient = await _context.Users
@@ -464,8 +503,7 @@ public class AppointmentService : IAppointmentService
             CreatedAt = DateTime.UtcNow
         };
 
-        _context.Appointments.Add(appointment);
-        await _context.SaveChangesAsync();
+        await InsertWithinSlotCapacityAsync(appointment, slotCapacity);
 
         _logger.LogInformation("Appointment {AppId} created for Patient {Patient} at {Hospital} on {Date} ({Slot}) - Status: {Status}, Fee: {Fee}, PaymentMethod: {PaymentMethod}",
             appointment.Id, appointment.PatientName, appointment.HospitalName, appointment.AppointmentDate, appointment.TimeSlot, appointment.Status, appointment.Fee, appointment.PaymentMethod);
