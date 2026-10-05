@@ -75,6 +75,14 @@ export default function AppointmentsTab() {
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [loadingAppointments, setLoadingAppointments] = useState(true);
+  const [cancellationNow, setCancellationNow] = useState(null);
+
+  useEffect(() => {
+    const updateCancellationNow = () => setCancellationNow(Date.now());
+    updateCancellationNow();
+    const intervalId = window.setInterval(updateCancellationNow, 60_000);
+    return () => window.clearInterval(intervalId);
+  }, []);
 
   // Popup calendar states
   const [showCalendarPopup, setShowCalendarPopup] = useState(false);
@@ -641,18 +649,51 @@ export default function AppointmentsTab() {
     }
   };
 
-  // Helper: check if appointment is at least 1 day in advance
-  const isEligibleForCancellation = (aptDateStr) => {
-    if (!aptDateStr) return false;
-    const todayStr = new Date().toISOString().split('T')[0];
-    return aptDateStr > todayStr;
+  // Appointment dates and times are hospital-local (Sri Lanka, UTC+05:30).
+  const isEligibleForCancellation = (appointment) => {
+    const appointmentDate = appointment.appointmentDate || appointment.date;
+    const timeSlot = appointment.startTime || appointment.StartTime ||
+      appointment.timeSlot || appointment.TimeSlot;
+    if (!appointmentDate || !timeSlot || cancellationNow === null) return false;
+
+    const dateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(appointmentDate).split('T')[0]);
+    const timeValue = String(timeSlot).split('-')[0].trim();
+    const timeMatch = /^(\d{1,2}):(\d{2})(?:\s*(AM|PM))?$/i.exec(timeValue);
+    if (!dateMatch || !timeMatch) return false;
+
+    const [, year, month, day] = dateMatch;
+    let hours = Number(timeMatch[1]);
+    const minutes = Number(timeMatch[2]);
+    const meridiem = timeMatch[3]?.toUpperCase();
+    if (minutes > 59 || (meridiem && (hours < 1 || hours > 12)) || (!meridiem && hours > 23)) {
+      return false;
+    }
+    if (meridiem) {
+      hours = hours % 12 + (meridiem === 'PM' ? 12 : 0);
+    }
+
+    const appointmentDateTime = Date.UTC(
+      Number(year),
+      Number(month) - 1,
+      Number(day),
+      hours,
+      minutes,
+    );
+    if (
+      new Date(appointmentDateTime).toISOString().slice(0, 10) !== `${year}-${month}-${day}`
+    ) {
+      return false;
+    }
+
+    const sriLankaOffsetMs = 5.5 * 60 * 60 * 1000;
+    const appointmentStartUtc = appointmentDateTime - sriLankaOffsetMs;
+    return appointmentStartUtc - cancellationNow >= 24 * 60 * 60 * 1000;
   };
 
   // 8. Handle Appointment Cancellation
   const handleCancel = async (apt) => {
-    const aptDate = apt.appointmentDate || apt.date;
-    if (!isEligibleForCancellation(aptDate)) {
-      alert('Appointments can only be cancelled at least 1 day (24 hours) prior to the scheduled date. For same-day adjustments, please contact the hospital directly.');
+    if (!isEligibleForCancellation(apt)) {
+      alert('Appointments can only be cancelled at least 24 hours before the scheduled start time. For same-day adjustments, please contact the hospital directly.');
       return;
     }
 
@@ -1451,12 +1492,12 @@ export default function AppointmentsTab() {
                         <td className="td-action">
                           <div className="apt-action-cell">
                             {canCancelByStatus ? (
-                              isEligibleForCancellation(apt.appointmentDate || apt.date) ? (
+                              isEligibleForCancellation(apt) ? (
                                 <button
                                   type="button"
                                   className="btn-cancel-appointment"
                                   onClick={() => handleCancel(apt)}
-                                  title="Cancel appointment at least 1 day in advance"
+                                  title="Cancel appointment at least 24 hours before its scheduled start"
                                 >
                                   Cancel
                                 </button>

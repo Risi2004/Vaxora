@@ -1356,13 +1356,28 @@ public class AppointmentService : IAppointmentService
             return true; // Already cancelled
         }
 
-        // Rule: Patients cannot cancel past appointments if already completed
+        // Patient self-service cancellation requires at least 24 hours' notice.
         if (!isHospital)
         {
-            var today = DateOnly.FromDateTime(DateTime.UtcNow);
             if (appointment.Status == "Completed")
             {
                 throw new InvalidOperationException("Completed vaccination appointments cannot be cancelled.");
+            }
+
+            var startTimeValue = string.IsNullOrWhiteSpace(appointment.StartTime)
+                ? appointment.TimeSlot
+                : appointment.StartTime;
+            if (!TryParseSlotStart(startTimeValue, out var slotStart))
+            {
+                throw new InvalidOperationException("Appointment has an invalid time slot and cannot be cancelled online.");
+            }
+
+            var appointmentStart = appointment.AppointmentDate.ToDateTime(slotStart);
+            var hospitalNow = DateTime.SpecifyKind(StaffDutyHelper.HospitalNow(), DateTimeKind.Unspecified);
+            if (appointmentStart - hospitalNow < TimeSpan.FromHours(24))
+            {
+                throw new InvalidOperationException(
+                    "Appointments can only be cancelled at least 24 hours before the scheduled start time.");
             }
         }
 

@@ -115,6 +115,34 @@ describe('Booking Management - Cancellation & Status Updates (Scenario 9)', () =
     expect(screen.queryByRole('button', { name: /^Cancel$/i })).not.toBeInTheDocument();
   });
 
+  it('locks cancellation when the appointment start is less than 24 hours away', async () => {
+    const appointmentStart = new Date(Date.now() + 12 * 60 * 60 * 1000 + 330 * 60 * 1000);
+    const appointmentDate = appointmentStart.toISOString().slice(0, 10);
+    const appointmentTime =
+      `${String(appointmentStart.getUTCHours()).padStart(2, '0')}:` +
+      `${String(appointmentStart.getUTCMinutes()).padStart(2, '0')}`;
+
+    appointmentService.getPatientAppointments.mockResolvedValue([
+      {
+        id: 'apt-within-cutoff',
+        vaccineName: 'COVID-19 mRNA Booster (Moderna)',
+        appointmentDate,
+        startTime: appointmentTime,
+        timeSlot: `${appointmentTime} - 12:20`,
+        hospitalName: 'National Hospital Colombo',
+        fee: 0,
+        paymentStatus: 'Paid',
+        status: 'Confirmed',
+      },
+    ]);
+
+    render(<AppointmentsTab />);
+
+    await screen.findByText('COVID-19 mRNA Booster (Moderna)');
+    expect(screen.queryByRole('button', { name: /^Cancel$/i })).not.toBeInTheDocument();
+    expect(screen.getByText('Locked')).toBeInTheDocument();
+  });
+
   // 9c. Cancellation API failure handling
   it('handles cancellation API error and displays alert', async () => {
     const futureDate = new Date();

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using System.Globalization;
 using Xunit;
 using Vaxora.Api.Data;
 using Vaxora.Api.Dtos;
@@ -385,6 +386,42 @@ public class VaccinationBookingTests
         Assert.True(cancelled);
         var stored = await context.Appointments.SingleAsync(a => a.Id == appointment.Id);
         Assert.Equal("Cancelled", stored.Status);
+    }
+
+    [Fact]
+    public async Task CancelAppointmentAsync_blocks_patient_cancellation_within_24_hours()
+    {
+        await using var context = TestDb.CreateContext();
+        var hospital = TestDb.AddHospital(context);
+        var patient = AddPatient(context, "patient-within-cutoff@example.com", "VAX-P-4015");
+        var appointmentStart = StaffDutyHelper.HospitalNow().AddHours(12);
+
+        var appointment = new Appointment
+        {
+            HospitalUserId = hospital.Id,
+            PatientUserId = patient.Id,
+            PatientName = "Patient Within Cutoff",
+            VaccineName = "Polio",
+            AppointmentDate = DateOnly.FromDateTime(appointmentStart),
+            TimeSlot = $"{appointmentStart.ToString("hh:mm tt", CultureInfo.InvariantCulture)} - " +
+                       $"{appointmentStart.AddMinutes(20).ToString("hh:mm tt", CultureInfo.InvariantCulture)}",
+            Status = "Confirmed",
+            PaymentStatus = "Paid"
+        };
+        context.Appointments.Add(appointment);
+        await context.SaveChangesAsync();
+
+        var service = CreateService(context);
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.CancelAppointmentAsync(patient.Id, appointment.Id, isHospital: false));
+
+        Assert.Contains("at least 24 hours", ex.Message, StringComparison.OrdinalIgnoreCase);
+
+        var hospitalCancelled = await service.CancelAppointmentAsync(
+            hospital.Id,
+            appointment.Id,
+            isHospital: true);
+        Assert.True(hospitalCancelled);
     }
 
     [Fact]
