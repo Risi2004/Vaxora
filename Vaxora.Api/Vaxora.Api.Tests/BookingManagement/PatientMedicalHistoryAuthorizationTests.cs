@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Vaxora.Api.Controllers;
 using Vaxora.Api.Data;
+using Vaxora.Api.Dtos;
 using Vaxora.Api.Models;
 using Vaxora.Api.Services;
 
@@ -69,7 +70,11 @@ public class PatientMedicalHistoryAuthorizationTests
 
         var result = await controller.GetTimeline(otherProfile.Id);
 
-        Assert.IsType<OkObjectResult>(result);
+        var timeline = Assert.IsType<PatientMedicalTimelineDto>(Assert.IsType<OkObjectResult>(result).Value);
+        Assert.Equal(otherProfile.FullName, timeline.PatientName);
+        Assert.Equal(otherProfile.NicNumber, timeline.NicNumber);
+        Assert.Equal(otherProfile.DateOfBirth, timeline.DateOfBirth);
+        Assert.Equal(otherProfile.PhoneNumber, timeline.PhoneNumber);
     }
 
     private static async Task<(
@@ -85,13 +90,17 @@ public class PatientMedicalHistoryAuthorizationTests
         {
             UserId = callerUserId,
             FullName = "Current Patient",
-            NicNumber = "990000001V"
+            NicNumber = "990000001V",
+            DateOfBirth = new DateTime(1990, 1, 2),
+            PhoneNumber = "0770000001"
         };
         var otherProfile = new PatientProfile
         {
             UserId = Guid.NewGuid(),
             FullName = "Other Patient",
-            NicNumber = "990000002V"
+            NicNumber = "990000002V",
+            DateOfBirth = new DateTime(2000, 3, 4),
+            PhoneNumber = "0770000002"
         };
         var otherRecord = new PatientMedicalHistory
         {

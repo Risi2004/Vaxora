@@ -46,6 +46,8 @@ public class PatientMedicalHistoryService : IPatientMedicalHistoryService
             PatientProfileId = patient.Id,
             PatientName = patient.FullName,
             NicNumber = patient.NicNumber,
+            DateOfBirth = patient.DateOfBirth,
+            PhoneNumber = patient.PhoneNumber,
             TotalRecords = records.Count,
             ActiveConditions = records.Count(r => r.Status == MedicalRecordStatus.Active || r.Status == MedicalRecordStatus.Chronic),
             CriticalOrSevere = records.Count(r => r.Severity == MedicalRecordSeverity.Severe || r.Severity == MedicalRecordSeverity.Critical),
