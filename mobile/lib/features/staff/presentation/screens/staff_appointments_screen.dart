@@ -264,10 +264,6 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
   }
 
   Future<void> _callNext() async {
-    if (!_isOnDuty) {
-      _toast('You must have an active shift to call the next patient.');
-      return;
-    }
     final current = _activePatient;
     if (current != null && current.uiStatus == 'consulting') {
       _toast(
@@ -302,10 +298,6 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
   }
 
   Future<void> _examine(StaffAppointmentModel patient) async {
-    if (!_isOnDuty) {
-      _toast('You must have an active shift to start consultation.');
-      return;
-    }
     if (!patient.isPaymentSettled) {
       _toast('Payment must be settled before starting consultation.');
       return;
@@ -321,10 +313,6 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
   }
 
   Future<void> _returnToQueue(StaffAppointmentModel patient) async {
-    if (!_isOnDuty) {
-      _toast('You must have an active shift to return a patient to the queue.');
-      return;
-    }
     await _updateStatus(patient, 'Confirmed');
     if (_activePatientId == patient.id) {
       setState(() => _activePatientId = null);
@@ -333,10 +321,6 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
   }
 
   Future<void> _certify(StaffAppointmentModel patient) async {
-    if (!_isOnDuty) {
-      _toast('You must have an active shift to record administration.');
-      return;
-    }
     if (!patient.isPaymentSettled) {
       _toast('Payment must be settled before recording administration.');
       return;
@@ -364,10 +348,6 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
   }
 
   Future<void> _discharge(StaffAppointmentModel patient) async {
-    if (!_isOnDuty) {
-      _toast('You must have an active shift to discharge a patient.');
-      return;
-    }
     if (!patient.isPaymentSettled) {
       _toast('Payment must be settled before discharging the patient.');
       return;
@@ -380,10 +360,6 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
   }
 
   Future<void> _reportAefi(StaffAppointmentModel patient) async {
-    if (!_isOnDuty) {
-      _toast('You must have an active shift to report AEFI.');
-      return;
-    }
     final draft = await showStaffAefiSheet(context: context, patient: patient);
     if (draft == null) return;
 
@@ -510,25 +486,6 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
               ),
               const SizedBox(height: 12),
             ],
-            if (!_isOnDuty && _selectedHospital != null) ...[
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFF7ED),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFFDBA74)),
-                ),
-                child: const Text(
-                  'You are off shift at this hospital. Clinical actions are disabled until you have an active shift.',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF9A3412),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-            ],
             if (_allowHospitalSwitch && _hospitals.length > 1) ...[
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -582,7 +539,7 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
-                onPressed: _updating || !_isOnDuty ? null : _callNext,
+                onPressed: _updating ? null : _callNext,
                 style: FilledButton.styleFrom(
                   backgroundColor: StaffSurfaces.cta,
                   disabledBackgroundColor: StaffSurfaces.softPanelDeep,
@@ -593,7 +550,7 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
                 ),
                 icon: const Icon(Icons.campaign_outlined, size: 18),
                 label: Text(
-                  _isOnDuty ? 'Call next patient' : 'On-duty shift required',
+                  'Call next patient',
                   style: const TextStyle(fontWeight: FontWeight.w700),
                 ),
               ),
@@ -603,7 +560,6 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
               _ActivePatientCard(
                 patient: active,
                 busy: _updating,
-                onDuty: _isOnDuty,
                 onReturn: () => _returnToQueue(active),
                 onCertify: () => _certify(active),
                 onAefi: () => _reportAefi(active),
@@ -624,7 +580,6 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
                         patient: obs,
                         minsLeft: _observationMinutesLeft(obs.updatedAt, now),
                         busy: _updating,
-                        onDuty: _isOnDuty,
                         onDischarge: () => _discharge(obs),
                         onAefi: () => _reportAefi(obs),
                       ),
@@ -688,7 +643,6 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
                   child: _AppointmentCard(
                     appointment: a,
                     busy: _updating,
-                    onDuty: _isOnDuty,
                     canPrescribe: _isDoctor,
                     onPrescribe: () => _prescribe(a),
                     onExamine: () => _examine(a),
@@ -830,7 +784,6 @@ class _DateFilterRow extends StatelessWidget {
 class _ActivePatientCard extends StatelessWidget {
   final StaffAppointmentModel patient;
   final bool busy;
-  final bool onDuty;
   final VoidCallback onReturn;
   final VoidCallback onCertify;
   final VoidCallback onAefi;
@@ -838,7 +791,6 @@ class _ActivePatientCard extends StatelessWidget {
   const _ActivePatientCard({
     required this.patient,
     required this.busy,
-    required this.onDuty,
     required this.onReturn,
     required this.onCertify,
     required this.onAefi,
@@ -892,14 +844,14 @@ class _ActivePatientCard extends StatelessWidget {
             children: [
               Expanded(
                 child: OutlinedButton(
-                  onPressed: busy || !onDuty ? null : onReturn,
+                  onPressed: busy ? null : onReturn,
                   child: const Text('Return to queue'),
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: FilledButton(
-                  onPressed: busy || !onDuty || !patient.isPaymentSettled
+                  onPressed: busy || !patient.isPaymentSettled
                       ? null
                       : onCertify,
                   style: FilledButton.styleFrom(
@@ -914,7 +866,7 @@ class _ActivePatientCard extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
-              onPressed: busy || !onDuty ? null : onAefi,
+              onPressed: busy ? null : onAefi,
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.error,
                 side: BorderSide(color: AppColors.error.withValues(alpha: 0.55)),
@@ -933,7 +885,6 @@ class _ObservationCard extends StatelessWidget {
   final StaffAppointmentModel patient;
   final int? minsLeft;
   final bool busy;
-  final bool onDuty;
   final VoidCallback onDischarge;
   final VoidCallback onAefi;
 
@@ -941,7 +892,6 @@ class _ObservationCard extends StatelessWidget {
     required this.patient,
     required this.minsLeft,
     required this.busy,
-    required this.onDuty,
     required this.onDischarge,
     required this.onAefi,
   });
@@ -984,7 +934,7 @@ class _ObservationCard extends StatelessWidget {
                 ),
               ),
               FilledButton(
-                onPressed: busy || !onDuty || !patient.isPaymentSettled
+                onPressed: busy || !patient.isPaymentSettled
                     ? null
                     : onDischarge,
                 style: FilledButton.styleFrom(backgroundColor: AppColors.success),
@@ -996,7 +946,7 @@ class _ObservationCard extends StatelessWidget {
           Align(
             alignment: Alignment.centerRight,
             child: TextButton.icon(
-              onPressed: busy || !onDuty ? null : onAefi,
+              onPressed: busy ? null : onAefi,
               icon: const Icon(Icons.warning_amber_rounded, size: 16),
               label: const Text('Report AEFI'),
               style: TextButton.styleFrom(foregroundColor: AppColors.error),
@@ -1011,7 +961,6 @@ class _ObservationCard extends StatelessWidget {
 class _AppointmentCard extends StatelessWidget {
   final StaffAppointmentModel appointment;
   final bool busy;
-  final bool onDuty;
   final bool canPrescribe;
   final VoidCallback onPrescribe;
   final VoidCallback onExamine;
@@ -1021,7 +970,6 @@ class _AppointmentCard extends StatelessWidget {
   const _AppointmentCard({
     required this.appointment,
     required this.busy,
-    required this.onDuty,
     required this.canPrescribe,
     required this.onPrescribe,
     required this.onExamine,
@@ -1065,7 +1013,7 @@ class _AppointmentCard extends StatelessWidget {
     Widget? action;
     if (a.uiStatus == 'waiting') {
       action = TextButton(
-        onPressed: busy || !onDuty || !a.isPaymentSettled || !a.hasDosage
+        onPressed: busy || !a.isPaymentSettled || !a.hasDosage
             ? null
             : onExamine,
         child: Text(
@@ -1079,7 +1027,7 @@ class _AppointmentCard extends StatelessWidget {
       );
     } else if (a.uiStatus == 'consulting') {
       action = TextButton(
-        onPressed: busy || !onDuty || !a.isPaymentSettled ? null : onCertify,
+        onPressed: busy || !a.isPaymentSettled ? null : onCertify,
         child: const Text(
           'Certify',
           style: TextStyle(fontWeight: FontWeight.w700),
@@ -1087,7 +1035,7 @@ class _AppointmentCard extends StatelessWidget {
       );
     } else if (a.uiStatus == 'observation') {
       action = TextButton(
-        onPressed: busy || !onDuty || !a.isPaymentSettled ? null : onDischarge,
+        onPressed: busy || !a.isPaymentSettled ? null : onDischarge,
         child: const Text(
           'Discharge',
           style: TextStyle(fontWeight: FontWeight.w700),
@@ -1162,9 +1110,7 @@ class _AppointmentCard extends StatelessWidget {
                     ),
                   ),
                 ],
-                if (canPrescribe &&
-                    onDuty &&
-                    appointment.uiStatus == 'waiting') ...[
+                if (canPrescribe && appointment.uiStatus == 'waiting') ...[
                   const SizedBox(height: 4),
                   Align(
                     alignment: Alignment.centerRight,
