@@ -84,6 +84,7 @@ public class AppointmentResponseDto
     public string PaymentStatus { get; set; } = "Paid";
     public string? PaymentTransactionId { get; set; }
     public string? Notes { get; set; }
+    public Guid? BoothId { get; set; }
     public string? BoothLabel { get; set; }
     public string? PrescribedDosage { get; set; }
     public Guid? PrescribedByDoctorUserId { get; set; }

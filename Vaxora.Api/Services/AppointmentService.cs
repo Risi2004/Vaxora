@@ -769,6 +769,7 @@ public class AppointmentService : IAppointmentService
     {
         var appointments = await _context.Appointments
             .AsNoTracking()
+            .Include(a => a.VaccineSchedule)
             .Where(a => a.PatientUserId == patientUserId)
             .OrderByDescending(a => a.AppointmentDate)
             .ThenByDescending(a => a.CreatedAt)
@@ -781,6 +782,7 @@ public class AppointmentService : IAppointmentService
     {
         var query = _context.Appointments
             .AsNoTracking()
+            .Include(a => a.VaccineSchedule)
             .Where(a => a.HospitalUserId == hospitalUserId);
 
         if (date.HasValue)
@@ -835,6 +837,7 @@ public class AppointmentService : IAppointmentService
 
         var appointments = await _context.Appointments
             .AsNoTracking()
+            .Include(a => a.VaccineSchedule)
             .Where(a =>
                 a.HospitalUserId == hospitalUserId &&
                 a.Status != "Cancelled" &&
@@ -1958,7 +1961,8 @@ public class AppointmentService : IAppointmentService
             PaymentStatus = a.PaymentStatus,
             PaymentTransactionId = a.PaymentTransactionId,
             Notes = a.Notes,
-            BoothLabel = ExtractBoothFromNotes(a.Notes),
+            BoothId = a.VaccineSchedule?.BoothId,
+            BoothLabel = a.VaccineSchedule?.BoothLabel ?? ExtractBoothFromNotes(a.Notes),
             PrescribedDosage = a.PrescribedDosage,
             PrescribedByDoctorUserId = a.PrescribedByDoctorUserId,
             PrescribedByDoctorName = a.PrescribedByDoctorName,
