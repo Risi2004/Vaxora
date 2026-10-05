@@ -263,6 +263,15 @@ public class ClinicalPatientService : IClinicalPatientService
             .FirstOrDefaultAsync(a => a.Id == appointmentId)
             ?? throw new KeyNotFoundException("Appointment not found.");
 
+        var isAffiliated = await _context.StaffAffiliations.AsNoTracking().AnyAsync(a =>
+            a.StaffUserId == doctorUserId &&
+            a.HospitalUserId == appointment.HospitalUserId &&
+            a.StaffRole == UserRole.DOCTOR &&
+            a.Status == AffiliationStatus.Active);
+
+        if (!isAffiliated)
+            throw new UnauthorizedAccessException("You are not affiliated with this hospital.");
+
         if (string.Equals(appointment.Status, "Completed", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(appointment.Status, "Cancelled", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(appointment.Status, "Rejected", StringComparison.OrdinalIgnoreCase))
