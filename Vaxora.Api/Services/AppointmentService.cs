@@ -952,6 +952,20 @@ public class AppointmentService : IAppointmentService
 
         var previousStatus = appointment.Status;
 
+        // A doctor must prescribe the dose before the nurse starts or records administration.
+        var startingOrGivingDose =
+            (string.Equals(nextStatus, "Administering", StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(nextStatus, "Observation", StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(nextStatus, "Completed", StringComparison.OrdinalIgnoreCase)) &&
+            string.Equals(previousStatus, "Confirmed", StringComparison.OrdinalIgnoreCase) ||
+            (string.Equals(nextStatus, "Observation", StringComparison.OrdinalIgnoreCase) &&
+             string.Equals(previousStatus, "Administering", StringComparison.OrdinalIgnoreCase));
+        if (startingOrGivingDose && string.IsNullOrWhiteSpace(appointment.PrescribedDosage))
+        {
+            throw new InvalidOperationException(
+                "A doctor must prescribe the dose before administration. Ask the doctor to prescribe it first.");
+        }
+
         // Enforce clinical transition graph for non-hospital actors.
         // Hospital desk may still Confirm/Cancel/Reject bookings; clinical staff
         // may only move within the live session path (plus closing missed visits).
