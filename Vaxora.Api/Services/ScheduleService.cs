@@ -62,6 +62,8 @@ public class ScheduleService : IScheduleService
             }
         }
 
+        EnsureScheduleNotInPast(dto, isWeekly);
+
         var daysOfWeekJoined = (dto.DaysOfWeek != null && dto.DaysOfWeek.Count > 0)
             ? string.Join(",", dto.DaysOfWeek.Select(d => d.Trim()))
             : null;
@@ -228,7 +230,10 @@ public class ScheduleService : IScheduleService
             .OrderByDescending(s => s.CreatedAt)
             .ToListAsync();
 
-        return schedules.Select(s => MapToDto(s, hospitalName)).ToList();
+        return schedules
+            .Where(IsScheduleWindowStillOpen)
+            .Select(s => MapToDto(s, hospitalName))
+            .ToList();
     }
 
     public async Task<bool> CancelScheduleAsync(Guid hospitalUserId, Guid scheduleId)
@@ -293,7 +298,10 @@ public class ScheduleService : IScheduleService
 
         var schedules = await query.OrderByDescending(s => s.CreatedAt).ToListAsync();
 
-        return schedules.Select(s => MapToDto(s, s.HospitalUser?.HospitalProfile?.HospitalName ?? "Hospital")).ToList();
+        return schedules
+            .Where(IsScheduleWindowStillOpen)
+            .Select(s => MapToDto(s, s.HospitalUser?.HospitalProfile?.HospitalName ?? "Hospital"))
+            .ToList();
     }
 
     private async Task<ScheduleStockHorizonDto> BuildStockHorizonAsync(
@@ -620,5 +628,87 @@ public class ScheduleService : IScheduleService
             return dt.ToString("hh:mm tt");
         }
         return time24;
+    }
+
+    private static void EnsureScheduleNotInPast(CreateVaccineScheduleDto dto, bool isWeekly)
+    {
+        var today = StaffDutyHelper.HospitalToday();
+        var now = TimeOnly.FromDateTime(StaffDutyHelper.HospitalNow());
+
+        if (!TryParseScheduleTime(dto.StartTime, out var startTime) ||
+            !TryParseScheduleTime(dto.EndTime, out var endTime))
+        {
+            throw new ArgumentException("Start time and end time must be valid times.");
+        }
+
+        if (endTime <= startTime)
+        {
+            throw new ArgumentException("End time must be after start time.");
+        }
+
+        if (isWeekly)
+        {
+            if (dto.EndDate.HasValue && dto.EndDate.Value < today)
+            {
+                throw new ArgumentException("Weekly schedule end date cannot be in the past.");
+            }
+
+            if (dto.StartDate.HasValue && dto.StartDate.Value < today)
+            {
+                throw new ArgumentException("Weekly schedule start date cannot be in the past. Use today or a future date.");
+            }
+
+            // Same-day weekly start: window must still be bookable for today's remaining hours.
+            if (dto.StartDate.HasValue && dto.StartDate.Value == today && startTime < now)
+            {
+                throw new ArgumentException("Schedule start time cannot be in the past for today.");
+            }
+        }
+        else
+        {
+            var date = dto.SpecificDate!.Value;
+            if (date < today)
+            {
+                throw new ArgumentException("One-time schedule date cannot be in the past.");
+            }
+
+            if (date == today && startTime < now)
+            {
+                throw new ArgumentException("Schedule start time cannot be in the past for today.");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Active schedules whose clinic window has fully ended should not appear in lists.
+    /// </summary>
+    private static bool IsScheduleWindowStillOpen(VaccineSchedule s)
+    {
+        var today = StaffDutyHelper.HospitalToday();
+        var now = TimeOnly.FromDateTime(StaffDutyHelper.HospitalNow());
+        var isWeekly = string.Equals(s.ScheduleType, "Weekly", StringComparison.OrdinalIgnoreCase);
+        _ = TryParseScheduleTime(s.EndTime, out var endTime);
+
+        if (isWeekly)
+        {
+            if (!s.EndDate.HasValue) return true;
+            if (s.EndDate.Value < today) return false;
+            if (s.EndDate.Value == today && endTime != default && endTime <= now) return false;
+            return true;
+        }
+
+        if (!s.SpecificDate.HasValue) return false;
+        if (s.SpecificDate.Value < today) return false;
+        if (s.SpecificDate.Value == today && endTime != default && endTime <= now) return false;
+        return true;
+    }
+
+    private static bool TryParseScheduleTime(string? timeStr, out TimeOnly time)
+    {
+        time = default;
+        if (string.IsNullOrWhiteSpace(timeStr)) return false;
+        var formats = new[] { "HH:mm", "H:mm", "hh:mm tt", "h:mm tt", "HH:mm:ss" };
+        return TimeOnly.TryParseExact(timeStr.Trim(), formats, CultureInfo.InvariantCulture, DateTimeStyles.None, out time)
+               || TimeOnly.TryParse(timeStr.Trim(), CultureInfo.InvariantCulture, out time);
     }
 }

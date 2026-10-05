@@ -17,6 +17,58 @@ const DAYS_OF_WEEK = [
   { key: 'Sunday', label: 'Sun' },
 ];
 
+/** Hospital wall-clock date in Asia/Colombo (yyyy-MM-dd). */
+function hospitalTodayStr() {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Colombo' });
+}
+
+function hospitalNowHm() {
+  return new Date().toLocaleTimeString('en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: 'Asia/Colombo',
+  });
+}
+
+/** Round up to next :00 or :20 or :40, then return HH:mm. */
+function nextClinicStartHm(fromHm = hospitalNowHm()) {
+  const [h, m] = fromHm.split(':').map(Number);
+  let minutes = h * 60 + m + 1; // strictly after now
+  const rem = minutes % 20;
+  if (rem !== 0) minutes += 20 - rem;
+  if (minutes >= 24 * 60) minutes = 23 * 60; // clamp late night
+  const hh = String(Math.floor(minutes / 60)).padStart(2, '0');
+  const mm = String(minutes % 60).padStart(2, '0');
+  return `${hh}:${mm}`;
+}
+
+function addHoursHm(hm, hours) {
+  const [h, m] = hm.split(':').map(Number);
+  let total = h * 60 + m + hours * 60;
+  if (total >= 24 * 60) total = 23 * 60 + 59;
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+}
+
+function defaultWindowForDate(dateStr) {
+  const today = hospitalTodayStr();
+  if (dateStr === today) {
+    const start = nextClinicStartHm();
+    return { startTime: start, endTime: addHoursHm(start, 2) };
+  }
+  return { startTime: '09:00', endTime: '11:00' };
+}
+
+function monthsAheadStr(months) {
+  const parts = hospitalTodayStr().split('-').map(Number);
+  const d = new Date(parts[0], parts[1] - 1, parts[2]);
+  d.setMonth(d.getMonth() + months);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 export default function HospitalAppointmentsTab() {
   const [vaccines, setVaccines] = useState([]);
   const [booths, setBooths] = useState([]);
@@ -25,11 +77,9 @@ export default function HospitalAppointmentsTab() {
   const [loadingSchedules, setLoadingSchedules] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  // Today and 3 months ahead helper dates
-  const todayStr = new Date().toISOString().split('T')[0];
-  const threeMonthsAhead = new Date();
-  threeMonthsAhead.setMonth(threeMonthsAhead.getMonth() + 3);
-  const defaultEndDateStr = threeMonthsAhead.toISOString().split('T')[0];
+  const todayStr = hospitalTodayStr();
+  const defaultEndDateStr = monthsAheadStr(3);
+  const initialWindow = defaultWindowForDate(todayStr);
 
   // 1. Create a new schedule form state
   const [scheduleForm, setScheduleForm] = useState({
@@ -40,8 +90,8 @@ export default function HospitalAppointmentsTab() {
     daysOfWeek: ['Monday', 'Wednesday', 'Friday'],
     startDate: todayStr,
     endDate: defaultEndDateStr,
-    startTime: '09:00',
-    endTime: '11:00',
+    startTime: initialWindow.startTime,
+    endTime: initialWindow.endTime,
     price: '0.00',
   });
 
@@ -278,6 +328,24 @@ export default function HospitalAppointmentsTab() {
         const vac = vaccines.find((v) => v.name === value);
         next.price = vac ? Number(vac.price || 0).toFixed(2) : '0.00';
       }
+
+      // When landing on today (or changing times), never keep a past start.
+      const sessionDate =
+        next.scheduleType === 'Weekly' ? next.startDate : next.specificDate;
+      if (name === 'specificDate' || name === 'startDate') {
+        if (sessionDate === todayStr) {
+          const win = defaultWindowForDate(todayStr);
+          if (next.startTime < win.startTime) {
+            next.startTime = win.startTime;
+            next.endTime = win.endTime;
+          }
+        }
+      }
+      if ((name === 'startTime' || name === 'endTime') && sessionDate === todayStr) {
+        const minStart = nextClinicStartHm();
+        if (next.startTime < minStart) next.startTime = minStart;
+        if (next.endTime <= next.startTime) next.endTime = addHoursHm(next.startTime, 2);
+      }
       return next;
     });
   };
@@ -342,6 +410,38 @@ export default function HospitalAppointmentsTab() {
         alert('Please select a Date for the one-time schedule.');
         return;
       }
+      if (scheduleForm.specificDate < todayStr) {
+        alert('One-time schedule date cannot be in the past.');
+        return;
+      }
+    }
+
+    if (scheduleForm.endTime <= scheduleForm.startTime) {
+      alert('End time must be after start time.');
+      return;
+    }
+
+    const sessionDate = isWeekly ? scheduleForm.startDate : scheduleForm.specificDate;
+    if (sessionDate === todayStr) {
+      const nowHm = new Date().toLocaleTimeString('en-GB', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+        timeZone: 'Asia/Colombo',
+      });
+      if (scheduleForm.startTime < nowHm) {
+        alert('Schedule start time cannot be in the past for today.');
+        return;
+      }
+    }
+
+    if (isWeekly && scheduleForm.startDate && scheduleForm.startDate < todayStr) {
+      alert('Weekly schedule start date cannot be in the past.');
+      return;
+    }
+    if (isWeekly && scheduleForm.endDate && scheduleForm.endDate < todayStr) {
+      alert('Weekly schedule end date cannot be in the past.');
+      return;
     }
 
     // Validate price
@@ -381,7 +481,8 @@ export default function HospitalAppointmentsTab() {
       await scheduleService.createSchedule(payload);
       showToast('Immunization schedule slot created and saved to database successfully!', 'success');
 
-      // Reset form
+      // Reset form — default window avoids past times for today
+      const resetWindow = defaultWindowForDate(todayStr);
       setScheduleForm({
         scheduleType: 'OneTime',
         vaccineType: '',
@@ -390,8 +491,8 @@ export default function HospitalAppointmentsTab() {
         daysOfWeek: ['Monday', 'Wednesday', 'Friday'],
         startDate: todayStr,
         endDate: defaultEndDateStr,
-        startTime: '09:00',
-        endTime: '11:00',
+        startTime: resetWindow.startTime,
+        endTime: resetWindow.endTime,
         price: '0.00',
       });
 
@@ -634,6 +735,13 @@ export default function HospitalAppointmentsTab() {
                   type="time"
                   name="startTime"
                   value={scheduleForm.startTime}
+                  min={
+                    (scheduleForm.scheduleType === 'Weekly'
+                      ? scheduleForm.startDate
+                      : scheduleForm.specificDate) === todayStr
+                      ? hospitalNowHm()
+                      : undefined
+                  }
                   onChange={handleScheduleChange}
                   className="schedule-input-field"
                   required
@@ -646,6 +754,7 @@ export default function HospitalAppointmentsTab() {
                   type="time"
                   name="endTime"
                   value={scheduleForm.endTime}
+                  min={scheduleForm.startTime || undefined}
                   onChange={handleScheduleChange}
                   className="schedule-input-field"
                   required
