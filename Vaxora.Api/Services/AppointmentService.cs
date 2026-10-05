@@ -1898,6 +1898,7 @@ public class AppointmentService : IAppointmentService
         {
             Id = a.Id,
             PatientUserId = a.PatientUserId,
+            PatientProfileId = a.PatientProfileId,
             PatientName = a.PatientName,
             PatientNic = a.PatientNic,
             PatientPhone = a.PatientPhone,
