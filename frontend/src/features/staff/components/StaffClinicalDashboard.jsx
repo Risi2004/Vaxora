@@ -4,6 +4,7 @@ import inventoryService from '../../hospital/services/inventoryService';
 import staffService from '../../hospital/services/staffService';
 import clinicalPatientService from '../../doctor/services/clinicalPatientService';
 import staffAppointmentService from '../services/staffAppointmentService';
+import { hospitalToday } from '../../hospital/utils/hospitalDate';
 import {
   IconCalendar,
   IconClipboard,
@@ -31,13 +32,6 @@ function greetingForNow(date = new Date()) {
   if (hour < 12) return 'Good morning';
   if (hour < 17) return 'Good afternoon';
   return 'Good evening';
-}
-
-function toDateInputValue(date = new Date()) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
 }
 
 function mapDbStatusToUi(status) {
@@ -170,7 +164,7 @@ export default function StaffClinicalDashboard({
       const [appts, lots] = await Promise.all([
         staffAppointmentService.getHospitalAppointments(
           hospitalId,
-          toDateInputValue(),
+          hospitalToday(),
           listScope
         ),
         inventoryService.getInventory(hospitalId).catch(() => []),

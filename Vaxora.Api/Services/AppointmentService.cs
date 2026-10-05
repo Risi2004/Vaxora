@@ -788,15 +788,25 @@ public class AppointmentService : IAppointmentService
         var hospitalWide =
             string.Equals(scope?.Trim(), "hospital", StringComparison.OrdinalIgnoreCase);
 
+        // Clinical floor list is session-scoped: hospital-local today only (±1 day).
+        // Broader history remains on hospital/admin appointment screens.
+        var hospitalToday = StaffDutyHelper.HospitalToday();
+        var sessionDate = date ?? hospitalToday;
+        var earliest = hospitalToday.AddDays(-1);
+        var latest = hospitalToday.AddDays(1);
+        if (sessionDate < earliest || sessionDate > latest)
+        {
+            throw new InvalidOperationException(
+                $"Clinical queue is limited to today's hospital session ({hospitalToday:yyyy-MM-dd}) ± 1 day. Use hospital appointments for wider history.");
+        }
+
         var query = _context.Appointments
             .AsNoTracking()
             .Where(a =>
                 a.HospitalUserId == hospitalUserId &&
                 a.Status != "Cancelled" &&
-                a.Status != "Rejected");
-
-        if (date.HasValue)
-            query = query.Where(a => a.AppointmentDate == date.Value);
+                a.Status != "Rejected" &&
+                a.AppointmentDate == sessionDate);
 
         if (!hospitalWide)
         {
@@ -816,7 +826,7 @@ public class AppointmentService : IAppointmentService
             .ToListAsync();
 
         var scopeLabel = hospitalWide ? "hospital" : "my_panel";
-        var dateLabel = date?.ToString("yyyy-MM-dd") ?? "unspecified";
+        var dateLabel = sessionDate.ToString("yyyy-MM-dd");
         var auditDetails =
             $"Staff viewed clinical appointment list scope={scopeLabel} hospital={hospitalUserId} date={dateLabel} recordCount={appointments.Count}";
 

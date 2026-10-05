@@ -205,7 +205,8 @@ public class AppointmentsController : ControllerBase
     }
 
     /// <summary>
-    /// Doctor/Nurse: list appointments for an affiliated hospital (optional date filter).
+    /// Doctor/Nurse: today's clinical queue for an affiliated hospital.
+    /// Date is optional and limited to hospital-local today ± 1 day.
     /// </summary>
     [HttpGet("staff")]
     [Authorize(Roles = "DOCTOR,NURSE")]
