@@ -33,6 +33,8 @@ class ApiConstants {
   static const String signupDoctor = '/auth/signup/doctor';
   static const String signupNurse = '/auth/signup/nurse';
   static const String signupHospital = '/auth/signup/hospital';
+  static const String forgotPassword = '/auth/forgot-password';
+  static const String resetPassword = '/auth/reset-password';
   static const String currentUser = '/auth/me';
   static const String deleteAccount = '/auth/account';
 
