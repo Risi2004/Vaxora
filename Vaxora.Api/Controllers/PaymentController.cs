@@ -126,6 +126,21 @@ public class PaymentController : ControllerBase
 
         if (!hasProof)
         {
+            if (!string.IsNullOrWhiteSpace(dto.PaymentId))
+            {
+                var appResult = await _appointmentService.ConfirmPayHerePaymentAsync(
+                    appointment.Id,
+                    dto.PaymentId,
+                    dto.OrderId ?? _payHereService.BuildOrderId(appointment.Id));
+
+                return Ok(new
+                {
+                    message = "Payment confirmed successfully. Booking confirmed and emails sent.",
+                    confirmed = true,
+                    appointment = appResult
+                });
+            }
+
             return Accepted(new
             {
                 message =

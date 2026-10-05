@@ -1061,10 +1061,10 @@ public class AuthService : IAuthService
 
         _logger.LogInformation("Permanently deleting account for user {UserId} with role {Role} and email {Email}", user.Id, user.Role, user.Email);
 
-        // Record Audit Log before removing
+        // Record Audit Log before removing (set UserId to null so it does not conflict upon user deletion)
         _context.AuditLogs.Add(new AuditLog
         {
-            UserId = user.Id,
+            UserId = null,
             UserEmail = user.Email,
             Role = user.Role.ToString(),
             Action = "ACCOUNT_DELETED",
@@ -1072,7 +1072,30 @@ public class AuthService : IAuthService
             Timestamp = DateTime.UtcNow
         });
 
-        // Clean up staff affiliations (where user is either the staff member or the hospital)
+        // 1. Unlink historical AuditLogs pointing to this user
+        var userAuditLogs = await _context.AuditLogs.Where(l => l.UserId == userId).ToListAsync();
+        foreach (var log in userAuditLogs)
+        {
+            log.UserId = null;
+        }
+
+        // 2. Clean up AgentWorkflows
+        var agentWorkflows = await _context.AgentWorkflows.Where(w => w.UserId == userId).ToListAsync();
+        if (agentWorkflows.Count != 0)
+        {
+            _context.AgentWorkflows.RemoveRange(agentWorkflows);
+        }
+
+        // 3. Clean up ShiftSwapRequests
+        var shiftSwaps = await _context.ShiftSwapRequests
+            .Where(r => r.HospitalUserId == userId || r.RequesterUserId == userId || r.ReplacementUserId == userId)
+            .ToListAsync();
+        if (shiftSwaps.Count != 0)
+        {
+            _context.ShiftSwapRequests.RemoveRange(shiftSwaps);
+        }
+
+        // 4. Clean up staff affiliations (where user is either the staff member or the hospital)
         var affiliations = await _context.StaffAffiliations
             .Include(a => a.Shifts)
             .Where(a => a.HospitalUserId == userId || a.StaffUserId == userId)
@@ -1090,7 +1113,14 @@ public class AuthService : IAuthService
             _context.StaffAffiliations.RemoveRange(affiliations);
         }
 
-        // Clean up hospital inventory/formulary/vaults if deleting a hospital
+        // 5. Unlink InventoryTransactions performed by this user
+        var userInvTransactions = await _context.InventoryTransactions.Where(t => t.PerformedByUserId == userId).ToListAsync();
+        foreach (var tx in userInvTransactions)
+        {
+            tx.PerformedByUserId = null;
+        }
+
+        // 6. Clean up hospital inventory/formulary/vaults/booths if deleting a hospital
         if (user.HospitalProfile != null)
         {
             var hospitalId = user.HospitalProfile.Id;
@@ -1109,6 +1139,48 @@ public class AuthService : IAuthService
                 }
             }
             _context.Batches.RemoveRange(batches);
+
+            var hospitalBooths = await _context.HospitalBooths.Include(b => b.Vaccines).Where(b => b.HospitalUserId == userId).ToListAsync();
+            foreach (var b in hospitalBooths)
+            {
+                if (b.Vaccines.Count != 0)
+                {
+                    _context.HospitalBoothVaccines.RemoveRange(b.Vaccines);
+                }
+            }
+            _context.HospitalBooths.RemoveRange(hospitalBooths);
+
+            var hospitalAppointments = await _context.Appointments.Where(a => a.HospitalUserId == userId).ToListAsync();
+            _context.Appointments.RemoveRange(hospitalAppointments);
+
+            var hospitalSchedules = await _context.VaccineSchedules.Where(s => s.HospitalUserId == userId).ToListAsync();
+            _context.VaccineSchedules.RemoveRange(hospitalSchedules);
+        }
+        else if (user.Role == UserRole.PATIENT)
+        {
+            // Clean up appointments booked by this patient
+            var patientAppointments = await _context.Appointments.Where(a => a.PatientUserId == userId).ToListAsync();
+            _context.Appointments.RemoveRange(patientAppointments);
+        }
+        else
+        {
+            // For Doctor or Nurse, unlink from schedules and appointments without breaking hospital history
+            var staffSchedules = await _context.VaccineSchedules.Where(s => s.DoctorUserId == userId || s.NurseUserId == userId).ToListAsync();
+            foreach (var s in staffSchedules)
+            {
+                if (s.DoctorUserId == userId) s.DoctorUserId = null;
+                if (s.NurseUserId == userId) s.NurseUserId = null;
+            }
+
+            var staffAppointments = await _context.Appointments
+                .Where(a => a.DoctorUserId == userId || a.NurseUserId == userId || a.PrescribedByDoctorUserId == userId)
+                .ToListAsync();
+            foreach (var a in staffAppointments)
+            {
+                if (a.DoctorUserId == userId) a.DoctorUserId = null;
+                if (a.NurseUserId == userId) a.NurseUserId = null;
+                if (a.PrescribedByDoctorUserId == userId) a.PrescribedByDoctorUserId = null;
+            }
         }
 
         _context.Users.Remove(user);

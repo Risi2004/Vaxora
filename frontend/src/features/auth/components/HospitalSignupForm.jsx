@@ -342,7 +342,7 @@ export default function HospitalSignupForm({ onSuccess }) {
           : SRI_LANKA_PROVINCES.flatMap((p) => p.districts);
 
         return (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div className="auth-grid-2col">
             <div className="auth-input-group">
               <label className="auth-label" style={{ fontSize: '0.82rem', color: '#475569', fontWeight: 600 }}>
                 Province *

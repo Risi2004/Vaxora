@@ -235,6 +235,81 @@ class _HospitalProfileScreenState extends State<HospitalProfileScreen> {
     }
   }
 
+  void _deleteAccount() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: StaffSurfaces.cardBg,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(StaffSurfaces.cardRadius),
+        ),
+        title: const Text(
+          'Delete Hospital Account?',
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            color: AppColors.error,
+          ),
+        ),
+        content: const Text(
+          'This will permanently delete your hospital facility account, staff rosters, vaults, and inventory registrations. This action cannot be undone.',
+          style: TextStyle(fontSize: 13.5, color: StaffSurfaces.textSecondary, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: StaffSurfaces.textSecondary,
+              ),
+            ),
+          ),
+          FilledButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              try {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Deleting hospital account...'),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+                await AuthRepository.deleteAccount();
+                if (!mounted) return;
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (_) => const LoginScreen()),
+                  (route) => false,
+                );
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    backgroundColor: AppColors.error,
+                    content: Text('Your Vaxora hospital account has been permanently deleted.'),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              } catch (e) {
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    backgroundColor: AppColors.error,
+                    content: Text('Failed to delete account: $e'),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
+            },
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.error,
+              elevation: 0,
+            ),
+            child: const Text('Yes, Delete Account'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _section({required String title, required IconData icon, required List<Widget> children}) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -405,6 +480,20 @@ class _HospitalProfileScreenState extends State<HospitalProfileScreen> {
                       foregroundColor: AppColors.error,
                       side: const BorderSide(color: StaffSurfaces.dangerBorder),
                       backgroundColor: AppColors.errorBg,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  FilledButton.icon(
+                    onPressed: _deleteAccount,
+                    icon: const Icon(Icons.delete_forever_outlined, size: 18),
+                    label: const Text('Delete Account'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.error,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),

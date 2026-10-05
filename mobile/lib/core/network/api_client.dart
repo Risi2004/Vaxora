@@ -142,7 +142,8 @@ class ApiClient {
 
   static Future<dynamic> postMultipart(
     String endpoint, {
-    required Map<String, String> fields,
+    Map<String, String>? fields,
+    List<http.MultipartFile>? files,
   }) async {
     final uri = Uri.parse('${ApiConstants.baseUrl}$endpoint');
     final token = await StorageService.getToken();
@@ -152,10 +153,15 @@ class ApiClient {
       if (token != null && token.isNotEmpty) {
         request.headers['Authorization'] = 'Bearer $token';
       }
-      request.fields.addAll(fields);
+      if (fields != null && fields.isNotEmpty) {
+        request.fields.addAll(fields);
+      }
+      if (files != null && files.isNotEmpty) {
+        request.files.addAll(files);
+      }
 
       final streamedResponse = await request.send().timeout(
-        const Duration(seconds: 45),
+        const Duration(seconds: 60),
       );
       final response = await http.Response.fromStream(streamedResponse);
       return _processResponse(response);

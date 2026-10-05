@@ -132,7 +132,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
         : hour < 17
         ? 'Good afternoon'
         : 'Good evening';
-    return _displayName == 'there' ? '$salutation' : '$salutation, $_displayName';
+    return _displayName == 'there' ? salutation : '$salutation, $_displayName';
   }
 
   @override

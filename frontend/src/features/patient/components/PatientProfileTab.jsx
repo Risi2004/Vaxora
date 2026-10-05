@@ -6,6 +6,8 @@ import { patientVaccinationService } from "../services/patientVaccinationService
 import { patientMedicalHistoryService } from "../services/patientMedicalHistoryService";
 import PatientSubpageHeader from "./PatientSubpageHeader";
 import { deferEffectCallback } from "../../../shared/utils/deferEffectCallback.js";
+import DeleteAccountModal from "../../auth/components/DeleteAccountModal";
+import { IconTrash } from "../../../shared/icons/AppIcons";
 
 // ---------- Helpers ----------
 const formatDate = (iso) => {
@@ -53,6 +55,7 @@ export default function PatientProfileTab() {
   const [saving, setSaving] = useState(false);
   const [notification, setNotification] = useState("");
   const [notificationType, setNotificationType] = useState("success");
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
   const [profileData, setProfileData] = useState({
     id: "",
@@ -817,6 +820,82 @@ export default function PatientProfileTab() {
             </div>
           </div>
         </div>
+
+        {/* =========================================================================
+            4. DANGER ZONE: Delete Account
+           ========================================================================= */}
+        <div
+          className="patient-profile-card"
+          style={{
+            borderColor: "rgba(239, 68, 68, 0.35)",
+            background:
+              "linear-gradient(180deg, rgba(239, 68, 68, 0.05) 0%, rgba(15, 23, 42, 0.4) 100%)",
+            borderRadius: "16px",
+            padding: "24px",
+            marginTop: "8px",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: "16px",
+            }}
+          >
+            <div>
+              <h4
+                style={{
+                  margin: "0 0 6px",
+                  color: "#ef4444",
+                  fontSize: "1.05rem",
+                  fontWeight: 700,
+                }}
+              >
+                Danger Zone
+              </h4>
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: "0.85rem",
+                  color: "#94a3b8",
+                  maxWidth: "600px",
+                }}
+              >
+                Permanently delete your Vaxora patient account, personal
+                records, and vaccination history. This action cannot be undone.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsDeleteModalOpen(true)}
+              style={{
+                background: "#dc2626",
+                color: "#ffffff",
+                border: "1px solid #ef4444",
+                borderRadius: "8px",
+                padding: "10px 18px",
+                fontSize: "0.88rem",
+                fontWeight: 700,
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "8px",
+                boxShadow: "0 2px 8px rgba(220, 38, 38, 0.3)",
+              }}
+            >
+              <IconTrash size={16} /> Delete Account
+            </button>
+          </div>
+        </div>
+
+        <DeleteAccountModal
+          isOpen={isDeleteModalOpen}
+          onClose={() => setIsDeleteModalOpen(false)}
+          userName={profileData.name || "Patient Profile"}
+          roleName="Patient"
+        />
       </div>
     </div>
   );

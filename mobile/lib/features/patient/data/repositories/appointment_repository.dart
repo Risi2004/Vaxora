@@ -22,6 +22,7 @@ class AppointmentRepository {
     required String timeSlot,
     String? doseNumber,
     String? notes,
+    String paymentMethod = 'Free',
   }) async {
     final response = await ApiClient.post(
       ApiConstants.bookAppointment,
@@ -32,6 +33,7 @@ class AppointmentRepository {
         'timeSlot': timeSlot,
         'doseNumber': doseNumber ?? 'Dose 1',
         'notes': notes ?? '',
+        'paymentMethod': paymentMethod,
       },
     );
 
