@@ -104,6 +104,8 @@ export default function StaffClinicalDashboard({
   const [hospitalMenuOpen, setHospitalMenuOpen] = useState(false);
   /** 'my' = assigned doctor/nurse panel; 'hospital' = full floor view */
   const [panelScope, setPanelScope] = useState('my');
+  const [contactCache, setContactCache] = useState({});
+  const [contactLoadingId, setContactLoadingId] = useState(null);
   const toastTimerRef = useRef(null);
   const hospitalMenuRef = useRef(null);
 
@@ -228,6 +230,29 @@ export default function StaffClinicalDashboard({
   const dutyText = presenceLabel(primaryAffiliation);
   const isOnDuty = Boolean(primaryAffiliation?.isOnDutyNow);
 
+  const revealPatientContact = useCallback(
+    async (appointmentId) => {
+      if (!isOnDuty) {
+        showToast('You must be on duty to view patient contact details.');
+        return null;
+      }
+      if (contactCache[appointmentId]) return contactCache[appointmentId];
+
+      setContactLoadingId(appointmentId);
+      try {
+        const data = await staffAppointmentService.getPatientContact(appointmentId);
+        setContactCache((prev) => ({ ...prev, [appointmentId]: data }));
+        return data;
+      } catch (err) {
+        showToast(err.message || 'Could not load contact details.');
+        return null;
+      } finally {
+        setContactLoadingId(null);
+      }
+    },
+    [contactCache, isOnDuty, showToast]
+  );
+
   const todayTotal = todayAppointments.length;
   const todayCompleted = todayAppointments.filter((a) => a.status === 'Completed').length;
   const todayUpcoming = todayAppointments.filter((a) => {
@@ -247,8 +272,6 @@ export default function StaffClinicalDashboard({
         id,
         token: `T-${short}`,
         name: a.patientName || 'Patient',
-        nic: a.patientNic || '—',
-        phone: a.patientPhone || '—',
         vaccine: a.vaccineName || '—',
         dose: a.prescribedDosage || 'Dosage not set',
         hasDosage: Boolean(a.prescribedDosage),
@@ -286,7 +309,19 @@ export default function StaffClinicalDashboard({
     [patients, activePatientId]
   );
 
+  const activePatientContact = activePatient ? contactCache[activePatient.id] : null;
+
   const activePaymentSettled = activePatient ? isPaymentSettled(activePatient) : true;
+
+  useEffect(() => {
+    if (!activePatient?.id || !isOnDuty) return undefined;
+    if (activePatient.status !== 'consulting' && activePatient.status !== 'observation') {
+      return undefined;
+    }
+    if (contactCache[activePatient.id]) return undefined;
+    revealPatientContact(activePatient.id);
+    return undefined;
+  }, [activePatient?.id, activePatient?.status, contactCache, isOnDuty, revealPatientContact]);
 
   const persistStatus = async (appointmentId, dbStatus) => {
     setStatusUpdating(true);
@@ -464,6 +499,7 @@ export default function StaffClinicalDashboard({
     setFilterStatus('all');
     setSearchQuery('');
     setPanelScope('my');
+    setContactCache({});
     loadDashboardData(hospitalUserId);
   };
 
@@ -511,8 +547,6 @@ export default function StaffClinicalDashboard({
       !q ||
       p.name.toLowerCase().includes(q) ||
       p.token.toLowerCase().includes(q) ||
-      String(p.nic).toLowerCase().includes(q) ||
-      String(p.phone || '').toLowerCase().includes(q) ||
       p.vaccine.toLowerCase().includes(q);
 
     if (!matchesSearch) return false;
@@ -757,10 +791,25 @@ export default function StaffClinicalDashboard({
               </div>
               <div>
                 <div className="doctor-patient-name">{activePatient.name}</div>
-                <div className="doctor-patient-meta-text">
-                  NIC: <strong>{activePatient.nic}</strong>
-                </div>
-                <div className="doctor-patient-meta-text">Phone: {activePatient.phone}</div>
+                {activePatientContact ? (
+                  <>
+                    <div className="doctor-patient-meta-text">
+                      NIC: <strong>{activePatientContact.patientNic || '—'}</strong>
+                    </div>
+                    <div className="doctor-patient-meta-text">
+                      Phone: {activePatientContact.patientPhone || '—'}
+                    </div>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    className="queue-contact-reveal-btn"
+                    onClick={() => revealPatientContact(activePatient.id)}
+                    disabled={!isOnDuty || contactLoadingId === activePatient.id || statusUpdating}
+                  >
+                    {contactLoadingId === activePatient.id ? 'Loading contact…' : 'Show contact details'}
+                  </button>
+                )}
               </div>
             </div>
 
@@ -796,8 +845,16 @@ export default function StaffClinicalDashboard({
               <span className={`doctor-check-pill${activePatient.hasDosage ? ' is-ok' : ' is-pending'}`}>
                 {activePatient.hasDosage ? 'Dosage prescribed' : 'Dosage not set'}
               </span>
-              <span className={`doctor-check-pill${activePatient.nic !== '—' ? ' is-ok' : ' is-pending'}`}>
-                {activePatient.nic !== '—' ? 'Patient NIC on record' : 'NIC missing'}
+              <span
+                className={`doctor-check-pill${
+                  activePatientContact?.patientNic ? ' is-ok' : ' is-pending'
+                }`}
+              >
+                {activePatientContact?.patientNic
+                  ? 'Patient NIC on record'
+                  : activePatientContact
+                    ? 'NIC missing'
+                    : 'Contact not loaded'}
               </span>
               <span className={`doctor-check-pill${isPaymentSettled(activePatient) ? ' is-ok' : ' is-pending'}`}>
                 {isPaymentSettled(activePatient) ? 'Payment settled' : `Payment: ${activePatient.paymentStatus}`}
@@ -947,7 +1004,7 @@ export default function StaffClinicalDashboard({
               <input
                 type="text"
                 className="queue-search-input"
-                placeholder="Search patient, phone, token..."
+                placeholder="Search patient, token, vaccine..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -1030,10 +1087,28 @@ export default function StaffClinicalDashboard({
                           >
                             {p.name}
                           </div>
-                          <div className="queue-patient-meta">NIC: {p.nic}</div>
-                          {p.phone && p.phone !== '—' ? (
-                            <div className="queue-patient-meta">{p.phone}</div>
-                          ) : null}
+                          {contactCache[p.id] ? (
+                            <>
+                              <div className="queue-patient-meta">
+                                NIC: {contactCache[p.id].patientNic || '—'}
+                              </div>
+                              {contactCache[p.id].patientPhone ? (
+                                <div className="queue-patient-meta">{contactCache[p.id].patientPhone}</div>
+                              ) : null}
+                            </>
+                          ) : (
+                            <button
+                              type="button"
+                              className="queue-contact-reveal-btn"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                revealPatientContact(p.id);
+                              }}
+                              disabled={!isOnDuty || contactLoadingId === p.id || statusUpdating}
+                            >
+                              {contactLoadingId === p.id ? 'Loading…' : 'Show contact'}
+                            </button>
+                          )}
                         </td>
                         <td>
                           <div className="queue-vaccine-badge">{p.vaccine}</div>

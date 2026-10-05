@@ -1444,6 +1444,25 @@
   flex-shrink: 0;
 }
 
+.queue-contact-reveal-btn {
+  margin-top: 4px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: #4f46e5;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.queue-contact-reveal-btn:disabled {
+  color: #94a3b8;
+  cursor: not-allowed;
+  text-decoration: none;
+}
+
 .queue-controls-bar {
   display: flex;
   align-items: center;

@@ -61,6 +61,10 @@ export const staffAppointmentService = {
     return apiRequest('/staff/my-affiliations');
   },
 
+  getPatientContact(appointmentId) {
+    return apiRequest(`/appointments/${appointmentId}/staff-contact`);
+  },
+
   getHospitalAppointments(hospitalUserId, date, scope = 'my') {
     return apiRequest(
       `/appointments/staff${buildQuery({

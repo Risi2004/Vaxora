@@ -19,6 +19,9 @@ public interface IAppointmentService
         Guid hospitalUserId,
         DateOnly? date = null,
         string? scope = null);
+    Task<StaffAppointmentPatientContactDto> GetStaffAppointmentPatientContactAsync(
+        Guid staffUserId,
+        Guid appointmentId);
     /// <summary>
     /// Update appointment status. Actor may be the owning hospital, or an active
     /// doctor/nurse affiliated with that hospital.
@@ -828,7 +831,59 @@ public class AppointmentService : IAppointmentService
         });
         await _context.SaveChangesAsync();
 
-        return appointments.Select(MapToDto).ToList();
+        return appointments.Select(MapToStaffListDto).ToList();
+    }
+
+    public async Task<StaffAppointmentPatientContactDto> GetStaffAppointmentPatientContactAsync(
+        Guid staffUserId,
+        Guid appointmentId)
+    {
+        var staff = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == staffUserId);
+        if (staff == null || staff.Role is not (UserRole.DOCTOR or UserRole.NURSE))
+            throw new UnauthorizedAccessException("Only doctors or nurses can view patient contact details.");
+
+        if (staff.Status != UserStatus.Active)
+            throw new InvalidOperationException("Staff account must be Active.");
+
+        var appointment = await _context.Appointments.AsNoTracking()
+            .FirstOrDefaultAsync(a => a.Id == appointmentId)
+            ?? throw new KeyNotFoundException("Appointment record not found.");
+
+        if (string.Equals(appointment.Status, "Cancelled", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(appointment.Status, "Rejected", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Contact details are not available for cancelled or rejected appointments.");
+        }
+
+        var isAffiliated = await _context.StaffAffiliations.AsNoTracking().AnyAsync(a =>
+            a.StaffUserId == staffUserId &&
+            a.HospitalUserId == appointment.HospitalUserId &&
+            a.Status == AffiliationStatus.Active);
+
+        if (!isAffiliated)
+            throw new UnauthorizedAccessException("You are not affiliated with this hospital.");
+
+        await EnsureStaffAssignedToAppointmentAsync(appointment, staffUserId);
+        await StaffDutyHelper.EnsureStaffOnDutyAsync(_context, staffUserId, appointment.HospitalUserId);
+
+        _context.AuditLogs.Add(new AuditLog
+        {
+            UserId = staffUserId,
+            UserEmail = staff.Email,
+            Role = staff.Role.ToString(),
+            Action = "STAFF_PATIENT_CONTACT_VIEW",
+            Details = $"Revealed patient contact for appointment {appointment.Id}",
+            Timestamp = DateTime.UtcNow
+        });
+        await _context.SaveChangesAsync();
+
+        return new StaffAppointmentPatientContactDto
+        {
+            AppointmentId = appointment.Id,
+            PatientNic = appointment.PatientNic,
+            PatientPhone = appointment.PatientPhone,
+            PatientEmail = appointment.PatientEmail
+        };
     }
 
     public async Task<AppointmentResponseDto> UpdateAppointmentStatusAsync(Guid actorUserId, Guid appointmentId, UpdateAppointmentStatusDto dto)
@@ -1844,6 +1899,15 @@ public class AppointmentService : IAppointmentService
         }
 
         throw new UnauthorizedAccessException("This appointment is not assigned to your clinical panel.");
+    }
+
+    private static AppointmentResponseDto MapToStaffListDto(Appointment a)
+    {
+        var dto = MapToDto(a);
+        dto.PatientNic = null;
+        dto.PatientPhone = null;
+        dto.PatientEmail = null;
+        return dto;
     }
 
     private static AppointmentResponseDto MapToDto(Appointment a)

@@ -92,6 +92,15 @@ public class AppointmentResponseDto
     public DateTime? UpdatedAt { get; set; }
 }
 
+/// <summary>Patient identifiers for on-duty staff after explicit contact reveal.</summary>
+public class StaffAppointmentPatientContactDto
+{
+    public Guid AppointmentId { get; set; }
+    public string? PatientNic { get; set; }
+    public string? PatientPhone { get; set; }
+    public string? PatientEmail { get; set; }
+}
+
 public class UpdateAppointmentStatusDto
 {
     /// <summary>

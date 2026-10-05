@@ -252,6 +252,41 @@ public class AppointmentsController : ControllerBase
     }
 
     /// <summary>
+    /// On-duty assigned staff: reveal patient NIC/phone/email for one appointment.
+    /// </summary>
+    [HttpGet("{id:guid}/staff-contact")]
+    [Authorize(Roles = "DOCTOR,NURSE")]
+    public async Task<IActionResult> GetStaffAppointmentPatientContact(Guid id)
+    {
+        var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(userIdStr, out var staffUserId))
+            return Unauthorized(new { message = "Invalid user token." });
+
+        try
+        {
+            var contact = await _appointmentService.GetStaffAppointmentPatientContactAsync(staffUserId, id);
+            return Ok(contact);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving staff contact for appointment {AppId}", id);
+            return StatusCode(500, new { message = "Failed to load patient contact details." });
+        }
+    }
+
+    /// <summary>
     /// Update status of an appointment (hospital owner, or affiliated doctor/nurse).
     /// </summary>
     [HttpPatch("{id}/status")]
