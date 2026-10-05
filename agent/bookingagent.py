@@ -184,8 +184,24 @@ class BookingAgent:
                 appointment_id=arguments.get("appointment_id"),
                 token=token
             )
+        elif tool_name in (
+            "direct_book",
+            "force_book",
+            "create_appointment",
+            "delete_appointment",
+            "purge_appointments",
+            "bypass_payment",
+            "modify_appointment",
+            "direct_cancel",
+        ):
+            logger.warning(f"[{self.name}] Blocked forbidden tool attempt: {tool_name}")
+            return {
+                "success": False,
+                "blocked": True,
+                "error": f"Tool '{tool_name}' is not permitted. All bookings and cancellations require explicit user approval.",
+            }
         else:
-            return {"error": f"Unknown tool: {tool_name}"}
+            return {"success": False, "error": f"Unknown tool: {tool_name}"}
 
     async def run(
         self,
