@@ -51,10 +51,21 @@ export default function HospitalAppointmentsTab() {
   // 3. Filter Date state
   const [filterDate, setFilterDate] = useState(todayStr);
   const [notification, setNotification] = useState('');
+  const [notificationTone, setNotificationTone] = useState('success'); // success | error | warning | info
+  const [stockHorizon, setStockHorizon] = useState(null);
+  const [loadingHorizon, setLoadingHorizon] = useState(false);
 
-  const showToast = (msg) => {
+  const showToast = (msg, tone = 'success') => {
     setNotification(msg);
+    setNotificationTone(tone);
     setTimeout(() => setNotification(''), 3500);
+  };
+
+  const toastStyles = {
+    success: { background: '#ecfdf5', color: '#065f46', border: '1.5px solid #a7f3d0' },
+    error: { background: '#fef2f2', color: '#b91c1c', border: '1.5px solid #fecaca' },
+    warning: { background: '#fffbeb', color: '#92400e', border: '1.5px solid #fde68a' },
+    info: { background: '#eff6ff', color: '#1e40af', border: '1.5px solid #bfdbfe' },
   };
 
   // Fetch formulary vaccines and active booths
@@ -186,6 +197,72 @@ export default function HospitalAppointmentsTab() {
     setScheduleForm((prev) => ({ ...prev, boothId: autoId }));
   }), [scheduleForm.vaccineType, scheduleForm.boothId, matchingBooths]);
 
+  // Soft stock horizon preview (does not deduct vials)
+  useEffect(() => {
+    if (!scheduleForm.vaccineType || !scheduleForm.startTime || !scheduleForm.endTime) {
+      setStockHorizon(null);
+      return undefined;
+    }
+
+    const isWeekly = scheduleForm.scheduleType === 'Weekly';
+    if (isWeekly && (!scheduleForm.startDate || scheduleForm.daysOfWeek.length === 0)) {
+      setStockHorizon(null);
+      return undefined;
+    }
+    if (!isWeekly && !scheduleForm.specificDate) {
+      setStockHorizon(null);
+      return undefined;
+    }
+
+    const selectedVac = vaccines.find((v) => v.name === scheduleForm.vaccineType);
+    const timer = setTimeout(async () => {
+      try {
+        setLoadingHorizon(true);
+        const data = await scheduleService.getStockHorizon({
+          vaccineId: selectedVac?.id || null,
+          vaccineName: scheduleForm.vaccineType,
+          scheduleType: scheduleForm.scheduleType,
+          specificDate: isWeekly ? null : scheduleForm.specificDate,
+          daysOfWeek: isWeekly ? scheduleForm.daysOfWeek : [],
+          startDate: isWeekly ? scheduleForm.startDate : null,
+          endDate: isWeekly ? scheduleForm.endDate : null,
+          startTime: scheduleForm.startTime,
+          endTime: scheduleForm.endTime,
+        });
+        setStockHorizon(data);
+
+        const maxEnd = data?.maxEndDate || data?.MaxEndDate;
+        if (
+          isWeekly &&
+          maxEnd &&
+          scheduleForm.endDate &&
+          String(scheduleForm.endDate) > String(maxEnd)
+        ) {
+          setScheduleForm((prev) => ({ ...prev, endDate: String(maxEnd).slice(0, 10) }));
+        }
+      } catch (err) {
+        setStockHorizon({
+          canCreate: false,
+          message: err.message || 'Could not estimate stock coverage.',
+        });
+      } finally {
+        setLoadingHorizon(false);
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [
+    scheduleForm.vaccineType,
+    scheduleForm.scheduleType,
+    scheduleForm.specificDate,
+    scheduleForm.daysOfWeek,
+    scheduleForm.startDate,
+    scheduleForm.endDate,
+    scheduleForm.startTime,
+    scheduleForm.endTime,
+    vaccines,
+  ]);
+
   const handleScheduleChange = (e) => {
     const { name, value } = e.target;
     setScheduleForm((prev) => ({
@@ -264,6 +341,11 @@ export default function HospitalAppointmentsTab() {
       return;
     }
 
+    if (stockHorizon && stockHorizon.canCreate === false) {
+      showToast(stockHorizon.message || 'Not enough stock to post this schedule window.', 'warning');
+      return;
+    }
+
     const selectedVac = vaccines.find((v) => v.name === scheduleForm.vaccineType);
 
     const payload = {
@@ -287,7 +369,7 @@ export default function HospitalAppointmentsTab() {
     try {
       setSubmitting(true);
       await scheduleService.createSchedule(payload);
-      showToast('Immunization schedule slot created and saved to database successfully!');
+      showToast('Immunization schedule slot created and saved to database successfully!', 'success');
 
       // Reset form
       setScheduleForm({
@@ -305,7 +387,7 @@ export default function HospitalAppointmentsTab() {
 
       await loadSchedules();
     } catch (err) {
-      alert(`Failed to save schedule: ${err.message}`);
+      showToast(`Failed to save schedule: ${err.message}`, 'error');
     } finally {
       setSubmitting(false);
     }
@@ -319,20 +401,20 @@ export default function HospitalAppointmentsTab() {
 
     try {
       await scheduleService.cancelSchedule(id);
-      showToast('Schedule slot cancelled.');
+      showToast('Schedule slot cancelled.', 'success');
       await loadSchedules();
     } catch (err) {
-      alert(`Failed to cancel schedule: ${err.message}`);
+      showToast(`Failed to cancel schedule: ${err.message}`, 'error');
     }
   };
 
   const handleAcceptAppointment = async (id) => {
     try {
       await appointmentService.updateAppointmentStatus(id, { status: 'Confirmed' });
-      showToast('Appointment confirmed (payment recorded if it was awaiting payment).');
+      showToast('Appointment confirmed (payment recorded if it was awaiting payment).', 'success');
       await loadHospitalAppointments();
     } catch (err) {
-      alert(`Failed to confirm appointment: ${err.message}`);
+      showToast(`Failed to confirm appointment: ${err.message}`, 'error');
     }
   };
 
@@ -340,10 +422,10 @@ export default function HospitalAppointmentsTab() {
     if (!window.confirm('Decline this appointment? The patient will see it as rejected.')) return;
     try {
       await appointmentService.updateAppointmentStatus(id, { status: 'Rejected' });
-      showToast('Appointment declined.');
+      showToast('Appointment declined.', 'warning');
       await loadHospitalAppointments();
     } catch (err) {
-      alert(`Failed to decline appointment: ${err.message}`);
+      showToast(`Failed to decline appointment: ${err.message}`, 'error');
     }
   };
 
@@ -351,10 +433,10 @@ export default function HospitalAppointmentsTab() {
     if (!window.confirm('Cancel this confirmed appointment?')) return;
     try {
       await appointmentService.cancelAppointment(id);
-      showToast('Appointment cancelled.');
+      showToast('Appointment cancelled.', 'warning');
       await loadHospitalAppointments();
     } catch (err) {
-      alert(`Failed to cancel appointment: ${err.message}`);
+      showToast(`Failed to cancel appointment: ${err.message}`, 'error');
     }
   };
 
@@ -373,8 +455,13 @@ export default function HospitalAppointmentsTab() {
       {notification && (
         <div
           className="appointment-alert-pill"
-          role="alert"
-          style={{ maxWidth: '1060px', width: '100%', marginBottom: '20px' }}
+          role="status"
+          style={{
+            maxWidth: '1060px',
+            width: '100%',
+            marginBottom: '20px',
+            ...(toastStyles[notificationTone] || toastStyles.success),
+          }}
         >
           {notification}
         </div>
@@ -528,6 +615,31 @@ export default function HospitalAppointmentsTab() {
                 ) : null}
               </div>
 
+              {/* Times first — seats/session depend on the window before date range is capped */}
+              <div className="schedule-input-group">
+                <label className="schedule-input-label">Start Time</label>
+                <input
+                  type="time"
+                  name="startTime"
+                  value={scheduleForm.startTime}
+                  onChange={handleScheduleChange}
+                  className="schedule-input-field"
+                  required
+                />
+              </div>
+
+              <div className="schedule-input-group">
+                <label className="schedule-input-label">End Time</label>
+                <input
+                  type="time"
+                  name="endTime"
+                  value={scheduleForm.endTime}
+                  onChange={handleScheduleChange}
+                  className="schedule-input-field"
+                  required
+                />
+              </div>
+
               {/* Date Inputs based on Recurrence */}
               {scheduleForm.scheduleType === 'OneTime' ? (
                 <div className="schedule-input-group">
@@ -564,6 +676,11 @@ export default function HospitalAppointmentsTab() {
                       name="endDate"
                       value={scheduleForm.endDate}
                       min={scheduleForm.startDate || todayStr}
+                      max={
+                        (stockHorizon?.maxEndDate || stockHorizon?.MaxEndDate)
+                          ? String(stockHorizon.maxEndDate || stockHorizon.MaxEndDate).slice(0, 10)
+                          : undefined
+                      }
                       onChange={handleScheduleChange}
                       className="schedule-input-field"
                       required
@@ -571,32 +688,6 @@ export default function HospitalAppointmentsTab() {
                   </div>
                 </>
               )}
-
-              {/* Start Time Picker */}
-              <div className="schedule-input-group">
-                <label className="schedule-input-label">Start Time</label>
-                <input
-                  type="time"
-                  name="startTime"
-                  value={scheduleForm.startTime}
-                  onChange={handleScheduleChange}
-                  className="schedule-input-field"
-                  required
-                />
-              </div>
-
-              {/* End Time Picker */}
-              <div className="schedule-input-group">
-                <label className="schedule-input-label">End Time</label>
-                <input
-                  type="time"
-                  name="endTime"
-                  value={scheduleForm.endTime}
-                  onChange={handleScheduleChange}
-                  className="schedule-input-field"
-                  required
-                />
-              </div>
 
               {/* Vaccine Fee Per Person (LKR) */}
               <div className="schedule-input-group">
@@ -620,18 +711,100 @@ export default function HospitalAppointmentsTab() {
               </div>
             </div>
 
+            {(loadingHorizon || stockHorizon) && (() => {
+              const h = stockHorizon || {};
+              const blocked = h.canCreate === false;
+              const free = h.freeDoses ?? h.FreeDoses;
+              const seats = h.seatsPerSession ?? h.SeatsPerSession;
+              const reserved = h.committedDoses ?? h.CommittedDoses;
+              const buffer = h.emergencyBufferDoses ?? h.EmergencyBufferDoses ?? 2;
+              const physical = h.physicalDoses ?? h.PhysicalDoses;
+              const maxEnd = h.maxEndDate || h.MaxEndDate;
+              const tone = loadingHorizon
+                ? toastStyles.info
+                : blocked
+                ? toastStyles.warning
+                : toastStyles.success;
+              const headline = loadingHorizon
+                ? 'Checking stock coverage for this clinic window…'
+                : blocked
+                ? 'Not enough free stock for this window'
+                : maxEnd && scheduleForm.scheduleType === 'Weekly'
+                ? `Stock can cover this window until ${String(maxEnd).slice(0, 10)}`
+                : 'Enough free stock for this clinic window';
+
+              const chip = (label, value, hint) => (
+                <div
+                  key={label}
+                  style={{
+                    flex: '1 1 120px',
+                    minWidth: '110px',
+                    background: 'rgba(255,255,255,0.72)',
+                    borderRadius: '10px',
+                    padding: '10px 12px',
+                    border: '1px solid rgba(15, 23, 42, 0.06)',
+                  }}
+                >
+                  <div style={{ fontSize: '0.72rem', fontWeight: 600, color: '#64748b', letterSpacing: '0.02em', textTransform: 'uppercase' }}>
+                    {label}
+                  </div>
+                  <div style={{ fontSize: '1.15rem', fontWeight: 750, color: '#0f172a', marginTop: '2px' }}>
+                    {value}
+                  </div>
+                  {hint ? (
+                    <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '2px', fontWeight: 500 }}>
+                      {hint}
+                    </div>
+                  ) : null}
+                </div>
+              );
+
+              return (
+                <div
+                  role="status"
+                  style={{
+                    margin: '14px 0 0',
+                    padding: '14px 16px',
+                    borderRadius: '14px',
+                    ...tone,
+                  }}
+                >
+                  <div style={{ fontSize: '0.92rem', fontWeight: 700, marginBottom: loadingHorizon ? 0 : '10px' }}>
+                    {headline}
+                  </div>
+                  {!loadingHorizon && typeof free === 'number' && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                      {chip('On shelf', physical ?? '—', 'all lots of this vaccine')}
+                      {chip('Already planned', reserved ?? 0, 'other active schedules')}
+                      {chip('Emergency hold', buffer, 'kept aside')}
+                      {chip('Free to schedule', free, seats != null ? `this window needs ${seats}` : undefined)}
+                    </div>
+                  )}
+                  {!loadingHorizon && blocked && h.message ? (
+                    <p style={{ margin: '10px 0 0', fontSize: '0.82rem', fontWeight: 600, opacity: 0.9 }}>
+                      Tip: shorten the hours/date range, cancel overlapping schedules, or restock.
+                    </p>
+                  ) : null}
+                </div>
+              );
+            })()}
+
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px' }}>
               <button
                 type="submit"
                 className="btn-add-schedule"
                 disabled={
                   submitting ||
+                  loadingHorizon ||
                   vaccines.length === 0 ||
                   booths.length === 0 ||
-                  (Boolean(scheduleForm.vaccineType) && matchingBooths.length === 0)
+                  (Boolean(scheduleForm.vaccineType) && matchingBooths.length === 0) ||
+                  stockHorizon?.canCreate === false
                 }
                 title={
-                  vaccines.length === 0
+                  stockHorizon?.canCreate === false
+                    ? stockHorizon.message || 'Not enough stock for this timeline'
+                    : vaccines.length === 0
                     ? 'Please ensure vaccines are registered in your hospital formulary'
                     : booths.length === 0
                     ? 'Please configure at least one active booth under Booths'

@@ -41,6 +41,45 @@ public class CreateVaccineScheduleDto
     public decimal Price { get; set; } = 0.00m;
 }
 
+public class ScheduleStockHorizonRequestDto
+{
+    public Guid? VaccineId { get; set; }
+
+    public string? VaccineName { get; set; }
+
+    [Required]
+    public string ScheduleType { get; set; } = "OneTime";
+
+    public DateOnly? SpecificDate { get; set; }
+
+    public List<string>? DaysOfWeek { get; set; } = new();
+
+    public DateOnly? StartDate { get; set; }
+
+    public DateOnly? EndDate { get; set; }
+
+    [Required]
+    public string StartTime { get; set; } = "09:00";
+
+    [Required]
+    public string EndTime { get; set; } = "11:00";
+}
+
+public class ScheduleStockHorizonDto
+{
+    public int PhysicalDoses { get; set; }
+    public int CommittedDoses { get; set; }
+    public int EmergencyBufferDoses { get; set; }
+    public int FreeDoses { get; set; }
+    public int TimeBandsPerSession { get; set; }
+    public int PatientsPerSlot { get; set; }
+    public int SeatsPerSession { get; set; }
+    public int ProposedDemandDoses { get; set; }
+    public DateOnly? MaxEndDate { get; set; }
+    public bool CanCreate { get; set; }
+    public string Message { get; set; } = string.Empty;
+}
+
 public class VaccineScheduleDto
 {
     public Guid Id { get; set; }

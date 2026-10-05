@@ -12,6 +12,7 @@ public interface IScheduleService
     Task<List<VaccineScheduleDto>> GetHospitalSchedulesAsync(Guid hospitalUserId);
     Task<bool> CancelScheduleAsync(Guid hospitalUserId, Guid scheduleId);
     Task<List<VaccineScheduleDto>> GetAvailableSchedulesAsync(Guid? hospitalUserId = null, string? vaccineName = null);
+    Task<ScheduleStockHorizonDto> GetStockHorizonAsync(Guid hospitalUserId, ScheduleStockHorizonRequestDto dto);
 }
 
 public class ScheduleService : IScheduleService
@@ -108,6 +109,27 @@ public class ScheduleService : IScheduleService
             }
         }
 
+        var horizon = await BuildStockHorizonAsync(
+            hospitalUserId,
+            hospital.HospitalProfile?.Id,
+            new ScheduleStockHorizonRequestDto
+            {
+                VaccineId = resolvedVaccineId,
+                VaccineName = vaccineName,
+                ScheduleType = isWeekly ? "Weekly" : "OneTime",
+                SpecificDate = isWeekly ? null : dto.SpecificDate,
+                DaysOfWeek = isWeekly ? dto.DaysOfWeek : new List<string>(),
+                StartDate = isWeekly ? dto.StartDate : null,
+                EndDate = isWeekly ? dto.EndDate : null,
+                StartTime = dto.StartTime,
+                EndTime = dto.EndTime
+            });
+
+        if (!horizon.CanCreate)
+        {
+            throw new ArgumentException(horizon.Message);
+        }
+
         var schedule = new VaccineSchedule
         {
             Id = Guid.NewGuid(),
@@ -141,6 +163,20 @@ public class ScheduleService : IScheduleService
         _logger.LogInformation("Created {Type} schedule {ScheduleId} for hospital {HospitalName}", schedule.ScheduleType, schedule.Id, hospital.HospitalProfile?.HospitalName ?? hospital.Email);
 
         return MapToDto(schedule, hospital.HospitalProfile?.HospitalName ?? "Hospital");
+    }
+
+    public async Task<ScheduleStockHorizonDto> GetStockHorizonAsync(Guid hospitalUserId, ScheduleStockHorizonRequestDto dto)
+    {
+        var hospital = await _context.Users
+            .Include(u => u.HospitalProfile)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(u => u.Id == hospitalUserId && u.Role == UserRole.HOSPITAL)
+            ?? throw new UnauthorizedAccessException("Hospital account not found.");
+
+        return await BuildStockHorizonAsync(
+            hospitalUserId,
+            hospital.HospitalProfile?.Id,
+            dto);
     }
 
     public async Task<List<VaccineScheduleDto>> GetHospitalSchedulesAsync(Guid hospitalUserId)
@@ -204,6 +240,269 @@ public class ScheduleService : IScheduleService
         var schedules = await query.OrderByDescending(s => s.CreatedAt).ToListAsync();
 
         return schedules.Select(s => MapToDto(s, s.HospitalUser?.HospitalProfile?.HospitalName ?? "Hospital")).ToList();
+    }
+
+    private async Task<ScheduleStockHorizonDto> BuildStockHorizonAsync(
+        Guid hospitalUserId,
+        Guid? hospitalProfileId,
+        ScheduleStockHorizonRequestDto dto)
+    {
+        var today = StaffDutyHelper.HospitalToday();
+        var isWeekly = string.Equals(dto.ScheduleType, "Weekly", StringComparison.OrdinalIgnoreCase);
+        var startTime = (dto.StartTime ?? string.Empty).Trim();
+        var endTime = (dto.EndTime ?? string.Empty).Trim();
+        var seats = ScheduleStockPlanner.SeatsPerSession(startTime, endTime);
+        var bands = ScheduleStockPlanner.CountTimeBands(startTime, endTime);
+        var days = dto.DaysOfWeek?.Where(d => !string.IsNullOrWhiteSpace(d)).Select(d => d.Trim()).ToList()
+            ?? new List<string>();
+
+        var profileId = hospitalProfileId;
+        if (!profileId.HasValue)
+        {
+            profileId = await _context.HospitalProfiles.AsNoTracking()
+                .Where(p => p.UserId == hospitalUserId)
+                .Select(p => (Guid?)p.Id)
+                .FirstOrDefaultAsync();
+        }
+
+        var vaccine = await ResolveVaccineForHospitalAsync(
+            hospitalUserId, profileId, dto.VaccineId, dto.VaccineName);
+        if (vaccine == null)
+        {
+            return new ScheduleStockHorizonDto
+            {
+                PhysicalDoses = 0,
+                CommittedDoses = 0,
+                EmergencyBufferDoses = ScheduleStockPlanner.EmergencyBufferDoses,
+                FreeDoses = 0,
+                TimeBandsPerSession = bands,
+                PatientsPerSlot = ScheduleStockPlanner.PatientsPerSlot,
+                SeatsPerSession = seats,
+                ProposedDemandDoses = 0,
+                MaxEndDate = null,
+                CanCreate = false,
+                Message = "Select a vaccine that exists in inventory before posting a schedule."
+            };
+        }
+
+        if (seats <= 0)
+        {
+            return new ScheduleStockHorizonDto
+            {
+                PhysicalDoses = 0,
+                CommittedDoses = 0,
+                EmergencyBufferDoses = ScheduleStockPlanner.EmergencyBufferDoses,
+                FreeDoses = 0,
+                TimeBandsPerSession = bands,
+                PatientsPerSlot = ScheduleStockPlanner.PatientsPerSlot,
+                SeatsPerSession = 0,
+                ProposedDemandDoses = 0,
+                MaxEndDate = null,
+                CanCreate = false,
+                Message = "Clinic window must be at least 20 minutes (end time after start time)."
+            };
+        }
+
+        var physical = 0;
+        if (profileId.HasValue)
+        {
+            var vaccineNameKey = NormalizeVaccineName(vaccine.Name).ToLowerInvariant();
+            var batches = await _context.Batches
+                .AsNoTracking()
+                .Include(b => b.Vaccine)
+                .Where(b =>
+                    b.HospitalProfileId == profileId.Value &&
+                    b.Status == BatchStatus.Active)
+                .ToListAsync();
+
+            // Match by VaccineId OR normalized name so duplicate catalog rows still count stock.
+            batches = batches
+                .Where(b =>
+                    b.VaccineId == vaccine.Id ||
+                    (b.Vaccine != null &&
+                     NormalizeVaccineName(b.Vaccine.Name).ToLowerInvariant() == vaccineNameKey))
+                .ToList();
+
+            physical = ScheduleStockPlanner.SumPhysicalDoses(batches, vaccine);
+        }
+
+        var siblingSchedules = await _context.VaccineSchedules
+            .AsNoTracking()
+            .Where(s =>
+                s.Status == "Active" &&
+                (s.HospitalUserId == hospitalUserId ||
+                 (profileId.HasValue && s.HospitalProfileId == profileId.Value)))
+            .ToListAsync();
+
+        var committed = siblingSchedules
+            .Where(s =>
+                (s.VaccineId.HasValue && s.VaccineId == vaccine.Id) ||
+                NamesLooselyMatch(s.VaccineName, vaccine.Name))
+            .Sum(s => ScheduleStockPlanner.CommittedSeatsForSchedule(s, today));
+
+        var free = ScheduleStockPlanner.FreePlanningDoses(physical, committed);
+        var proposedSessions = ScheduleStockPlanner.CountRemainingSessionDays(
+            isWeekly ? "Weekly" : "OneTime",
+            isWeekly ? null : dto.SpecificDate,
+            isWeekly ? dto.StartDate : null,
+            isWeekly ? dto.EndDate : null,
+            days,
+            today);
+        var proposedDemand = checked(proposedSessions * seats);
+
+        DateOnly? maxEndDate = null;
+        var canCreate = false;
+        string message;
+        var stockBreakdown =
+            $"physical {physical} · reserved by other schedules {committed} · buffer {ScheduleStockPlanner.EmergencyBufferDoses} · free {free}";
+
+        if (free < seats)
+        {
+            message = physical <= 0
+                ? $"No usable {vaccine.Name} stock at this hospital ({stockBreakdown}). Restock before posting this clinic window."
+                : $"Not enough free {vaccine.Name} for this window (needs {seats}/session). {stockBreakdown}. Restock, cancel overlapping schedules, or shorten the hours.";
+        }
+        else if (isWeekly)
+        {
+            if (!dto.StartDate.HasValue || !dto.EndDate.HasValue || days.Count == 0)
+            {
+                message = "Pick start/end dates and at least one weekday to estimate stock coverage.";
+            }
+            else
+            {
+                maxEndDate = ScheduleStockPlanner.ComputeMaxEndDate(
+                    dto.StartDate.Value, days, startTime, endTime, free, today);
+                canCreate = ScheduleStockPlanner.CanCreateWeekly(
+                    dto.StartDate.Value, dto.EndDate.Value, days, startTime, endTime, free, today, out maxEndDate);
+                message = canCreate
+                    ? $"{stockBreakdown} · {seats}/session · stock covers until {maxEndDate:yyyy-MM-dd}."
+                    : maxEndDate.HasValue
+                        ? $"Stock only covers until {maxEndDate:yyyy-MM-dd} ({stockBreakdown}, {seats}/session). Pick an end date on or before that day."
+                        : $"Not enough free {vaccine.Name} stock for even one session ({stockBreakdown}).";
+            }
+        }
+        else
+        {
+            canCreate = ScheduleStockPlanner.CanCreateOneTime(seats, free) &&
+                        dto.SpecificDate.HasValue &&
+                        dto.SpecificDate.Value >= today;
+            if (!dto.SpecificDate.HasValue)
+            {
+                message = "Pick a date for the one-time schedule.";
+            }
+            else if (dto.SpecificDate.Value < today)
+            {
+                message = "One-time schedule date cannot be in the past.";
+                canCreate = false;
+            }
+            else if (!canCreate)
+            {
+                message = $"This day needs {seats} doses. {stockBreakdown}.";
+            }
+            else
+            {
+                maxEndDate = dto.SpecificDate;
+                message = $"{stockBreakdown} · this day uses {seats}.";
+            }
+        }
+
+        return new ScheduleStockHorizonDto
+        {
+            PhysicalDoses = physical,
+            CommittedDoses = committed,
+            EmergencyBufferDoses = ScheduleStockPlanner.EmergencyBufferDoses,
+            FreeDoses = free,
+            TimeBandsPerSession = bands,
+            PatientsPerSlot = ScheduleStockPlanner.PatientsPerSlot,
+            SeatsPerSession = seats,
+            ProposedDemandDoses = proposedDemand,
+            MaxEndDate = maxEndDate,
+            CanCreate = canCreate,
+            Message = message
+        };
+    }
+
+    private async Task<Vaccine?> ResolveVaccineForHospitalAsync(
+        Guid hospitalUserId,
+        Guid? hospitalProfileId,
+        Guid? vaccineId,
+        string? vaccineName)
+    {
+        var profileId = hospitalProfileId;
+        if (!profileId.HasValue)
+        {
+            profileId = await _context.HospitalProfiles.AsNoTracking()
+                .Where(p => p.UserId == hospitalUserId)
+                .Select(p => (Guid?)p.Id)
+                .FirstOrDefaultAsync();
+        }
+
+        Vaccine? byId = null;
+        if (vaccineId.HasValue)
+        {
+            byId = await _context.Vaccines.AsNoTracking()
+                .FirstOrDefaultAsync(v => v.Id == vaccineId.Value);
+        }
+
+        var name = NormalizeVaccineName(vaccineName);
+        Vaccine? byName = null;
+        if (!string.IsNullOrWhiteSpace(name))
+        {
+            var candidates = await _context.Vaccines.AsNoTracking().ToListAsync();
+            byName = candidates.FirstOrDefault(v =>
+                         string.Equals(NormalizeVaccineName(v.Name), name, StringComparison.OrdinalIgnoreCase))
+                     ?? candidates.FirstOrDefault(v => NamesLooselyMatch(v.Name, name));
+        }
+
+        if (profileId.HasValue)
+        {
+            var stockedIds = await _context.Batches.AsNoTracking()
+                .Where(b =>
+                    b.HospitalProfileId == profileId.Value &&
+                    b.Status == BatchStatus.Active &&
+                    (b.QuantityAvailable > 0 || (b.OpenVialDosesRemaining ?? 0) > 0) &&
+                    b.ExpiryDate >= DateTime.UtcNow)
+                .Select(b => b.VaccineId)
+                .Distinct()
+                .ToListAsync();
+
+            if (byId != null && stockedIds.Contains(byId.Id))
+                return byId;
+            if (byName != null && stockedIds.Contains(byName.Id))
+                return byName;
+
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                var stockedVaccines = await _context.Vaccines.AsNoTracking()
+                    .Where(v => stockedIds.Contains(v.Id))
+                    .ToListAsync();
+                var stockedMatch = stockedVaccines.FirstOrDefault(v => NamesLooselyMatch(v.Name, name));
+                if (stockedMatch != null)
+                    return stockedMatch;
+            }
+        }
+
+        return byId ?? byName;
+    }
+
+    private static string NormalizeVaccineName(string? raw)
+    {
+        var name = (raw ?? string.Empty).Trim();
+        if (name.Length == 0)
+            return string.Empty;
+        var open = name.LastIndexOf(" (", StringComparison.Ordinal);
+        if (open > 0 && name.EndsWith(')'))
+            name = name[..open].Trim();
+        return name;
+    }
+
+    private static bool NamesLooselyMatch(string? a, string? b)
+    {
+        var left = NormalizeVaccineName(a).ToLowerInvariant();
+        var right = NormalizeVaccineName(b).ToLowerInvariant();
+        if (left.Length == 0 || right.Length == 0)
+            return false;
+        return left == right || left.Contains(right) || right.Contains(left);
     }
 
     private static VaccineScheduleDto MapToDto(VaccineSchedule s, string hospitalName)
