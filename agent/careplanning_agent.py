@@ -8,6 +8,12 @@ Architecture note:
     1. Which clinical guidelines to look up (given the patient's conditions/allergies)
     2. How to compose the final care plan
 
+  Empty-patient safety: if PatientDataAgent flagged the patient as having no
+  clinical data (has_clinical_data == False), this agent short-circuits and
+  returns a deterministic minimal plan. This prevents the LLM from populating
+  `upcoming_vaccines` from the generic age-based schedule for a brand-new
+  account, which would be clinically misleading.
+
 Tools invoked: get_clinical_guidelines, get_age_based_vaccine_schedule
 Input: patient_summary (from PatientDataAgent)
 Output: a structured CarePlan dict.
@@ -56,6 +62,14 @@ Rules:
 - Only recommend actions supported by the guidelines provided.
 - Allergy cross-reactivity must be a CRITICAL warning.
 - If a condition has no matching guideline, note it in warnings — do not guess.
+- IMPORTANT: If `patient_summary.has_clinical_data` is false, or the patient
+  summary contains no chronic conditions, no allergies, no active medications,
+  no vaccinations, and no visits, then:
+    * DO NOT populate `upcoming_vaccines` from the age-based schedule.
+    * DO NOT invent conditions, screenings, or referrals.
+    * Return a minimal plan acknowledging the absence of clinical data.
+  The age-based vaccine schedule is generic reference material, NOT a
+  personalised recommendation.
 """
 
 KEY_EXTRACTION_PROMPT = """You are the CARE PLANNING AGENT for Vaxora.
@@ -144,6 +158,23 @@ class CarePlanningAgent:
     async def run(self, patient_summary: Dict[str, Any]) -> Dict[str, Any]:
         steps: List[Dict[str, Any]] = []
 
+        # ---- Short-circuit for patients with no clinical data ----
+        # Deterministic safety net. If PatientDataAgent reports no clinical
+        # data (no history, no vaccinations, no visits), we do NOT run the
+        # LLM. Otherwise the LLM would populate the age-based schedule into
+        # upcoming_vaccines for a brand-new account, which is misleading.
+        has_data = patient_summary.get("has_clinical_data")
+        if has_data is False:
+            logger.info(
+                f"[{self.name}] Patient has no clinical data — returning minimal plan"
+            )
+            return {
+                "success": True,
+                "care_plan": self._minimal_plan(patient_summary),
+                "raw": "",
+                "steps": steps,
+            }
+
         # ---- Phase 1: LLM decides which guideline keys to fetch ----
         guideline_keys = await self._extract_guideline_keys(patient_summary)
         logger.info(f"[{self.name}] LLM requested guideline keys: {guideline_keys}")
@@ -157,7 +188,10 @@ class CarePlanningAgent:
             except Exception as e:
                 out = {"success": False, "error": str(e)}
             guideline_results[key] = out
-            steps.append({"tool": "get_clinical_guidelines", "ok": out.get("success", True) if isinstance(out, dict) else True})
+            steps.append({
+                "tool": "get_clinical_guidelines",
+                "ok": out.get("success", True) if isinstance(out, dict) else True,
+            })
 
         age = (patient_summary.get("demographics") or {}).get("age_years") or 30
         logger.info(f"[{self.name}] tool=get_age_based_vaccine_schedule (age={age})")
@@ -165,7 +199,10 @@ class CarePlanningAgent:
             schedule = await tool_get_age_based_vaccine_schedule(int(age))
         except Exception as e:
             schedule = {"success": False, "error": str(e)}
-        steps.append({"tool": "get_age_based_vaccine_schedule", "ok": schedule.get("success", True) if isinstance(schedule, dict) else True})
+        steps.append({
+            "tool": "get_age_based_vaccine_schedule",
+            "ok": schedule.get("success", True) if isinstance(schedule, dict) else True,
+        })
 
         # ---- Phase 3: LLM synthesizes the care plan ----
         combined = {
@@ -198,6 +235,69 @@ class CarePlanningAgent:
             )
 
         return {"success": True, "care_plan": plan, "raw": content, "steps": steps}
+
+    @staticmethod
+    def _minimal_plan(patient_summary: Dict[str, Any]) -> Dict[str, Any]:
+        """Deterministic care plan for a patient with no clinical data.
+
+        No LLM involved. Guarantees we never fabricate personalised
+        recommendations for a brand-new account.
+        """
+        demo = patient_summary.get("demographics") or {}
+        name = demo.get("name") or "This patient"
+        age = demo.get("age_years")
+
+        if age is not None:
+            summary_text = (
+                f"{name} is {age} years old and has no recorded clinical history — "
+                f"no diagnoses, allergies, vaccinations, or prior visits are on file. "
+                f"A personalised care plan can only be generated after a first consultation."
+            )
+        else:
+            summary_text = (
+                f"{name} has no recorded clinical history — no diagnoses, allergies, "
+                f"vaccinations, or prior visits are on file. A personalised care plan "
+                f"can only be generated after a first consultation."
+            )
+
+        return {
+            "summary_text": summary_text,
+            "immediate_actions": [
+                {
+                    "action": "Book a first health checkup",
+                    "priority": "Medium",
+                    "reason": (
+                        "No clinical data is on file. A baseline consultation "
+                        "is required before a personalised plan can be produced."
+                    ),
+                }
+            ],
+            "upcoming_vaccines": [],
+            "lifestyle_recommendations": [
+                "Maintain a balanced diet with fruit, vegetables, and whole grains.",
+                "Aim for at least 150 minutes of moderate aerobic activity per week.",
+                "Ensure adequate sleep and manage stress.",
+            ],
+            "recommended_screenings": [
+                "Blood pressure check",
+                "Body mass index (BMI) measurement",
+            ],
+            "referrals": [],
+            "warnings": [
+                {
+                    "severity": "Info",
+                    "message": (
+                        "No clinical history is available for this patient. "
+                        "The recommendations above are baseline general guidance "
+                        "and not personalised to any condition."
+                    ),
+                }
+            ],
+            "follow_up_recommendation": (
+                "Complete a first health checkup to establish a clinical baseline. "
+                "A personalised care plan will be generated after that consultation."
+            ),
+        }
 
     @staticmethod
     def _try_parse_json(text: str) -> Any:
