@@ -142,7 +142,7 @@ class _RestockScreenState extends State<RestockScreen> {
                 ),
                 const SizedBox(height: 6),
                 DropdownButtonFormField<String>(
-                  value: _selectedVaccine,
+                  initialValue: _selectedVaccine,
                   isExpanded: true,
                   decoration: const InputDecoration(
                     hintText: 'Pick from formulary',
