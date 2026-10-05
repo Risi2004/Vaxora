@@ -130,6 +130,41 @@ public class ScheduleService : IScheduleService
             throw new ArgumentException(horizon.Message);
         }
 
+        // Fee comes from hospital formulary (one Free/Paid tag per vaccine) — not per schedule.
+        var formularyPrice = 0.00m;
+        if (hospital.HospitalProfile != null && resolvedVaccineId.HasValue)
+        {
+            var formulary = await _context.HospitalFormularies.AsNoTracking()
+                .FirstOrDefaultAsync(f =>
+                    f.HospitalProfileId == hospital.HospitalProfile.Id &&
+                    f.VaccineId == resolvedVaccineId.Value);
+            if (formulary == null)
+            {
+                throw new ArgumentException(
+                    "This vaccine is not on your formulary with a Free/Paid fee. " +
+                    "Open Inventory → Formulary, set the fee (0 = Free), then post the schedule.");
+            }
+            formularyPrice = Math.Max(0.00m, formulary.Price);
+        }
+        else if (!string.IsNullOrWhiteSpace(vaccineName) && hospital.HospitalProfile != null)
+        {
+            var formulary = await _context.HospitalFormularies.AsNoTracking()
+                .Include(f => f.Vaccine)
+                .Where(f => f.HospitalProfileId == hospital.HospitalProfile.Id)
+                .ToListAsync();
+            var match = formulary.FirstOrDefault(f =>
+                f.Vaccine != null &&
+                string.Equals(f.Vaccine.Name.Trim(), vaccineName, StringComparison.OrdinalIgnoreCase));
+            if (match == null)
+            {
+                throw new ArgumentException(
+                    "This vaccine is not on your formulary with a Free/Paid fee. " +
+                    "Open Inventory → Formulary, set the fee (0 = Free), then post the schedule.");
+            }
+            formularyPrice = Math.Max(0.00m, match.Price);
+            resolvedVaccineId ??= match.VaccineId;
+        }
+
         var schedule = new VaccineSchedule
         {
             Id = Guid.NewGuid(),
@@ -152,7 +187,7 @@ public class ScheduleService : IScheduleService
             EndDate = isWeekly ? dto.EndDate : null,
             StartTime = dto.StartTime.Trim(),
             EndTime = dto.EndTime.Trim(),
-            Price = Math.Max(0.00m, dto.Price),
+            Price = formularyPrice,
             Status = "Active",
             CreatedAt = DateTime.UtcNow
         };

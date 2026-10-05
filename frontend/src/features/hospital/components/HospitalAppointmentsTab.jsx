@@ -89,6 +89,9 @@ export default function HospitalAppointmentsTab() {
               id: vId,
               name: vName,
               manufacturer: f.manufacturer || '',
+              price: Number(f.price ?? f.Price ?? 0),
+              isFree: Number(f.price ?? f.Price ?? 0) <= 0,
+              formularyId: f.id,
             });
           }
         });
@@ -265,11 +268,18 @@ export default function HospitalAppointmentsTab() {
 
   const handleScheduleChange = (e) => {
     const { name, value } = e.target;
-    setScheduleForm((prev) => ({
-      ...prev,
-      [name]: value,
-      ...(name === 'vaccineType' ? { boothId: '' } : {}),
-    }));
+    setScheduleForm((prev) => {
+      const next = {
+        ...prev,
+        [name]: value,
+        ...(name === 'vaccineType' ? { boothId: '' } : {}),
+      };
+      if (name === 'vaccineType') {
+        const vac = vaccines.find((v) => v.name === value);
+        next.price = vac ? Number(vac.price || 0).toFixed(2) : '0.00';
+      }
+      return next;
+    });
   };
 
   const handleToggleDay = (dayKey) => {
@@ -691,24 +701,27 @@ export default function HospitalAppointmentsTab() {
                 </>
               )}
 
-              {/* Vaccine Fee Per Person (LKR) */}
+              {/* Fee inherited from formulary Free/Paid tag — same field chrome as other inputs */}
               <div className="schedule-input-group">
                 <label className="schedule-input-label">
-                  Vaccine Fee / Person (LKR)
+                  Fee / person
                   <span style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: 'normal', marginLeft: '6px' }}>
-                    (0 = Free)
+                    (from formulary)
                   </span>
                 </label>
                 <input
-                  type="number"
-                  name="price"
-                  value={scheduleForm.price}
-                  onChange={handleScheduleChange}
-                  min="0"
-                  step="1"
-                  placeholder="0.00"
+                  type="text"
                   className="schedule-input-field"
-                  required
+                  value={
+                    selectedVaccine
+                      ? Number(selectedVaccine.price || 0) <= 0
+                        ? 'Free'
+                        : `LKR ${Number(selectedVaccine.price).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+                      : 'Select a vaccine first'
+                  }
+                  disabled
+                  readOnly
+                  title="Change this under Inventory → Formulary"
                 />
               </div>
             </div>

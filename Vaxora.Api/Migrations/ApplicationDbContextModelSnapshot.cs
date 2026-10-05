@@ -547,6 +547,9 @@ namespace Vaxora.Api.Migrations
                     b.Property<DateTime>("RegisteredAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<decimal>("Price")
+                        .HasColumnType("numeric");
+
                     b.Property<Guid>("VaccineId")
                         .HasColumnType("uuid");
 
