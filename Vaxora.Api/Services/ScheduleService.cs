@@ -167,6 +167,9 @@ public class ScheduleService : IScheduleService
             resolvedVaccineId ??= match.VaccineId;
         }
 
+        await EnsureActiveAffiliateAsync(hospitalUserId, dto.DoctorUserId, UserRole.DOCTOR, "doctor");
+        await EnsureActiveAffiliateAsync(hospitalUserId, dto.NurseUserId, UserRole.NURSE, "nurse");
+
         var schedule = new VaccineSchedule
         {
             Id = Guid.NewGuid(),
@@ -200,6 +203,19 @@ public class ScheduleService : IScheduleService
         _logger.LogInformation("Created {Type} schedule {ScheduleId} for hospital {HospitalName}", schedule.ScheduleType, schedule.Id, hospital.HospitalProfile?.HospitalName ?? hospital.Email);
 
         return MapToDto(schedule, hospital.HospitalProfile?.HospitalName ?? "Hospital");
+    }
+
+    private async Task EnsureActiveAffiliateAsync(Guid hospitalUserId, Guid? staffUserId, UserRole role, string label)
+    {
+        if (!staffUserId.HasValue || staffUserId.Value == Guid.Empty) return;
+
+        var ok = await _context.StaffAffiliations.AsNoTracking().AnyAsync(a =>
+            a.HospitalUserId == hospitalUserId &&
+            a.StaffUserId == staffUserId.Value &&
+            a.StaffRole == role &&
+            a.Status == AffiliationStatus.Active);
+        if (!ok)
+            throw new ArgumentException($"The selected {label} is not an active staff member of this hospital.");
     }
 
     public async Task<ScheduleStockHorizonDto> GetStockHorizonAsync(Guid hospitalUserId, ScheduleStockHorizonRequestDto dto)
