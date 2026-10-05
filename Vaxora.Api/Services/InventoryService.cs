@@ -676,7 +676,7 @@ public class InventoryService : IInventoryService
         var entries = transactions.Select(t => new AuditEntryDto
         {
             Id = t.Id,
-            Timestamp = t.Timestamp.ToLocalTime().ToString("yyyy-MM-dd hh:mm tt"),
+            Timestamp = DateTime.SpecifyKind(t.Timestamp, DateTimeKind.Utc).AddHours(5.5).ToString("yyyy-MM-dd hh:mm tt"),
             Event = BuildEventText(t, batch),
             Actor = t.PerformedByName ?? "System",
             Type = t.Type switch
