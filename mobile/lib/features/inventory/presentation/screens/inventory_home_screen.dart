@@ -12,6 +12,7 @@ import 'qr_scanner_screen.dart';
 import '../widgets/batch_card.dart';
 import 'formulary_screen.dart';
 import 'restock_screen.dart';
+import 'report_damage_screen.dart';
 
 class InventoryHomeScreen extends StatefulWidget {
   const InventoryHomeScreen({super.key});
@@ -98,6 +99,19 @@ class _InventoryHomeScreenState extends State<InventoryHomeScreen> {
     if (mounted) await provider.refresh();
   }
 
+  Future<void> _openReportDamage() async {
+    final provider = context.read<InventoryProvider>();
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ChangeNotifierProvider.value(
+          value: provider,
+          child: const ReportDamageScreen(),
+        ),
+      ),
+    );
+    if (mounted) await provider.refresh();
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<InventoryProvider>();
@@ -109,46 +123,7 @@ class _InventoryHomeScreenState extends State<InventoryHomeScreen> {
         displayName: _hospitalName,
         subtitle: 'Hospital · Inventory',
         photoUrl: _logoUrl,
-        actions: [
-          StaffHeaderAction(
-            icon: Icons.vaccines_outlined,
-            tooltip: 'Vaccine formulary',
-            onPressed: _openFormulary,
-          ),
-          StaffHeaderAction(
-            icon: Icons.add_box_outlined,
-            tooltip: 'Log restock',
-            onPressed: _openRestock,
-          ),
-          StaffHeaderAction(
-            icon: Icons.notifications_outlined,
-            tooltip: 'Stock alerts',
-            badgeCount: alertCount,
-            onPressed: provider.isLoading ? null : _openAlerts,
-          ),
-          StaffHeaderAction(
-            icon: Icons.auto_awesome,
-            tooltip: 'Inventory AI',
-            onPressed: _openAi,
-          ),
-          StaffHeaderAction(
-            icon: Icons.refresh,
-            tooltip: 'Refresh',
-            onPressed: provider.isLoading ? null : provider.refresh,
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        heroTag: 'inventory-home-scan-qr',
-        onPressed: _openScanner,
-        backgroundColor: StaffSurfaces.cta,
-        foregroundColor: Colors.white,
-        elevation: 2,
-        icon: const Icon(Icons.qr_code_scanner),
-        label: const Text(
-          'Scan QR',
-          style: TextStyle(fontWeight: FontWeight.w700),
-        ),
+        actions: const [],
       ),
       body: RefreshIndicator(
         onRefresh: provider.refresh,
@@ -169,7 +144,7 @@ class _InventoryHomeScreenState extends State<InventoryHomeScreen> {
               )
             : ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(16, 14, 16, 88),
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
                 children: [
                   StaffPageIntro(
                     eyebrow: 'Cold chain',
@@ -200,7 +175,73 @@ class _InventoryHomeScreenState extends State<InventoryHomeScreen> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
+
+                  const SizedBox(height: 20),
+
+                  // ============ QUICK ACTIONS GRID ============
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 4),
+                    child: Text(
+                      'Quick actions',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        color: StaffSurfaces.textSecondary,
+                        letterSpacing: 0.6,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  GridView.count(
+                    crossAxisCount: 3,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    mainAxisSpacing: 10,
+                    crossAxisSpacing: 10,
+                    childAspectRatio: 1.05,
+                    children: [
+                      _QuickAction(
+                        icon: Icons.report_problem_outlined,
+                        label: 'Report',
+                        color: AppColors.error,
+                        onTap: _openReportDamage,
+                      ),
+                      _QuickAction(
+                        icon: Icons.vaccines_outlined,
+                        label: 'Formulary',
+                        color: AppColors.accentTeal,
+                        onTap: _openFormulary,
+                      ),
+                      _QuickAction(
+                        icon: Icons.add_box_outlined,
+                        label: 'Restock',
+                        color: const Color(0xFF0284C7),
+                        onTap: _openRestock,
+                      ),
+                      _QuickAction(
+                        icon: Icons.notifications_outlined,
+                        label: 'Alerts',
+                        color: const Color(0xFFD97706),
+                        badgeCount: alertCount,
+                        onTap: provider.isLoading ? null : _openAlerts,
+                      ),
+                      _QuickAction(
+                        icon: Icons.auto_awesome,
+                        label: 'AI assistant',
+                        color: const Color(0xFF7C3AED),
+                        onTap: _openAi,
+                      ),
+                      _QuickAction(
+                        icon: Icons.refresh,
+                        label: 'Refresh',
+                        color: const Color(0xFF64748B),
+                        onTap: provider.isLoading ? null : provider.refresh,
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 22),
+
                   TextField(
                     onChanged: provider.setSearchQuery,
                     decoration: InputDecoration(
@@ -348,6 +389,104 @@ class _InvFilter extends StatelessWidget {
               fontSize: 12,
               fontWeight: FontWeight.w700,
               color: selected ? color : StaffSurfaces.textSecondary,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _QuickAction extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final int badgeCount;
+  final VoidCallback? onTap;
+
+  const _QuickAction({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+    this.badgeCount = 0,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onTap != null;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Opacity(
+          opacity: enabled ? 1.0 : 0.5,
+          child: Container(
+            decoration: BoxDecoration(
+              color: StaffSurfaces.cardBg,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: StaffSurfaces.cardBorder),
+            ),
+            padding: const EdgeInsets.all(6),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: color.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(icon, color: color, size: 20),
+                    ),
+                    if (badgeCount > 0)
+                      Positioned(
+                        right: -3,
+                        top: -3,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 5,
+                            vertical: 1,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.error,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          constraints: const BoxConstraints(minWidth: 16),
+                          child: Text(
+                            '$badgeCount',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w800,
+                              height: 1.3,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: StaffSurfaces.textPrimary,
+                    height: 1.2,
+                  ),
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
             ),
           ),
         ),

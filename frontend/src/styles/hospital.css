@@ -5960,15 +5960,13 @@ select.schedule-input-field {
   .hospital-inventory-content .inventory-search-group {
     min-width: 100%;
   }
+}
 
-
-  /* ==========================================================================
+/* ==========================================================================
    14. Inventory Layout Refinements
    Visual hierarchy & flow for the hospital inventory tab.
-   Append-only overrides — existing colors preserved.
    ========================================================================== */
 
-/* --- Action bar: give the button cluster a proper container --- */
 .hospital-inventory-content .inventory-header-row {
   display: flex;
   justify-content: flex-end;
@@ -5988,10 +5986,7 @@ select.schedule-input-field {
   flex-wrap: wrap;
 }
 
-/* ============================================
-   Tier 1 — PRIMARY  (Log restock)
-   Filled, largest, boldest.
-   ============================================ */
+/* Tier 1 — PRIMARY (Log restock) */
 .hospital-inventory-content .btn-inventory-action.btn-restock-primary {
   min-height: 46px;
   padding: 12px 22px;
@@ -6011,10 +6006,7 @@ select.schedule-input-field {
     0 14px 26px -12px rgba(15, 118, 110, 0.65);
 }
 
-/* ============================================
-   Tier 2 — FEATURED  (Inventory assistant)
-   Outlined teal, brand-colored, with an accent dot.
-   ============================================ */
+/* Tier 2 — FEATURED (Inventory assistant) */
 .hospital-inventory-content .btn-inventory-action.btn-inventory-ai {
   position: relative;
   min-height: 40px;
@@ -6049,10 +6041,7 @@ select.schedule-input-field {
   box-shadow: 0 8px 18px -8px rgba(15, 118, 110, 0.5);
 }
 
-/* ============================================
-   Tier 3 — SECONDARY  (Record wastage)
-   Muted slate outline — clearly "not primary".
-   ============================================ */
+/* Tier 3 — SECONDARY (Record wastage) */
 .hospital-inventory-content .btn-inventory-action.btn-wastage-secondary {
   min-height: 40px;
   padding: 10px 16px;
@@ -6077,10 +6066,7 @@ select.schedule-input-field {
   opacity: 0.5;
 }
 
-/* ============================================
-   Tier 4 — GHOST  (Export report)
-   Quietest of all. Text-with-icon, no chrome.
-   ============================================ */
+/* Tier 4 — GHOST (Export report) */
 .hospital-inventory-content .btn-inventory-action.btn-export-neutral {
   min-height: 40px;
   padding: 10px 12px;
@@ -6099,9 +6085,7 @@ select.schedule-input-field {
   color: #0f172a;
 }
 
-/* ============================================
-   Section rhythm — more breathing room between blocks
-   ============================================ */
+/* Section rhythm */
 .hospital-inventory-content {
   gap: 22px;
 }
@@ -6124,9 +6108,7 @@ select.schedule-input-field {
   letter-spacing: 0.05em;
 }
 
-/* ============================================
-   Card section headers get a subtle separator
-   ============================================ */
+/* Card section headers */
 .hospital-inventory-content .formulary-card-header,
 .hospital-inventory-content .cold-vaults-header {
   padding-bottom: 14px;
@@ -6138,9 +6120,7 @@ select.schedule-input-field {
   margin-bottom: 16px;
 }
 
-/* ============================================
-   Toolbar — tighter, more organized
-   ============================================ */
+/* Toolbar */
 .hospital-inventory-content .inventory-toolbar {
   padding: 12px 14px;
   gap: 12px;
@@ -6171,9 +6151,7 @@ select.schedule-input-field {
   font-size: 0.78rem;
 }
 
-/* ============================================
-   Table — better row rhythm and header weight
-   ============================================ */
+/* Table */
 .hospital-inventory-content .inventory-custom-table thead tr th {
   padding: 14px;
   font-size: 0.72rem;
@@ -6188,17 +6166,13 @@ select.schedule-input-field {
   font-size: 0.92rem;
 }
 
-/* ============================================
-   Footer notice — compact
-   ============================================ */
+/* Footer notice */
 .hospital-inventory-content .inventory-footer-notice {
   padding: 14px 18px;
   border-radius: 12px;
 }
 
-/* ============================================
-   Mobile — stack cleanly, primary stays on top
-   ============================================ */
+/* Mobile */
 @media (max-width: 700px) {
   .hospital-inventory-content .inventory-header-row {
     justify-content: stretch;
@@ -6224,8 +6198,3 @@ select.schedule-input-field {
     display: none;
   }
 }
-
-
-}
-
-

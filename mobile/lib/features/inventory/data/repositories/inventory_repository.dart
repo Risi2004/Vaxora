@@ -1,5 +1,8 @@
+import 'dart:io';
+import 'package:http/http.dart' as http;
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_constants.dart';
+import '../../../../core/services/storage_service.dart';
 import '../models/batch_model.dart';
 import '../models/inventory_summary_model.dart';
 import '../models/audit_entry_model.dart';
@@ -168,5 +171,45 @@ class InventoryRepository {
       }
     } catch (_) {}
     return null;
+  }
+
+  // ============ DAMAGE REPORT (ADDED) ============
+  static Future<void> reportDamage({
+    required File photo,
+    required String batchId,
+    required String vaccineName,
+    required String lotNumber,
+    required int quantity,
+    required String damageType,
+    required String notes,
+  }) async {
+    final uri = Uri.parse(
+      '${ApiConstants.baseUrl}${ApiConstants.inventoryDamageReport}',
+    );
+
+    final request = http.MultipartRequest('POST', uri);
+
+    final token = await StorageService.getToken();
+    if (token != null && token.isNotEmpty) {
+      request.headers['Authorization'] = 'Bearer $token';
+    }
+
+    request.fields['batchId'] = batchId;
+    request.fields['vaccineName'] = vaccineName;
+    request.fields['lotNumber'] = lotNumber;
+    request.fields['quantity'] = quantity.toString();
+    request.fields['damageType'] = damageType;
+    request.fields['notes'] = notes;
+
+    request.files.add(await http.MultipartFile.fromPath('photo', photo.path));
+
+    final streamed = await request.send();
+    final response = await http.Response.fromStream(streamed);
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiException(
+        'Server rejected damage report (${response.statusCode}): ${response.body}',
+      );
+    }
   }
 }

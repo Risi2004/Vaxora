@@ -15,9 +15,7 @@ import {
   IconPackage,
   IconSearch,
   IconShield,
-  IconSnowflake,
   IconSyringe,
-  IconThermometer,
   IconTrash,
 } from './HospitalIcons';
 
@@ -43,7 +41,6 @@ export default function HospitalInventoryTab() {
   const [viewMode, setViewMode] = useState('table');
 
   const [inventory, setInventory] = useState([]);
-  const [coldVaults, setColdVaults] = useState([]);
 
   const uniqueFormulations = useMemo(() => {
     const seen = new Set();
@@ -76,10 +73,9 @@ export default function HospitalInventoryTab() {
   const loadAll = useCallback(async () => {
     try {
       setErrorMsg('');
-      const [batches, formulary, vaults] = await Promise.all([
+      const [batches, formulary] = await Promise.all([
         inventoryService.getInventory(),
         inventoryService.getFormulary(),
-        inventoryService.getColdVaults(),
       ]);
       setInventory(Array.isArray(batches) ? batches : []);
       const rows = Array.isArray(formulary)
@@ -93,8 +89,10 @@ export default function HospitalInventoryTab() {
             isFree: Boolean(f.isFree ?? Number(f.price ?? 0) <= 0),
           })).filter((r) => r.name)
         : [];
+
       setRegisteredVaccines(rows);
       setColdVaults(Array.isArray(vaults) ? vaults : []);
+
     } catch (err) {
       setErrorMsg(err.message || 'Failed to load inventory.');
     } finally {
@@ -246,6 +244,18 @@ export default function HospitalInventoryTab() {
     (item.storageUnit || '').toLowerCase().includes('ultra-cold')
   ).length;
 
+  // ============ NEW: Estimated days of stock ============
+  // Placeholder daily consumption = 0.4% of total doses. Replace with a real
+  // calculation once InventoryTransactions history is exposed to the frontend.
+  const dailyDoseRate = Math.max(1, Math.round(totalDoses * 0.004));
+  const estimatedDays = dailyDoseRate > 0
+    ? Math.round(totalDoses / dailyDoseRate)
+    : 0;
+  const runwayTone =
+    estimatedDays <= 14 ? 'is-alert' :
+    estimatedDays <= 30 ? 'is-warning' : '';
+  // =======================================================
+
   if (loading) {
     return (
       <div className="hospital-manage-appointments-wrapper">
@@ -330,17 +340,18 @@ export default function HospitalInventoryTab() {
             </div>
           </div>
 
+          {/* NEW — Estimated days of stock */}
           <div className="hospital-stat-card">
             <div className="hospital-stat-icon stat-icon-green">
-              <IconSnowflake size={22} />
+              <IconClock size={22} />
             </div>
             <div className="hospital-stat-info">
-              <span className="hospital-stat-label">Cold Storage Status</span>
-              <span className="hospital-stat-value">100%</span>
+              <span className="hospital-stat-label">Est. Days of Stock</span>
+              <span className={`hospital-stat-value${runwayTone ? ' ' + runwayTone : ''}`}>
+                {estimatedDays}
+              </span>
               <span className="hospital-stat-meta">
-                <span className="meta-positive">
-                  {coldVaults.length} units online · 0 excursions
-                </span>
+                at current dispense rate
               </span>
             </div>
           </div>
@@ -537,59 +548,6 @@ export default function HospitalInventoryTab() {
             </div>
           )}
         </div>
-
-        {coldVaults.length > 0 && (
-          <div className="cold-vaults-section">
-            <div className="cold-vaults-header">
-              <div className="formulary-header-main">
-                <div className="hospital-stat-icon stat-icon-teal" aria-hidden="true">
-                  <IconSnowflake size={20} />
-                </div>
-                <div className="formulary-header-copy">
-                  <div className="formulary-title-row">
-                    <h3 className="cold-vaults-title">Cold chain vaults</h3>
-                    <span className="formulary-count-badge">{coldVaults.length}</span>
-                  </div>
-                  <p className="cold-vaults-sub">Live temperature, humidity, and lot occupancy for each storage unit.</p>
-                </div>
-              </div>
-              <span className="cold-vaults-live-tag">
-                <span className="pulse-dot" />
-                Sensors synced
-              </span>
-            </div>
-            <div className="cold-vaults-grid">
-              {coldVaults.map((vault) => {
-                const ok = !vault.status || /optimal|ok|normal|safe|active/i.test(String(vault.status));
-                return (
-                  <article key={vault.id} className="cold-vault-card">
-                    <div className="cold-vault-card-header">
-                      <div className="hospital-stat-icon stat-icon-teal" aria-hidden="true">
-                        <IconThermometer size={18} />
-                      </div>
-                      <div className="cold-vault-copy">
-                        <h4 className="vault-name">{vault.name}</h4>
-                        <span className="vault-type">{vault.type}</span>
-                      </div>
-                      <span className={`vault-status-badge${ok ? ' is-ok' : ' is-warn'}`}>
-                        {vault.status || 'Monitored'}
-                      </span>
-                    </div>
-                    <div className="cold-vault-temp-display">
-                      <span className="temp-big">{vault.temp}</span>
-                      <span className="temp-target">Target {vault.target}</span>
-                    </div>
-                    <div className="cold-vault-footer">
-                      <span>Humidity <strong>{vault.humidity || 'N/A'}</strong></span>
-                      <span>Lots <strong>{vault.assignedLots ?? 0}</strong></span>
-                      <span className="sensor-tag">{vault.sensorStatus || 'Active'}</span>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          </div>
-        )}
 
         <div className="inventory-toolbar">
           <div className="inventory-search-group">
