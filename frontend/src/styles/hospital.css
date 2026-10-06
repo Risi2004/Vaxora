@@ -1657,9 +1657,10 @@
 .hospital-queue-table td:nth-child(6),
 .hospital-queue-table col.col-actions {
   width: 1%;
-  min-width: 8.25rem;
+  min-width: 5.5rem;
   white-space: nowrap;
   text-align: center;
+  overflow: visible;
 }
 
 .hospital-queue-table th:first-child {
@@ -1826,6 +1827,21 @@
   cursor: pointer;
   white-space: nowrap;
   transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.btn-queue-action--icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.btn-queue-action--icon:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .btn-queue-action:hover {

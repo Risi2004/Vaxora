@@ -752,6 +752,8 @@ public class AppointmentService : IAppointmentService
         var appointments = await _context.Appointments
             .AsNoTracking()
             .Include(a => a.VaccineSchedule)
+            .Include(a => a.PatientUser)
+                .ThenInclude(u => u!.PatientProfile)
             .Where(a => a.PatientUserId == patientUserId)
             .OrderByDescending(a => a.AppointmentDate)
             .ThenByDescending(a => a.CreatedAt)
@@ -762,10 +764,20 @@ public class AppointmentService : IAppointmentService
 
     public async Task<List<AppointmentResponseDto>> GetHospitalAppointmentsAsync(Guid hospitalUserId, DateOnly? date = null, string? status = null)
     {
+        var hospitalProfileId = await _context.HospitalProfiles
+            .AsNoTracking()
+            .Where(h => h.UserId == hospitalUserId)
+            .Select(h => (Guid?)h.Id)
+            .FirstOrDefaultAsync();
+
         var query = _context.Appointments
             .AsNoTracking()
             .Include(a => a.VaccineSchedule)
-            .Where(a => a.HospitalUserId == hospitalUserId);
+            .Include(a => a.PatientUser)
+                .ThenInclude(u => u!.PatientProfile)
+            .Where(a =>
+                a.HospitalUserId == hospitalUserId ||
+                (hospitalProfileId.HasValue && a.HospitalProfileId == hospitalProfileId.Value));
 
         if (date.HasValue)
         {
@@ -820,6 +832,8 @@ public class AppointmentService : IAppointmentService
         var appointments = await _context.Appointments
             .AsNoTracking()
             .Include(a => a.VaccineSchedule)
+            .Include(a => a.PatientUser)
+                .ThenInclude(u => u!.PatientProfile)
             .Where(a =>
                 a.HospitalUserId == hospitalUserId &&
                 a.Status != "Cancelled" &&
@@ -860,6 +874,8 @@ public class AppointmentService : IAppointmentService
             throw new InvalidOperationException("Staff account must be Active.");
 
         var appointment = await _context.Appointments.AsNoTracking()
+            .Include(a => a.PatientUser)
+                .ThenInclude(u => u!.PatientProfile)
             .FirstOrDefaultAsync(a => a.Id == appointmentId)
             ?? throw new KeyNotFoundException("Appointment record not found.");
 
@@ -888,12 +904,13 @@ public class AppointmentService : IAppointmentService
         });
         await _context.SaveChangesAsync();
 
+        var profile = appointment.PatientUser?.PatientProfile;
         return new StaffAppointmentPatientContactDto
         {
             AppointmentId = appointment.Id,
-            PatientNic = appointment.PatientNic,
-            PatientPhone = appointment.PatientPhone,
-            PatientEmail = appointment.PatientEmail
+            PatientNic = profile?.NicNumber ?? appointment.PatientNic,
+            PatientPhone = profile?.PhoneNumber ?? appointment.PatientUser?.PhoneNumber ?? appointment.PatientPhone,
+            PatientEmail = appointment.PatientUser?.Email ?? appointment.PatientEmail
         };
     }
 
@@ -1917,15 +1934,22 @@ public class AppointmentService : IAppointmentService
 
     private static AppointmentResponseDto MapToDto(Appointment a)
     {
+        var profile = a.PatientUser?.PatientProfile;
+        var liveName = profile?.FullName?.Trim();
+        var livePhone = profile?.PhoneNumber?.Trim() ?? a.PatientUser?.PhoneNumber?.Trim();
+        var liveEmail = a.PatientUser?.Email?.Trim();
+        var liveNic = profile?.NicNumber?.Trim();
+
         return new AppointmentResponseDto
         {
             Id = a.Id,
             PatientUserId = a.PatientUserId,
-            PatientProfileId = a.PatientProfileId,
-            PatientName = a.PatientName,
-            PatientNic = a.PatientNic,
-            PatientPhone = a.PatientPhone,
-            PatientEmail = a.PatientEmail,
+            PatientProfileId = a.PatientProfileId ?? profile?.Id,
+            // Prefer live profile fields so hospital/staff queues reflect profile edits.
+            PatientName = !string.IsNullOrWhiteSpace(liveName) ? liveName : a.PatientName,
+            PatientNic = !string.IsNullOrWhiteSpace(liveNic) ? liveNic : a.PatientNic,
+            PatientPhone = !string.IsNullOrWhiteSpace(livePhone) ? livePhone : a.PatientPhone,
+            PatientEmail = !string.IsNullOrWhiteSpace(liveEmail) ? liveEmail : a.PatientEmail,
             HospitalUserId = a.HospitalUserId,
             HospitalName = a.HospitalName,
             VaccineScheduleId = a.VaccineScheduleId,

@@ -6,7 +6,7 @@ import staffService from '../services/staffService';
 import { inventoryService } from '../services/inventoryService';
 import { appointmentService } from '../../patient/services/appointmentService';
 import { authService } from '../../auth';
-import { hospitalMinutesNow, hospitalToday } from '../utils/hospitalDate';
+import { hospitalMinutesNow, hospitalToday, toHospitalDateKey } from '../utils/hospitalDate';
 import {
   mapDbStatusToQueueStatus,
   queueStatusLabel,
@@ -273,18 +273,21 @@ export default function HospitalDashboardOverview() {
           const rawStatus = a.status || a.Status || 'Pending';
           const queueStatus = mapDbStatusToQueueStatus(rawStatus);
 
+          const appointmentDate =
+            toHospitalDateKey(a.appointmentDate || a.AppointmentDate || a.date) || todayStr;
+
           return {
             id: rawId,
             token: shortRef,
-            name: a.patientName || a.pName || 'Patient',
-            phone: a.patientPhone || '',
-            nic: a.patientNic || '',
-            date: a.appointmentDate || todayStr,
-            vaccine: a.vaccineName || 'Vaccine',
-            dose: a.prescribedDosage || 'Primary / Booster Dose',
+            name: a.patientName || a.PatientName || a.pName || a.patientEmail || a.PatientEmail || 'Patient',
+            phone: a.patientPhone || a.PatientPhone || '',
+            nic: a.patientNic || a.PatientNic || '',
+            date: appointmentDate,
+            vaccine: a.vaccineName || a.VaccineName || 'Vaccine',
+            dose: a.prescribedDosage || a.PrescribedDosage || 'Primary / Booster Dose',
             booth: resolveQueueBooth(a, boothCards),
             practitioner: a.doctorName ? `Dr. ${a.doctorName.replace(/^Dr\.\s*/i, '')}` : (a.nurseName ? `Nurse ${a.nurseName}` : 'Staff Duty Officer'),
-            time: a.timeSlot || '09:00 AM - 09:20 AM',
+            time: a.timeSlot || a.TimeSlot || '09:00 AM - 09:20 AM',
             status: queueStatus,
             dbStatus: rawStatus,
             paymentStatus: a.paymentStatus || a.PaymentStatus || '—',
@@ -433,13 +436,14 @@ export default function HospitalDashboardOverview() {
   // ==================== FILTERING & COMPUTED STATS ====================
   const todayStr = hospitalToday();
 
-  const filteredQueue = useMemo(() => {
-    const list = queuePatients.filter((p) => {
-      // Scope filter (Today vs All)
-      if (viewScope === 'today' && p.date && p.date !== todayStr) {
-        return false;
-      }
+  const todayQueuePatients = useMemo(
+    () => queuePatients.filter((p) => toHospitalDateKey(p.date) === todayStr),
+    [queuePatients, todayStr]
+  );
 
+  const filteredQueue = useMemo(() => {
+    const scoped = viewScope === 'today' ? todayQueuePatients : queuePatients;
+    const list = scoped.filter((p) => {
       // Status filter
       if (statusFilter !== 'all' && p.status !== statusFilter) {
         return false;
@@ -461,16 +465,13 @@ export default function HospitalDashboardOverview() {
       if (byTime !== 0) return byTime;
       return String(a.token || '').localeCompare(String(b.token || ''));
     });
-  }, [queuePatients, viewScope, statusFilter, searchQuery, todayStr]);
+  }, [queuePatients, todayQueuePatients, viewScope, statusFilter, searchQuery]);
 
   const totalStock = useMemo(() => {
     return inventory.reduce((acc, curr) => acc + (curr.available || 0), 0);
   }, [inventory]);
 
-  const todayPatients = useMemo(
-    () => queuePatients.filter((p) => !p.date || p.date === todayStr),
-    [queuePatients, todayStr]
-  );
+  const todayPatients = todayQueuePatients;
 
   const completedTodayCount = useMemo(() => {
     return todayPatients.filter((p) => p.status === 'completed').length;
@@ -679,7 +680,7 @@ export default function HospitalDashboardOverview() {
                   className={`queue-scope-btn${viewScope === 'today' ? ' active' : ''}`}
                   onClick={() => setViewScope('today')}
                 >
-                  Today ({queuePatients.filter((p) => p.date === todayStr).length})
+                  Today ({todayQueuePatients.length})
                 </button>
                 <button
                   type="button"

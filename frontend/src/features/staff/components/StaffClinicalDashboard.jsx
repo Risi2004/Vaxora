@@ -8,11 +8,14 @@ import staffAppointmentService from '../services/staffAppointmentService';
 import { hospitalToday } from '../../hospital/utils/hospitalDate';
 import {
   IconCalendar,
+  IconCheck,
   IconClipboard,
   IconClock,
   IconHospital,
+  IconPencil,
   IconRefresh,
   IconShield,
+  IconStethoscope,
   IconSyringe,
   IconUser,
 } from '../../../shared/icons/AppIcons';
@@ -1069,17 +1072,19 @@ export default function StaffClinicalDashboard({
                             {isDoctor && p.status === 'waiting' && !p.hasDosage && (
                               <button
                                 type="button"
-                                className="btn-queue-action"
+                                className="btn-queue-action btn-queue-action--icon"
                                 onClick={() => setPrescribeTargetId(p.id)}
                                 disabled={statusUpdating}
+                                title="Prescribe"
+                                aria-label="Prescribe"
                               >
-                                Prescribe
+                                <IconPencil size={15} />
                               </button>
                             )}
                             {p.status === 'waiting' && (
                               <button
                                 type="button"
-                                className="btn-queue-action"
+                                className="btn-queue-action btn-queue-action--icon"
                                 onClick={() => handleSelectPatient(p)}
                                 disabled={!isPaymentSettled(p) || !p.hasDosage || statusUpdating}
                                 title={
@@ -1087,16 +1092,17 @@ export default function StaffClinicalDashboard({
                                     ? 'Payment must be settled first'
                                     : !p.hasDosage
                                       ? 'Waiting for the doctor to prescribe a dose'
-                                      : undefined
+                                      : 'Examine'
                                 }
+                                aria-label="Examine"
                               >
-                                Examine
+                                <IconStethoscope size={15} />
                               </button>
                             )}
                             {p.status === 'consulting' && (
                               <button
                                 type="button"
-                                className="btn-queue-action btn-queue-action--session"
+                                className="btn-queue-action btn-queue-action--icon btn-queue-action--session"
                                 onClick={() => {
                                   setActivePatientId(p.id);
                                   setIsAdministerModalOpen(true);
@@ -1105,25 +1111,27 @@ export default function StaffClinicalDashboard({
                                 title={
                                   !isPaymentSettled(p)
                                     ? 'Payment must be settled first'
-                                    : undefined
+                                    : 'Administer'
                                 }
+                                aria-label="Administer"
                               >
-                                Administer
+                                <IconSyringe size={15} />
                               </button>
                             )}
                             {p.status === 'observation' && (
                               <button
                                 type="button"
-                                className="btn-queue-action btn-queue-action--release"
+                                className="btn-queue-action btn-queue-action--icon btn-queue-action--release"
                                 onClick={() => handleDischargeObservation(p.id, p.name)}
                                 disabled={!isPaymentSettled(p) || statusUpdating}
                                 title={
                                   !isPaymentSettled(p)
                                     ? 'Payment must be settled first'
-                                    : undefined
+                                    : 'Discharge'
                                 }
+                                aria-label="Discharge"
                               >
-                                Discharge
+                                <IconCheck size={15} />
                               </button>
                             )}
                             {p.status === 'completed' && (
