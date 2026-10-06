@@ -9,6 +9,12 @@ Architecture note:
   decides what to include in the summary, computes age, and composes the
   final structured JSON.
 
+  Empty-patient safety: after the six tools return, a deterministic flag
+  `has_clinical_data` is computed from the RAW tool results (not from the
+  LLM) and attached to the summary. Downstream agents use this flag to
+  short-circuit planning for brand-new accounts and avoid fabricating
+  personalised recommendations.
+
 Tools invoked: get_patient_profile, get_vaccination_history, get_medical_history,
                get_active_conditions, get_visit_history, get_upcoming_follow_ups
 Output: a structured PatientSummary dict.
@@ -159,6 +165,11 @@ class PatientDataAgent:
                 "ok": out.get("success", True) if isinstance(out, dict) else True,
             })
 
+        # Compute the empty-patient flag from RAW tool results (not from the
+        # LLM), so downstream agents can trust it. Deterministic and not
+        # affected by LLM hallucination.
+        has_clinical_data = self._has_clinical_data_from_tools(tool_results)
+
         # ---- Phase 2: LLM synthesis (no tools) ----
         user_prompt = (
             "Here are the raw results from all six tools, as JSON:\n\n"
@@ -189,7 +200,67 @@ class PatientDataAgent:
                 f"{content[:500]}"
             )
 
-        return {"success": True, "summary": summary, "raw": content, "steps": steps}
+        # Attach the deterministic flag as an authoritative field. Do this
+        # AFTER the LLM so it can't be overwritten by the model.
+        if isinstance(summary, dict):
+            summary["has_clinical_data"] = has_clinical_data
+
+        return {
+            "success": True,
+            "summary": summary,
+            "has_clinical_data": has_clinical_data,
+            "raw": content,
+            "steps": steps,
+        }
+
+    @staticmethod
+    def _has_clinical_data_from_tools(tool_results: Dict[str, Any]) -> bool:
+        """Deterministic check: does this patient have any real clinical data?
+
+        Returns False only when ALL of the following are empty:
+          - medical history records
+          - active conditions
+          - vaccination records
+          - visits
+          - upcoming follow-ups
+        A profile alone is not enough — a new signup with no history is
+        considered 'no clinical data'.
+        """
+        def _list_len(payload: Any, *keys: str) -> int:
+            if not isinstance(payload, dict):
+                return 0
+            for k in keys:
+                v = payload.get(k)
+                if isinstance(v, list):
+                    return len(v)
+            return 0
+
+        mh = tool_results.get("get_medical_history") or {}
+        ac = tool_results.get("get_active_conditions") or {}
+        vh = tool_results.get("get_vaccination_history") or {}
+        vs = tool_results.get("get_visit_history") or {}
+        fu = tool_results.get("get_upcoming_follow_ups") or {}
+
+        medical_count = _list_len(mh, "medical_history", "records")
+        active_count = _list_len(ac, "active_conditions", "records")
+        vaccine_count = _list_len(vh, "vaccinations", "records")
+        visit_count = _list_len(vs, "visits", "records")
+        follow_up_count = _list_len(fu, "follow_ups", "records")
+
+        has_data = any([
+            medical_count > 0,
+            active_count > 0,
+            vaccine_count > 0,
+            visit_count > 0,
+            follow_up_count > 0,
+        ])
+        logger.info(
+            f"[{PatientDataAgent.name}] data check — "
+            f"medical={medical_count}, active={active_count}, "
+            f"vaccines={vaccine_count}, visits={visit_count}, "
+            f"follow_ups={follow_up_count} → has_clinical_data={has_data}"
+        )
+        return has_data
 
     @staticmethod
     def _try_parse_json(text: str) -> Any:

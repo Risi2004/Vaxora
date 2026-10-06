@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../../core/constants/app_assets.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../data/repositories/auth_repository.dart';
 import '../widgets/auth_banner_header.dart';
 import 'login_screen.dart';
 
@@ -35,7 +37,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     super.dispose();
   }
 
-  void _handleSendCode() {
+  Future<void> _handleSendCode() async {
     setState(() => _errorMessage = null);
 
     if (!(_emailFormKey.currentState?.validate() ?? false)) {
@@ -44,17 +46,21 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
     setState(() => _isLoading = true);
 
-    Future.delayed(const Duration(milliseconds: 1000), () {
+    try {
+      await AuthRepository.requestPasswordReset(email: _emailController.text);
+      if (mounted) setState(() => _step = 2);
+    } catch (error) {
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _step = 2;
-        });
+        setState(
+          () => _errorMessage = 'Could not send reset instructions: $error',
+        );
       }
-    });
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
-  void _handleResetPassword() {
+  Future<void> _handleResetPassword() async {
     setState(() => _errorMessage = null);
 
     if (!(_resetFormKey.currentState?.validate() ?? false)) {
@@ -73,20 +79,27 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
     setState(() => _isLoading = true);
 
-    Future.delayed(const Duration(milliseconds: 1200), () {
+    try {
+      await AuthRepository.resetPassword(
+        email: _emailController.text,
+        resetToken: _codeController.text,
+        newPassword: _newPasswordController.text,
+        confirmPassword: _confirmPasswordController.text,
+      );
+      if (mounted) setState(() => _step = 3);
+    } catch (error) {
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _step = 3;
-        });
+        setState(() => _errorMessage = 'Could not reset password: $error');
       }
-    });
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: const Color(0xFFF5F8F7),
       body: SingleChildScrollView(
         child: Column(
           children: [
@@ -108,7 +121,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                   border: Border.all(color: AppColors.borderAuthCard, width: 2.5),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF281966).withValues(alpha: 0.06),
+                      color: AppColors.primaryDark.withValues(alpha: 0.06),
                       blurRadius: 20,
                       offset: const Offset(0, 6),
                     ),
@@ -159,11 +172,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       ),
                       const SizedBox(height: 8),
                       const Text(
-                        'Enter your registered email address and we will send you a verification code.',
+                        'Enter your email address. If an account exists, we will send a verification code.',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 13,
-                          color: Color(0xFF64748B),
+                          color: Color(0xFF667B83),
                           height: 1.4,
                         ),
                       ),
@@ -239,7 +252,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                         textAlign: TextAlign.center,
                         style: const TextStyle(
                           fontSize: 13,
-                          color: Color(0xFF64748B),
+                          color: Color(0xFF667B83),
                           height: 1.4,
                         ),
                       ),
@@ -255,8 +268,15 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                               decoration: const InputDecoration(
                                 hintText: '6-Digit Verification Code',
                               ),
+                              inputFormatters: [
+                                FilteringTextInputFormatter.digitsOnly,
+                                LengthLimitingTextInputFormatter(6),
+                              ],
                               validator: (v) =>
-                                  (v == null || v.trim().isEmpty) ? 'Please enter code' : null,
+                                  (v == null ||
+                                      !RegExp(r'^\d{6}$').hasMatch(v.trim()))
+                                  ? 'Enter the 6-digit verification code'
+                                  : null,
                             ),
                             const SizedBox(height: 12),
                             TextFormField(
@@ -268,7 +288,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                                   icon: Icon(
                                     _showNewPassword ? Icons.visibility_off : Icons.visibility,
                                     size: 20,
-                                    color: const Color(0xFF64748B),
+                                    color: const Color(0xFF667B83),
                                   ),
                                   onPressed: () =>
                                       setState(() => _showNewPassword = !_showNewPassword),
@@ -290,7 +310,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                                   icon: Icon(
                                     _showConfirmPassword ? Icons.visibility_off : Icons.visibility,
                                     size: 20,
-                                    color: const Color(0xFF64748B),
+                                    color: const Color(0xFF667B83),
                                   ),
                                   onPressed: () => setState(
                                       () => _showConfirmPassword = !_showConfirmPassword),

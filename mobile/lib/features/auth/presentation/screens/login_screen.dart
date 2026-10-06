@@ -77,7 +77,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: const Color(0xFFF5F8F7),
       body: Column(
         children: [
           AuthBannerHeader(
@@ -113,7 +113,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(0xFF281966)
+                                color: AppColors.primaryDark
                                     .withValues(alpha: 0.06),
                                 blurRadius: 20,
                                 offset: const Offset(0, 6),
@@ -195,10 +195,12 @@ class _LoginScreenState extends State<LoginScreen> {
                               hintText: 'Email address',
                             ),
                             validator: (v) {
-                              if (v == null || v.trim().isEmpty)
+                              if (v == null || v.trim().isEmpty) {
                                 return 'Please enter your email address';
-                              if (!v.contains('@'))
+                              }
+                              if (!v.contains('@')) {
                                 return 'Enter a valid email address';
+                              }
                               return null;
                             },
                           ),
@@ -214,7 +216,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                       ? Icons.visibility_off
                                       : Icons.visibility,
                                   size: 20,
-                                  color: const Color(0xFF64748B),
+                                  color: const Color(0xFF667B83),
                                 ),
                                 onPressed: () => setState(
                                   () => _showPassword = !_showPassword,
@@ -222,8 +224,9 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                             ),
                             validator: (v) {
-                              if (v == null || v.isEmpty)
+                              if (v == null || v.isEmpty) {
                                 return 'Please enter your password';
+                              }
                               return null;
                             },
                           ),
@@ -261,7 +264,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               borderRadius: BorderRadius.circular(10),
                               boxShadow: [
                                 BoxShadow(
-                                  color: const Color(0xFF174296)
+                                  color: const Color(0xFF087F78)
                                       .withValues(alpha: 0.35),
                                   blurRadius: 10,
                                   offset: const Offset(0, 4),

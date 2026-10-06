@@ -41,6 +41,10 @@ public class ApplicationDbContext : DbContext
 
     // === PATIENT VISIT MODULE ===
     public DbSet<PatientVisit> PatientVisits => Set<PatientVisit>();
+
+    // === PATIENT FEEDBACK ===
+    public DbSet<Feedback> Feedbacks { get; set; } = null!;
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -411,5 +415,10 @@ public class ApplicationDbContext : DbContext
             .WithMany()
             .HasForeignKey(v => v.HospitalProfileId)
             .OnDelete(DeleteBehavior.SetNull);
+
+        // === PATIENT FEEDBACK ===
+        modelBuilder.Entity<Feedback>()
+            .HasIndex(f => new { f.UserId, f.CreatedAt })
+            .IsDescending(false, true);  // (UserId ASC, CreatedAt DESC)
     }
 }

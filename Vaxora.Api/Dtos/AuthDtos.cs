@@ -36,6 +36,11 @@ public class AuthResponseDto
     public string? Message { get; set; }
 }
 
+public class LogoutRequestDto
+{
+    public string? RefreshToken { get; set; }
+}
+
 public class RefreshTokenRequestDto
 {
     [Required]
@@ -204,4 +209,9 @@ public class AdminUserItemDto
     public DateTime CreatedAt { get; set; }
     public DateTime? LastLoginAt { get; set; }
     public object? Profile { get; set; }
+}
+
+public class ProfilePhotoUploadDto
+{
+    public IFormFile Photo { get; set; } = null!;
 }

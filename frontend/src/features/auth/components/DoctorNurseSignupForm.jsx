@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { IconFile, IconUser } from '../../../shared/icons/AppIcons';
 
 export default function DoctorNurseSignupForm({ onSuccess }) {
@@ -15,7 +15,6 @@ export default function DoctorNurseSignupForm({ onSuccess }) {
   const [profilePicPreview, setProfilePicPreview] = useState(null);
   const [registrationCardFile, setRegistrationCardFile] = useState(null);
   const [error, setError] = useState('');
-  const [submitted, setSubmitted] = useState(false);
 
   const profilePicRef = useRef(null);
   const fileInputRef = useRef(null);

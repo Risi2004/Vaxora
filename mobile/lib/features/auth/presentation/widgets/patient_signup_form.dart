@@ -22,6 +22,7 @@ class _PatientSignupFormState extends State<PatientSignupForm> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
+  SelectedFile? _profilePhoto;
   bool _showPassword = false;
   bool _showConfirmPassword = false;
   bool _isLoading = false;
@@ -102,6 +103,7 @@ class _PatientSignupFormState extends State<PatientSignupForm> {
       nicNumber: _nicController.text,
       dateOfBirth: _dobController.text,
       phoneNumber: _phoneController.text.trim().isNotEmpty ? _phoneController.text : null,
+      profilePhoto: _profilePhoto,
     ).then((_) {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -145,9 +147,11 @@ class _PatientSignupFormState extends State<PatientSignupForm> {
           ],
 
           // Profile Photo
-          const FileUploadPickerBox(
+          FileUploadPickerBox(
             label: 'Profile Photo (Optional)',
             placeholder: 'Upload Profile Photo (JPG/PNG)',
+            allowedExtensions: const ['jpg', 'jpeg', 'png', 'webp'],
+            onFileSelected: (file) => setState(() => _profilePhoto = file),
           ),
           const SizedBox(height: 12),
 
@@ -221,7 +225,7 @@ class _PatientSignupFormState extends State<PatientSignupForm> {
                 icon: Icon(
                   _showPassword ? Icons.visibility_off : Icons.visibility,
                   size: 20,
-                  color: const Color(0xFF64748B),
+                  color: const Color(0xFF667B83),
                 ),
                 onPressed: () => setState(() => _showPassword = !_showPassword),
               ),
@@ -244,7 +248,7 @@ class _PatientSignupFormState extends State<PatientSignupForm> {
                 icon: Icon(
                   _showConfirmPassword ? Icons.visibility_off : Icons.visibility,
                   size: 20,
-                  color: const Color(0xFF64748B),
+                  color: const Color(0xFF667B83),
                 ),
                 onPressed: () => setState(() => _showConfirmPassword = !_showConfirmPassword),
               ),
@@ -263,7 +267,7 @@ class _PatientSignupFormState extends State<PatientSignupForm> {
               borderRadius: BorderRadius.circular(10),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF174296).withValues(alpha: 0.35),
+                  color: const Color(0xFF087F78).withValues(alpha: 0.35),
                   blurRadius: 10,
                   offset: const Offset(0, 4),
                 ),

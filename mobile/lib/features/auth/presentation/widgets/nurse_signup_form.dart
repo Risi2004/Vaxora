@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../data/repositories/auth_repository.dart';
 import 'file_upload_picker_box.dart';
 
 class NurseSignupForm extends StatefulWidget {
@@ -20,7 +21,10 @@ class _NurseSignupFormState extends State<NurseSignupForm> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
-  String? _slncDocName;
+  SelectedFile? _profilePhoto;
+  SelectedFile? _slncDoc;
+  SelectedFile? _supportingDoc;
+
   bool _showPassword = false;
   bool _showConfirmPassword = false;
   bool _isLoading = false;
@@ -44,7 +48,7 @@ class _NurseSignupFormState extends State<NurseSignupForm> {
       return;
     }
 
-    if (_slncDocName == null || _slncDocName!.isEmpty) {
+    if (_slncDoc == null || !_slncDoc!.hasContent) {
       setState(() => _errorMessage = 'Please upload your SLNC Registration Certificate');
       return;
     }
@@ -61,10 +65,28 @@ class _NurseSignupFormState extends State<NurseSignupForm> {
 
     setState(() => _isLoading = true);
 
-    Future.delayed(const Duration(milliseconds: 1200), () {
+    AuthRepository.registerNurse(
+      email: _emailController.text,
+      password: _passwordController.text,
+      fullName: _fullNameController.text,
+      slncNumber: _slncController.text,
+      phoneNumber: _phoneController.text.trim().isNotEmpty
+          ? _phoneController.text
+          : null,
+      profilePhoto: _profilePhoto,
+      slncCertificate: _slncDoc,
+      supportingDocument: _supportingDoc,
+    ).then((_) {
       if (mounted) {
         setState(() => _isLoading = false);
         widget.onSuccess();
+      }
+    }).catchError((e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = e.toString();
+        });
       }
     });
   }
@@ -97,9 +119,11 @@ class _NurseSignupFormState extends State<NurseSignupForm> {
           ],
 
           // Profile Photo
-          const FileUploadPickerBox(
+          FileUploadPickerBox(
             label: 'Profile Photo (Optional)',
             placeholder: 'Upload Nurse Profile Picture',
+            allowedExtensions: const ['jpg', 'jpeg', 'png', 'webp'],
+            onFileSelected: (file) => setState(() => _profilePhoto = file),
           ),
           const SizedBox(height: 12),
 
@@ -158,7 +182,7 @@ class _NurseSignupFormState extends State<NurseSignupForm> {
                 icon: Icon(
                   _showPassword ? Icons.visibility_off : Icons.visibility,
                   size: 20,
-                  color: const Color(0xFF64748B),
+                  color: const Color(0xFF667B83),
                 ),
                 onPressed: () => setState(() => _showPassword = !_showPassword),
               ),
@@ -181,7 +205,7 @@ class _NurseSignupFormState extends State<NurseSignupForm> {
                 icon: Icon(
                   _showConfirmPassword ? Icons.visibility_off : Icons.visibility,
                   size: 20,
-                  color: const Color(0xFF64748B),
+                  color: const Color(0xFF667B83),
                 ),
                 onPressed: () => setState(() => _showConfirmPassword = !_showConfirmPassword),
               ),
@@ -198,15 +222,17 @@ class _NurseSignupFormState extends State<NurseSignupForm> {
             label: 'SLNC Registration Certificate/Card',
             placeholder: 'Upload SLNC Certificate (PDF/JPG)',
             isRequired: true,
-            initialFileName: _slncDocName,
-            onFileSelected: (name) => setState(() => _slncDocName = name),
+            allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
+            onFileSelected: (file) => setState(() => _slncDoc = file),
           ),
           const SizedBox(height: 12),
 
           // Supporting Doc
-          const FileUploadPickerBox(
+          FileUploadPickerBox(
             label: 'Additional Supporting Document (Optional)',
             placeholder: 'Hospital ID / Employment Proof (PDF/JPG)',
+            allowedExtensions: const ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png'],
+            onFileSelected: (file) => setState(() => _supportingDoc = file),
           ),
           const SizedBox(height: 18),
 
@@ -217,7 +243,7 @@ class _NurseSignupFormState extends State<NurseSignupForm> {
               borderRadius: BorderRadius.circular(10),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF174296).withValues(alpha: 0.35),
+                  color: const Color(0xFF087F78).withValues(alpha: 0.35),
                   blurRadius: 10,
                   offset: const Offset(0, 4),
                 ),

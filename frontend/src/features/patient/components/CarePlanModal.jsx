@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from "react";
+import { deferEffectCallback } from '../../../shared/utils/deferEffectCallback.js';
+import { useEffect, useState } from "react";
 import { downloadCarePlanPdf } from "../services/carePlanPdfService";
 import { getUser } from "../../auth";
 
@@ -43,7 +44,7 @@ export default function CarePlanModal({
     }
   };
 
-  useEffect(() => {
+  useEffect(() => deferEffectCallback(() => {
     if (!loading) {
       setLoadingMessageIndex(0);
       return;
@@ -52,7 +53,7 @@ export default function CarePlanModal({
       setLoadingMessageIndex((i) => (i + 1) % LOADING_MESSAGES.length);
     }, 4000);
     return () => clearInterval(interval);
-  }, [loading]);
+  }), [loading]);
 
   if (!isOpen) return null;
 

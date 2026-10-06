@@ -105,7 +105,7 @@ class DigitalCertificateSheet extends StatelessWidget {
                     end: Alignment.bottomRight,
                     colors: [
                       Color(0xFFFFFFFF),
-                      Color(0xFFF8FAFC),
+                      Color(0xFFF5F8F7),
                     ],
                   ),
                   borderRadius: BorderRadius.circular(20),

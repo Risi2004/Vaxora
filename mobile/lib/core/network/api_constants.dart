@@ -1,20 +1,16 @@
-import 'package:flutter/foundation.dart';
-
-import 'dart:io' show Platform;
-
 class ApiConstants {
   // Configurable compile-time environment URLs (via --dart-define=API_URL=... and --dart-define=AGENT_URL=...)
-  static const String _envApiUrl = String.fromEnvironment('API_URL');
-  static const String _envAgentUrl = String.fromEnvironment('AGENT_URL');
+  static const String _envApiUrl = String.fromEnvironment(
+    'API_URL',
+    defaultValue: 'https://vaxora.onrender.com',
+  );
+  static const String _envAgentUrl = String.fromEnvironment(
+    'AGENT_URL',
+    defaultValue: 'https://vaxora-agent.onrender.com',
+  );
 
-  // Local development fallbacks (Android Emulator: 10.0.2.2, iOS/Desktop/Web: localhost)
-  static String get _localFallback {
-    if (kIsWeb) return 'http://localhost:5004/api';
-    try {
-      if (Platform.isAndroid) return 'http://10.0.2.2:5004/api';
-    } catch (_) {}
-    return 'http://localhost:5004/api';
-  }
+  // Fallback defaults
+  static String get _localFallback => 'https://vaxora.onrender.com/api';
 
   static String get baseUrl {
     if (_envApiUrl.isNotEmpty) {
@@ -24,17 +20,23 @@ class ApiConstants {
     return _localFallback;
   }
 
-  static String get agentUrl {
+  static String get agentBaseUrl {
     if (_envAgentUrl.isNotEmpty) {
       return _envAgentUrl.trim().replaceAll(RegExp(r'/+$'), '');
     }
-    return 'http://10.0.2.2:8001';
+    return 'https://vaxora-agent.onrender.com';
   }
 
   // Auth endpoints
   static const String login = '/auth/login';
   static const String signupPatient = '/auth/signup/patient';
+  static const String signupDoctor = '/auth/signup/doctor';
+  static const String signupNurse = '/auth/signup/nurse';
+  static const String signupHospital = '/auth/signup/hospital';
+  static const String forgotPassword = '/auth/forgot-password';
+  static const String resetPassword = '/auth/reset-password';
   static const String currentUser = '/auth/me';
+  static const String deleteAccount = '/auth/account';
 
   // Appointment endpoints
   static const String myAppointments = '/appointments/my';
@@ -50,6 +52,7 @@ class ApiConstants {
 
   // Patient Clinical & Vaccination endpoints
   static const String updateProfile = '/auth/profile';
+  static const String updateProfilePhoto = '/auth/profile/photo';
   static const String patientVaccinations = '/patient-vaccinations';
   static const String patientMedicalHistory = '/patient-medical-history';
   static const String availableSchedules = '/schedule/available';
@@ -107,4 +110,6 @@ static const String inventoryDamageReport = '/inventory/damage-report';
 
   static String appointmentStatus(String id) => '/appointments/$id/status';
   static String appointmentAefi(String id) => '/appointments/$id/aefi';
+  static String appointmentDosage(String id) =>
+      '/clinical/appointments/$id/dosage';
 }

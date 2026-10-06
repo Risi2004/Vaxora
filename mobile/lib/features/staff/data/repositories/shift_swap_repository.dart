@@ -1,4 +1,5 @@
 import 'package:shared_preferences/shared_preferences.dart';
+
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_constants.dart';
 import '../../../hospital_staff/data/models/shift_swap_request_model.dart';
@@ -8,10 +9,7 @@ class ShiftSwapRepository {
 
   static const _seenIncomingKey = 'vaxora_seen_incoming_covers';
 
-  static Future<void> submit({
-    required String shiftId,
-    String? reason,
-  }) async {
+  static Future<void> submit({required String shiftId, String? reason}) async {
     await ApiClient.post(
       ApiConstants.staffShiftSwaps,
       body: {
@@ -22,16 +20,13 @@ class ShiftSwapRepository {
   }
 
   static Future<List<ShiftSwapRequestModel>> listMine() async {
-    try {
-      final response = await ApiClient.get(ApiConstants.staffMyShiftSwaps);
-      if (response is! List) return [];
-      return response
-          .map((e) =>
-              ShiftSwapRequestModel.fromJson(e as Map<String, dynamic>))
-          .toList();
-    } catch (_) {
-      return [];
+    final response = await ApiClient.get(ApiConstants.staffMyShiftSwaps);
+    if (response is! List) {
+      throw ApiException('Unexpected response while loading cover requests.');
     }
+    return response
+        .map((e) => ShiftSwapRequestModel.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
   static Future<CoverQuotaModel> quota({String? shiftId}) async {

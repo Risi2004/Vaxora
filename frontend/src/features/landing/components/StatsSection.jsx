@@ -1,4 +1,4 @@
-import React from 'react';
+
 import badgeExperience from '../../../assets/icons/badge_experience.svg';
 import networkMembers from '../../../assets/icons/network_members.svg';
 import hospitalDoctors from '../../../assets/icons/hospital_doctors.svg';

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../../core/network/api_client.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../hospital_staff/data/models/shift_swap_request_model.dart';
@@ -27,6 +28,9 @@ class _StaffCoverSheetState extends State<StaffCoverSheet> {
   bool _loading = true;
   String? _error;
   List<ShiftSwapRequestModel> _items = [];
+  int _selectedDirection = 0;
+  String _incomingDateFilter = 'Upcoming';
+  String _outgoingStatusFilter = 'All';
 
   @override
   void initState() {
@@ -53,7 +57,9 @@ class _StaffCoverSheetState extends State<StaffCoverSheet> {
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _error = e is ApiException ? e.message : 'Failed to load cover requests.';
+        _error = e is ApiException
+            ? e.message
+            : 'Failed to load cover requests.';
         _items = [];
       });
     }
@@ -78,13 +84,23 @@ class _StaffCoverSheetState extends State<StaffCoverSheet> {
     return list;
   }
 
-  List<ShiftSwapRequestModel> get _incoming => _sorted(
-        _items.where((r) => r.isIncoming && r.isUpcoming),
-      );
+  List<ShiftSwapRequestModel> get _incoming =>
+      _sorted(_items.where((r) => r.isIncoming));
 
-  List<ShiftSwapRequestModel> get _outgoing => _sorted(
-        _items.where((r) => r.isOutgoing && r.isUpcoming && !r.isApproved),
-      );
+  List<ShiftSwapRequestModel> get _outgoing =>
+      _sorted(_items.where((r) => r.isOutgoing));
+
+  List<ShiftSwapRequestModel> get _visibleIncoming => _incoming.where((r) {
+    if (_incomingDateFilter == 'Upcoming') return r.isUpcoming;
+    if (_incomingDateFilter == 'Past') return !r.isUpcoming;
+    return true;
+  }).toList();
+
+  List<ShiftSwapRequestModel> get _visibleOutgoing =>
+      _outgoing.where((r) {
+        if (_outgoingStatusFilter == 'All') return true;
+        return r.status.toLowerCase() == _outgoingStatusFilter.toLowerCase();
+      }).toList();
 
   bool get _empty => _incoming.isEmpty && _outgoing.isEmpty;
 
@@ -145,73 +161,233 @@ class _StaffCoverSheetState extends State<StaffCoverSheet> {
                       ),
                     )
                   : _error != null
-                      ? ListView(
-                          padding: const EdgeInsets.all(16),
-                          children: [
-                            StaffErrorBanner(
-                              message: _error!,
-                              onDismiss: () => setState(() => _error = null),
-                            ),
-                          ],
-                        )
-                      : _empty
-                          ? const Padding(
-                              padding: EdgeInsets.all(16),
-                              child: StaffEmptyCard(
-                                icon: Icons.swap_horiz,
-                                message:
-                                    'Nothing upcoming. New assignments and open requests will show here.',
-                              ),
-                            )
-                          : ListView(
-                              padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
-                              children: [
-                                _Section(
-                                  title: 'Assigned to you',
-                                  hint: 'Shifts the hospital asked you to take',
-                                  count: _incoming.length,
-                                  accent: AppColors.success,
-                                ),
-                                const SizedBox(height: 8),
-                                if (_incoming.isEmpty)
-                                  const StaffEmptyCard(
-                                    compact: true,
-                                    icon: Icons.event_available_outlined,
-                                    message: 'No upcoming cover shifts.',
-                                  )
-                                else
-                                  ..._incoming.map(
-                                    (r) => Padding(
-                                      padding: const EdgeInsets.only(bottom: 8),
-                                      child: _IncomingTile(request: r),
-                                    ),
+                  ? ListView(
+                      padding: const EdgeInsets.all(16),
+                      children: [
+                        StaffErrorBanner(
+                          message: _error!,
+                          onDismiss: () => setState(() => _error = null),
+                        ),
+                      ],
+                    )
+                  : _empty
+                  ? const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: StaffEmptyCard(
+                        icon: Icons.swap_horiz,
+                        message: 'No cover activity yet. New assignments and requests will show here.',
+                      ),
+                    )
+                  : Column(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                          child: _DirectionTabs(
+                            selectedIndex: _selectedDirection,
+                            onChanged: (index) =>
+                                setState(() => _selectedDirection = index),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                          child: _selectedDirection == 0
+                              ? _CoverFilters(
+                                  options: const ['Upcoming', 'Past', 'All'],
+                                  selected: _incomingDateFilter,
+                                  onChanged: (value) => setState(
+                                    () => _incomingDateFilter = value,
                                   ),
-                                const SizedBox(height: 18),
-                                _Section(
-                                  title: 'Your requests',
-                                  hint: 'Cover you asked the hospital to find',
-                                  count: _outgoing.length,
-                                  accent: const Color(0xFFB2660A),
-                                ),
-                                const SizedBox(height: 8),
-                                if (_outgoing.isEmpty)
-                                  const StaffEmptyCard(
-                                    compact: true,
-                                    icon: Icons.hourglass_top_outlined,
-                                    message: 'No open cover requests.',
-                                  )
-                                else
-                                  ..._outgoing.map(
-                                    (r) => Padding(
-                                      padding: const EdgeInsets.only(bottom: 8),
-                                      child: _OutgoingTile(request: r),
-                                    ),
+                                )
+                              : _CoverFilters(
+                                  options: const [
+                                    'All',
+                                    'Pending',
+                                    'Approved',
+                                    'Declined',
+                                  ],
+                                  selected: _outgoingStatusFilter,
+                                  onChanged: (value) => setState(
+                                    () => _outgoingStatusFilter = value,
                                   ),
-                              ],
-                            ),
+                                ),
+                        ),
+                        Expanded(
+                          child: _selectedDirection == 0
+                              ? _buildIncomingList()
+                              : _buildOutgoingList(),
+                        ),
+                      ],
+                    ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildIncomingList() {
+    final requests = _visibleIncoming;
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+      children: [
+        _Section(
+          title: 'Incoming cover',
+          hint: 'Shifts assigned to you by the hospital',
+          count: requests.length,
+          accent: AppColors.success,
+        ),
+        const SizedBox(height: 8),
+        if (requests.isEmpty)
+          StaffEmptyCard(
+            compact: true,
+            icon: Icons.event_available_outlined,
+            message: _incoming.isEmpty
+                ? 'No incoming cover assignments yet.'
+                : 'No ${_incomingDateFilter.toLowerCase()} cover assignments.',
+          )
+        else
+          ...requests.map(
+            (r) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _IncomingTile(request: r),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildOutgoingList() {
+    final requests = _visibleOutgoing;
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+      children: [
+        _Section(
+          title: 'Outgoing requests',
+          hint: 'Cover you asked the hospital to find',
+          count: requests.length,
+          accent: AppColors.success,
+        ),
+        const SizedBox(height: 8),
+        if (requests.isEmpty)
+          StaffEmptyCard(
+            compact: true,
+            icon: Icons.hourglass_top_outlined,
+            message: _outgoing.isEmpty
+                ? 'No cover requests yet.'
+                : 'No ${_outgoingStatusFilter.toLowerCase()} requests.',
+          )
+        else
+          ...requests.map(
+            (r) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _OutgoingTile(request: r),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _DirectionTabs extends StatelessWidget {
+  final int selectedIndex;
+  final ValueChanged<int> onChanged;
+
+  const _DirectionTabs({
+    required this.selectedIndex,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceSubtle,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          _tab('Incoming', 0),
+          _tab('Outgoing', 1),
+        ],
+      ),
+    );
+  }
+
+  Widget _tab(String label, int index) {
+    final selected = selectedIndex == index;
+    return Expanded(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(9),
+        onTap: () => onChanged(index),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+          decoration: BoxDecoration(
+            color: selected ? AppColors.surface : Colors.transparent,
+            borderRadius: BorderRadius.circular(9),
+            boxShadow: selected ? StaffSurfaces.cardShadow : null,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  color: selected
+                      ? StaffSurfaces.textPrimary
+                      : StaffSurfaces.textSecondary,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CoverFilters extends StatelessWidget {
+  final List<String> options;
+  final String selected;
+  final ValueChanged<String> onChanged;
+
+  const _CoverFilters({
+    required this.options,
+    required this.selected,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: options.map((option) {
+          final active = option == selected;
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: ChoiceChip(
+              label: Text(option),
+              selected: active,
+              onSelected: (_) => onChanged(option),
+              visualDensity: VisualDensity.compact,
+              labelStyle: TextStyle(
+                color: active ? AppColors.primary : StaffSurfaces.textSecondary,
+                fontWeight: active ? FontWeight.w700 : FontWeight.w600,
+                fontSize: 12,
+              ),
+              selectedColor: AppColors.primary.withValues(alpha: 0.1),
+              backgroundColor: AppColors.surface,
+              side: BorderSide(
+                color: active ? AppColors.primary.withValues(alpha: 0.35) : StaffSurfaces.cardBorder,
+              ),
+              showCheckmark: false,
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+            ),
+          );
+        }).toList(),
       ),
     );
   }
@@ -302,7 +478,6 @@ class _IncomingTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: StaffSurfaces.card(
-        color: AppColors.successBg,
         borderColor: AppColors.success.withValues(alpha: 0.28),
       ),
       child: Row(
@@ -313,7 +488,9 @@ class _IncomingTile extends StatelessWidget {
             height: 42,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
+              border: Border.all(
+                color: AppColors.success.withValues(alpha: 0.3),
+              ),
             ),
             clipBehavior: Clip.antiAlias,
             child: NetworkAvatar(
@@ -380,34 +557,42 @@ class _OutgoingTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final waiting = request.isPending;
+    final approved = request.isApproved;
+    final replacementName = request.replacementName?.trim();
+    final coveredBy = replacementName?.isNotEmpty == true
+        ? replacementName!
+        : 'another staff member';
+    final statusText = waiting
+        ? 'Waiting for the hospital to pick cover'
+        : approved
+        ? 'Covered by $coveredBy'
+        : 'Hospital declined — this shift stays yours';
+    final accentColor = waiting
+        ? const Color(0xFFB2660A)
+        : approved
+        ? AppColors.success
+        : AppColors.error;
+    final borderColor = waiting
+        ? const Color(0xFFF5B168)
+        : accentColor.withValues(alpha: 0.28);
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(14),
       decoration: StaffSurfaces.card(
-        color: waiting ? const Color(0xFFFFF8EE) : null,
-        borderColor: waiting ? const Color(0xFFF5B168) : null,
+        color: StaffSurfaces.cardBg,
+        borderColor: borderColor,
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 42,
-            height: 42,
-            alignment: Alignment.center,
+            width: 4,
+            height: 72,
             decoration: BoxDecoration(
-              color: waiting
-                  ? const Color(0xFFFFF4E5)
-                  : StaffSurfaces.softPanelDeep,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(
-              waiting
-                  ? Icons.hourglass_top_outlined
-                  : Icons.highlight_off,
-              size: 20,
-              color: waiting ? const Color(0xFFB2660A) : AppColors.error,
+              color: accentColor,
+              borderRadius: BorderRadius.circular(4),
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -424,9 +609,7 @@ class _OutgoingTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  waiting
-                      ? 'Waiting for the hospital to pick cover'
-                      : 'Hospital declined — this shift stays yours',
+                  statusText,
                   style: const TextStyle(
                     fontSize: 12.5,
                     color: StaffSurfaces.textSecondary,
@@ -434,11 +617,16 @@ class _OutgoingTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 6),
                 StaffStatusChip(
-                  label: waiting ? 'Waiting' : 'Declined',
-                  tone: waiting ? StaffChipTone.warning : StaffChipTone.danger,
-                  icon: waiting
-                      ? Icons.hourglass_top_outlined
-                      : Icons.highlight_off,
+                  label: waiting
+                      ? 'Waiting'
+                      : approved
+                      ? 'Approved'
+                      : 'Declined',
+                  tone: waiting
+                      ? StaffChipTone.warning
+                      : approved
+                      ? StaffChipTone.success
+                      : StaffChipTone.danger,
                 ),
               ],
             ),

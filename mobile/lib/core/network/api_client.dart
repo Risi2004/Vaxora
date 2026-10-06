@@ -142,7 +142,8 @@ class ApiClient {
 
   static Future<dynamic> postMultipart(
     String endpoint, {
-    required Map<String, String> fields,
+    Map<String, String>? fields,
+    List<http.MultipartFile>? files,
   }) async {
     final uri = Uri.parse('${ApiConstants.baseUrl}$endpoint');
     final token = await StorageService.getToken();
@@ -152,7 +153,43 @@ class ApiClient {
       if (token != null && token.isNotEmpty) {
         request.headers['Authorization'] = 'Bearer $token';
       }
-      request.fields.addAll(fields);
+      if (fields != null && fields.isNotEmpty) {
+        request.fields.addAll(fields);
+      }
+      if (files != null && files.isNotEmpty) {
+        request.files.addAll(files);
+      }
+
+      final streamedResponse = await request.send().timeout(
+        const Duration(seconds: 60),
+      );
+      final response = await http.Response.fromStream(streamedResponse);
+      return _processResponse(response);
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      throw ApiException(
+        'Unable to connect to Vaxora server ($e). Please ensure backend is running at ${ApiConstants.baseUrl}',
+      );
+    }
+  }
+
+  static Future<dynamic> postMultipartFile(
+    String endpoint, {
+    required String fieldName,
+    required List<int> bytes,
+    required String filename,
+  }) async {
+    final uri = Uri.parse('${ApiConstants.baseUrl}$endpoint');
+    final token = await StorageService.getToken();
+
+    try {
+      final request = http.MultipartRequest('POST', uri);
+      if (token != null && token.isNotEmpty) {
+        request.headers['Authorization'] = 'Bearer $token';
+      }
+      request.files.add(
+        http.MultipartFile.fromBytes(fieldName, bytes, filename: filename),
+      );
 
       final streamedResponse = await request.send().timeout(
         const Duration(seconds: 45),

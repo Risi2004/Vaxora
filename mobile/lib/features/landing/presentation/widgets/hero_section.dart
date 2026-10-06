@@ -41,7 +41,7 @@ class HeroSection extends StatelessWidget {
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(999),
+                borderRadius: BorderRadius.circular(12),
               ),
               elevation: 3,
               shadowColor: AppColors.primary.withValues(alpha: 0.4),

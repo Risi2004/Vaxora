@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import { deferEffectCallback } from '../../../shared/utils/deferEffectCallback.js';
+import { useEffect, useMemo, useState } from 'react';
 
 const FALLBACK_VACCINES = [
   'Pfizer-BioNTech Bivalent',
@@ -32,13 +33,17 @@ export default function WalkInRegistrationModal({
   isOpen,
   onClose,
   onAddPatient,
-  vaccines = [],
-  booths = [],
+  vaccines,
+  booths,
 }) {
-  const vaccineOptions = vaccines.length > 0 ? vaccines : FALLBACK_VACCINES;
-  const boothOptions = booths.length > 0
-    ? booths
-    : [{ id: 'default', label: 'Unassigned booth' }];
+  const vaccineOptions = useMemo(
+    () => vaccines?.length > 0 ? vaccines : FALLBACK_VACCINES,
+    [vaccines]
+  );
+  const boothOptions = useMemo(
+    () => booths?.length > 0 ? booths : [{ id: 'default', label: 'Unassigned booth' }],
+    [booths]
+  );
 
   const [formData, setFormData] = useState({
     ...EMPTY_FORM,
@@ -48,7 +53,7 @@ export default function WalkInRegistrationModal({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => {
+  useEffect(() => deferEffectCallback(() => {
     if (!isOpen) return;
     setError('');
     setFormData({
@@ -57,7 +62,7 @@ export default function WalkInRegistrationModal({
       dose: DOSE_OPTIONS[0],
       assignedBooth: boothOptions[0]?.label || '',
     });
-  }, [isOpen, vaccineOptions.join('|'), boothOptions.map((b) => b.label).join('|')]);
+  }), [isOpen, vaccineOptions, boothOptions]);
 
   if (!isOpen) return null;
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
   PatientNavbar,
   DashboardOverview,
@@ -20,7 +20,7 @@ export default function PatientDashboard() {
     setIsBookModalOpen(false);
   };
 
-  const handleBookSuccess = (appointmentData) => {
+  const handleBookSuccess = () => {
     // Navigate to appointments tab so user sees confirmation
     setActiveTab('appointments');
   };

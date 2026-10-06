@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../data/repositories/auth_repository.dart';
 import 'file_upload_picker_box.dart';
 
 class DoctorSignupForm extends StatefulWidget {
@@ -21,7 +22,10 @@ class _DoctorSignupFormState extends State<DoctorSignupForm> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
-  String? _slmcDocName;
+  SelectedFile? _profilePhoto;
+  SelectedFile? _slmcDoc;
+  SelectedFile? _supportingDoc;
+
   bool _showPassword = false;
   bool _showConfirmPassword = false;
   bool _isLoading = false;
@@ -46,7 +50,7 @@ class _DoctorSignupFormState extends State<DoctorSignupForm> {
       return;
     }
 
-    if (_slmcDocName == null || _slmcDocName!.isEmpty) {
+    if (_slmcDoc == null || !_slmcDoc!.hasContent) {
       setState(() => _errorMessage = 'Please upload your SLMC Registration Certificate');
       return;
     }
@@ -63,10 +67,31 @@ class _DoctorSignupFormState extends State<DoctorSignupForm> {
 
     setState(() => _isLoading = true);
 
-    Future.delayed(const Duration(milliseconds: 1200), () {
+    AuthRepository.registerDoctor(
+      email: _emailController.text,
+      password: _passwordController.text,
+      fullName: _fullNameController.text,
+      slmcNumber: _slmcController.text,
+      specialization: _specializationController.text.trim().isNotEmpty
+          ? _specializationController.text
+          : null,
+      phoneNumber: _phoneController.text.trim().isNotEmpty
+          ? _phoneController.text
+          : null,
+      profilePhoto: _profilePhoto,
+      slmcCertificate: _slmcDoc,
+      supportingDocument: _supportingDoc,
+    ).then((_) {
       if (mounted) {
         setState(() => _isLoading = false);
         widget.onSuccess();
+      }
+    }).catchError((e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = e.toString();
+        });
       }
     });
   }
@@ -99,9 +124,11 @@ class _DoctorSignupFormState extends State<DoctorSignupForm> {
           ],
 
           // Profile Photo
-          const FileUploadPickerBox(
+          FileUploadPickerBox(
             label: 'Profile Photo (Optional)',
             placeholder: 'Upload Doctor Profile Picture',
+            allowedExtensions: const ['jpg', 'jpeg', 'png', 'webp'],
+            onFileSelected: (file) => setState(() => _profilePhoto = file),
           ),
           const SizedBox(height: 12),
 
@@ -169,7 +196,7 @@ class _DoctorSignupFormState extends State<DoctorSignupForm> {
                 icon: Icon(
                   _showPassword ? Icons.visibility_off : Icons.visibility,
                   size: 20,
-                  color: const Color(0xFF64748B),
+                  color: const Color(0xFF667B83),
                 ),
                 onPressed: () => setState(() => _showPassword = !_showPassword),
               ),
@@ -192,7 +219,7 @@ class _DoctorSignupFormState extends State<DoctorSignupForm> {
                 icon: Icon(
                   _showConfirmPassword ? Icons.visibility_off : Icons.visibility,
                   size: 20,
-                  color: const Color(0xFF64748B),
+                  color: const Color(0xFF667B83),
                 ),
                 onPressed: () => setState(() => _showConfirmPassword = !_showConfirmPassword),
               ),
@@ -209,15 +236,17 @@ class _DoctorSignupFormState extends State<DoctorSignupForm> {
             label: 'SLMC Registration Certificate/Card',
             placeholder: 'Upload SLMC Certificate (PDF/JPG)',
             isRequired: true,
-            initialFileName: _slmcDocName,
-            onFileSelected: (name) => setState(() => _slmcDocName = name),
+            allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
+            onFileSelected: (file) => setState(() => _slmcDoc = file),
           ),
           const SizedBox(height: 12),
 
           // Supporting Doc
-          const FileUploadPickerBox(
+          FileUploadPickerBox(
             label: 'Additional Supporting Document (Optional)',
             placeholder: 'Hospital ID / Employment Proof (PDF/JPG)',
+            allowedExtensions: const ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png'],
+            onFileSelected: (file) => setState(() => _supportingDoc = file),
           ),
           const SizedBox(height: 18),
 
@@ -228,7 +257,7 @@ class _DoctorSignupFormState extends State<DoctorSignupForm> {
               borderRadius: BorderRadius.circular(10),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF174296).withValues(alpha: 0.35),
+                  color: const Color(0xFF087F78).withValues(alpha: 0.35),
                   blurRadius: 10,
                   offset: const Offset(0, 4),
                 ),

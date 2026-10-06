@@ -30,6 +30,24 @@ class PatientAppointment {
   });
 }
 
+bool isUpcomingPatientAppointment(PatientAppointment appointment) {
+  final status = appointment.status.trim().toLowerCase();
+  if (status == 'completed' || status == 'cancelled' || status == 'rejected') {
+    return false;
+  }
+
+  try {
+    final date = DateTime.parse(appointment.date);
+    final today = DateTime.now();
+    final appointmentDay = DateTime(date.year, date.month, date.day);
+    final todayStart = DateTime(today.year, today.month, today.day);
+    return !appointmentDay.isBefore(todayStart);
+  } catch (_) {
+    // Keep undated records visible in Upcoming, matching the booking screen.
+    return true;
+  }
+}
+
 class AppointmentCard extends StatelessWidget {
   final PatientAppointment appointment;
   final VoidCallback onViewSlip;

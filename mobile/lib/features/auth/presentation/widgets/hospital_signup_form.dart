@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../data/repositories/auth_repository.dart';
 import 'file_upload_picker_box.dart';
 
 class ProvinceDistricts {
@@ -45,8 +46,9 @@ class _HospitalSignupFormState extends State<HospitalSignupForm> {
   String? _selectedProvince = 'Western Province';
   String? _selectedDistrict = 'Colombo';
 
-  String? _regProofName;
-  String? _addrProofName;
+  SelectedFile? _logo;
+  SelectedFile? _regProof;
+  SelectedFile? _addrProof;
 
   bool _showPassword = false;
   bool _showConfirmPassword = false;
@@ -80,8 +82,8 @@ class _HospitalSignupFormState extends State<HospitalSignupForm> {
       return;
     }
 
-    if (_regProofName == null || _regProofName!.isEmpty) {
-      setState(() => _errorMessage = 'Please upload Proof of Registration');
+    if (_regProof == null || !_regProof!.hasContent) {
+      setState(() => _errorMessage = 'Please upload Proof of Hospital Registration');
       return;
     }
 
@@ -97,10 +99,33 @@ class _HospitalSignupFormState extends State<HospitalSignupForm> {
 
     setState(() => _isLoading = true);
 
-    Future.delayed(const Duration(milliseconds: 1200), () {
+    final operatingHours = _operatingHoursType == '24hrs' ? '24 Hours' : 'Daytime / Standard Clinic Hours';
+
+    AuthRepository.registerHospital(
+      email: _emailController.text,
+      password: _passwordController.text,
+      hospitalName: _nameController.text,
+      registrationNumber: _regNoController.text,
+      hospitalType: _hospitalType,
+      operatingHours: operatingHours,
+      address: _addressController.text.trim().isNotEmpty ? _addressController.text : null,
+      district: _selectedDistrict,
+      province: _selectedProvince,
+      contactNumber: _phoneController.text.trim().isNotEmpty ? _phoneController.text : null,
+      logo: _logo,
+      registrationCertificate: _regProof,
+      mohDocument: _addrProof,
+    ).then((_) {
       if (mounted) {
         setState(() => _isLoading = false);
         widget.onSuccess();
+      }
+    }).catchError((e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = e.toString();
+        });
       }
     });
   }
@@ -133,9 +158,11 @@ class _HospitalSignupFormState extends State<HospitalSignupForm> {
           ],
 
           // Hospital Logo
-          const FileUploadPickerBox(
+          FileUploadPickerBox(
             label: 'Hospital / Facility Logo (Optional)',
             placeholder: 'Upload Hospital Brand Logo',
+            allowedExtensions: const ['jpg', 'jpeg', 'png', 'webp'],
+            onFileSelected: (file) => setState(() => _logo = file),
           ),
           const SizedBox(height: 12),
 
@@ -182,50 +209,14 @@ class _HospitalSignupFormState extends State<HospitalSignupForm> {
             ),
             dropdownColor: Colors.white,
             items: const [
-              DropdownMenuItem(value: '24hrs', child: Text('Open 24 Hours')),
-              DropdownMenuItem(value: 'custom', child: Text('Day Shifts (08:00 - 18:00)')),
+              DropdownMenuItem(value: '24hrs', child: Text('Open 24 Hours / Emergency Care')),
+              DropdownMenuItem(value: 'Daytime', child: Text('Daytime / Standard Clinic Hours')),
             ],
             onChanged: (v) => setState(() => _operatingHoursType = v ?? '24hrs'),
           ),
           const SizedBox(height: 12),
 
-          // Official Email
-          TextFormField(
-            controller: _emailController,
-            keyboardType: TextInputType.emailAddress,
-            decoration: const InputDecoration(
-              hintText: 'Official Hospital Email *',
-            ),
-            validator: (v) {
-              if (v == null || v.trim().isEmpty) return 'Please enter official email';
-              if (!v.contains('@')) return 'Enter a valid email address';
-              return null;
-            },
-          ),
-          const SizedBox(height: 12),
-
-          // Contact Number
-          TextFormField(
-            controller: _phoneController,
-            keyboardType: TextInputType.phone,
-            decoration: const InputDecoration(
-              hintText: 'Hospital Hotline / Contact Number *',
-            ),
-            validator: (v) => (v == null || v.trim().isEmpty) ? 'Please enter contact number' : null,
-          ),
-          const SizedBox(height: 12),
-
-          // Address
-          TextFormField(
-            controller: _addressController,
-            decoration: const InputDecoration(
-              hintText: 'Hospital Street Address *',
-            ),
-            validator: (v) => (v == null || v.trim().isEmpty) ? 'Please enter address' : null,
-          ),
-          const SizedBox(height: 12),
-
-          // Province Dropdown
+          // Province (Dropdown)
           DropdownButtonFormField<String>(
             initialValue: _selectedProvince,
             decoration: const InputDecoration(
@@ -235,17 +226,18 @@ class _HospitalSignupFormState extends State<HospitalSignupForm> {
             items: slProvinces.map((p) {
               return DropdownMenuItem(value: p.province, child: Text(p.province));
             }).toList(),
-            onChanged: (prov) {
+            onChanged: (v) {
               setState(() {
-                _selectedProvince = prov;
+                _selectedProvince = v;
                 _selectedDistrict = _currentDistricts.first;
               });
             },
           ),
           const SizedBox(height: 12),
 
-          // District Dropdown
+          // District (Dropdown)
           DropdownButtonFormField<String>(
+            key: ValueKey(_selectedProvince),
             initialValue: _selectedDistrict,
             decoration: const InputDecoration(
               hintText: 'District *',
@@ -254,7 +246,44 @@ class _HospitalSignupFormState extends State<HospitalSignupForm> {
             items: _currentDistricts.map((d) {
               return DropdownMenuItem(value: d, child: Text(d));
             }).toList(),
-            onChanged: (d) => setState(() => _selectedDistrict = d),
+            onChanged: (v) => setState(() => _selectedDistrict = v),
+          ),
+          const SizedBox(height: 12),
+
+          // Physical Address
+          TextFormField(
+            controller: _addressController,
+            maxLines: 2,
+            decoration: const InputDecoration(
+              hintText: 'Physical Street Address / Location *',
+            ),
+            validator: (v) => (v == null || v.trim().isEmpty) ? 'Please enter hospital address' : null,
+          ),
+          const SizedBox(height: 12),
+
+          // Contact Number
+          TextFormField(
+            controller: _phoneController,
+            keyboardType: TextInputType.phone,
+            decoration: const InputDecoration(
+              hintText: 'Main Hospital Contact / Landline *',
+            ),
+            validator: (v) => (v == null || v.trim().isEmpty) ? 'Please enter contact number' : null,
+          ),
+          const SizedBox(height: 12),
+
+          // Work Email
+          TextFormField(
+            controller: _emailController,
+            keyboardType: TextInputType.emailAddress,
+            decoration: const InputDecoration(
+              hintText: 'Official Hospital Administration Email *',
+            ),
+            validator: (v) {
+              if (v == null || v.trim().isEmpty) return 'Please enter administrative email';
+              if (!v.contains('@')) return 'Enter a valid email address';
+              return null;
+            },
           ),
           const SizedBox(height: 12),
 
@@ -263,12 +292,12 @@ class _HospitalSignupFormState extends State<HospitalSignupForm> {
             controller: _passwordController,
             obscureText: !_showPassword,
             decoration: InputDecoration(
-              hintText: 'Administrator Password (Min 6 characters) *',
+              hintText: 'Password (Min 6 characters) *',
               suffixIcon: IconButton(
                 icon: Icon(
                   _showPassword ? Icons.visibility_off : Icons.visibility,
                   size: 20,
-                  color: const Color(0xFF64748B),
+                  color: const Color(0xFF667B83),
                 ),
                 onPressed: () => setState(() => _showPassword = !_showPassword),
               ),
@@ -291,7 +320,7 @@ class _HospitalSignupFormState extends State<HospitalSignupForm> {
                 icon: Icon(
                   _showConfirmPassword ? Icons.visibility_off : Icons.visibility,
                   size: 20,
-                  color: const Color(0xFF64748B),
+                  color: const Color(0xFF667B83),
                 ),
                 onPressed: () => setState(() => _showConfirmPassword = !_showConfirmPassword),
               ),
@@ -308,8 +337,8 @@ class _HospitalSignupFormState extends State<HospitalSignupForm> {
             label: 'Proof of Hospital Registration / License',
             placeholder: 'Upload Operating License (PDF/JPG)',
             isRequired: true,
-            initialFileName: _regProofName,
-            onFileSelected: (name) => setState(() => _regProofName = name),
+            allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
+            onFileSelected: (file) => setState(() => _regProof = file),
           ),
           const SizedBox(height: 12),
 
@@ -317,8 +346,8 @@ class _HospitalSignupFormState extends State<HospitalSignupForm> {
           FileUploadPickerBox(
             label: 'Proof of Address / Facility Document (Optional)',
             placeholder: 'Upload Utility Bill / Government Notice (PDF/JPG)',
-            initialFileName: _addrProofName,
-            onFileSelected: (name) => setState(() => _addrProofName = name),
+            allowedExtensions: const ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png'],
+            onFileSelected: (file) => setState(() => _addrProof = file),
           ),
           const SizedBox(height: 18),
 
@@ -329,7 +358,7 @@ class _HospitalSignupFormState extends State<HospitalSignupForm> {
               borderRadius: BorderRadius.circular(10),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF174296).withValues(alpha: 0.35),
+                  color: const Color(0xFF087F78).withValues(alpha: 0.35),
                   blurRadius: 10,
                   offset: const Offset(0, 4),
                 ),

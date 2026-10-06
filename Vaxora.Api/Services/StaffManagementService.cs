@@ -153,11 +153,15 @@ public class StaffManagementService : IStaffManagementService
             .ToListAsync();
 
         var candidateIds = candidates.Select(c => c.Id).ToList();
+        var singleHospitalNurseIds = candidates
+            .Where(c => c.Role == UserRole.NURSE)
+            .Select(c => c.Id)
+            .ToList();
         var blockedIds = await _context.StaffAffiliations
             .AsNoTracking()
             .Where(a =>
-                a.HospitalUserId == hospitalUserId &&
-                candidateIds.Contains(a.StaffUserId) &&
+                ((a.HospitalUserId == hospitalUserId && candidateIds.Contains(a.StaffUserId)) ||
+                 singleHospitalNurseIds.Contains(a.StaffUserId)) &&
                 (a.Status == AffiliationStatus.Pending || a.Status == AffiliationStatus.Active))
             .Select(a => a.StaffUserId)
             .ToListAsync();
@@ -360,6 +364,19 @@ public class StaffManagementService : IStaffManagementService
         affiliation.DutyUpdatedAt = DateTime.UtcNow;
         affiliation.DutyUpdatedByUserId = hospitalUserId;
 
+        // If staff no longer belongs to any hospital, revoke refresh session so
+        // a phone/browser cannot keep renewing access after roster removal.
+        var stillAffiliated = await _context.StaffAffiliations.AnyAsync(a =>
+            a.StaffUserId == affiliation.StaffUserId &&
+            a.Id != affiliation.Id &&
+            a.Status == AffiliationStatus.Active);
+
+        if (!stillAffiliated && affiliation.StaffUser != null)
+        {
+            affiliation.StaffUser.RefreshToken = null;
+            affiliation.StaffUser.RefreshTokenExpiryTime = null;
+        }
+
         var hospital = await _context.Users.FirstAsync(u => u.Id == hospitalUserId);
         _context.AuditLogs.Add(new AuditLog
         {
@@ -367,7 +384,9 @@ public class StaffManagementService : IStaffManagementService
             UserEmail = hospital.Email,
             Role = "HOSPITAL",
             Action = "STAFF_REMOVED",
-            Details = $"Hospital removed staff {affiliation.StaffUser.RegistrationNumber} from roster"
+            Details = stillAffiliated
+                ? $"Hospital removed staff {affiliation.StaffUser.RegistrationNumber} from roster"
+                : $"Hospital removed staff {affiliation.StaffUser.RegistrationNumber} from roster; refresh session revoked (no remaining affiliations)"
         });
 
         await _context.SaveChangesAsync();

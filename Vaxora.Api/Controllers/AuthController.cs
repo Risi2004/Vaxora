@@ -234,8 +234,13 @@ public class AuthController : ControllerBase
     [Authorize]
     [HttpPost("profile/photo")]
     [Consumes("multipart/form-data")]
-    public async Task<IActionResult> UpdateProfilePhoto([FromForm] IFormFile photo)
+    public async Task<IActionResult> UpdateProfilePhoto([FromForm] ProfilePhotoUploadDto request)
     {
+        if (request?.Photo == null || request.Photo.Length == 0)
+        {
+            return BadRequest(new { message = "No photo file uploaded." });
+        }
+
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
             ?? User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)?.Value;
 
@@ -246,7 +251,7 @@ public class AuthController : ControllerBase
 
         try
         {
-            var updatedUser = await _authService.UpdateProfilePhotoAsync(userId, photo);
+            var updatedUser = await _authService.UpdateProfilePhotoAsync(userId, request.Photo);
             return Ok(updatedUser);
         }
         catch (KeyNotFoundException)
@@ -291,16 +296,24 @@ public class AuthController : ControllerBase
         }
     }
 
-    [Authorize]
+    /// <summary>
+    /// Clears server refresh session. Accepts an optional refresh token body so
+    /// clients can logout even when the short-lived access token has already expired.
+    /// </summary>
+    [AllowAnonymous]
     [HttpPost("logout")]
-    public async Task<IActionResult> Logout()
+    public async Task<IActionResult> Logout([FromBody] LogoutRequestDto? dto = null)
     {
-        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value 
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
             ?? User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)?.Value;
 
         if (Guid.TryParse(userIdClaim, out var userId))
         {
             await _authService.LogoutAsync(userId);
+        }
+        else if (!string.IsNullOrWhiteSpace(dto?.RefreshToken))
+        {
+            await _authService.LogoutByRefreshTokenAsync(dto.RefreshToken);
         }
 
         return Ok(new { message = "Logged out successfully." });

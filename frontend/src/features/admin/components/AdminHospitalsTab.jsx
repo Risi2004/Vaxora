@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { IconHospital, IconPackage, IconSearch, IconSnowflake } from '../../../shared/icons/AppIcons';
 
 export default function AdminHospitalsTab() {

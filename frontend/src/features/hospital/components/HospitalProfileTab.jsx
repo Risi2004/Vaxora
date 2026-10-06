@@ -1,9 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { deferEffectCallback } from '../../../shared/utils/deferEffectCallback.js';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { authService } from '../../auth';
 import AddStaffRequestModal from './AddStaffRequestModal';
 import staffService from '../services/staffService';
 import { IconDoctor, IconFile, IconNurse } from './HospitalIcons';
 import HospitalSubpageHero from './HospitalSubpageHero';
+import DeleteAccountModal from '../../auth/components/DeleteAccountModal';
+import { IconTrash } from '../../../shared/icons/AppIcons';
 
 export default function HospitalProfileTab() {
   const fileInputRef = useRef(null);
@@ -14,6 +17,7 @@ export default function HospitalProfileTab() {
   const [isInviting, setIsInviting] = useState(false);
   const [notification, setNotification] = useState('');
   const [notificationType, setNotificationType] = useState('success');
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
   const [hospitalInfo, setHospitalInfo] = useState({
     id: '',
@@ -41,7 +45,7 @@ export default function HospitalProfileTab() {
     setTimeout(() => setNotification(''), 3500);
   };
 
-  const populateState = (user) => {
+  const populateState = useCallback((user) => {
     const details = user.profileDetails || {};
     setHospitalInfo({
       id: user.registrationNumber || details.registrationNumber || 'VAX-H-000000',
@@ -59,9 +63,9 @@ export default function HospitalProfileTab() {
       registrationDocKey: details.registrationDocKey || null,
       mohDocKey: details.mohDocKey || null,
     });
-  };
+  }, []);
 
-  const applyStaffList = (list) => {
+  const applyStaffList = useCallback((list) => {
     const active = (Array.isArray(list) ? list : []).filter((item) => item.status === 'Active');
     setDoctors(
       active
@@ -81,9 +85,9 @@ export default function HospitalProfileTab() {
           photoUrl: item.staffProfilePhotoUrl || null,
         }))
     );
-  };
+  }, []);
 
-  const loadHospitalProfile = async () => {
+  const loadHospitalProfile = useCallback(async () => {
     try {
       const cached = authService.getUser();
       if (cached) populateState(cached);
@@ -99,11 +103,11 @@ export default function HospitalProfileTab() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [populateState, applyStaffList]);
 
-  useEffect(() => {
+  useEffect(() => deferEffectCallback(() => {
     loadHospitalProfile();
-  }, []);
+  }), [loadHospitalProfile]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -526,6 +530,65 @@ export default function HospitalProfileTab() {
             </button>
           </div>
         </div>
+
+        {/* Danger Zone Card */}
+        <div
+          className="hospital-staff-section"
+          style={{
+            borderColor: 'rgba(239, 68, 68, 0.35)',
+            background: 'linear-gradient(180deg, rgba(239, 68, 68, 0.05) 0%, rgba(15, 23, 42, 0.4) 100%)',
+            borderRadius: '16px',
+            padding: '24px',
+            marginTop: '20px',
+            border: '1px solid rgba(239, 68, 68, 0.35)',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '16px',
+            }}
+          >
+            <div>
+              <h4 style={{ margin: '0 0 6px', color: '#ef4444', fontSize: '1.05rem', fontWeight: 700 }}>
+                Danger Zone
+              </h4>
+              <p style={{ margin: 0, fontSize: '0.85rem', color: '#94a3b8', maxWidth: '600px' }}>
+                Permanently delete your hospital facility account, staff rosters, vaults, and inventory registrations. This action cannot be undone.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsDeleteModalOpen(true)}
+              style={{
+                background: '#dc2626',
+                color: '#ffffff',
+                border: '1px solid #ef4444',
+                borderRadius: '8px',
+                padding: '10px 18px',
+                fontSize: '0.88rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                boxShadow: '0 2px 8px rgba(220, 38, 38, 0.3)',
+              }}
+            >
+              <IconTrash size={16} /> Delete Account
+            </button>
+          </div>
+        </div>
+
+        <DeleteAccountModal
+          isOpen={isDeleteModalOpen}
+          onClose={() => setIsDeleteModalOpen(false)}
+          userName={hospitalInfo.name || 'Hospital Facility'}
+          roleName="Hospital"
+        />
       </div>
     </div>
   );

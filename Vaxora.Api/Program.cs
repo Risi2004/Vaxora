@@ -30,10 +30,10 @@ var builder = WebApplication.CreateBuilder(args);
 
 // 1. Configure Database Connection (Neon PostgreSQL / Npgsql)
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-if (string.IsNullOrWhiteSpace(connectionString))
+if (string.IsNullOrWhiteSpace(connectionString) || connectionString.Contains("PASTE_YOUR_ORIGINAL_CONNECTION_STRING_HERE"))
 {
-    connectionString = builder.Configuration["DATABASE_URL"]
-        ?? Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")
+    connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")
+        ?? builder.Configuration["DATABASE_URL"]
         ?? Environment.GetEnvironmentVariable("DATABASE_URL")
         ?? "Host=localhost;Database=vaxoradb;Username=postgres;Password=postgres";
 }
@@ -85,7 +85,9 @@ builder.Services.AddScoped<IPayHereService, PayHereService>();
 builder.Services.AddScoped<IPatientVaccinationService, PatientVaccinationService>();
 builder.Services.AddScoped<IPatientMedicalHistoryService, PatientMedicalHistoryService>();
 builder.Services.AddScoped<IPatientVisitService, PatientVisitService>();
+builder.Services.AddScoped<IClinicalScopeService, ClinicalScopeService>();
 builder.Services.AddScoped<IClinicalPatientService, ClinicalPatientService>();
+builder.Services.AddScoped<IFeedbackService, FeedbackService>();
 
 // Internal Agentic AI service gateway. Clients call this API, never the agent directly.
 var envAgentUrl = Environment.GetEnvironmentVariable("AGENT_SERVICE_URL")

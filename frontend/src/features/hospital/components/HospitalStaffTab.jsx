@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { deferEffectCallback } from '../../../shared/utils/deferEffectCallback.js';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AddStaffRequestModal from './AddStaffRequestModal';
 import HospitalCoverRequestsPanel from './HospitalCoverRequestsPanel';
 import HospitalShiftsPanel from './HospitalShiftsPanel';
@@ -44,7 +45,7 @@ export default function HospitalStaffTab() {
   const [loading, setLoading] = useState(true);
   const [staffList, setStaffList] = useState([]);
   const [actionId, setActionId] = useState(null);
-  const [sortBy, setSortBy] = useState('name');
+  const [sortBy] = useState('name');
   const [page, setPage] = useState(1);
   const [pendingCoverCount, setPendingCoverCount] = useState(0);
   const pageSize = 6;
@@ -79,9 +80,9 @@ export default function HospitalStaffTab() {
     }
   }, []);
 
-  useEffect(() => {
+  useEffect(() => deferEffectCallback(() => {
     loadStaff();
-  }, [loadStaff]);
+  }), [loadStaff]);
 
   useEffect(() => {
     let cancelled = false;
@@ -163,9 +164,9 @@ export default function HospitalStaffTab() {
     });
   }, [staffList, activeTab, searchQuery, sortBy]);
 
-  useEffect(() => {
+  useEffect(() => deferEffectCallback(() => {
     setPage((current) => Math.min(current, Math.max(1, Math.ceil(filteredStaff.length / pageSize))));
-  }, [activeTab, searchQuery, sortBy, filteredStaff.length]);
+  }), [activeTab, searchQuery, sortBy, filteredStaff.length]);
 
   const pageCount = Math.max(1, Math.ceil(filteredStaff.length / pageSize));
   const visibleStaff = filteredStaff.slice((page - 1) * pageSize, page * pageSize);

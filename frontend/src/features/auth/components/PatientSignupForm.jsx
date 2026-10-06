@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { authService } from '../services/authService';
 import { IconUser } from '../../../shared/icons/AppIcons';
 

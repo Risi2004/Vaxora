@@ -1,4 +1,4 @@
-import React from 'react';
+
 import HospitalBoothsPanel from './HospitalBoothsPanel';
 import HospitalSubpageHero from './HospitalSubpageHero';
 

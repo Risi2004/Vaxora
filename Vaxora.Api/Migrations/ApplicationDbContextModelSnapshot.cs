@@ -479,6 +479,79 @@ namespace Vaxora.Api.Migrations
                     b.ToTable("DoctorProfiles");
                 });
 
+            modelBuilder.Entity("Vaxora.Api.Models.Feedback", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AdminResponse")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("HospitalName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("InternalNotes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<bool>("IsAnonymous")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<int>("Rating")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("RepliedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Subject")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("SubmitterEmail")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("SubmitterName")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("SubmitterPhone")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "CreatedAt")
+                        .IsDescending(false, true);
+
+                    b.ToTable("Feedbacks");
+                });
+
             modelBuilder.Entity("Vaxora.Api.Models.HospitalBooth", b =>
                 {
                     b.Property<Guid>("Id")
@@ -546,6 +619,9 @@ namespace Vaxora.Api.Migrations
 
                     b.Property<DateTime>("RegisteredAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("Price")
+                        .HasColumnType("numeric");
 
                     b.Property<Guid>("VaccineId")
                         .HasColumnType("uuid");
@@ -1332,14 +1408,6 @@ namespace Vaxora.Api.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)");
 
-                    b.Property<string>("DoctorName")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<Guid?>("DoctorUserId")
-                        .HasColumnType("uuid");
-
                     b.Property<DateOnly?>("EndDate")
                         .HasColumnType("date");
 
@@ -1352,14 +1420,6 @@ namespace Vaxora.Api.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("HospitalUserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("NurseName")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<Guid?>("NurseUserId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid?>("BoothId")
@@ -1408,11 +1468,7 @@ namespace Vaxora.Api.Migrations
 
                     b.HasIndex("BoothId");
 
-                    b.HasIndex("DoctorUserId");
-
                     b.HasIndex("HospitalUserId");
-
-                    b.HasIndex("NurseUserId");
 
                     b.HasIndex("VaccineId");
 
@@ -1489,6 +1545,17 @@ namespace Vaxora.Api.Migrations
                     b.HasOne("Vaxora.Api.Models.User", "User")
                         .WithOne("DoctorProfile")
                         .HasForeignKey("Vaxora.Api.Models.DoctorProfile", "UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Vaxora.Api.Models.Feedback", b =>
+                {
+                    b.HasOne("Vaxora.Api.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -1740,19 +1807,11 @@ namespace Vaxora.Api.Migrations
                         .HasForeignKey("BoothId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("Vaxora.Api.Models.User", "DoctorUser")
-                        .WithMany()
-                        .HasForeignKey("DoctorUserId");
-
                     b.HasOne("Vaxora.Api.Models.User", "HospitalUser")
                         .WithMany()
                         .HasForeignKey("HospitalUserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.HasOne("Vaxora.Api.Models.User", "NurseUser")
-                        .WithMany()
-                        .HasForeignKey("NurseUserId");
 
                     b.HasOne("Vaxora.Api.Models.Vaccine", "Vaccine")
                         .WithMany()
@@ -1760,11 +1819,7 @@ namespace Vaxora.Api.Migrations
 
                     b.Navigation("Booth");
 
-                    b.Navigation("DoctorUser");
-
                     b.Navigation("HospitalUser");
-
-                    b.Navigation("NurseUser");
 
                     b.Navigation("Vaccine");
                 });

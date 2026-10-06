@@ -11,6 +11,7 @@ public interface IInventoryService
     Task<List<VaccineWithHospitalsDto>> GetVaccinesWithHospitalsAsync();
     Task<List<FormularyEntryDto>> GetFormularyAsync(Guid userId);
     Task<FormularyEntryDto> RegisterFormularyAsync(Guid userId, RegisterFormularyDto dto);
+    Task<FormularyEntryDto> UpdateFormularyPriceAsync(Guid userId, Guid formularyId, UpdateFormularyPriceDto dto);
     Task<bool> RemoveFormularyAsync(Guid userId, Guid formularyId);
     Task<List<InventoryItemDto>> GetInventoryAsync(Guid userId, Guid? hospitalUserId = null);
     Task<InventoryItemDto> RestockBatchAsync(Guid userId, RestockBatchDto dto);
@@ -104,6 +105,15 @@ public class InventoryService : IInventoryService
         VaccineCategory.Pediatric => "pediatric",
         _ => "routine"
     };
+
+    private static VaccineCategory ParseCategory(string? raw) =>
+        (raw ?? string.Empty).Trim().ToLowerInvariant() switch
+        {
+            "mrna" => VaccineCategory.MRNA,
+            "seasonal" => VaccineCategory.Seasonal,
+            "pediatric" => VaccineCategory.Pediatric,
+            _ => VaccineCategory.Routine
+        };
 
     private static string ComputeStatusColor(int available, int minThreshold)
     {
@@ -255,6 +265,7 @@ public class InventoryService : IInventoryService
                 VaccineId = f.VaccineId,
                 VaccineName = f.Vaccine.Name,
                 Manufacturer = f.Vaccine.Manufacturer,
+                Price = f.Price,
                 RegisteredAt = f.RegisteredAt
             })
             .ToListAsync();
@@ -268,6 +279,8 @@ public class InventoryService : IInventoryService
         var (_, userEmail) = await GetUserInfoAsync(userId);
 
         var normalizedName = dto.VaccineName.Trim();
+        var price = Math.Max(0.00m, dto.Price);
+        var category = ParseCategory(dto.Category);
         var vaccine = await _context.Vaccines
             .FirstOrDefaultAsync(v => v.Name.ToLower() == normalizedName.ToLower());
 
@@ -277,7 +290,7 @@ public class InventoryService : IInventoryService
             {
                 Name = normalizedName,
                 Manufacturer = string.IsNullOrWhiteSpace(dto.Manufacturer) ? "Authorized State Manufacturer" : dto.Manufacturer.Trim(),
-                Category = VaccineCategory.Routine,
+                Category = category,
                 DosesPerVial = 1,
                 RequiredTemp = "2°C to 8°C Chilled",
                 DefaultMinThreshold = 100
@@ -285,26 +298,28 @@ public class InventoryService : IInventoryService
             _context.Vaccines.Add(vaccine);
             await _context.SaveChangesAsync();
         }
+        else if (!string.IsNullOrWhiteSpace(dto.Category) && vaccine.Category != category)
+        {
+            // Allow hospital to correct catalog category when (re)registering
+            vaccine.Category = category;
+        }
 
         var existing = await _context.HospitalFormularies
             .FirstOrDefaultAsync(f => f.HospitalProfileId == hospital.Id && f.VaccineId == vaccine.Id);
 
         if (existing != null)
         {
-            return new FormularyEntryDto
-            {
-                Id = existing.Id,
-                VaccineId = vaccine.Id,
-                VaccineName = vaccine.Name,
-                Manufacturer = vaccine.Manufacturer,
-                RegisteredAt = existing.RegisteredAt
-            };
+            existing.Price = price;
+            await SyncActiveSchedulePricesAsync(hospital.UserId, hospital.Id, vaccine.Id, price);
+            await _context.SaveChangesAsync();
+            return MapFormularyDto(existing, vaccine);
         }
 
         var entry = new HospitalFormulary
         {
             HospitalProfileId = hospital.Id,
-            VaccineId = vaccine.Id
+            VaccineId = vaccine.Id,
+            Price = price
         };
         _context.HospitalFormularies.Add(entry);
 
@@ -314,21 +329,62 @@ public class InventoryService : IInventoryService
             UserEmail = userEmail,
             Role = "HOSPITAL",
             Action = "FORMULARY_REGISTERED",
-            Details = $"Vaccine '{vaccine.Name}' added to formulary",
+            Details = $"Vaccine '{vaccine.Name}' added to formulary at {(price <= 0 ? "Free" : $"LKR {price:N2}")}",
             Timestamp = DateTime.UtcNow
         });
 
         await _context.SaveChangesAsync();
 
-        return new FormularyEntryDto
-        {
-            Id = entry.Id,
-            VaccineId = vaccine.Id,
-            VaccineName = vaccine.Name,
-            Manufacturer = vaccine.Manufacturer,
-            RegisteredAt = entry.RegisteredAt
-        };
+        return MapFormularyDto(entry, vaccine);
     }
+
+    public async Task<FormularyEntryDto> UpdateFormularyPriceAsync(Guid userId, Guid formularyId, UpdateFormularyPriceDto dto)
+    {
+        var hospital = await GetHospitalAsync(userId)
+            ?? throw new InvalidOperationException("Only hospital accounts can manage formulary.");
+
+        var entry = await _context.HospitalFormularies
+            .Include(f => f.Vaccine)
+            .FirstOrDefaultAsync(f => f.Id == formularyId && f.HospitalProfileId == hospital.Id)
+            ?? throw new KeyNotFoundException("Formulary entry not found.");
+
+        var price = Math.Max(0.00m, dto.Price);
+        entry.Price = price;
+        if (!string.IsNullOrWhiteSpace(dto.Category) && entry.Vaccine != null)
+            entry.Vaccine.Category = ParseCategory(dto.Category);
+        await SyncActiveSchedulePricesAsync(hospital.UserId, hospital.Id, entry.VaccineId, price);
+        await _context.SaveChangesAsync();
+
+        return MapFormularyDto(entry, entry.Vaccine!);
+    }
+
+    private async Task SyncActiveSchedulePricesAsync(
+        Guid hospitalUserId,
+        Guid hospitalProfileId,
+        Guid vaccineId,
+        decimal price)
+    {
+        var schedules = await _context.VaccineSchedules
+            .Where(s =>
+                s.Status == "Active" &&
+                (s.HospitalUserId == hospitalUserId || s.HospitalProfileId == hospitalProfileId) &&
+                s.VaccineId == vaccineId)
+            .ToListAsync();
+
+        foreach (var schedule in schedules)
+            schedule.Price = price;
+    }
+
+    private static FormularyEntryDto MapFormularyDto(HospitalFormulary entry, Vaccine vaccine) => new()
+    {
+        Id = entry.Id,
+        VaccineId = vaccine.Id,
+        VaccineName = vaccine.Name,
+        Manufacturer = vaccine.Manufacturer,
+        Category = ComputeCategory(vaccine.Category),
+        Price = entry.Price,
+        RegisteredAt = entry.RegisteredAt
+    };
 
     public async Task<bool> RemoveFormularyAsync(Guid userId, Guid formularyId)
     {
@@ -394,7 +450,7 @@ public class InventoryService : IInventoryService
             {
                 Name = normalizedName,
                 Manufacturer = string.IsNullOrWhiteSpace(dto.Supplier) ? "Authorized State Manufacturer" : dto.Supplier.Trim(),
-                Category = VaccineCategory.Routine,
+                Category = ParseCategory(dto.Category),
                 DosesPerVial = 1,
                 RequiredTemp = "2°C to 8°C Chilled",
                 DefaultMinThreshold = 100
@@ -709,7 +765,7 @@ public class InventoryService : IInventoryService
         var entries = transactions.Select(t => new AuditEntryDto
         {
             Id = t.Id,
-            Timestamp = t.Timestamp.ToLocalTime().ToString("yyyy-MM-dd hh:mm tt"),
+            Timestamp = DateTime.SpecifyKind(t.Timestamp, DateTimeKind.Utc).AddHours(5.5).ToString("yyyy-MM-dd hh:mm tt"),
             Event = BuildEventText(t, batch),
             Actor = t.PerformedByName ?? "System",
             Type = t.Type switch
@@ -1101,22 +1157,29 @@ public class InventoryService : IInventoryService
 
     public async Task<List<InventoryAgentWorkflowDto>> GetRecentAgentWorkflowsAsync(Guid userId, int limit)
     {
+        limit = Math.Clamp(limit, 1, 50);
+
+        // Load then cap in-memory so EF InMemory (used by unit tests) cannot
+        // ignore Take/UserId filters the way server-side composition sometimes does.
         var logs = await _context.AuditLogs
-            .Where(a => a.Action.StartsWith("AI_"))
-            .OrderByDescending(a => a.Timestamp)
-            .Take(limit)
+            .AsNoTracking()
+            .Where(a => a.UserId.HasValue && a.UserId.Value == userId && a.Action.StartsWith("AI_"))
             .ToListAsync();
 
-        return logs.Select(l => new InventoryAgentWorkflowDto
-        {
-            WorkflowId = ExtractWorkflowId(l.Details ?? ""),
-            AgentName = l.Action.Contains("PO") || l.Action.Contains("RESTOCK") ? "RestockAgent" : "ExpiryAgent",
-            DraftType = l.Action.Contains("PO") ? "purchase_order" : "expiry_memo",
-            DocumentNumber = ExtractDocNumber(l.Details ?? ""),
-            Summary = l.Details ?? "",
-            Status = "executed",
-            CreatedAt = l.Timestamp
-        }).ToList();
+        return logs
+            .OrderByDescending(a => a.Timestamp)
+            .Take(limit)
+            .Select(l => new InventoryAgentWorkflowDto
+            {
+                WorkflowId = ExtractWorkflowId(l.Details ?? ""),
+                AgentName = l.Action.Contains("PO") || l.Action.Contains("RESTOCK") ? "RestockAgent" : "ExpiryAgent",
+                DraftType = l.Action.Contains("PO") ? "purchase_order" : "expiry_memo",
+                DocumentNumber = ExtractDocNumber(l.Details ?? ""),
+                Summary = l.Details ?? "",
+                Status = "executed",
+                CreatedAt = l.Timestamp
+            })
+            .ToList();
     }
 
     private static string ExtractWorkflowId(string details)

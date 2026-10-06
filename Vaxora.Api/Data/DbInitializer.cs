@@ -15,6 +15,89 @@ public static class DbInitializer
 
         try
         {
+            // Ensure __EFMigrationsHistory table exists in public schema
+            try
+            {
+                await context.Database.ExecuteSqlRawAsync(@"
+                    CREATE TABLE IF NOT EXISTS ""__EFMigrationsHistory"" (
+                        ""MigrationId"" character varying(150) NOT NULL,
+                        ""ProductVersion"" character varying(32) NOT NULL,
+                        CONSTRAINT ""PK___EFMigrationsHistory"" PRIMARY KEY (""MigrationId"")
+                    );
+                ");
+
+                // 20260928004401_AddAppointmentsAndBooths is a consolidated full-schema baseline migration.
+                // On a clean database, executing the 16 historical migrations prior to AddAppointmentsAndBooths
+                // causes collision because AddAppointmentsAndBooths re-creates the initial sequences and tables.
+                // We baseline these historical migrations so AddAppointmentsAndBooths executes cleanly as the schema baseline.
+                var baselineHistoricalMigrations = new[]
+                {
+                    "20260910031256_InitialCreate",
+                    "20260910041633_AlignSignupSchema",
+                    "20260910044322_RemoveDoctorHospitalAffiliation",
+                    "20260910044524_RemoveNurseDepartmentAndAffiliation",
+                    "20260910051426_AddVaxoraRegistrationNumbersAndSequences",
+                    "20260912125907_AddStaffManagement",
+                    "20260914063649_AddInventoryModule",
+                    "20260918000000_AddAppointmentScheduleModule",
+                    "20260920070000_AddAppointmentPrescribedDosage",
+                    "20260920120000_AddPatientRecordsModule",
+                    "20260922193000_AddAgentWorkflowState",
+                    "20260924160000_AddHospitalBooths",
+                    "20260924180000_AddHospitalBoothVaccines",
+                    "20260926080618_SyncModelSnapshot",
+                    "20260926090000_EnsureAppointmentScheduleColumns",
+                    "20260927220000_AddVaccineScheduleBooth"
+                };
+
+                foreach (var migrationId in baselineHistoricalMigrations)
+                {
+                    await context.Database.ExecuteSqlRawAsync(
+                        $"INSERT INTO \"__EFMigrationsHistory\" (\"MigrationId\", \"ProductVersion\") VALUES ('{migrationId}', '8.0.11') ON CONFLICT DO NOTHING;");
+                }
+
+                // Check if baseline/incremental tables exist from prior runs.
+                // If they exist, synchronize their migration IDs so EF Core's migrator executes remaining migrations cleanly.
+                var subsequentChecks = new (string MigrationId, string SqlCheck)[]
+                {
+                    ("20260928004401_AddAppointmentsAndBooths", "SELECT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'Appointments');"),
+                    ("20260929010000_AddShiftSwapRequests", "SELECT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'ShiftSwapRequests');"),
+                    ("20260929030000_AddCoverReplacementOnSwap", "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ShiftSwapRequests' AND column_name = 'CoverDoctorUserId');"),
+                    ("20261001120000_AddAgentWorkflowExecutionEvidence", "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'AgentWorkflows' AND column_name = 'CompletedStepsJson');"),
+                    ("20261002120000_AddBatchOpenVialDosesRemaining", "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'Batches' AND column_name = 'OpenVialDosesRemaining');"),
+                    ("20261002130000_AllowGuestWalkInAppointments", "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'Appointments' AND column_name = 'GuestWalkInPatientName');"),
+                    ("20261005120000_AddHospitalFormularyPrice", "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'HospitalFormularies' AND column_name = 'Price');")
+                };
+
+                foreach (var (migrationId, sqlCheck) in subsequentChecks)
+                {
+                    try
+                    {
+                        var conn = context.Database.GetDbConnection();
+                        if (conn.State != System.Data.ConnectionState.Open)
+                        {
+                            await conn.OpenAsync();
+                        }
+                        using var command = conn.CreateCommand();
+                        command.CommandText = sqlCheck;
+                        var exists = (bool?)await command.ExecuteScalarAsync() ?? false;
+                        if (exists)
+                        {
+                            await context.Database.ExecuteSqlRawAsync(
+                                $"INSERT INTO \"__EFMigrationsHistory\" (\"MigrationId\", \"ProductVersion\") VALUES ('{migrationId}', '8.0.11') ON CONFLICT DO NOTHING;");
+                        }
+                    }
+                    catch (Exception exCheck)
+                    {
+                        logger.LogWarning(exCheck, "Notice checking migration synchronization for {MigrationId}: {Message}", migrationId, exCheck.Message);
+                    }
+                }
+            }
+            catch (Exception exInitHist)
+            {
+                logger.LogWarning(exInitHist, "Notice during __EFMigrationsHistory baseline setup: {Message}", exInitHist.Message);
+            }
+
             // Apply critical additive columns even if EF MigrateAsync is blocked
             // (e.g. incomplete migration metadata). Inventory queries depend on these.
             try
@@ -28,9 +111,16 @@ public static class DbInitializer
                 logger.LogWarning(exBootstrap, "Non-fatal notice during early schema bootstrap: {Message}", exBootstrap.Message);
             }
 
-            await context.Database.MigrateAsync();
+            try
+            {
+                await context.Database.MigrateAsync();
+            }
+            catch (Exception exMigrate)
+            {
+                logger.LogWarning(exMigrate, "MigrateAsync notice: {Message}. Continuing to safe schema synchronization and account seeding.", exMigrate.Message);
+            }
 
-            // Safe column checks for pricing and payment integration
+            // Safe column checks for pricing, agent workflows, and payment integration
             try
             {
                 await context.Database.ExecuteSqlRawAsync(@"
@@ -44,6 +134,12 @@ public static class DbInitializer
                     ALTER TABLE ""Appointments"" ADD COLUMN IF NOT EXISTS ""PrescribedByDoctorName"" VARCHAR(200) NULL;
                     ALTER TABLE ""Appointments"" ADD COLUMN IF NOT EXISTS ""DosageUpdatedAt"" TIMESTAMPTZ NULL;
                     ALTER TABLE ""Batches"" ADD COLUMN IF NOT EXISTS ""OpenVialDosesRemaining"" INTEGER NULL;
+                    ALTER TABLE ""AgentWorkflows"" ADD COLUMN IF NOT EXISTS ""PlanJson"" TEXT NOT NULL DEFAULT '{}';
+                    ALTER TABLE ""AgentWorkflows"" ADD COLUMN IF NOT EXISTS ""CompletedStepsJson"" TEXT NOT NULL DEFAULT '[]';
+                    ALTER TABLE ""AgentWorkflows"" ADD COLUMN IF NOT EXISTS ""ToolResultsJson"" TEXT NOT NULL DEFAULT '[]';
+                    ALTER TABLE ""AgentWorkflows"" ADD COLUMN IF NOT EXISTS ""ValidationResultsJson"" TEXT NOT NULL DEFAULT '{}';
+                    ALTER TABLE ""AgentWorkflows"" ADD COLUMN IF NOT EXISTS ""ErrorDetails"" VARCHAR(4000) NULL;
+                    ALTER TABLE ""AgentWorkflows"" ADD COLUMN IF NOT EXISTS ""FinalOutcome"" VARCHAR(4000) NULL;
 
                     CREATE TABLE IF NOT EXISTS ""PatientMedicalHistories"" (
                         ""Id"" UUID PRIMARY KEY,
@@ -202,12 +298,62 @@ public static class DbInitializer
                 logger.LogInformation("Test hospital account seeded: {Email} / {Password}",
                     testHospitalEmail, testHospitalPassword);
             }
+
+            // ============ SEED TEST PATIENT (DEV ONLY) ============
+            const string testPatientEmail = "patient1@vaxora.lk";
+            const string testPatientPassword = "Password123!";
+
+            var existingPatient = await context.Users
+                .FirstOrDefaultAsync(u => u.Email.ToLower() == testPatientEmail.ToLower());
+
+            if (existingPatient == null)
+            {
+                var patientUser = new User
+                {
+                    Id = Guid.NewGuid(),
+                    Email = testPatientEmail,
+                    PasswordHash = passwordHasher.HashPassword(testPatientPassword),
+                    Role = UserRole.PATIENT,
+                    Status = UserStatus.Active,
+                    PhoneNumber = "0771234567",
+                    RegistrationNumber = "VAX-P-1003",
+                    CreatedAt = DateTime.UtcNow
+                };
+                context.Users.Add(patientUser);
+
+                var patientProfile = new PatientProfile
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = patientUser.Id,
+                    FullName = "Kamal Perera",
+                    NicNumber = "199512345678",
+                    DateOfBirth = new DateTime(1995, 5, 15, 0, 0, 0, DateTimeKind.Utc),
+                    PhoneNumber = "0771234567",
+                    CreatedAt = DateTime.UtcNow
+                };
+                context.PatientProfiles.Add(patientProfile);
+
+                context.AuditLogs.Add(new AuditLog
+                {
+                    UserId = patientUser.Id,
+                    UserEmail = patientUser.Email,
+                    Role = "PATIENT",
+                    Action = "SYSTEM_SEED",
+                    Details = "Test patient account provisioned on startup (dev only)",
+                    Timestamp = DateTime.UtcNow
+                });
+
+                await context.SaveChangesAsync();
+                logger.LogInformation("Test patient account seeded: {Email} / {Password}",
+                    testPatientEmail, testPatientPassword);
+            }
             // ============ END DEV-ONLY ============
             // Seed National Vaccines if not exists
             if (!await context.Vaccines.AnyAsync())
             {
                 var defaultVaccines = new List<Vaccine>
                 {
+                    new Vaccine { Name = "AstraZeneca", Manufacturer = "AstraZeneca", Category = VaccineCategory.Routine, DosesPerVial = 1, RequiredTemp = "+2°C to +8°C Chilled", DefaultMinThreshold = 100 },
                     new Vaccine { Name = "Pfizer Bivalent mRNA", Manufacturer = "Pfizer-BioNTech", Category = VaccineCategory.MRNA, DosesPerVial = 6, RequiredTemp = "-80°C to -60°C Deep Freeze", DefaultMinThreshold = 200 },
                     new Vaccine { Name = "Hepatitis B Recombinant", Manufacturer = "Serum Institute of India", Category = VaccineCategory.Routine, DosesPerVial = 10, RequiredTemp = "+2°C to +8°C Chilled", DefaultMinThreshold = 300 },
                     new Vaccine { Name = "Moderna Spikevax", Manufacturer = "Moderna Inc.", Category = VaccineCategory.MRNA, DosesPerVial = 10, RequiredTemp = "-25°C to -15°C Frozen", DefaultMinThreshold = 150 },
@@ -219,6 +365,53 @@ public static class DbInitializer
                 context.Vaccines.AddRange(defaultVaccines);
                 await context.SaveChangesAsync();
                 logger.LogInformation("National immunization vaccines successfully initialized.");
+            }
+
+            // Ensure test hospital has AstraZeneca formulary & schedule
+            var hospitalUserInstance = await context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == testHospitalEmail.ToLower());
+            if (hospitalUserInstance != null)
+            {
+                var hospitalProf = await context.HospitalProfiles.FirstOrDefaultAsync(p => p.UserId == hospitalUserInstance.Id);
+                var astraVaccine = await context.Vaccines.FirstOrDefaultAsync(v => v.Name == "AstraZeneca");
+
+                if (hospitalProf != null && astraVaccine != null)
+                {
+                    var hasFormulary = await context.HospitalFormularies.AnyAsync(f => f.HospitalProfileId == hospitalProf.Id && f.VaccineId == astraVaccine.Id);
+                    if (!hasFormulary)
+                    {
+                        context.HospitalFormularies.Add(new HospitalFormulary
+                        {
+                            Id = Guid.NewGuid(),
+                            HospitalProfileId = hospitalProf.Id,
+                            VaccineId = astraVaccine.Id,
+                            RegisteredAt = DateTime.UtcNow
+                        });
+                        await context.SaveChangesAsync();
+                    }
+
+                    var hasSchedule = await context.VaccineSchedules.AnyAsync(s => s.HospitalUserId == hospitalUserInstance.Id && s.VaccineName == "AstraZeneca");
+                    if (!hasSchedule)
+                    {
+                        context.VaccineSchedules.Add(new VaccineSchedule
+                        {
+                            Id = Guid.NewGuid(),
+                            HospitalUserId = hospitalUserInstance.Id,
+                            HospitalProfileId = hospitalProf.Id,
+                            VaccineId = astraVaccine.Id,
+                            VaccineName = "AstraZeneca",
+                            ScheduleType = "Weekly",
+                            DaysOfWeek = "Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday",
+                            StartDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-1)),
+                            EndDate = DateOnly.FromDateTime(DateTime.UtcNow.AddYears(1)),
+                            StartTime = "09:00",
+                            EndTime = "11:00",
+                            Status = "Active",
+                            Price = 1000.00m,
+                            CreatedAt = DateTime.UtcNow
+                        });
+                        await context.SaveChangesAsync();
+                    }
+                }
             }
         }
         catch (Exception ex)

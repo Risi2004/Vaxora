@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { deferEffectCallback } from '../../../shared/utils/deferEffectCallback.js';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import WalkInRegistrationModal from './WalkInRegistrationModal';
 import RestockVaccineModal from './RestockVaccineModal';
 import staffService from '../services/staffService';
@@ -379,10 +380,10 @@ export default function HospitalDashboardOverview() {
     }
   }, []);
 
-  useEffect(() => {
+  useEffect(() => deferEffectCallback(() => {
     loadBoothStaffing();
     loadInventory();
-  }, [loadBoothStaffing, loadInventory]);
+  }), [loadBoothStaffing, loadInventory]);
 
   useEffect(() => {
     loadAppointmentsQueue();
@@ -1093,12 +1094,14 @@ export default function HospitalDashboardOverview() {
         booths={boothCards.map((b) => ({ id: b.id, label: b.boothName }))}
       />
 
-      <RestockVaccineModal
-        isOpen={isRestockOpen}
-        onClose={() => setIsRestockOpen(false)}
-        onAddStock={handleAddStock}
-        registeredVaccines={formularyVaccines.map((f) => f.vaccineName || f.name)}
-      />
+      {isRestockOpen && (
+        <RestockVaccineModal
+          isOpen={isRestockOpen}
+          onClose={() => setIsRestockOpen(false)}
+          onAddStock={handleAddStock}
+          registeredVaccines={formularyVaccines.map((f) => f.vaccineName || f.name)}
+        />
+      )}
     </div>
   );
 }

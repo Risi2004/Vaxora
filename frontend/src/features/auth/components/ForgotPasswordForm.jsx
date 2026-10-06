@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import { deferEffectCallback } from '../../../shared/utils/deferEffectCallback.js';
+import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { authService } from '../services/authService';
 
@@ -15,7 +16,7 @@ export default function ForgotPasswordForm({ onSwitchToLogin, onSuccess }) {
   const [error, setError] = useState('');
 
   // Auto-detect token and email from URL link (e.g. from password reset email)
-  useEffect(() => {
+  useEffect(() => deferEffectCallback(() => {
     const params = new URLSearchParams(location.search);
     const tokenParam = params.get('token') || params.get('code');
     const emailParam = params.get('email');
@@ -27,7 +28,7 @@ export default function ForgotPasswordForm({ onSwitchToLogin, onSuccess }) {
       setResetCode(tokenParam);
       setStep(2);
     }
-  }, [location.search]);
+  }), [location.search]);
 
   const handleSendEmail = async (e) => {
     e.preventDefault();

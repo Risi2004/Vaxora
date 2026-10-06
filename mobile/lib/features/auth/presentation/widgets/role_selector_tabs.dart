@@ -35,16 +35,16 @@ class RoleSelectorTabs extends StatelessWidget {
             fontSize: 11,
             fontWeight: FontWeight.w700,
             letterSpacing: 0.8,
-            color: Color(0xFF64748B),
+            color: Color(0xFF667B83),
           ),
         ),
         const SizedBox(height: 10),
         Container(
           padding: const EdgeInsets.all(4),
           decoration: BoxDecoration(
-            color: const Color(0xFFF1F5F9),
+            color: const Color(0xFFF1F6F4),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFE2E8F0)),
+            border: Border.all(color: const Color(0xFFE1E9E6)),
           ),
           child: Row(
             children: roles.map((role) {
@@ -57,12 +57,12 @@ class RoleSelectorTabs extends StatelessWidget {
                     duration: const Duration(milliseconds: 200),
                     padding: const EdgeInsets.symmetric(vertical: 9),
                     decoration: BoxDecoration(
-                      color: isSelected ? AppColors.brandBlue : Colors.transparent,
+                      color: isSelected ? AppColors.primary : Colors.transparent,
                       borderRadius: BorderRadius.circular(8),
                       boxShadow: isSelected
                           ? [
                               BoxShadow(
-                                color: AppColors.brandBlue.withValues(alpha: 0.3),
+                                color: AppColors.primary.withValues(alpha: 0.18),
                                 blurRadius: 6,
                                 offset: const Offset(0, 2),
                               ),

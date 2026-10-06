@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import { deferEffectCallback } from '../../../shared/utils/deferEffectCallback.js';
+import { useState, useEffect } from 'react';
 import { authService } from '../../auth/services/authService';
 import { IconClose, IconEye, IconEyeOff, IconKey, IconShield } from '../../../shared/icons/AppIcons';
 
@@ -40,10 +41,6 @@ export default function AdminProfileTab() {
     setTimeout(() => setNotification(''), 3500);
   };
 
-  useEffect(() => {
-    fetchAdminProfile();
-  }, []);
-
   const fetchAdminProfile = async () => {
     try {
       setLoading(true);
@@ -81,6 +78,10 @@ export default function AdminProfileTab() {
       setLoading(false);
     }
   };
+
+  useEffect(() => deferEffectCallback(() => {
+    fetchAdminProfile();
+  }), []);
 
   const handleSave = async () => {
     try {
@@ -205,12 +206,13 @@ export default function AdminProfileTab() {
                 type="button"
                 className="doctor-btn-edit-pill"
                 style={{ background: '#0284c7', color: '#ffffff', borderColor: '#38bdf8' }}
+                disabled={loading || saving}
                 onClick={() => {
                   if (isEditing) handleSave();
                   else setIsEditing(true);
                 }}
               >
-                {isEditing ? 'Save Profile' : 'Edit Details'}
+                {loading ? 'Loading…' : saving ? 'Saving…' : isEditing ? 'Save Profile' : 'Edit Details'}
               </button>
             </div>
 

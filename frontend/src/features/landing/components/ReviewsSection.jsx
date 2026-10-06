@@ -1,142 +1,188 @@
-import React, { useState, useEffect, useRef } from 'react';
-import previousIcon from '../../../assets/icons/previous.svg';
-import nextIcon from '../../../assets/icons/next.svg';
+import { useState, useEffect, useCallback } from "react";
+import previousIcon from "../../../assets/icons/previous.svg";
+import nextIcon from "../../../assets/icons/next.svg";
+import { feedbackService } from "../../../shared/services/feedbackService";
+import { deferEffectCallback } from "../../../shared/utils/deferEffectCallback.js";
 
-const reviewsData = [
+const CARDS_PER_PAGE = 3;
+const PLACEHOLDER_REVIEWS = [
   {
-    id: 1,
-    name: 'Kumar',
-    comment: 'thank you for the services',
-    role: 'Verified Citizen',
+    id: "p1",
+    name: "Verified Citizen",
+    comment: "Seamless booking and verified digital vaccination records.",
+    rating: 5,
   },
   {
-    id: 2,
-    name: 'Anura',
-    comment: "It's more helpful for me",
-    role: 'Patient',
+    id: "p2",
+    name: "Patient",
+    comment: "Got my booster reminder on time. Highly recommended!",
+    rating: 5,
   },
   {
-    id: 3,
-    name: 'Kajol',
-    comment: 'thank you',
-    role: 'Parent',
-  },
-  {
-    id: 4,
-    name: 'Dr. Dilshan',
-    comment: 'Seamless scheduling and verified digital vaccination records.',
-    role: 'Medical Officer',
-  },
-  {
-    id: 5,
-    name: 'Nimali',
-    comment: 'Got my booster dose reminder right on time. Highly recommended!',
-    role: 'Verified Citizen',
-  },
-  {
-    id: 6,
-    name: 'Tharindu',
-    comment: 'Quick booking process with clear hospital directions and timely alerts.',
-    role: 'Patient',
+    id: "p3",
+    name: "Parent",
+    comment: "Quick process with clear hospital directions.",
+    rating: 5,
   },
 ];
 
+const renderStars = (rating) => (
+  <span style={{ color: "#fbbf24", fontSize: "0.9rem", letterSpacing: 1 }}>
+    {"★".repeat(rating)}
+    <span style={{ color: "#cbd5e1" }}>{"★".repeat(5 - rating)}</span>
+  </span>
+);
+
 export default function ReviewsSection() {
+  const [reviews, setReviews] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [reviewIndex, setReviewIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
-  const cardsPerPage = 3;
 
-  // Split reviews into pages of 3 cards
+  // Fetch 6 reviews (2 pages of 3)
+  useEffect(
+    () =>
+      deferEffectCallback(async () => {
+        try {
+          const data = await feedbackService.getPublicRandom(6);
+          const list = Array.isArray(data) ? data : [];
+          setReviews(list.length > 0 ? list : PLACEHOLDER_REVIEWS);
+        } catch (err) {
+          console.warn("Could not load public reviews:", err);
+          setReviews(PLACEHOLDER_REVIEWS);
+        } finally {
+          setLoading(false);
+        }
+      }),
+    [],
+  );
+
+  // Split into pages
   const pages = [];
-  for (let i = 0; i < reviewsData.length; i += cardsPerPage) {
-    pages.push(reviewsData.slice(i, i + cardsPerPage));
+  for (let i = 0; i < reviews.length; i += CARDS_PER_PAGE) {
+    pages.push(reviews.slice(i, i + CARDS_PER_PAGE));
   }
-  const maxPages = pages.length;
+  const maxPages = Math.max(pages.length, 1);
 
-  const handleNextReview = () => {
+  const handleNextReview = useCallback(() => {
     setReviewIndex((prev) => (prev + 1) % maxPages);
-  };
+  }, [maxPages]);
 
   const handlePrevReview = () => {
     setReviewIndex((prev) => (prev - 1 + maxPages) % maxPages);
   };
 
-  // Optional subtle auto-sliding with hover pause
+  // Auto-slide
   useEffect(() => {
-    if (isPaused) return;
-    const timer = setInterval(() => {
-      handleNextReview();
-    }, 6000);
+    if (isPaused || maxPages <= 1) return undefined;
+    const timer = setInterval(handleNextReview, 6000);
     return () => clearInterval(timer);
-  }, [isPaused, maxPages]);
+  }, [isPaused, handleNextReview, maxPages]);
 
   return (
     <section id="reviews" className="reviews-section">
       <h2 className="reviews-title">Watch our user reviews</h2>
 
-      <div
-        className="carousel-wrapper"
-        onMouseEnter={() => setIsPaused(true)}
-        onMouseLeave={() => setIsPaused(false)}
-      >
-        <button
-          type="button"
-          className="carousel-btn prev-btn"
-          onClick={handlePrevReview}
-          aria-label="Previous reviews"
-        >
-          <img src={previousIcon} alt="Previous" className="carousel-arrow" />
-        </button>
-
-        {/* Sliding Viewport & Track */}
-        <div className="carousel-viewport">
+      {loading ? (
+        <p style={{ textAlign: "center", color: "#64748b", padding: 40 }}>
+          Loading reviews…
+        </p>
+      ) : (
+        <>
           <div
-            className="carousel-track"
-            style={{ transform: `translateX(-${reviewIndex * 100}%)` }}
+            className="carousel-wrapper"
+            onMouseEnter={() => setIsPaused(true)}
+            onMouseLeave={() => setIsPaused(false)}
           >
-            {pages.map((pageReviews, pageIdx) => (
+            <button
+              type="button"
+              className="carousel-btn prev-btn"
+              onClick={handlePrevReview}
+              aria-label="Previous reviews"
+            >
+              <img
+                src={previousIcon}
+                alt="Previous"
+                className="carousel-arrow"
+              />
+            </button>
+
+            <div className="carousel-viewport">
               <div
-                key={pageIdx}
-                className={`reviews-page ${reviewIndex === pageIdx ? 'active-page' : ''}`}
-                aria-hidden={reviewIndex !== pageIdx}
+                className="carousel-track"
+                style={{ transform: `translateX(-${reviewIndex * 100}%)` }}
               >
-                {pageReviews.map((item) => (
-                  <div key={item.id} className="review-card">
-                    <div className="review-header">
-                      <span className="reviewer-name">{item.name}</span>
-                    </div>
-                    <div className="review-body">
-                      <p className="review-comment">{item.comment}</p>
-                    </div>
+                {pages.map((pageReviews, pageIdx) => (
+                  <div
+                    key={pageIdx}
+                    className={`reviews-page ${reviewIndex === pageIdx ? "active-page" : ""}`}
+                    aria-hidden={reviewIndex !== pageIdx}
+                  >
+                    {pageReviews.map((item) => (
+                      <div key={item.id} className="review-card">
+                        <div
+                          className="review-header"
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                          }}
+                        >
+                          <span className="reviewer-name">{item.name}</span>
+                          {renderStars(item.rating || 5)}
+                        </div>
+                        <div className="review-body">
+                          <p className="review-comment">
+                            {item.comment || item.message}
+                          </p>
+                        </div>
+                        {item.category && (
+                          <div
+                            style={{
+                              marginTop: 8,
+                              fontSize: "0.72rem",
+                              color: "#94a3b8",
+                            }}
+                          >
+                            {item.category}
+                          </div>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 ))}
               </div>
-            ))}
+            </div>
+
+            <button
+              type="button"
+              className="carousel-btn next-btn"
+              onClick={handleNextReview}
+              aria-label="Next reviews"
+            >
+              <img src={nextIcon} alt="Next" className="carousel-arrow" />
+            </button>
           </div>
-        </div>
 
-        <button
-          type="button"
-          className="carousel-btn next-btn"
-          onClick={handleNextReview}
-          aria-label="Next reviews"
-        >
-          <img src={nextIcon} alt="Next" className="carousel-arrow" />
-        </button>
-      </div>
-
-      {/* Smooth Indicator Dots */}
-      <div className="carousel-dots" role="tablist" aria-label="Review page navigation">
-        {Array.from({ length: maxPages }).map((_, idx) => (
-          <button
-            key={idx}
-            type="button"
-            className={`dot ${reviewIndex === idx ? 'active' : ''}`}
-            onClick={() => setReviewIndex(idx)}
-            aria-label={`Go to review slide ${idx + 1}`}
-          />
-        ))}
-      </div>
+          {maxPages > 1 && (
+            <div
+              className="carousel-dots"
+              role="tablist"
+              aria-label="Review page navigation"
+            >
+              {Array.from({ length: maxPages }).map((_, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  className={`dot ${reviewIndex === idx ? "active" : ""}`}
+                  onClick={() => setReviewIndex(idx)}
+                  aria-label={`Go to review slide ${idx + 1}`}
+                />
+              ))}
+            </div>
+          )}
+        </>
+      )}
     </section>
   );
 }

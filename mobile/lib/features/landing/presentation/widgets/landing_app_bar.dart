@@ -21,7 +21,7 @@ class LandingAppBar extends StatelessWidget implements PreferredSizeWidget {
         color: Colors.white,
         border: Border(
           bottom: BorderSide(
-            color: Color(0xFFE2E8F0),
+            color: Color(0xFFE1E9E6),
             width: 1,
           ),
         ),
@@ -52,7 +52,7 @@ class LandingAppBar extends StatelessWidget implements PreferredSizeWidget {
                       minimumSize: const Size(0, 36),
                       side: const BorderSide(color: AppColors.borderPill, width: 1.5),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(999),
+                        borderRadius: BorderRadius.circular(12),
                       ),
                     ),
                     child: const Text(
@@ -75,7 +75,7 @@ class LandingAppBar extends StatelessWidget implements PreferredSizeWidget {
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                       minimumSize: const Size(0, 36),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(999),
+                        borderRadius: BorderRadius.circular(12),
                       ),
                       elevation: 1,
                     ),

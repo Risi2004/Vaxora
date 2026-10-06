@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import inventoryService from '../services/inventoryService';
 import { IconFile, IconPackage } from './HospitalIcons';
 
