@@ -23,6 +23,7 @@ public interface IInventoryService
     Task<List<InventoryItemDto>> GetExpiringBatchesAsync(Guid userId, int daysThreshold);
     Task<object> ExecuteAgentDraftAsync(Guid userId, ExecuteDraftDto dto);
     Task<List<InventoryAgentWorkflowDto>> GetRecentAgentWorkflowsAsync(Guid userId, int limit);
+    Task<object> ReportDamageAsync(Guid userId, ReportDamageDto dto);
 }
 
 public class InventoryService : IInventoryService
@@ -507,6 +508,94 @@ public class InventoryService : IInventoryService
 
         await _context.SaveChangesAsync();
         return MapToItemDto(batch, batch.Vaccine);
+    }
+
+    // ==================== DAMAGE REPORT (NEW) ====================
+
+    public async Task<object> ReportDamageAsync(Guid userId, ReportDamageDto dto)
+    {
+        var hospital = await GetHospitalAsync(userId)
+            ?? throw new InvalidOperationException("Only hospital accounts can report damage.");
+
+        var (userName, userEmail) = await GetUserInfoAsync(userId);
+
+        if (dto.PhotoBytes == null || dto.PhotoBytes.Length == 0)
+            throw new InvalidOperationException("A photo of the damaged item is required.");
+
+        if (dto.Quantity <= 0)
+            throw new InvalidOperationException("Quantity damaged must be greater than zero.");
+
+        Batch? batch = null;
+        if (Guid.TryParse(dto.BatchId, out var batchId))
+        {
+            batch = await _context.Batches
+                .Include(b => b.Vaccine)
+                .FirstOrDefaultAsync(b => b.Id == batchId && b.HospitalProfileId == hospital.Id);
+        }
+
+        if (batch != null)
+        {
+            _context.InventoryTransactions.Add(new InventoryTransaction
+            {
+                BatchId = batch.Id,
+                Type = TransactionType.Wastage,
+                Quantity = dto.Quantity,
+                WastageReason = WastageReason.VialBreakage,
+                Reason = $"Damage report — {dto.DamageType}",
+                Notes = string.IsNullOrWhiteSpace(dto.Notes)
+                    ? $"{dto.Quantity} vials reported damaged ({dto.DamageType}). Photo emailed to supplier."
+                    : $"{dto.Quantity} vials reported damaged ({dto.DamageType}). Notes: {dto.Notes}",
+                IncidentDate = DateTime.UtcNow,
+                PerformedByUserId = userId,
+                PerformedByName = userName
+            });
+        }
+
+        _context.AuditLogs.Add(new AuditLog
+        {
+            UserId = userId,
+            UserEmail = userEmail,
+            Role = "HOSPITAL",
+            Action = "DAMAGE_REPORT_SUBMITTED",
+            Details = $"Damage report for {dto.VaccineName} (Lot {dto.LotNumber}) — {dto.Quantity} vials, {dto.DamageType}",
+            Timestamp = DateTime.UtcNow
+        });
+
+        await _context.SaveChangesAsync();
+
+        bool emailSent = false;
+        string supplierEmail = Environment.GetEnvironmentVariable("Supplier__Email")
+            ?? "supplier@spc.gov.lk";
+
+        try
+        {
+            emailSent = await _emailService.SendDamageReportToSupplierAsync(
+                toEmail: supplierEmail,
+                supplierName: "State Pharmaceuticals Corporation",
+                hospitalName: hospital.HospitalName,
+                vaccineName: dto.VaccineName,
+                lotNumber: dto.LotNumber,
+                quantity: dto.Quantity,
+                damageType: dto.DamageType,
+                notes: dto.Notes ?? string.Empty,
+                photoBytes: dto.PhotoBytes,
+                photoFileName: dto.PhotoFileName ?? $"damage_{dto.LotNumber}.jpg",
+                photoContentType: dto.PhotoContentType ?? "image/jpeg");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send damage report email for lot {Lot}", dto.LotNumber);
+        }
+
+        return new
+        {
+            success = true,
+            emailSent = emailSent,
+            supplierEmail = supplierEmail,
+            message = emailSent
+                ? $"Damage report emailed to {supplierEmail}"
+                : "Damage report logged locally. (Email delivery failed — check logs.)"
+        };
     }
 
     public async Task<InventoryItemDto> AdjustStockAsync(Guid userId, Guid batchId, AdjustStockDto dto)

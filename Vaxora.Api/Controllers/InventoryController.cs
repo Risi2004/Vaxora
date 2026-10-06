@@ -327,4 +327,50 @@ public class InventoryController : ControllerBase
             return StatusCode(500, new { message = "Failed to fetch workflows." });
         }
     }
+
+        [HttpPost("damage-report")]
+    [Authorize(Roles = "HOSPITAL,ADMIN")]
+    [RequestSizeLimit(10 * 1024 * 1024)]
+    public async Task<IActionResult> ReportDamage([FromForm] ReportDamageForm form)
+    {
+        try
+        {
+            if (form.Photo == null || form.Photo.Length == 0)
+                return BadRequest(new { message = "Photo is required." });
+
+            byte[] photoBytes;
+            using (var ms = new MemoryStream())
+            {
+                await form.Photo.CopyToAsync(ms);
+                photoBytes = ms.ToArray();
+            }
+
+            var dto = new ReportDamageDto
+            {
+                BatchId = form.BatchId ?? string.Empty,
+                VaccineName = form.VaccineName ?? string.Empty,
+                LotNumber = form.LotNumber ?? string.Empty,
+                Quantity = form.Quantity,
+                DamageType = form.DamageType ?? string.Empty,
+                Notes = form.Notes ?? string.Empty,
+                PhotoBytes = photoBytes,
+                PhotoFileName = form.Photo.FileName,
+                PhotoContentType = string.IsNullOrWhiteSpace(form.Photo.ContentType)
+                    ? "image/jpeg"
+                    : form.Photo.ContentType
+            };
+
+            var result = await _inventoryService.ReportDamageAsync(GetUserId(), dto);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error submitting damage report");
+            return StatusCode(500, new { message = "Failed to submit damage report." });
+        }
+    }
 }

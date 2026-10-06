@@ -1,3 +1,4 @@
+import 'dart:io';                                    // ← ADDED
 import 'package:flutter/foundation.dart';
 import '../../data/models/batch_model.dart';
 import '../../data/models/formulary_entry_model.dart';
@@ -133,6 +134,36 @@ class InventoryProvider extends ChangeNotifier {
         storageUnit: storageUnit,
         expiryDate: expiryDate,
         supplier: supplier,
+      );
+      await loadAll();
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // ADDED — reports a damaged batch and emails the supplier with the photo
+  Future<bool> reportDamage({
+    required File photo,
+    required String batchId,
+    required String vaccineName,
+    required String lotNumber,
+    required int quantity,
+    required String damageType,
+    required String notes,
+  }) async {
+    try {
+      _errorMessage = null;
+      await InventoryRepository.reportDamage(
+        photo: photo,
+        batchId: batchId,
+        vaccineName: vaccineName,
+        lotNumber: lotNumber,
+        quantity: quantity,
+        damageType: damageType,
+        notes: notes,
       );
       await loadAll();
       return true;
