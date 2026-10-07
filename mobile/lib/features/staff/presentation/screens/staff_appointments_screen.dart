@@ -350,7 +350,7 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
     StaffAppointmentModel? next;
     final scoped = _scopedAppointments;
     for (final a in scoped) {
-      if (a.uiStatus == 'waiting' && a.isPaymentSettled && a.hasDosage) {
+      if (a.uiStatus == 'waiting' && a.isCheckedIn && a.isPaymentSettled && a.hasDosage) {
         next = a;
         break;
       }
@@ -358,6 +358,11 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
     if (next == null) {
       final unpaidWaiting =
           scoped.any((a) => a.uiStatus == 'waiting' && !a.isPaymentSettled);
+      final anyArrived = scoped.any((a) => a.uiStatus == 'waiting' && a.isCheckedIn);
+      if (!anyArrived && scoped.any((a) => a.uiStatus == 'waiting')) {
+        _toast('No checked-in patients yet. Patients join the queue when they check in.');
+        return;
+      }
       final awaitingDose = scoped.any(
           (a) => a.uiStatus == 'waiting' && a.isPaymentSettled && !a.hasDosage);
       _toast(
@@ -374,8 +379,25 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
     _toast('Called ${next.patientName}');
   }
 
+  Future<void> _checkIn(StaffAppointmentModel patient) async {
+    setState(() => _updating = true);
+    try {
+      await StaffRepository.checkIn(patient.id);
+      await _loadAppointments();
+      _toast('${patient.patientName} checked in.');
+    } catch (e) {
+      _toast(e is ApiException ? e.message : 'Failed to check in patient.');
+    } finally {
+      if (mounted) setState(() => _updating = false);
+    }
+  }
+
   Future<void> _examine(StaffAppointmentModel patient) async {
     if (!_requireDuty()) return;
+    if (!patient.isCheckedIn) {
+      _toast('This patient has not checked in yet.');
+      return;
+    }
     if (!patient.isPaymentSettled) {
       _toast('Payment must be settled before starting consultation.');
       return;
@@ -753,6 +775,7 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
                     canPrescribe: _isDoctor,
                     onPrescribe: () => _prescribe(a),
                     onExamine: () => _examine(a),
+                    onCheckIn: () => _checkIn(a),
                     onCertify: () => _certify(a),
                     onDischarge: () => _discharge(a),
                   ),
@@ -1147,6 +1170,7 @@ class _AppointmentCard extends StatelessWidget {
   final bool canPrescribe;
   final VoidCallback onPrescribe;
   final VoidCallback onExamine;
+  final VoidCallback onCheckIn;
   final VoidCallback onCertify;
   final VoidCallback onDischarge;
 
@@ -1156,6 +1180,7 @@ class _AppointmentCard extends StatelessWidget {
     required this.canPrescribe,
     required this.onPrescribe,
     required this.onExamine,
+    required this.onCheckIn,
     required this.onCertify,
     required this.onDischarge,
   });
@@ -1194,7 +1219,15 @@ class _AppointmentCard extends StatelessWidget {
     };
 
     Widget? action;
-    if (a.uiStatus == 'waiting') {
+    if (a.uiStatus == 'waiting' && !a.isCheckedIn) {
+      action = TextButton(
+        onPressed: busy ? null : onCheckIn,
+        child: const Text(
+          'Check in',
+          style: TextStyle(fontWeight: FontWeight.w700),
+        ),
+      );
+    } else if (a.uiStatus == 'waiting') {
       action = TextButton(
         onPressed: busy || !a.isPaymentSettled || !a.hasDosage
             ? null

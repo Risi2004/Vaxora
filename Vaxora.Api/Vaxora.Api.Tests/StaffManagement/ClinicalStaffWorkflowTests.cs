@@ -158,6 +158,7 @@ public class ClinicalStaffWorkflowTests
         TestDb.AddLiveShift(context, affiliation, hospital);
         var appointment = TestDb.AddAppointment(context, hospital, status: "Confirmed");
         appointment.PrescribedDosage = "0.5ml";
+        appointment.CheckedInAt = DateTime.UtcNow;
         await context.SaveChangesAsync();
 
         var service = CreateAppointmentService(context);
@@ -167,6 +168,50 @@ public class ClinicalStaffWorkflowTests
             new UpdateAppointmentStatusDto { Status = "Administering" });
 
         Assert.Equal("Administering", updated.Status);
+    }
+
+    [Fact]
+    public async Task Staff_cannot_call_a_patient_who_has_not_checked_in()
+    {
+        await using var context = TestDb.CreateContext();
+        var hospital = TestDb.AddHospital(context);
+        var nurse = TestDb.AddNurse(context, "nurse@example.com", "VAX-N-3020");
+        var affiliation = TestDb.AddActiveAffiliation(context, hospital, nurse);
+        TestDb.AddLiveShift(context, affiliation, hospital);
+        var appointment = TestDb.AddAppointment(context, hospital, status: "Confirmed");
+        appointment.PrescribedDosage = "0.5ml";
+        await context.SaveChangesAsync();
+
+        var service = CreateAppointmentService(context);
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.UpdateAppointmentStatusAsync(
+                nurse.Id,
+                appointment.Id,
+                new UpdateAppointmentStatusDto { Status = "Administering" }));
+
+        Assert.Contains("not checked in", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task CheckInAsync_marks_today_patient_arrived_and_rejects_other_days()
+    {
+        await using var context = TestDb.CreateContext();
+        var hospital = TestDb.AddHospital(context);
+        var today = TestDb.AddAppointment(context, hospital, status: "Confirmed");
+        var tomorrow = TestDb.AddAppointment(
+            context,
+            hospital,
+            status: "Confirmed",
+            date: StaffDutyHelper.HospitalToday().AddDays(1));
+        await context.SaveChangesAsync();
+
+        var service = CreateAppointmentService(context);
+        var checkedIn = await service.CheckInAsync(hospital.Id, today.Id);
+
+        Assert.NotNull(checkedIn.CheckedInAt);
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.CheckInAsync(hospital.Id, tomorrow.Id));
+        Assert.Contains("day of their appointment", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

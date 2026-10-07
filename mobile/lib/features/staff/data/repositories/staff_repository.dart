@@ -114,6 +114,11 @@ class StaffRepository {
 
   /// Status values: Confirmed, Administering, Observation, Completed, Cancelled, Rejected.
   /// Optional [administration] fields are used when certifying to Observation.
+  /// Marks a patient as arrived (today only).
+  static Future<void> checkIn(String appointmentId) async {
+    await ApiClient.post(ApiConstants.appointmentCheckIn(appointmentId));
+  }
+
   static Future<StaffAppointmentModel> updateAppointmentStatus({
     required String appointmentId,
     required String status,

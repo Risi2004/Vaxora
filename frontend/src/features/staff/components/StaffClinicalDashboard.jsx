@@ -307,6 +307,7 @@ export default function StaffClinicalDashboard({
         hasDosage: Boolean(a.prescribedDosage),
         prescribedBy: a.prescribedByDoctorName || null,
         paymentStatus: a.paymentStatus || '—',
+        checkedIn: Boolean(a.checkedInAt),
         booth: a.boothLabel || null,
         boothId: a.boothId || null,
         time: a.timeSlot || [a.startTime, a.endTime].filter(Boolean).join(' – ') || '—',
@@ -393,9 +394,10 @@ export default function StaffClinicalDashboard({
   const handleCallNext = async () => {
     // Only call patients at my booth (or unassigned) so nobody is sent to the wrong booth.
     const nextWaiting = scopedPatients.find(
-      (p) => p.status === 'waiting' && isPaymentSettled(p) && p.hasDosage
+      (p) => p.status === 'waiting' && p.checkedIn && isPaymentSettled(p) && p.hasDosage
     );
     if (!nextWaiting) {
+      const notArrived = scopedPatients.some((p) => p.status === 'waiting' && !p.checkedIn);
       const unpaidWaiting = scopedPatients.some(
         (p) => p.status === 'waiting' && !isPaymentSettled(p)
       );
@@ -403,7 +405,9 @@ export default function StaffClinicalDashboard({
         (p) => p.status === 'waiting' && isPaymentSettled(p) && !p.hasDosage
       );
       showToast(
-        undosedWaiting
+        notArrived && !scopedPatients.some((p) => p.status === 'waiting' && p.checkedIn)
+          ? 'No checked-in patients yet. Patients join the queue when they check in at the desk.'
+          : undosedWaiting
           ? 'Paid patients are waiting for a doctor to prescribe their dose.'
           : unpaidWaiting
             ? 'No paid patients waiting. Unpaid appointments cannot be administered yet.'
@@ -436,8 +440,25 @@ export default function StaffClinicalDashboard({
     }
   };
 
+  const handleCheckIn = async (patient) => {
+    setStatusUpdating(true);
+    try {
+      await staffAppointmentService.checkIn(patient.id);
+      await loadDashboardData(selectedHospitalUserId);
+      showToast(`${patient.name} checked in.`);
+    } catch (err) {
+      showToast(err.message || 'Failed to check in patient.');
+    } finally {
+      setStatusUpdating(false);
+    }
+  };
+
   const handleSelectPatient = async (patient) => {
     if (patient.status === 'waiting') {
+      if (!patient.checkedIn) {
+        showToast('This patient has not checked in yet.');
+        return;
+      }
       if (!isPaymentSettled(patient)) {
         showToast('Payment must be settled before starting consultation.');
         return;
@@ -1183,9 +1204,11 @@ export default function StaffClinicalDashboard({
                             {p.status === 'consulting'
                               ? 'Consulting'
                               : p.status === 'waiting'
-                                ? isPaymentSettled(p)
-                                  ? 'In Queue'
-                                  : 'Awaiting payment'
+                                ? !p.checkedIn
+                                  ? 'Not arrived'
+                                  : isPaymentSettled(p)
+                                    ? 'In Queue'
+                                    : 'Awaiting payment'
                                 : p.status === 'observation'
                                   ? 'Observation'
                                   : p.status === 'cancelled'
@@ -1207,7 +1230,19 @@ export default function StaffClinicalDashboard({
                                 <IconPencil size={15} />
                               </button>
                             )}
-                            {p.status === 'waiting' && (
+                            {p.status === 'waiting' && !p.checkedIn && (
+                              <button
+                                type="button"
+                                className="btn-queue-action btn-queue-action--icon"
+                                onClick={() => handleCheckIn(p)}
+                                disabled={statusUpdating}
+                                title="Check in — patient has arrived"
+                                aria-label="Check in"
+                              >
+                                <IconUser size={15} />
+                              </button>
+                            )}
+                            {p.status === 'waiting' && p.checkedIn && (
                               <button
                                 type="button"
                                 className="btn-queue-action btn-queue-action--icon"

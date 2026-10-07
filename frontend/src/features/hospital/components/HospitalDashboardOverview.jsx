@@ -177,6 +177,30 @@ export default function HospitalDashboardOverview() {
     }
   };
 
+  const handleDeskCheckIn = async (appointmentId) => {
+    try {
+      await appointmentService.checkIn(appointmentId);
+      showToast('Patient checked in — now in the clinical queue.');
+      await loadAppointmentsQueue();
+    } catch (err) {
+      showToast(err.message || 'Failed to check in patient.');
+    }
+  };
+
+  const handleDeskNoShow = async (appointmentId) => {
+    if (!window.confirm('Mark this patient as a no-show?')) return;
+    try {
+      await appointmentService.updateAppointmentStatus(appointmentId, {
+        status: 'Cancelled',
+        remarks: 'No-show — patient did not arrive',
+      });
+      showToast('Marked as no-show.');
+      await loadAppointmentsQueue();
+    } catch (err) {
+      showToast(err.message || 'Failed to mark no-show.');
+    }
+  };
+
   const handleDeskDeclineUnpaid = async (appointmentId) => {
     if (!window.confirm('Decline this unpaid appointment?')) return;
     try {
@@ -291,6 +315,7 @@ export default function HospitalDashboardOverview() {
             status: queueStatus,
             dbStatus: rawStatus,
             paymentStatus: a.paymentStatus || a.PaymentStatus || '—',
+            checkedIn: Boolean(a.checkedInAt || a.CheckedInAt),
           };
         });
 
@@ -822,6 +847,16 @@ export default function HospitalDashboardOverview() {
                         {patient.status === 'awaiting_payment' ? (
                           <div className="hospital-action-buttons-wrapper">
                             <span className="mockup-status-badge pending">Awaiting payment</span>
+                            {!patient.checkedIn && patient.date === todayStr ? (
+                              <button
+                                type="button"
+                                className="btn-hospital-confirm-action"
+                                title="Patient has arrived at the hospital"
+                                onClick={() => handleDeskCheckIn(patient.id)}
+                              >
+                                Check in
+                              </button>
+                            ) : null}
                             <button
                               type="button"
                               className="btn-hospital-confirm-action"
@@ -839,9 +874,31 @@ export default function HospitalDashboardOverview() {
                               ✕ Decline
                             </button>
                           </div>
+                        ) : patient.status === 'waiting' && !patient.checkedIn && patient.date === todayStr ? (
+                          <div className="hospital-action-buttons-wrapper">
+                            <span className="mockup-status-badge pending">Not arrived</span>
+                            <button
+                              type="button"
+                              className="btn-hospital-confirm-action"
+                              title="Patient has arrived at the hospital"
+                              onClick={() => handleDeskCheckIn(patient.id)}
+                            >
+                              Check in
+                            </button>
+                            <button
+                              type="button"
+                              className="btn-hospital-cancel-action"
+                              title="Patient did not come"
+                              onClick={() => handleDeskNoShow(patient.id)}
+                            >
+                              No-show
+                            </button>
+                          </div>
                         ) : (
                           <span className={`queue-status-badge status-${patient.status}`}>
-                            {queueStatusLabel(patient.status)}
+                            {patient.status === 'waiting' && patient.checkedIn
+                              ? 'Checked in'
+                              : queueStatusLabel(patient.status)}
                           </span>
                         )}
                       </td>

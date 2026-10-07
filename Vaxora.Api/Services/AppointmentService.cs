@@ -26,6 +26,8 @@ public interface IAppointmentService
     /// doctor/nurse affiliated with that hospital.
     /// </summary>
     Task<AppointmentResponseDto> UpdateAppointmentStatusAsync(Guid actorUserId, Guid appointmentId, UpdateAppointmentStatusDto dto);
+    /// <summary>Marks a patient as arrived (hospital desk or affiliated staff), today only.</summary>
+    Task<AppointmentResponseDto> CheckInAsync(Guid actorUserId, Guid appointmentId);
     Task<bool> CancelAppointmentAsync(Guid userId, string idOrRef, bool isHospital = false);
     Task<bool> CancelAppointmentAsync(Guid userId, Guid appointmentId, bool isHospital = false);
     Task<AppointmentResponseDto> ConfirmPayHerePaymentAsync(Guid appointmentId, string transactionId, string? orderId = null);
@@ -668,6 +670,8 @@ public class AppointmentService : IAppointmentService
             Fee = 0.00m,
             PaymentMethod = "WalkIn",
             PaymentStatus = "Paid",
+            CheckedInAt = DateTime.UtcNow,
+            CheckedInByUserId = hospital.Id,
             Notes = string.Join(" · ", noteParts),
             CreatedAt = DateTime.UtcNow
         };
@@ -924,6 +928,58 @@ public class AppointmentService : IAppointmentService
         };
     }
 
+    public async Task<AppointmentResponseDto> CheckInAsync(Guid actorUserId, Guid appointmentId)
+    {
+        var appointment = await _context.Appointments
+            .Include(a => a.VaccineSchedule)
+            .FirstOrDefaultAsync(a => a.Id == appointmentId)
+            ?? throw new KeyNotFoundException("Appointment record not found.");
+
+        var actor = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == actorUserId)
+            ?? throw new UnauthorizedAccessException("Invalid user.");
+
+        var isHospitalOwner = appointment.HospitalUserId == actorUserId;
+        if (!isHospitalOwner)
+        {
+            if (actor.Role is not (UserRole.DOCTOR or UserRole.NURSE))
+                throw new UnauthorizedAccessException("Only the hospital desk or affiliated clinical staff can check patients in.");
+            var isAffiliated = await _context.StaffAffiliations.AsNoTracking().AnyAsync(a =>
+                a.StaffUserId == actorUserId &&
+                a.HospitalUserId == appointment.HospitalUserId &&
+                a.Status == AffiliationStatus.Active);
+            if (!isAffiliated)
+                throw new UnauthorizedAccessException("You are not affiliated with this hospital.");
+        }
+
+        if (appointment.AppointmentDate != StaffDutyHelper.HospitalToday())
+            throw new InvalidOperationException("Patients can only be checked in on the day of their appointment.");
+
+        if (!string.Equals(appointment.Status, "Confirmed", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(appointment.Status, "PendingPayment", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException($"Cannot check in an appointment that is {appointment.Status}.");
+        }
+
+        if (appointment.CheckedInAt == null)
+        {
+            appointment.CheckedInAt = DateTime.UtcNow;
+            appointment.CheckedInByUserId = actorUserId;
+            appointment.UpdatedAt = DateTime.UtcNow;
+            _context.AuditLogs.Add(new AuditLog
+            {
+                UserId = actorUserId,
+                UserEmail = actor.Email,
+                Role = actor.Role.ToString(),
+                Action = "PATIENT_CHECKED_IN",
+                Details = $"Patient {appointment.PatientName} checked in for appointment {appointment.Id}",
+                Timestamp = DateTime.UtcNow
+            });
+            await _context.SaveChangesAsync();
+        }
+
+        return MapToDto(appointment);
+    }
+
     public async Task<AppointmentResponseDto> UpdateAppointmentStatusAsync(Guid actorUserId, Guid appointmentId, UpdateAppointmentStatusDto dto)
     {
         var appointment = await _context.Appointments
@@ -1021,6 +1077,15 @@ public class AppointmentService : IAppointmentService
         {
             throw new InvalidOperationException(
                 "A doctor must prescribe the dose before administration. Ask the doctor to prescribe it first.");
+        }
+
+        // Real clinics only call patients who have arrived.
+        if (!isHospitalOwner &&
+            string.Equals(nextStatus, "Administering", StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(previousStatus, "Confirmed", StringComparison.OrdinalIgnoreCase) &&
+            appointment.CheckedInAt == null)
+        {
+            throw new InvalidOperationException("This patient has not checked in yet. Check them in when they arrive.");
         }
 
         // Two-person check: the doctor prescribes, the administering staff member signs off
@@ -2118,6 +2183,7 @@ public class AppointmentService : IAppointmentService
             PrescribedByDoctorUserId = a.PrescribedByDoctorUserId,
             PrescribedByDoctorName = a.PrescribedByDoctorName,
             DosageUpdatedAt = a.DosageUpdatedAt,
+            CheckedInAt = a.CheckedInAt,
             CreatedAt = a.CreatedAt,
             UpdatedAt = a.UpdatedAt
         };

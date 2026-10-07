@@ -88,6 +88,7 @@ public class AppointmentResponseDto
     public Guid? PrescribedByDoctorUserId { get; set; }
     public string? PrescribedByDoctorName { get; set; }
     public DateTime? DosageUpdatedAt { get; set; }
+    public DateTime? CheckedInAt { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
 }
