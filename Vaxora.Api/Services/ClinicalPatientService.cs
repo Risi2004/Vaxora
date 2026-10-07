@@ -281,6 +281,15 @@ public class ClinicalPatientService : IClinicalPatientService
             throw new InvalidOperationException("Cannot edit dosage for completed, cancelled, or rejected appointments.");
         }
 
+        // Once the nurse has started, the prescription is locked so the recorded dose
+        // always matches what was given. Return the patient to the queue to change it.
+        if (string.Equals(appointment.Status, "Administering", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(appointment.Status, "Observation", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                "Administration has already started, so the dose is locked. Return the patient to the queue to change it.");
+        }
+
         // Past incomplete visits need to be closed or rebooked — not prescribed retrospectively.
         var today = StaffDutyHelper.HospitalToday();
         if (appointment.AppointmentDate < today)

@@ -34,6 +34,31 @@ public class ClinicalStaffWorkflowTests
         Assert.Contains("already passed", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Theory]
+    [InlineData("Administering")]
+    [InlineData("Observation")]
+    public async Task UpdatePrescribedDosageAsync_is_locked_once_administration_started(string status)
+    {
+        await using var context = TestDb.CreateContext();
+        var hospital = TestDb.AddHospital(context);
+        var doctor = TestDb.AddDoctor(context, "doctor@example.com", "VAX-D-3010");
+        var affiliation = TestDb.AddActiveAffiliation(context, hospital, doctor);
+        TestDb.AddLiveShift(context, affiliation, hospital);
+        var appointment = TestDb.AddAppointment(context, hospital, status: status);
+        appointment.PrescribedDosage = "0.5ml";
+        await context.SaveChangesAsync();
+
+        var service = new ClinicalPatientService(context, NullLogger<ClinicalPatientService>.Instance);
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.UpdatePrescribedDosageAsync(
+                doctor.Id,
+                appointment.Id,
+                new UpdatePrescribedDosageDto { Dosage = "1.0ml" }));
+
+        Assert.Contains("dose is locked", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("0.5ml", (await context.Appointments.SingleAsync()).PrescribedDosage);
+    }
+
     [Fact]
     public async Task GetPatientByVaxoraId_marks_past_pending_visit_as_overdue_missed()
     {

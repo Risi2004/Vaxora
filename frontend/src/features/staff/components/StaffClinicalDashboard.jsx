@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getUser } from '../../auth/services/authService';
 import inventoryService from '../../hospital/services/inventoryService';
 import staffService from '../../hospital/services/staffService';
-import clinicalPatientService from '../../doctor/services/clinicalPatientService';
 import ClinicalPrescribeModal from '../../doctor/components/ClinicalPrescribeModal';
 import staffAppointmentService from '../services/staffAppointmentService';
 import { hospitalMinutesNow, hospitalToday } from '../../hospital/utils/hospitalDate';
@@ -475,11 +474,6 @@ export default function StaffClinicalDashboard({
     const details = certifiedData.administrationDetails || {};
     try {
       setStatusUpdating(true);
-      const dosage = String(details.dosage || '').trim();
-      const currentDose = certifiedData.hasDosage ? String(certifiedData.dose || '').trim() : '';
-      if (isDoctor && dosage && dosage !== currentDose) {
-        await clinicalPatientService.updateDosage(certifiedData.id, dosage);
-      }
       await staffAppointmentService.updateAppointmentStatus(
         certifiedData.id,
         'Observation',
@@ -949,7 +943,7 @@ export default function StaffClinicalDashboard({
           </div>
 
           <div className="doctor-spotlight-actions">
-            {isDoctor && activePatient.status !== 'completed' && activePatient.status !== 'cancelled' && (
+            {isDoctor && activePatient.status === 'waiting' && (
               <button
                 type="button"
                 className="doctor-btn-defer"
