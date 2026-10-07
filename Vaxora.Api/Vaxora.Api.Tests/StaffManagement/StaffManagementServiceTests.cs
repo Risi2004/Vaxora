@@ -192,6 +192,7 @@ public class StaffManagementServiceTests
         AddActiveAffiliation(context, hospital, nurse);
         var externalAffiliation = AddActiveAffiliation(context, otherHospital, doctor);
         var date = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(3));
+        AddSession(context, hospital, date);
         // Busy elsewhere in the morning slot only.
         AddShift(context, otherHospital, externalAffiliation, date);
         await context.SaveChangesAsync();
@@ -209,6 +210,27 @@ public class StaffManagementServiceTests
     }
 
     [Fact]
+    public async Task GetCoverageReportAsync_does_not_count_closed_or_past_days_as_low()
+    {
+        await using var context = TestDb.CreateContext();
+        var hospital = AddHospital(context);
+        var doctor = AddDoctor(context, "doctor@example.com", "VAX-D-1001");
+        AddActiveAffiliation(context, hospital, doctor);
+        var today = StaffDutyHelper.HospitalToday();
+        var clinicDay = today.AddDays(2);
+        AddSession(context, hospital, clinicDay);
+        await context.SaveChangesAsync();
+        var service = CreateService(context);
+
+        var report = await service.GetCoverageReportAsync(hospital.Id, today.AddDays(-1), today.AddDays(3));
+
+        Assert.Equal("Past", report.Days.Single(d => d.Date == today.AddDays(-1)).CoverageLevel);
+        Assert.Equal("NoClinic", report.Days.Single(d => d.Date == today.AddDays(1)).CoverageLevel);
+        Assert.Equal("Low", report.Days.Single(d => d.Date == clinicDay).CoverageLevel);
+        Assert.Equal(1, report.DaysWithLowCoverage);
+    }
+
+    [Fact]
     public async Task GetCoverageReportAsync_marks_day_low_when_a_role_has_no_shift()
     {
         await using var context = CreateContext();
@@ -218,6 +240,7 @@ public class StaffManagementServiceTests
         var doctorAffiliation = AddActiveAffiliation(context, hospital, doctor);
         AddActiveAffiliation(context, hospital, nurse);
         var date = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(2));
+        AddSession(context, hospital, date);
         context.StaffShifts.Add(new StaffShift
         {
             AffiliationId = doctorAffiliation.Id,
@@ -347,6 +370,20 @@ public class StaffManagementServiceTests
         };
         context.Users.Add(nurse);
         return nurse;
+    }
+
+    private static VaccineSchedule AddSession(ApplicationDbContext context, User hospital, DateOnly date)
+    {
+        var session = new VaccineSchedule
+        {
+            HospitalUserId = hospital.Id,
+            VaccineName = "Hepatitis B",
+            ScheduleType = "OneTime",
+            SpecificDate = date,
+            Status = "Active"
+        };
+        context.VaccineSchedules.Add(session);
+        return session;
     }
 
     private static StaffShift AddShift(

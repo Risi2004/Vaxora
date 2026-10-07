@@ -760,6 +760,11 @@ public class StaffManagementService : IStaffManagementService
                 s.ShiftDate <= to)
             .ToListAsync();
 
+        // Coverage only matters on days the hospital actually runs vaccine sessions;
+        // closed days and past days must not show as "Low".
+        var clinicDays = await GetClinicDaysAsync(hospitalUserId, from, to);
+        var today = HospitalToday();
+
         var days = new List<StaffDayCoverageDto>();
         for (var date = from; date <= to; date = date.AddDays(1))
         {
@@ -781,7 +786,15 @@ public class StaffManagementService : IStaffManagementService
             var targetNurses = TargetDailyRoleCount(activeNurses);
 
             string coverageLevel;
-            if (activeDoctors + activeNurses == 0)
+            if (date < today)
+            {
+                coverageLevel = "Past";
+            }
+            else if (!clinicDays.Contains(date))
+            {
+                coverageLevel = "NoClinic";
+            }
+            else if (activeDoctors + activeNurses == 0)
             {
                 coverageLevel = "Low";
             }
@@ -798,14 +811,18 @@ public class StaffManagementService : IStaffManagementService
                 coverageLevel = "Partial";
             }
 
-            var summary = activeDoctors + activeNurses == 0
-                ? "No active affiliated staff yet."
-                : coverageLevel switch
+            var summary = coverageLevel switch
+            {
+                "Past" => "Day has passed.",
+                "NoClinic" => "No vaccine sessions scheduled — clinic closed.",
+                _ when activeDoctors + activeNurses == 0 => "No active affiliated staff yet.",
+                _ => coverageLevel switch
                 {
                     "Good" => $"Solid depth: {scheduledDoctors}/{targetDoctors} doctors and {scheduledNurses}/{targetNurses} nurses.",
                     "Partial" => $"Thin roster — aim for {targetDoctors} doctors and {targetNurses} nurses (AM + PM).",
                     _ => "Missing doctor and/or nurse shift coverage."
-                };
+                }
+            };
 
             days.Add(new StaffDayCoverageDto
             {
@@ -830,6 +847,54 @@ public class StaffManagementService : IStaffManagementService
             DaysWithLowCoverage = days.Count(d => d.CoverageLevel == "Low"),
             Days = days
         };
+    }
+
+    /// <summary>
+    /// Dates in [from, to] with at least one active vaccine session (one-time or weekly).
+    /// </summary>
+    private async Task<HashSet<DateOnly>> GetClinicDaysAsync(Guid hospitalUserId, DateOnly from, DateOnly to)
+    {
+        var hospitalProfileId = await _context.HospitalProfiles
+            .AsNoTracking()
+            .Where(h => h.UserId == hospitalUserId)
+            .Select(h => (Guid?)h.Id)
+            .FirstOrDefaultAsync();
+
+        var schedules = await _context.VaccineSchedules
+            .AsNoTracking()
+            .Where(s =>
+                s.Status == "Active" &&
+                (s.HospitalUserId == hospitalUserId ||
+                 (hospitalProfileId != null && s.HospitalProfileId == hospitalProfileId)))
+            .ToListAsync();
+
+        var days = new HashSet<DateOnly>();
+        foreach (var schedule in schedules)
+        {
+            if (!string.Equals(schedule.ScheduleType, "Weekly", StringComparison.OrdinalIgnoreCase))
+            {
+                if (schedule.SpecificDate is { } specific && specific >= from && specific <= to)
+                    days.Add(specific);
+                continue;
+            }
+
+            var weekdays = (schedule.DaysOfWeek ?? string.Empty)
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            for (var date = from; date <= to; date = date.AddDays(1))
+            {
+                if (schedule.StartDate.HasValue && date < schedule.StartDate.Value) continue;
+                if (schedule.EndDate.HasValue && date > schedule.EndDate.Value) continue;
+                var dayName = date.DayOfWeek.ToString();
+                if (weekdays.Any(d =>
+                        string.Equals(d, dayName, StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(d, dayName[..3], StringComparison.OrdinalIgnoreCase)))
+                {
+                    days.Add(date);
+                }
+            }
+        }
+
+        return days;
     }
 
     /// <summary>
