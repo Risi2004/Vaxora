@@ -253,6 +253,28 @@ public class StaffManagementServiceTests
     }
 
     [Fact]
+    public async Task Session_cannot_be_posted_at_a_booth_with_no_vaccines_listed()
+    {
+        await using var context = TestDb.CreateContext();
+        var hospital = AddHospital(context);
+        var booth = new HospitalBooth { HospitalUserId = hospital.Id, Code = "B09", Name = "Empty" };
+        context.HospitalBooths.Add(booth);
+        await context.SaveChangesAsync();
+        var schedules = new ScheduleService(context, NullLogger<ScheduleService>.Instance);
+
+        var exception = await Assert.ThrowsAsync<ArgumentException>(() =>
+            schedules.CreateScheduleAsync(hospital.Id, new CreateVaccineScheduleDto
+            {
+                BoothId = booth.Id,
+                VaccineName = "Hepatitis B",
+                ScheduleType = "OneTime",
+                SpecificDate = StaffDutyHelper.HospitalToday().AddDays(3)
+            }));
+
+        Assert.Contains("no vaccines listed", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task GetCoverageReportAsync_does_not_count_closed_or_past_days_as_low()
     {
         await using var context = TestDb.CreateContext();

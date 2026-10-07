@@ -85,29 +85,33 @@ public class ScheduleService : IScheduleService
         var resolvedVaccineId = dto.VaccineId;
         var vaccineName = (dto.VaccineName ?? string.Empty).Trim();
 
-        if (booth.Vaccines.Count > 0)
+        // Every booth states what it offers, so bookings and walk-in routing agree.
+        if (booth.Vaccines.Count == 0)
         {
-            var idMatch = resolvedVaccineId.HasValue
-                && booth.Vaccines.Any(v => v.VaccineId == resolvedVaccineId.Value);
+            throw new ArgumentException(
+                $"Booth {booth.DisplayLabel} has no vaccines listed. Add the vaccines this booth offers in Booths first.");
+        }
 
-            if (!idMatch)
+        var idMatch = resolvedVaccineId.HasValue
+            && booth.Vaccines.Any(v => v.VaccineId == resolvedVaccineId.Value);
+
+        if (!idMatch)
+        {
+            // Formulary sometimes sends the wrong GUID; recover by vaccine name on this booth.
+            var nameMatch = booth.Vaccines.FirstOrDefault(v =>
+                !string.IsNullOrWhiteSpace(v.Vaccine?.Name) &&
+                string.Equals(v.Vaccine!.Name.Trim(), vaccineName, StringComparison.OrdinalIgnoreCase));
+
+            if (nameMatch != null)
             {
-                // Formulary sometimes sends the wrong GUID; recover by vaccine name on this booth.
-                var nameMatch = booth.Vaccines.FirstOrDefault(v =>
-                    !string.IsNullOrWhiteSpace(v.Vaccine?.Name) &&
-                    string.Equals(v.Vaccine!.Name.Trim(), vaccineName, StringComparison.OrdinalIgnoreCase));
-
-                if (nameMatch != null)
-                {
-                    resolvedVaccineId = nameMatch.VaccineId;
-                }
-                else
-                {
-                    throw new ArgumentException(
-                        $"Booth {booth.DisplayLabel} does not offer this vaccine. " +
-                        "Open Booths and add the vaccine to that booth, or pick a booth that already lists it."
-                    );
-                }
+                resolvedVaccineId = nameMatch.VaccineId;
+            }
+            else
+            {
+                throw new ArgumentException(
+                    $"Booth {booth.DisplayLabel} does not offer this vaccine. " +
+                    "Open Booths and add the vaccine to that booth, or pick a booth that already lists it."
+                );
             }
         }
 
