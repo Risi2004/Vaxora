@@ -321,18 +321,12 @@ export default function HospitalDashboardOverview() {
       const shifts = Array.isArray(shiftList) ? shiftList : [];
       const staff = Array.isArray(staffList) ? staffList : [];
 
-      // Live on-duty = unique affiliations with a shift covering hospital-local now
-      // (same clock as booth cards — don't rely only on roster flag).
-      const liveAffiliationIds = new Set();
-      shifts.forEach((s) => {
-        const start = timeToMinutes(s.startTime);
-        const end = timeToMinutes(s.endTime);
-        if (start != null && end != null && start <= nowMinutes && nowMinutes < end) {
-          if (s.affiliationId) liveAffiliationIds.add(s.affiliationId);
-        }
-      });
-      const rosterLive = staff.filter((s) => s.isOnDutyNow).length;
-      setOnDutyCount(Math.max(liveAffiliationIds.size, rosterLive));
+      // The server decides who is on duty (live shift or clock-in, not on break),
+      // so the count and booth badges match what clinical staff can actually do.
+      const onDutyAffiliationIds = new Set(
+        staff.filter((s) => s.isOnDutyNow).map((s) => s.affiliationId)
+      );
+      setOnDutyCount(onDutyAffiliationIds.size);
 
       const photoByAffiliation = new Map(
         staff.map((s) => [s.affiliationId, s.staffProfilePhotoUrl || null])
@@ -346,7 +340,13 @@ export default function HospitalDashboardOverview() {
         const liveShift = boothShifts.find((s) => {
           const start = timeToMinutes(s.startTime);
           const end = timeToMinutes(s.endTime);
-          return start != null && end != null && start <= nowMinutes && nowMinutes < end;
+          return (
+            start != null &&
+            end != null &&
+            start <= nowMinutes &&
+            nowMinutes < end &&
+            onDutyAffiliationIds.has(s.affiliationId)
+          );
         });
 
         const primary = liveShift || boothShifts[0] || null;
