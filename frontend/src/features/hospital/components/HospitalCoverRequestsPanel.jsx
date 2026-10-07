@@ -2,6 +2,7 @@ import { deferEffectCallback } from '../../../shared/utils/deferEffectCallback.j
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import staffService from '../services/staffService';
 import { RoleAvatarIcon } from './HospitalIcons';
+import { hospitalMinutesNow, hospitalToday } from '../utils/hospitalDate';
 
 function roleLabel(role) {
   const value = String(role || '').toUpperCase();
@@ -36,6 +37,18 @@ function formatShiftLine(request) {
   return `${date} · ${window}${booth}`;
 }
 
+/** A started shift can no longer be reassigned (the API rejects it too). */
+function hasShiftStarted(request) {
+  const day = String(request.shiftDate || '').slice(0, 10);
+  if (!day) return false;
+  const today = hospitalToday();
+  if (day < today) return true;
+  if (day > today) return false;
+  const match = /^(\d{1,2}):(\d{2})/.exec(String(request.shiftWindow || ''));
+  if (!match) return false;
+  return hospitalMinutesNow() >= Number(match[1]) * 60 + Number(match[2]);
+}
+
 function requestNote(request) {
   const reason = String(request.reason || '').trim();
   if (reason) return reason;
@@ -55,7 +68,8 @@ function CoverRequestCard({ request, busy, onApprove, onDecline }) {
   const isDeclined = String(request.status || '').toLowerCase() === 'declined';
   const isCancelled = String(request.status || '').toLowerCase() === 'cancelled';
   const note = requestNote(request);
-  const canApprove = isPending && hasCover && Boolean(selectedAffiliationId);
+  const started = isPending && hasShiftStarted(request);
+  const canApprove = isPending && !started && hasCover && Boolean(selectedAffiliationId);
 
   const statusLabel = isApproved
     ? 'Approved'
@@ -72,8 +86,9 @@ function CoverRequestCard({ request, busy, onApprove, onDecline }) {
         ? 'neutral'
         : 'warning';
 
-  const reviewSummary =
-    request.reviewSummary ||
+  const reviewSummary = started
+    ? 'This shift has already started — it can no longer be reassigned. Decline to close the request.'
+    : request.reviewSummary ||
     (suggestions.length === 0
       ? 'No other staff of this role on the roster.'
       : hasCover
@@ -169,7 +184,7 @@ function CoverRequestCard({ request, busy, onApprove, onDecline }) {
               disabled={busy || !canApprove}
               onClick={() => onApprove(selectedAffiliationId)}
             >
-              {busy ? 'Saving…' : hasCover ? 'Assign' : 'No cover'}
+              {busy ? 'Saving…' : started ? 'Shift started' : hasCover ? 'Assign' : 'No cover'}
             </button>
           </div>
         </>

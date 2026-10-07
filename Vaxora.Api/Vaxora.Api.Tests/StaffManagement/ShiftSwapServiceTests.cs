@@ -51,7 +51,7 @@ public class ShiftSwapServiceTests
     }
 
     [Fact]
-    public async Task GetQuotaAsync_blocks_finished_shift()
+    public async Task GetQuotaAsync_blocks_shift_that_already_started()
     {
         await using var context = TestDb.CreateContext();
         var hospital = TestDb.AddHospital(context);
@@ -73,7 +73,7 @@ public class ShiftSwapServiceTests
         var quota = await service.GetQuotaAsync(doctor.Id, past.Id);
 
         Assert.False(quota.CanRequest);
-        Assert.Contains("finished", quota.BlockReason ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("already started", quota.BlockReason ?? string.Empty, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -192,6 +192,51 @@ public class ShiftSwapServiceTests
         Assert.Equal($"Dr. {replacement.DoctorProfile!.FullName}", requesterHistory.ReplacementName);
         Assert.Equal("Incoming", replacementHistory.Direction);
         Assert.Equal(requester.Id, replacementHistory.RequesterUserId);
+    }
+
+    [Fact]
+    public async Task DecideAsync_refuses_to_reassign_a_shift_that_already_started()
+    {
+        await using var context = TestDb.CreateContext();
+        var hospital = TestDb.AddHospital(context);
+        var requester = TestDb.AddDoctor(context, "requester@example.com", "VAX-D-2020");
+        var replacement = TestDb.AddDoctor(context, "replacement@example.com", "VAX-D-2021");
+        var requesterAffiliation = TestDb.AddActiveAffiliation(context, hospital, requester);
+        var replacementAffiliation = TestDb.AddActiveAffiliation(context, hospital, replacement);
+        var started = new StaffShift
+        {
+            AffiliationId = requesterAffiliation.Id,
+            Affiliation = requesterAffiliation,
+            ShiftDate = StaffDutyHelper.HospitalToday().AddDays(-1),
+            StartTime = new TimeOnly(9, 0),
+            EndTime = new TimeOnly(12, 0),
+            CreatedByUserId = hospital.Id
+        };
+        context.StaffShifts.Add(started);
+        // Request logged before the shift began, still pending afterwards.
+        var pending = new ShiftSwapRequest
+        {
+            ShiftId = started.Id,
+            HospitalUserId = hospital.Id,
+            RequesterUserId = requester.Id,
+            ShiftDate = started.ShiftDate,
+            ShiftWindow = "09:00–12:00",
+            Status = ShiftSwapStatus.Pending
+        };
+        context.ShiftSwapRequests.Add(pending);
+        await context.SaveChangesAsync();
+        var service = CreateService(context);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.DecideAsync(hospital.Id, pending.Id, new ShiftSwapDecisionDto
+            {
+                Approved = true,
+                ReplacementAffiliationId = replacementAffiliation.Id
+            }));
+
+        Assert.Contains("already started", exception.Message, StringComparison.OrdinalIgnoreCase);
+        var unchanged = await context.StaffShifts.SingleAsync(s => s.Id == started.Id);
+        Assert.Equal(requesterAffiliation.Id, unchanged.AffiliationId);
     }
 
     private static ShiftSwapService CreateService(Vaxora.Api.Data.ApplicationDbContext context) =>

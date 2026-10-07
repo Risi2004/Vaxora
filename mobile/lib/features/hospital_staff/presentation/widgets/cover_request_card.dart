@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../auth/presentation/utils/home_route_utils.dart';
+import '../../../staff/presentation/utils/staff_date_utils.dart';
 import '../../../staff/presentation/widgets/network_avatar.dart';
 import '../../../staff/presentation/widgets/staff_common_widgets.dart';
 import '../../data/models/shift_swap_request_model.dart';
@@ -99,7 +100,11 @@ class _CoverRequestCardState extends State<CoverRequestCard> {
     final note = _note;
     final suggestions = request.suggestions.where((s) => s.available).toList();
     final hasCover = suggestions.any((s) => s.available);
+    // A started shift can no longer be reassigned (the API rejects it too).
+    final started = request.isPending &&
+        hasShiftStarted(request.shiftDate, request.shiftWindow);
     final canApprove = request.isPending &&
+        !started &&
         hasCover &&
         _selectedAffiliationId != null;
 
@@ -186,7 +191,9 @@ class _CoverRequestCardState extends State<CoverRequestCard> {
           if (request.isPending) ...[
             const SizedBox(height: 12),
             _ReviewBanner(
-              summary: request.reviewSummary ??
+              summary: started
+                  ? 'This shift has already started — it can no longer be reassigned. Decline to close the request.'
+                  : request.reviewSummary ??
                   (suggestions.isEmpty
                       ? 'No other staff of this role on the roster.'
                       : hasCover
@@ -255,7 +262,11 @@ class _CoverRequestCardState extends State<CoverRequestCard> {
                             ),
                           )
                         : Text(
-                            hasCover ? 'Assign' : 'No cover',
+                            started
+                                ? 'Shift started'
+                                : hasCover
+                                ? 'Assign'
+                                : 'No cover',
                             style: const TextStyle(fontWeight: FontWeight.w700),
                           ),
                   ),

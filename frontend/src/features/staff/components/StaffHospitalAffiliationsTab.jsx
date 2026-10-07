@@ -75,10 +75,23 @@ function isShiftFinished(shift, today) {
   return `${hh}:${mm}` >= end;
 }
 
+/** Cover can only be requested before the shift starts (hospital-local time). */
+function isShiftStarted(shift, today) {
+  const day = String(shift?.shiftDate || '').slice(0, 10);
+  if (!day) return true;
+  if (day < today) return true;
+  if (day > today) return false;
+  const start = String(shift?.startTime || '00:00').slice(0, 5);
+  const now = new Date();
+  const hh = String(now.getHours()).padStart(2, '0');
+  const mm = String(now.getMinutes()).padStart(2, '0');
+  return `${hh}:${mm}` >= start;
+}
+
 function localQuotaFallback(shift, today) {
   const day = String(shift?.shiftDate || '').slice(0, 10);
-  const finished = isShiftFinished(shift, today);
-  if (finished) {
+  const started = isShiftStarted(shift, today);
+  if (started) {
     return {
       usedThisMonth: 0,
       monthlyLimit: 3,
@@ -89,7 +102,7 @@ function localQuotaFallback(shift, today) {
       reasonRequired: false,
       alreadyPending: false,
       isUrgent: false,
-      blockReason: 'This shift has already finished.',
+      blockReason: 'This shift has already started — tell the hospital desk directly.',
       summary: 'This shift has already finished.',
     };
   }
@@ -241,8 +254,8 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff' }) {
   };
 
   const openCoverModal = async (shift) => {
-    if (isShiftFinished(shift, today)) {
-      showToast('This shift has already finished — cover cannot be requested.');
+    if (isShiftStarted(shift, today)) {
+      showToast('This shift has already started — tell the hospital desk directly.');
       return;
     }
     setCoverShift(shift);
@@ -472,8 +485,9 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff' }) {
                         dayShifts.map((shift) => {
                           const cover = String(shift.coverStatus || '').trim();
                           const finished = isShiftFinished(shift, today);
+                          const started = isShiftStarted(shift, today);
                           const canRequest =
-                            !finished &&
+                            !started &&
                             (!cover ||
                               cover.toLowerCase() === 'declined' ||
                               cover.toLowerCase() === 'requested');
@@ -489,7 +503,9 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff' }) {
                               title={
                                 finished
                                   ? 'This shift has already finished'
-                                  : cover.toLowerCase() === 'covering'
+                                  : started && !cover
+                                    ? 'Shift already started — tell the hospital desk directly'
+                                    : cover.toLowerCase() === 'covering'
                                     ? 'You are covering this shift for a colleague'
                                     : canRequest
                                       ? 'Request cover for this shift'
@@ -512,6 +528,8 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff' }) {
                                 <span className={`staff-cover-chip ${coverStatusTone(cover)}`}>
                                   {cover}
                                 </span>
+                              ) : started ? (
+                                <span className="staff-cover-chip is-pending">In progress</span>
                               ) : (
                                 <span className="staff-cover-chip is-request">Request cover</span>
                               )}

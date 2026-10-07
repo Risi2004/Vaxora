@@ -593,6 +593,14 @@ public class ShiftSwapService : IShiftSwapService
         if (shift == null)
             throw new InvalidOperationException("This shift is no longer on the roster.");
 
+        var today = HospitalToday();
+        if (shift.ShiftDate < today ||
+            (shift.ShiftDate == today && TimeOnly.FromDateTime(HospitalNow()) >= shift.StartTime))
+        {
+            throw new InvalidOperationException(
+                "This shift has already started — it can no longer be reassigned. Decline the request instead.");
+        }
+
         var replacement = await _context.StaffAffiliations
             .Include(a => a.StaffUser).ThenInclude(u => u.DoctorProfile)
             .Include(a => a.StaffUser).ThenInclude(u => u.NurseProfile)
@@ -765,11 +773,13 @@ public class ShiftSwapService : IShiftSwapService
         var daysUntil = shift.ShiftDate.DayNumber - today.DayNumber;
         quota.DaysUntilShift = daysUntil;
 
+        // Reassigning a started shift would credit the replacement with hours the
+        // requester already worked, so cover is only possible before the start.
         if (daysUntil < 0 ||
-            (daysUntil == 0 && HospitalNow().TimeOfDay >= shift.EndTime.ToTimeSpan()))
+            (daysUntil == 0 && HospitalNow().TimeOfDay >= shift.StartTime.ToTimeSpan()))
         {
             quota.CanRequest = false;
-            quota.BlockReason = "This shift has already finished.";
+            quota.BlockReason = "This shift has already started — tell the hospital desk directly.";
             quota.Summary = quota.BlockReason;
             return quota;
         }
