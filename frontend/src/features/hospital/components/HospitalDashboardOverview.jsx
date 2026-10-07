@@ -1,6 +1,7 @@
 import { deferEffectCallback } from '../../../shared/utils/deferEffectCallback.js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import WalkInRegistrationModal from './WalkInRegistrationModal';
+import scheduleService from '../services/scheduleService';
 import RestockVaccineModal from './RestockVaccineModal';
 import staffService from '../services/staffService';
 import { inventoryService } from '../services/inventoryService';
@@ -45,8 +46,27 @@ function roleLabel(role) {
   return role || 'Staff';
 }
 
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+/** True when an active vaccine session runs on `day` (yyyy-MM-dd). */
+function sessionRunsOn(schedule, day) {
+  if (String(schedule?.status || 'Active').toLowerCase() !== 'active') return false;
+  const type = String(schedule.scheduleType || 'OneTime').toLowerCase();
+  if (type !== 'weekly') return String(schedule.specificDate || '').slice(0, 10) === day;
+  const start = String(schedule.startDate || '').slice(0, 10);
+  const end = String(schedule.endDate || '').slice(0, 10);
+  if (start && day < start) return false;
+  if (end && day > end) return false;
+  const weekday = WEEKDAYS[new Date(`${day}T00:00:00`).getDay()];
+  return (schedule.daysOfWeek || []).some((d) => {
+    const value = String(d || '').trim().toLowerCase();
+    return value === weekday.toLowerCase() || value === weekday.slice(0, 3).toLowerCase();
+  });
+}
+
 function boothStatusClass(status) {
-  if (status === 'Unstaffed') return 'is-unstaffed';
+  if (status === 'Unstaffed' || status === 'No session today') return 'is-unstaffed';
+  if (status === 'Needs staff') return 'is-needs-staff';
   if (status === 'On duty') return 'is-on-duty';
   if (status === 'In session') return 'is-in-session';
   return 'is-scheduled';
@@ -336,11 +356,20 @@ export default function HospitalDashboardOverview() {
     const nowMinutes = hospitalMinutesNow();
 
     try {
-      const [boothList, shiftList, staffList] = await Promise.all([
+      const [boothList, shiftList, staffList, scheduleList] = await Promise.all([
         staffService.getHospitalBooths({ activeOnly: true }),
         staffService.getHospitalShifts({ from: today, to: today }),
         staffService.getHospitalStaff({ status: 'Active' }),
+        scheduleService.getHospitalSchedules().catch(() => null),
       ]);
+      // Booths that run a vaccine session today (null when sessions could not be loaded).
+      const sessionBoothIds = Array.isArray(scheduleList)
+        ? new Set(
+            scheduleList
+              .filter((sch) => sch.boothId && sessionRunsOn(sch, today))
+              .map((sch) => sch.boothId)
+          )
+        : null;
 
       const booths = Array.isArray(boothList) ? boothList : [];
       const shifts = Array.isArray(shiftList) ? shiftList : [];
@@ -394,7 +423,15 @@ export default function HospitalDashboardOverview() {
           boothName: booth.displayLabel || `${booth.code} · ${booth.name}`,
           staffMembers,
           vaccineNames: booth.vaccineNames || [],
-          status: !primary ? 'Unstaffed' : isLive ? 'On duty' : 'Scheduled',
+          status: primary
+            ? isLive
+              ? 'On duty'
+              : 'Scheduled'
+            : !sessionBoothIds
+              ? 'Unstaffed'
+              : sessionBoothIds.has(booth.boothId)
+                ? 'Needs staff'
+                : 'No session today',
           shiftCount: boothShifts.length,
         };
       });

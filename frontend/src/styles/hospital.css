@@ -2367,6 +2367,14 @@
   background: #a8a29e;
 }
 
+.booth-status-indicator.is-needs-staff {
+  color: #b45309;
+}
+
+.booth-status-indicator.is-needs-staff .booth-status-dot {
+  background: #f59e0b;
+}
+
 .booth-status-indicator.is-on-duty,
 .booth-status-indicator.is-in-session {
   color: #0f766e;
