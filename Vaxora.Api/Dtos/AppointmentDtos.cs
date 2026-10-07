@@ -89,6 +89,8 @@ public class AppointmentResponseDto
     public string? PrescribedByDoctorName { get; set; }
     public DateTime? DosageUpdatedAt { get; set; }
     public DateTime? CheckedInAt { get; set; }
+    /// <summary>Walk-in registration matched the patient's existing booking for today (checked in, not duplicated).</summary>
+    public bool MatchedExistingBooking { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
 }

@@ -436,7 +436,9 @@ export default function HospitalDashboardOverview() {
     await loadAppointmentsQueue();
     const unpaid = String(created?.paymentStatus || '').toLowerCase() !== 'paid';
     showToast(
-      unpaid
+      created?.matchedExistingBooking
+        ? `${payload.patientName} already booked ${created.vaccineName || 'this vaccine'} today${created.timeSlot ? ` (${created.timeSlot})` : ''} — checked in their booking.`
+        : unpaid
         ? `Guest ${payload.patientName} registered — collect the fee and click Mark paid. Guest password is their NIC.`
         : `Guest ${payload.patientName} queued — awaiting a doctor's prescription. Login email is theirs; guest password is their NIC.`
     );

@@ -595,6 +595,40 @@ public class AppointmentService : IAppointmentService
             ? patient.PatientProfile!.FullName
             : presentedName;
 
+        // Already booked today for this vaccine: check in that booking instead of
+        // queueing the patient twice. A different vaccine still gets its own walk-in.
+        if (!createdAccount)
+        {
+            var hospitalDay = StaffDutyHelper.HospitalToday();
+            var wantedVaccine = vaccineName.ToLowerInvariant();
+            var todaysBookings = await _context.Appointments
+                .Include(a => a.VaccineSchedule)
+                .Where(a =>
+                    a.HospitalUserId == hospital.Id &&
+                    a.PatientUserId == patient.Id &&
+                    a.AppointmentDate == hospitalDay &&
+                    (a.Status == "Confirmed" || a.Status == "PendingPayment"))
+                .ToListAsync();
+            var existing = todaysBookings.FirstOrDefault(a =>
+            {
+                var booked = (a.VaccineName ?? string.Empty).Trim().ToLowerInvariant();
+                return booked.Length > 0 && (booked == wantedVaccine || booked.Contains(wantedVaccine) || wantedVaccine.Contains(booked));
+            });
+            if (existing != null)
+            {
+                if (existing.CheckedInAt == null)
+                {
+                    existing.CheckedInAt = DateTime.UtcNow;
+                    existing.CheckedInByUserId = hospital.Id;
+                    existing.UpdatedAt = DateTime.UtcNow;
+                }
+                await _context.SaveChangesAsync();
+                var matched = MapToDto(existing);
+                matched.MatchedExistingBooking = true;
+                return matched;
+            }
+        }
+
         var hospitalNow = DateTime.UtcNow.AddHours(5.5);
         var today = DateOnly.FromDateTime(hospitalNow);
         var start = new TimeOnly(hospitalNow.Hour, hospitalNow.Minute);

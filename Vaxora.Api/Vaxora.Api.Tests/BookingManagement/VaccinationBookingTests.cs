@@ -588,6 +588,36 @@ public class VaccinationBookingTests
         Assert.NotEqual("Paid", result.PaymentStatus);
     }
 
+    [Fact]
+    public async Task CreateWalkInAppointmentAsync_checks_in_todays_booking_for_same_vaccine_but_not_others()
+    {
+        await using var context = TestDb.CreateContext();
+        var hospital = TestDb.AddHospital(context);
+        var patient = AddPatient(context, "booked@example.com", "VAX-P-4100");
+        var booking = TestDb.AddAppointment(context, hospital, status: "Confirmed");
+        booking.PatientUserId = patient.Id;
+        booking.VaccineName = "Tetanus Toxoid";
+        await context.SaveChangesAsync();
+        var service = CreateService(context);
+        var nic = patient.PatientProfile!.NicNumber;
+
+        var sameVaccine = WalkIn("Tetanus Toxoid", boothLabel: null);
+        sameVaccine.PatientNic = nic;
+        var matched = await service.CreateWalkInAppointmentAsync(hospital.Id, sameVaccine);
+
+        Assert.True(matched.MatchedExistingBooking);
+        Assert.Equal(booking.Id, matched.Id);
+        Assert.NotNull(matched.CheckedInAt);
+        Assert.Equal(1, await context.Appointments.CountAsync());
+
+        var otherVaccine = WalkIn("Influenza", boothLabel: null);
+        otherVaccine.PatientNic = nic;
+        var extra = await service.CreateWalkInAppointmentAsync(hospital.Id, otherVaccine);
+
+        Assert.False(extra.MatchedExistingBooking);
+        Assert.Equal(2, await context.Appointments.CountAsync());
+    }
+
     private static CreateWalkInAppointmentDto WalkIn(string vaccineName, string? boothLabel) => new()
     {
         PatientNic = "931234567V",
