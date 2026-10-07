@@ -422,7 +422,7 @@ export default function HospitalDashboardOverview() {
 
   // 1. Walk-in Registration (persisted appointment for registered patient NIC)
   const handleAddWalkIn = async (payload) => {
-    await appointmentService.createWalkIn({
+    const created = await appointmentService.createWalkIn({
       patientNic: payload.patientNic,
       patientName: payload.patientName,
       patientEmail: payload.patientEmail,
@@ -434,8 +434,11 @@ export default function HospitalDashboardOverview() {
       gender: payload.gender,
     });
     await loadAppointmentsQueue();
+    const unpaid = String(created?.paymentStatus || '').toLowerCase() !== 'paid';
     showToast(
-      `Guest ${payload.patientName} queued — awaiting a doctor's prescription. Login email is theirs; guest password is their NIC.`
+      unpaid
+        ? `Guest ${payload.patientName} registered — collect the fee and click Mark paid. Guest password is their NIC.`
+        : `Guest ${payload.patientName} queued — awaiting a doctor's prescription. Login email is theirs; guest password is their NIC.`
     );
   };
 
@@ -1150,6 +1153,11 @@ export default function HospitalDashboardOverview() {
         onClose={() => setIsWalkInOpen(false)}
         onAddPatient={handleAddWalkIn}
         vaccines={formularyVaccines.map((f) => f.vaccineName || f.name).filter(Boolean)}
+        vaccinePrices={Object.fromEntries(
+          formularyVaccines
+            .filter((f) => (f.vaccineName || f.name) && f.formattedPrice)
+            .map((f) => [f.vaccineName || f.name, f.formattedPrice])
+        )}
         booths={boothCards.map((b) => ({ id: b.id, label: b.boothName, vaccineNames: b.vaccineNames }))}
       />
 

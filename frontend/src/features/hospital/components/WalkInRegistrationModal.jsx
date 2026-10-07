@@ -34,6 +34,7 @@ export default function WalkInRegistrationModal({
   onClose,
   onAddPatient,
   vaccines,
+  vaccinePrices,
   booths,
 }) {
   const vaccineOptions = useMemo(
@@ -238,6 +239,12 @@ export default function WalkInRegistrationModal({
                   <option key={name} value={name}>{name}</option>
                 ))}
               </select>
+              {vaccinePrices?.[formData.vaccine] ? (
+                <span style={{ display: 'block', marginTop: 4, fontSize: '0.75rem', color: '#64748b' }}>
+                  Fee: {vaccinePrices[formData.vaccine]}
+                  {vaccinePrices[formData.vaccine] !== 'Free' ? ' — collect at the desk (Mark paid)' : ''}
+                </span>
+              ) : null}
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>

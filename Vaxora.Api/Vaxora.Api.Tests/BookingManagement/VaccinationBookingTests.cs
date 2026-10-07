@@ -566,6 +566,28 @@ public class VaccinationBookingTests
         Assert.Equal("B02 · Travel", result.BoothLabel);
     }
 
+    [Fact]
+    public async Task CreateWalkInAppointmentAsync_charges_the_hospital_price_for_paid_vaccines()
+    {
+        await using var context = TestDb.CreateContext();
+        var hospital = TestDb.AddHospital(context);
+        var vaccine = AddVaccine(context, "Tetanus Toxoid");
+        context.HospitalFormularies.Add(new HospitalFormulary
+        {
+            HospitalProfileId = hospital.HospitalProfile!.Id,
+            VaccineId = vaccine.Id,
+            Price = 2500m
+        });
+        await context.SaveChangesAsync();
+        var service = CreateService(context);
+
+        var result = await service.CreateWalkInAppointmentAsync(hospital.Id, WalkIn("Tetanus Toxoid", boothLabel: null));
+
+        Assert.Equal("PendingPayment", result.Status);
+        Assert.Equal(2500m, result.Fee);
+        Assert.NotEqual("Paid", result.PaymentStatus);
+    }
+
     private static CreateWalkInAppointmentDto WalkIn(string vaccineName, string? boothLabel) => new()
     {
         PatientNic = "931234567V",

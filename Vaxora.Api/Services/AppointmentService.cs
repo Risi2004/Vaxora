@@ -630,6 +630,11 @@ public class AppointmentService : IAppointmentService
                 : null)
             ?? await scheduleQuery.FirstOrDefaultAsync();
 
+        // Walk-ins pay the same hospital price as booked patients (formulary price,
+        // falling back to the session price). Priced walk-ins wait for desk payment.
+        var walkInFee = await ResolveWalkInFeeAsync(hospital, vaccineName, schedule);
+        var walkInIsFree = walkInFee <= 0;
+
         var noteParts = new List<string>
         {
             createdAccount
@@ -669,10 +674,10 @@ public class AppointmentService : IAppointmentService
             TimeSlot = timeSlot,
             StartTime = start.ToString("HH:mm"),
             EndTime = end.ToString("HH:mm"),
-            Status = "Confirmed",
-            Fee = 0.00m,
+            Status = walkInIsFree ? "Confirmed" : "PendingPayment",
+            Fee = walkInIsFree ? 0.00m : walkInFee,
             PaymentMethod = "WalkIn",
-            PaymentStatus = "Paid",
+            PaymentStatus = walkInIsFree ? "Paid" : "Pending",
             CheckedInAt = DateTime.UtcNow,
             CheckedInByUserId = hospital.Id,
             Notes = string.Join(" · ", noteParts),
@@ -1806,6 +1811,26 @@ public class AppointmentService : IAppointmentService
         if (!string.IsNullOrWhiteSpace(boothLabel))
             parts.Add($"Booth: {boothLabel.Trim()}");
         return parts.Count == 0 ? null : string.Join("\n", parts);
+    }
+
+    private async Task<decimal> ResolveWalkInFeeAsync(User hospital, string vaccineName, VaccineSchedule? schedule)
+    {
+        if (hospital.HospitalProfile != null)
+        {
+            var wanted = vaccineName.Trim().ToLowerInvariant();
+            var formulary = await _context.HospitalFormularies
+                .AsNoTracking()
+                .Include(f => f.Vaccine)
+                .Where(f => f.HospitalProfileId == hospital.HospitalProfile.Id)
+                .ToListAsync();
+            var match = formulary.FirstOrDefault(f =>
+                (schedule?.VaccineId != null && f.VaccineId == schedule.VaccineId) ||
+                (f.Vaccine != null && string.Equals(f.Vaccine.Name.Trim(), wanted, StringComparison.OrdinalIgnoreCase)));
+            if (match != null)
+                return Math.Max(0.00m, match.Price);
+        }
+
+        return Math.Max(0.00m, schedule?.Price ?? 0.00m);
     }
 
     /// <summary>
