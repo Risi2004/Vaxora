@@ -275,6 +275,39 @@ public class StaffManagementServiceTests
     }
 
     [Fact]
+    public async Task Session_cannot_overlap_another_session_at_the_same_booth()
+    {
+        await using var context = TestDb.CreateContext();
+        var hospital = AddHospital(context);
+        var hepB = new Vaccine { Name = "Hepatitis B", Manufacturer = "Test" };
+        context.Vaccines.Add(hepB);
+        var booth = new HospitalBooth { HospitalUserId = hospital.Id, Code = "B01", Name = "Adult" };
+        booth.Vaccines.Add(new HospitalBoothVaccine { BoothId = booth.Id, VaccineId = hepB.Id, Vaccine = hepB });
+        context.HospitalBooths.Add(booth);
+        var day = StaffDutyHelper.HospitalToday().AddDays(4);
+        var existing = AddSession(context, hospital, day);
+        existing.BoothId = booth.Id;
+        existing.StartTime = "09:00";
+        existing.EndTime = "11:00";
+        await context.SaveChangesAsync();
+        var schedules = new ScheduleService(context, NullLogger<ScheduleService>.Instance);
+
+        var exception = await Assert.ThrowsAsync<ArgumentException>(() =>
+            schedules.CreateScheduleAsync(hospital.Id, new CreateVaccineScheduleDto
+            {
+                BoothId = booth.Id,
+                VaccineId = hepB.Id,
+                VaccineName = "Hepatitis B",
+                ScheduleType = "OneTime",
+                SpecificDate = day,
+                StartTime = "10:00",
+                EndTime = "12:00"
+            }));
+
+        Assert.Contains("already runs", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task GetCoverageReportAsync_does_not_count_closed_or_past_days_as_low()
     {
         await using var context = TestDb.CreateContext();

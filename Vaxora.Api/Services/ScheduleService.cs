@@ -115,6 +115,8 @@ public class ScheduleService : IScheduleService
             }
         }
 
+        await EnsureNoBoothSessionOverlapAsync(booth, dto, isWeekly);
+
         var horizon = await BuildStockHorizonAsync(
             hospitalUserId,
             hospital.HospitalProfile?.Id,
@@ -624,6 +626,64 @@ public class ScheduleService : IScheduleService
             return dt.ToString("hh:mm tt");
         }
         return time24;
+    }
+
+    /// <summary>
+    /// One booth runs one session at a time; otherwise its per-slot capacity silently doubles.
+    /// </summary>
+    private async Task EnsureNoBoothSessionOverlapAsync(HospitalBooth booth, CreateVaccineScheduleDto dto, bool isWeekly)
+    {
+        if (!TimeOnly.TryParse(dto.StartTime, out var newStart) || !TimeOnly.TryParse(dto.EndTime, out var newEnd))
+            return;
+
+        var newFrom = isWeekly ? dto.StartDate : dto.SpecificDate;
+        var newTo = isWeekly ? dto.EndDate : dto.SpecificDate;
+        if (newFrom == null || newTo == null)
+            return;
+        var newDays = isWeekly ? (dto.DaysOfWeek ?? new List<string>()) : new List<string>();
+
+        var existing = await _context.VaccineSchedules
+            .AsNoTracking()
+            .Where(s => s.BoothId == booth.Id && s.Status == "Active")
+            .ToListAsync();
+
+        foreach (var other in existing)
+        {
+            if (!TimeOnly.TryParse(other.StartTime, out var otherStart) ||
+                !TimeOnly.TryParse(other.EndTime, out var otherEnd) ||
+                !(newStart < otherEnd && otherStart < newEnd))
+            {
+                continue;
+            }
+
+            var otherWeekly = string.Equals(other.ScheduleType, "Weekly", StringComparison.OrdinalIgnoreCase);
+            var otherFrom = otherWeekly ? other.StartDate : other.SpecificDate;
+            var otherTo = otherWeekly ? other.EndDate : other.SpecificDate;
+            var otherDays = (other.DaysOfWeek ?? string.Empty)
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+            var from = otherFrom.HasValue && otherFrom.Value > newFrom.Value ? otherFrom.Value : newFrom.Value;
+            var to = otherTo.HasValue && otherTo.Value < newTo.Value ? otherTo.Value : newTo.Value;
+            for (var date = from; date <= to && date <= from.AddDays(370); date = date.AddDays(1))
+            {
+                if (RunsOnDay(isWeekly, newDays, date) && RunsOnDay(otherWeekly, otherDays, date))
+                {
+                    throw new ArgumentException(
+                        $"Booth {booth.DisplayLabel} already runs {other.VaccineName} " +
+                        $"{FormatTime12h(other.StartTime)} - {FormatTime12h(other.EndTime)} on {date:yyyy-MM-dd}. " +
+                        "Pick another time or booth.");
+                }
+            }
+        }
+    }
+
+    private static bool RunsOnDay(bool weekly, IEnumerable<string> days, DateOnly date)
+    {
+        if (!weekly) return true;
+        var name = date.DayOfWeek.ToString();
+        return days.Any(d =>
+            string.Equals(d.Trim(), name, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(d.Trim(), name[..3], StringComparison.OrdinalIgnoreCase));
     }
 
     private static void EnsureScheduleNotInPast(CreateVaccineScheduleDto dto, bool isWeekly)
