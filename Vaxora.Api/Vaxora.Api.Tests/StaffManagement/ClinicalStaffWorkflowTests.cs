@@ -171,6 +171,29 @@ public class ClinicalStaffWorkflowTests
     }
 
     [Fact]
+    public async Task Discharge_is_refused_before_the_15_minute_observation_window()
+    {
+        await using var context = TestDb.CreateContext();
+        var hospital = TestDb.AddHospital(context);
+        var nurse = TestDb.AddNurse(context, "nurse@example.com", "VAX-N-3030");
+        var affiliation = TestDb.AddActiveAffiliation(context, hospital, nurse);
+        TestDb.AddLiveShift(context, affiliation, hospital);
+        var appointment = TestDb.AddAppointment(context, hospital, status: "Observation");
+        appointment.PrescribedDosage = "0.5ml";
+        appointment.UpdatedAt = DateTime.UtcNow.AddMinutes(-5);
+        await context.SaveChangesAsync();
+
+        var service = CreateAppointmentService(context);
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.UpdateAppointmentStatusAsync(
+                nurse.Id,
+                appointment.Id,
+                new UpdateAppointmentStatusDto { Status = "Completed" }));
+
+        Assert.Contains("Observation is not complete", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task Staff_cannot_call_a_patient_who_has_not_checked_in()
     {
         await using var context = TestDb.CreateContext();

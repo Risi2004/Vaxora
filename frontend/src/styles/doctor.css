@@ -1530,9 +1530,14 @@
   padding: 2px 4px;
 }
 
-.doctor-obs-btn-discharge:hover {
+.doctor-obs-btn-discharge:hover:not(:disabled) {
   text-decoration: underline;
   color: #6d28d9;
+}
+
+.doctor-obs-btn-discharge:disabled {
+  color: #94a3b8;
+  cursor: not-allowed;
 }
 
 /* Station Cold Box Stock */

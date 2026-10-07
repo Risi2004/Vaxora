@@ -56,6 +56,9 @@ public class AppointmentService : IAppointmentService
     /// Clinical session transitions that only doctors/nurses may perform (not hospital desk).
     /// Also used for payment-settled checks before administration.
     /// </summary>
+    /// <summary>Minimum post-vaccination observation before discharge.</summary>
+    private const int ObservationMinutes = 15;
+
     private static readonly HashSet<string> ClinicalSessionStatuses =
         new(StringComparer.OrdinalIgnoreCase)
         {
@@ -1077,6 +1080,21 @@ public class AppointmentService : IAppointmentService
         {
             throw new InvalidOperationException(
                 "A doctor must prescribe the dose before administration. Ask the doctor to prescribe it first.");
+        }
+
+        // Post-vaccination observation: at least 15 minutes before discharge.
+        if (!isHospitalOwner &&
+            string.Equals(nextStatus, "Completed", StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(previousStatus, "Observation", StringComparison.OrdinalIgnoreCase))
+        {
+            var observedFor = DateTime.UtcNow - (appointment.UpdatedAt ?? DateTime.UtcNow);
+            var remaining = TimeSpan.FromMinutes(ObservationMinutes) - observedFor;
+            if (remaining > TimeSpan.Zero)
+            {
+                var minutes = (int)Math.Ceiling(remaining.TotalMinutes);
+                throw new InvalidOperationException(
+                    $"Observation is not complete — {minutes} more minute{(minutes == 1 ? "" : "s")} before discharge.");
+            }
         }
 
         // Real clinics only call patients who have arrived.

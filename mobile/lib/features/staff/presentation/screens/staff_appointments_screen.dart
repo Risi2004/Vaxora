@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/services/storage_service.dart';
@@ -49,6 +51,7 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
   bool _loadingAppointments = false;
   bool _updating = false;
   bool _dutyUpdating = false;
+  Timer? _ticker;
   String? _error;
   bool _allowHospitalSwitch = true;
   bool _isDoctor = false;
@@ -64,6 +67,16 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
     super.initState();
     _filterDate = todayIsoDate();
     _bootstrap();
+    // Keep observation countdowns and live-shift booth scope current.
+    _ticker = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
   }
 
   Future<void> _bootstrap() async {
@@ -1140,11 +1153,14 @@ class _ObservationCard extends StatelessWidget {
                 ),
               ),
               FilledButton(
-                onPressed: busy || !patient.isPaymentSettled
+                // The API refuses discharge before the 15-minute window ends.
+                onPressed: busy || !patient.isPaymentSettled || (minsLeft ?? 0) > 0
                     ? null
                     : onDischarge,
                 style: FilledButton.styleFrom(backgroundColor: AppColors.success),
-                child: const Text('Discharge'),
+                child: Text(
+                  (minsLeft ?? 0) > 0 ? 'Discharge in $minsLeft min' : 'Discharge',
+                ),
               ),
             ],
           ),
@@ -1250,11 +1266,12 @@ class _AppointmentCard extends StatelessWidget {
         ),
       );
     } else if (a.uiStatus == 'observation') {
+      final left = _observationMinutesLeft(a.updatedAt, DateTime.now()) ?? 0;
       action = TextButton(
-        onPressed: busy || !a.isPaymentSettled ? null : onDischarge,
-        child: const Text(
-          'Discharge',
-          style: TextStyle(fontWeight: FontWeight.w700),
+        onPressed: busy || !a.isPaymentSettled || left > 0 ? null : onDischarge,
+        child: Text(
+          left > 0 ? 'In $left min' : 'Discharge',
+          style: const TextStyle(fontWeight: FontWeight.w700),
         ),
       );
     }

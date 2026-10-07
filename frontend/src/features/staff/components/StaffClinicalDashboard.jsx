@@ -1288,10 +1288,17 @@ export default function StaffClinicalDashboard({
                                 type="button"
                                 className="btn-queue-action btn-queue-action--icon btn-queue-action--release"
                                 onClick={() => handleDischargeObservation(p.id, p.name)}
-                                disabled={!isPaymentSettled(p) || statusUpdating || notOnDuty}
+                                disabled={
+                                  !isPaymentSettled(p) ||
+                                  statusUpdating ||
+                                  notOnDuty ||
+                                  (observationMinutesLeft(p.updatedAt, now) ?? 0) > 0
+                                }
                                 title={
                                   notOnDuty
                                     ? DUTY_REQUIRED_HINT
+                                    : (observationMinutesLeft(p.updatedAt, now) ?? 0) > 0
+                                    ? `Observation: ${observationMinutesLeft(p.updatedAt, now)} min left`
                                     : !isPaymentSettled(p)
                                     ? 'Payment must be settled first'
                                     : 'Discharge'
@@ -1373,10 +1380,10 @@ export default function StaffClinicalDashboard({
                         type="button"
                         className="doctor-obs-btn-discharge"
                         onClick={() => handleDischargeObservation(obs.id, obs.name)}
-                        disabled={statusUpdating || notOnDuty}
+                        disabled={statusUpdating || notOnDuty || (obs.minsLeft ?? 0) > 0}
                         title={notOnDuty ? DUTY_REQUIRED_HINT : undefined}
                       >
-                        Discharge Patient
+                        {(obs.minsLeft ?? 0) > 0 ? `Discharge in ${obs.minsLeft} min` : 'Discharge Patient'}
                       </button>
                     </div>
                   </div>
