@@ -484,6 +484,7 @@ export default function StaffClinicalDashboard({
           injectionSite: details.injectionSite || undefined,
           route: details.route || undefined,
           administrationNotes: details.notes || undefined,
+          doseConfirmed: details.doseConfirmed,
           consentConfirmed: details.consentConfirmed,
           vitalsConfirmed: details.vitalsConfirmed,
         }

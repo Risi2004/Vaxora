@@ -87,6 +87,9 @@ export const staffAppointmentService = {
         ...(administration?.administrationNotes
           ? { administrationNotes: administration.administrationNotes }
           : {}),
+        ...(administration?.doseConfirmed != null
+          ? { doseConfirmed: administration.doseConfirmed }
+          : {}),
         ...(administration?.consentConfirmed != null
           ? { consentConfirmed: administration.consentConfirmed }
           : {}),

@@ -133,6 +133,9 @@ public class UpdateAppointmentStatusDto
     public bool? ConsentConfirmed { get; set; }
 
     public bool? VitalsConfirmed { get; set; }
+
+    /// <summary>Administering staff confirm the doctor's prescribed dose before giving it.</summary>
+    public bool? DoseConfirmed { get; set; }
 }
 
 public class CreateWalkInAppointmentDto

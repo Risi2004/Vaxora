@@ -420,6 +420,7 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
         'injectionSite': result.injectionSite,
         'route': result.route,
         if (result.notes.isNotEmpty) 'administrationNotes': result.notes,
+        'doseConfirmed': result.doseConfirmed,
         'consentConfirmed': result.consentConfirmed,
         'vitalsConfirmed': result.vitalsConfirmed,
       },

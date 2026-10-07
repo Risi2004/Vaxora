@@ -191,6 +191,42 @@ public class ClinicalStaffWorkflowTests
         Assert.Contains("must prescribe the dose", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Theory]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    [InlineData(null, null, null)]
+    public async Task Recording_administration_requires_dose_consent_and_vitals_sign_off(
+        bool? doseConfirmed,
+        bool? consentConfirmed,
+        bool? vitalsConfirmed)
+    {
+        await using var context = TestDb.CreateContext();
+        var hospital = TestDb.AddHospital(context);
+        var nurse = TestDb.AddNurse(context, "nurse@example.com", "VAX-N-3010");
+        var affiliation = TestDb.AddActiveAffiliation(context, hospital, nurse);
+        TestDb.AddLiveShift(context, affiliation, hospital);
+        var appointment = TestDb.AddAppointment(context, hospital, status: "Administering");
+        appointment.PrescribedDosage = "0.5ml";
+        await context.SaveChangesAsync();
+
+        var service = CreateAppointmentService(context);
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.UpdateAppointmentStatusAsync(
+                nurse.Id,
+                appointment.Id,
+                new UpdateAppointmentStatusDto
+                {
+                    Status = "Observation",
+                    DoseConfirmed = doseConfirmed,
+                    ConsentConfirmed = consentConfirmed,
+                    VitalsConfirmed = vitalsConfirmed
+                }));
+
+        Assert.Contains("Confirm the prescribed dose", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("Administering", (await context.Appointments.SingleAsync()).Status);
+    }
+
     [Fact]
     public async Task ReportAefi_does_not_bump_UpdatedAt_observation_timer()
     {

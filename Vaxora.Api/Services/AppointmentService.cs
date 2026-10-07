@@ -1023,6 +1023,19 @@ public class AppointmentService : IAppointmentService
                 "A doctor must prescribe the dose before administration. Ask the doctor to prescribe it first.");
         }
 
+        // Two-person check: the doctor prescribes, the administering staff member signs off
+        // the order, consent and vitals before the dose is recorded as given.
+        var recordingAdministration =
+            !isHospitalOwner &&
+            string.Equals(nextStatus, "Observation", StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(previousStatus, "Administering", StringComparison.OrdinalIgnoreCase);
+        if (recordingAdministration &&
+            (dto.DoseConfirmed != true || dto.ConsentConfirmed != true || dto.VitalsConfirmed != true))
+        {
+            throw new InvalidOperationException(
+                "Confirm the prescribed dose, patient consent and pre-vaccination vitals before recording administration.");
+        }
+
         // Enforce clinical transition graph for non-hospital actors.
         // Hospital desk may still Confirm/Cancel/Reject bookings; clinical staff
         // may only move within the live session path (plus closing missed visits).
@@ -1958,6 +1971,12 @@ public class AppointmentService : IAppointmentService
         var route = ParseVaccineRoute(dto.Route);
         var site = ParseInjectionSite(dto.InjectionSite);
         var noteParts = new List<string> { $"Linked to appointment {appointment.Id}" };
+        if (dto.DoseConfirmed == true)
+        {
+            noteParts.Add(
+                $"Prescribed dose {appointment.PrescribedDosage} " +
+                $"({appointment.PrescribedByDoctorName ?? "doctor"}) confirmed and given by {actorName}");
+        }
         if (dto.ConsentConfirmed == true)
             noteParts.Add("Informed consent confirmed");
         if (dto.VitalsConfirmed == true)
