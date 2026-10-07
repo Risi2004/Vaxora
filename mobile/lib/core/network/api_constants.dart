@@ -99,6 +99,8 @@ static const String inventoryRestock = '/inventory/batches';
   static const String staffMyShiftSwaps = '/staff/shift-swaps/mine';
   static const String staffShiftSwapQuota = '/staff/shift-swaps/quota';
 
+  static String hospitalShiftSwapRank(String requestId) =>
+      '/staff/shift-swaps/$requestId/rank';
   static String hospitalShiftSwapDecision(String requestId) =>
       '/staff/shift-swaps/$requestId/decision';
 

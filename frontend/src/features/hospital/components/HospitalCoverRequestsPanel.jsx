@@ -56,8 +56,10 @@ function requestNote(request) {
   return snippet || null;
 }
 
-function CoverRequestCard({ request, busy, onApprove, onDecline }) {
+function CoverRequestCard({ request, busy, onApprove, onDecline, onRanked }) {
   const [selectedAffiliationId, setSelectedAffiliationId] = useState('');
+  const [ranking, setRanking] = useState(false);
+  const [rankNote, setRankNote] = useState('');
   const suggestions = useMemo(
     () => (request.suggestions || []).filter((s) => s.available !== false),
     [request.suggestions]
@@ -85,6 +87,22 @@ function CoverRequestCard({ request, busy, onApprove, onDecline }) {
       : isCancelled
         ? 'neutral'
         : 'warning';
+
+  // AI ranking runs only on request so a slow model never blocks the inbox.
+  const handleRankWithAi = async () => {
+    setRanking(true);
+    setRankNote('');
+    try {
+      const ranked = await staffService.rankShiftSwap(request.id);
+      onRanked?.(ranked);
+      if (!ranked?.aiRanked) setRankNote('AI ranking unavailable right now — showing roster order.');
+    } catch (err) {
+      setRankNote(err.message || 'AI ranking unavailable right now — showing roster order.');
+    } finally {
+      setRanking(false);
+    }
+  };
+  const canRank = isPending && !started && suggestions.length > 1;
 
   const reviewSummary = started
     ? 'This shift has already started — it can no longer be reassigned. Decline to close the request.'
@@ -129,7 +147,20 @@ function CoverRequestCard({ request, busy, onApprove, onDecline }) {
           <div className="hospital-cover-review-banner">
             <span aria-hidden="true">✦</span>
             <p>{reviewSummary}</p>
+            {request.aiRanked ? (
+              <span className="hospital-cover-ai-chip">Ranked by AI</span>
+            ) : canRank ? (
+              <button
+                type="button"
+                className="hospital-cover-ai-btn"
+                onClick={handleRankWithAi}
+                disabled={busy || ranking}
+              >
+                {ranking ? 'Ranking…' : 'Rank with AI'}
+              </button>
+            ) : null}
           </div>
+          {rankNote ? <p className="hospital-cover-rank-note">{rankNote}</p> : null}
 
           {suggestions.length > 0 ? (
             <div className="hospital-cover-suggestions" role="radiogroup" aria-label="Replacement staff">
@@ -333,6 +364,9 @@ export default function HospitalCoverRequestsPanel({ onPendingCountChange }) {
                 })
               }
               onDecline={() => decide(request, { approved: false })}
+              onRanked={(ranked) =>
+                setRequests((prev) => prev.map((row) => (row.id === ranked.id ? ranked : row)))
+              }
             />
           ))}
         </div>

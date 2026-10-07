@@ -189,6 +189,10 @@ export const staffService = {
     return apiRequest(`/staff/shift-swaps/hospital${buildQuery({ status, limit })}`);
   },
 
+  rankShiftSwap(requestId) {
+    return apiRequest(`/staff/shift-swaps/${requestId}/rank`, { method: 'POST' });
+  },
+
   decideShiftSwap(requestId, { approved, note, replacementAffiliationId } = {}) {
     return apiRequest(`/staff/shift-swaps/${requestId}/decision`, {
       method: 'POST',

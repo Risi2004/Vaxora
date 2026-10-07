@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
+import '../../../../core/network/api_client.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../auth/presentation/utils/home_route_utils.dart';
 import '../../../staff/presentation/utils/staff_date_utils.dart';
 import '../../../staff/presentation/widgets/network_avatar.dart';
 import '../../../staff/presentation/widgets/staff_common_widgets.dart';
 import '../../data/models/shift_swap_request_model.dart';
+import '../../data/repositories/hospital_staff_repository.dart';
 
 class CoverRequestCard extends StatefulWidget {
   final ShiftSwapRequestModel request;
   final bool busy;
   final void Function(String affiliationId)? onApprove;
   final VoidCallback? onDecline;
+  final ValueChanged<ShiftSwapRequestModel>? onRanked;
 
   const CoverRequestCard({
     super.key,
@@ -18,6 +21,7 @@ class CoverRequestCard extends StatefulWidget {
     this.busy = false,
     this.onApprove,
     this.onDecline,
+    this.onRanked,
   });
 
   @override
@@ -26,8 +30,37 @@ class CoverRequestCard extends StatefulWidget {
 
 class _CoverRequestCardState extends State<CoverRequestCard> {
   String? _selectedAffiliationId;
+  bool _ranking = false;
+  String? _rankNote;
 
   ShiftSwapRequestModel get request => widget.request;
+
+  /// AI ranking runs only on request so a slow model never blocks the inbox.
+  Future<void> _rankWithAi() async {
+    setState(() {
+      _ranking = true;
+      _rankNote = null;
+    });
+    try {
+      final ranked = await HospitalStaffRepository.rankShiftSwap(request.id);
+      widget.onRanked?.call(ranked);
+      if (!mounted) return;
+      setState(() {
+        _ranking = false;
+        if (!ranked.aiRanked) {
+          _rankNote = 'AI ranking unavailable right now — showing roster order.';
+        }
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _ranking = false;
+        _rankNote = e is ApiException
+            ? e.message
+            : 'AI ranking unavailable right now — showing roster order.';
+      });
+    }
+  }
 
   String get _initials {
     final parts = request.requesterName
@@ -200,6 +233,34 @@ class _CoverRequestCardState extends State<CoverRequestCard> {
                           ? 'Pick who should take this shift.'
                           : 'No one is free in this window.'),
             ),
+            if (request.aiRanked) ...[
+              const SizedBox(height: 6),
+              const StaffStatusChip(
+                label: 'Ranked by AI',
+                tone: StaffChipTone.success,
+                icon: Icons.auto_awesome,
+              ),
+            ] else if (!started && suggestions.length > 1) ...[
+              const SizedBox(height: 6),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: OutlinedButton.icon(
+                  onPressed: widget.busy || _ranking ? null : _rankWithAi,
+                  icon: const Icon(Icons.auto_awesome, size: 16),
+                  label: Text(_ranking ? 'Ranking…' : 'Rank with AI'),
+                ),
+              ),
+            ],
+            if (_rankNote != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                _rankNote!,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: StaffSurfaces.textSecondary,
+                ),
+              ),
+            ],
             if (suggestions.isNotEmpty) ...[
               const SizedBox(height: 8),
               ...suggestions.map(
