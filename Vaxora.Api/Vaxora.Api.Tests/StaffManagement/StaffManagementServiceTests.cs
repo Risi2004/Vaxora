@@ -109,6 +109,54 @@ public class StaffManagementServiceTests
     }
 
     [Fact]
+    public async Task DeleteShiftAsync_cancels_pending_cover_request_for_that_shift()
+    {
+        await using var context = CreateContext();
+        var hospital = AddHospital(context);
+        var doctor = AddDoctor(context, "doctor@example.com", "VAX-D-1001");
+        var affiliation = AddActiveAffiliation(context, hospital, doctor);
+        var shift = AddShift(context, hospital, affiliation, DateOnly.FromDateTime(DateTime.UtcNow.AddDays(5)));
+        var swap = AddPendingSwap(context, hospital, doctor, shift);
+        await context.SaveChangesAsync();
+        var service = CreateService(context);
+
+        await service.DeleteShiftAsync(hospital.Id, shift.Id);
+
+        var stored = await context.ShiftSwapRequests.SingleAsync(r => r.Id == swap.Id);
+        Assert.Equal(ShiftSwapStatus.Cancelled, stored.Status);
+        Assert.Equal("Shift removed by hospital", stored.DecisionNote);
+        Assert.Equal(hospital.Id, stored.DecidedByUserId);
+    }
+
+    [Fact]
+    public async Task UpdateShiftAsync_refreshes_pending_cover_request_snapshot()
+    {
+        await using var context = CreateContext();
+        var hospital = AddHospital(context);
+        var doctor = AddDoctor(context, "doctor@example.com", "VAX-D-1001");
+        var affiliation = AddActiveAffiliation(context, hospital, doctor);
+        var shift = AddShift(context, hospital, affiliation, DateOnly.FromDateTime(DateTime.UtcNow.AddDays(5)));
+        var swap = AddPendingSwap(context, hospital, doctor, shift);
+        await context.SaveChangesAsync();
+        var service = CreateService(context);
+        var newDate = shift.ShiftDate.AddDays(1);
+
+        await service.UpdateShiftAsync(hospital.Id, shift.Id, new UpdateStaffShiftDto
+        {
+            ShiftDate = newDate,
+            StartTime = new TimeOnly(13, 0),
+            EndTime = new TimeOnly(17, 0),
+            BoothOrStation = "Room 4"
+        });
+
+        var stored = await context.ShiftSwapRequests.SingleAsync(r => r.Id == swap.Id);
+        Assert.Equal(ShiftSwapStatus.Pending, stored.Status);
+        Assert.Equal(newDate, stored.ShiftDate);
+        Assert.Equal("13:00–17:00", stored.ShiftWindow);
+        Assert.Equal("Room 4", stored.BoothOrStation);
+    }
+
+    [Fact]
     public async Task GetCoverageReportAsync_marks_day_low_when_a_role_has_no_shift()
     {
         await using var context = CreateContext();
@@ -247,6 +295,44 @@ public class StaffManagementServiceTests
         };
         context.Users.Add(nurse);
         return nurse;
+    }
+
+    private static StaffShift AddShift(
+        ApplicationDbContext context,
+        User hospital,
+        StaffAffiliation affiliation,
+        DateOnly date)
+    {
+        var shift = new StaffShift
+        {
+            AffiliationId = affiliation.Id,
+            Affiliation = affiliation,
+            ShiftDate = date,
+            StartTime = new TimeOnly(8, 0),
+            EndTime = new TimeOnly(12, 0),
+            CreatedByUserId = hospital.Id
+        };
+        context.StaffShifts.Add(shift);
+        return shift;
+    }
+
+    private static ShiftSwapRequest AddPendingSwap(
+        ApplicationDbContext context,
+        User hospital,
+        User requester,
+        StaffShift shift)
+    {
+        var swap = new ShiftSwapRequest
+        {
+            ShiftId = shift.Id,
+            HospitalUserId = hospital.Id,
+            RequesterUserId = requester.Id,
+            ShiftDate = shift.ShiftDate,
+            ShiftWindow = "08:00–12:00",
+            Status = ShiftSwapStatus.Pending
+        };
+        context.ShiftSwapRequests.Add(swap);
+        return swap;
     }
 
     private static StaffAffiliation AddActiveAffiliation(

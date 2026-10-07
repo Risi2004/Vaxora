@@ -1085,6 +1085,19 @@ public class StaffManagementService : IStaffManagementService
         shift.Notes = string.IsNullOrWhiteSpace(dto.Notes) ? null : dto.Notes.Trim();
         shift.UpdatedAt = DateTime.UtcNow;
 
+        // Pending cover requests keep a snapshot of the shift for the inbox card;
+        // refresh it so the hospital does not review an outdated date or window.
+        var pendingSwaps = await _context.ShiftSwapRequests
+            .Where(r => r.ShiftId == shift.Id && r.Status == ShiftSwapStatus.Pending)
+            .ToListAsync();
+        foreach (var swap in pendingSwaps)
+        {
+            swap.ShiftDate = shift.ShiftDate;
+            swap.ShiftWindow = $"{shift.StartTime:HH\\:mm}–{shift.EndTime:HH\\:mm}";
+            swap.BoothOrStation = shift.BoothOrStation;
+            swap.UpdatedAt = DateTime.UtcNow;
+        }
+
         await AddShiftAuditAsync(
             hospitalUserId,
             "STAFF_SHIFT_UPDATED",
@@ -1109,6 +1122,20 @@ public class StaffManagementService : IStaffManagementService
 
         if (shift.ShiftDate < HospitalToday())
             throw new InvalidOperationException("Cannot delete shifts that have already occurred.");
+
+        // Close pending cover requests so they stop counting against the
+        // requester's monthly quota and do not sit in the hospital inbox forever.
+        var pendingSwaps = await _context.ShiftSwapRequests
+            .Where(r => r.ShiftId == shift.Id && r.Status == ShiftSwapStatus.Pending)
+            .ToListAsync();
+        foreach (var swap in pendingSwaps)
+        {
+            swap.Status = ShiftSwapStatus.Cancelled;
+            swap.DecidedByUserId = hospitalUserId;
+            swap.DecidedAt = DateTime.UtcNow;
+            swap.DecisionNote = "Shift removed by hospital";
+            swap.UpdatedAt = DateTime.UtcNow;
+        }
 
         _context.StaffShifts.Remove(shift);
         await AddShiftAuditAsync(

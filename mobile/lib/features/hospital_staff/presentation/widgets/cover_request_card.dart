@@ -72,6 +72,13 @@ class _CoverRequestCardState extends State<CoverRequestCard> {
         icon: Icons.highlight_off,
       );
     }
+    if (request.isCancelled) {
+      return const StaffStatusChip(
+        label: 'Cancelled',
+        tone: StaffChipTone.neutral,
+        icon: Icons.block_outlined,
+      );
+    }
     return const StaffStatusChip(
       label: 'Needs review',
       tone: StaffChipTone.warning,

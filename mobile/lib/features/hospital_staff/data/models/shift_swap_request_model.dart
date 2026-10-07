@@ -48,6 +48,7 @@ class ShiftSwapRequestModel {
   bool get isPending => status.toUpperCase() == 'PENDING';
   bool get isApproved => status.toUpperCase() == 'APPROVED';
   bool get isDeclined => status.toUpperCase() == 'DECLINED';
+  bool get isCancelled => status.toUpperCase() == 'CANCELLED';
   bool get isIncoming => (direction ?? '').toUpperCase() == 'INCOMING';
   bool get isOutgoing => !isIncoming;
 

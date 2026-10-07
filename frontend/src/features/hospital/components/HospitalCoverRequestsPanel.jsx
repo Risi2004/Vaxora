@@ -53,11 +53,24 @@ function CoverRequestCard({ request, busy, onApprove, onDecline }) {
   const isPending = String(request.status || '').toLowerCase() === 'pending';
   const isApproved = String(request.status || '').toLowerCase() === 'approved';
   const isDeclined = String(request.status || '').toLowerCase() === 'declined';
+  const isCancelled = String(request.status || '').toLowerCase() === 'cancelled';
   const note = requestNote(request);
   const canApprove = isPending && hasCover && Boolean(selectedAffiliationId);
 
-  const statusLabel = isApproved ? 'Approved' : isDeclined ? 'Declined' : 'Needs review';
-  const statusTone = isApproved ? 'success' : isDeclined ? 'danger' : 'warning';
+  const statusLabel = isApproved
+    ? 'Approved'
+    : isDeclined
+      ? 'Declined'
+      : isCancelled
+        ? 'Cancelled'
+        : 'Needs review';
+  const statusTone = isApproved
+    ? 'success'
+    : isDeclined
+      ? 'danger'
+      : isCancelled
+        ? 'neutral'
+        : 'warning';
 
   const reviewSummary =
     request.reviewSummary ||

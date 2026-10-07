@@ -3613,6 +3613,10 @@
   border-color: #b06b6b;
 }
 
+.staff-cover-row.is-cancelled .staff-cover-rail::after {
+  border-color: #94a3b8;
+}
+
 .staff-cover-row-body {
   background: rgba(255, 255, 255, 0.92);
   border: 1px solid rgba(15, 23, 42, 0.06);
@@ -3711,6 +3715,12 @@
   background: #f7efef;
   color: #8b5555;
   border-color: #e8d5d5;
+}
+
+.staff-cover-activity .staff-cover-badge.is-cancelled {
+  background: #f1f5f9;
+  color: #475569;
+  border-color: #dbe3ec;
 }
 
 .staff-cover-activity-empty {

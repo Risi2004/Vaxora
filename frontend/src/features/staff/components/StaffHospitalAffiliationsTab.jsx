@@ -54,6 +54,7 @@ function coverStatusTone(status) {
   const s = String(status || '').toLowerCase();
   if (s === 'approved' || s === 'covering') return 'is-approved';
   if (s === 'declined') return 'is-declined';
+  if (s === 'cancelled') return 'is-cancelled';
   if (s === 'requested' || s === 'pending') return 'is-pending';
   return 'is-pending';
 }
@@ -587,6 +588,10 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff' }) {
                               <span className="staff-cover-note is-emphasis">
                                 Covered by {req.replacementName}
                               </span>
+                            ) : null}
+                            {String(req.status || '').toLowerCase() === 'cancelled' &&
+                            req.decisionNote ? (
+                              <span className="staff-cover-note">{req.decisionNote}</span>
                             ) : null}
                           </div>
                         </div>
