@@ -74,6 +74,10 @@ export const staffAppointmentService = {
     );
   },
 
+  checkIn(id) {
+    return apiRequest(`/appointments/${id}/check-in`, { method: 'POST' });
+  },
+
   updateAppointmentStatus(id, status, remarks, administration) {
     return apiRequest(`/appointments/${id}/status`, {
       method: 'PATCH',
@@ -86,6 +90,9 @@ export const staffAppointmentService = {
         ...(administration?.route ? { route: administration.route } : {}),
         ...(administration?.administrationNotes
           ? { administrationNotes: administration.administrationNotes }
+          : {}),
+        ...(administration?.doseConfirmed != null
+          ? { doseConfirmed: administration.doseConfirmed }
           : {}),
         ...(administration?.consentConfirmed != null
           ? { consentConfirmed: administration.consentConfirmed }

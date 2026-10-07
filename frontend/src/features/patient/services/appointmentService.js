@@ -118,6 +118,11 @@ export const appointmentService = {
     });
   },
 
+  // 5c. Mark a patient as arrived (hospital desk or affiliated staff), today only
+  checkIn(id) {
+    return apiRequest(`/appointments/${id}/check-in`, { method: 'POST' });
+  },
+
   // 6. Update appointment status (Hospital action)
   updateAppointmentStatus(id, statusPayload) {
     return apiRequest(`/appointments/${id}/status`, {

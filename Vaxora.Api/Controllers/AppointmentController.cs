@@ -323,6 +323,42 @@ public class AppointmentsController : ControllerBase
     }
 
     /// <summary>
+    /// Mark a patient as arrived (hospital desk or affiliated doctor/nurse), today only.
+    /// </summary>
+    [HttpPost("{id}/check-in")]
+    [Authorize(Roles = "HOSPITAL,DOCTOR,NURSE")]
+    public async Task<IActionResult> CheckIn(Guid id)
+    {
+        var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(userIdStr, out var actorUserId))
+        {
+            return Unauthorized(new { message = "Invalid user token." });
+        }
+
+        try
+        {
+            return Ok(await _appointmentService.CheckInAsync(actorUserId, id));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error checking in appointment {AppId}", id);
+            return StatusCode(500, new { message = "Failed to check in patient." });
+        }
+    }
+
+    /// <summary>
     /// Clinical AEFI report: capture immediate care, document on linked dose when available, notify MOH/physician.
     /// </summary>
     [HttpPost("{id}/aefi")]

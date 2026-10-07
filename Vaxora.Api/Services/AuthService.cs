@@ -925,6 +925,24 @@ public class AuthService : IAuthService
                     if (!string.IsNullOrWhiteSpace(dto.FullName)) user.PatientProfile.FullName = dto.FullName.Trim();
                     if (!string.IsNullOrWhiteSpace(dto.PhoneNumber)) user.PatientProfile.PhoneNumber = dto.PhoneNumber.Trim();
                     if (dto.DateOfBirth.HasValue) user.PatientProfile.DateOfBirth = dto.DateOfBirth.Value;
+
+                    // Keep denormalized appointment rows aligned with the live profile.
+                    var syncedName = user.PatientProfile.FullName;
+                    var syncedPhone = user.PatientProfile.PhoneNumber ?? user.PhoneNumber;
+                    var linkedAppointments = await _context.Appointments
+                        .Where(a => a.PatientUserId == user.Id)
+                        .ToListAsync();
+                    foreach (var appointment in linkedAppointments)
+                    {
+                        if (!string.IsNullOrWhiteSpace(syncedName))
+                            appointment.PatientName = syncedName;
+                        if (!string.IsNullOrWhiteSpace(syncedPhone))
+                            appointment.PatientPhone = syncedPhone;
+                        appointment.PatientEmail = user.Email;
+                        if (!string.IsNullOrWhiteSpace(user.PatientProfile.NicNumber))
+                            appointment.PatientNic = user.PatientProfile.NicNumber;
+                        appointment.UpdatedAt = DateTime.UtcNow;
+                    }
                 }
                 break;
 

@@ -161,6 +161,12 @@ namespace Vaxora.Api.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
 
+                    b.Property<DateTime?>("CheckedInAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("CheckedInByUserId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("NurseName")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
