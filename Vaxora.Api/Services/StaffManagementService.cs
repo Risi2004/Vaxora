@@ -1441,32 +1441,7 @@ public class StaffManagementService : IStaffManagementService
         };
     }
 
-    private static string GetStaffName(User staffUser)
-    {
-        if (staffUser.Role == UserRole.DOCTOR && staffUser.DoctorProfile != null)
-            return WithRolePrefix(staffUser.DoctorProfile.FullName, "Dr.");
-        if (staffUser.Role == UserRole.NURSE && staffUser.NurseProfile != null)
-            return WithRolePrefix(staffUser.NurseProfile.FullName, "Nurse");
-        return staffUser.Email;
-    }
-
-    /// <summary>Adds a role title only if FullName does not already start with it.</summary>
-    private static string WithRolePrefix(string? fullName, string prefix)
-    {
-        var name = (fullName ?? string.Empty).Trim();
-        if (string.IsNullOrEmpty(name))
-            return prefix.TrimEnd('.');
-
-        // Strip repeated "Dr." / "Nurse" so seeded or edited names stay clean.
-        while (name.StartsWith("Dr.", StringComparison.OrdinalIgnoreCase))
-            name = name[3..].TrimStart();
-        while (name.StartsWith("Doctor ", StringComparison.OrdinalIgnoreCase))
-            name = name[7..].TrimStart();
-        while (name.StartsWith("Nurse ", StringComparison.OrdinalIgnoreCase))
-            name = name[6..].TrimStart();
-
-        return $"{prefix} {name}".Trim();
-    }
+    private static string GetStaffName(User staffUser) => StaffNameFormatter.Format(staffUser);
 
     private static StaffAffiliationDto MapAffiliation(StaffAffiliation affiliation, User hospitalUser, User staffUser)
     {

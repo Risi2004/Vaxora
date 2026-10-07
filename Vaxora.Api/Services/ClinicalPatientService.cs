@@ -290,7 +290,7 @@ public class ClinicalPatientService : IClinicalPatientService
         }
 
         var doctorName = doctor.DoctorProfile?.FullName is { Length: > 0 } name
-            ? $"Dr. {name}"
+            ? StaffNameFormatter.WithRolePrefix(name, "Dr.")
             : doctor.Email;
 
         appointment.PrescribedDosage = dosage;

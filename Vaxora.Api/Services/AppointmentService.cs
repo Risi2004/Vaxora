@@ -1925,8 +1925,8 @@ public class AppointmentService : IAppointmentService
             .Include(u => u.HospitalProfile)
             .FirstOrDefaultAsync(u => u.Id == actorUserId);
 
-        var actorName = actor?.DoctorProfile?.FullName is { Length: > 0 } docName ? $"Dr. {docName}"
-            : actor?.NurseProfile?.FullName is { Length: > 0 } nurseName ? $"Nurse {nurseName}"
+        var actorName = actor?.DoctorProfile?.FullName is { Length: > 0 } docName ? StaffNameFormatter.WithRolePrefix(docName, "Dr.")
+            : actor?.NurseProfile?.FullName is { Length: > 0 } nurseName ? StaffNameFormatter.WithRolePrefix(nurseName, "Nurse")
             : actor?.HospitalProfile?.HospitalName
             ?? actor?.Email
             ?? "Clinical staff";

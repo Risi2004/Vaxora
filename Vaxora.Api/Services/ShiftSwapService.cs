@@ -695,25 +695,7 @@ public class ShiftSwapService : IShiftSwapService
         return false;
     }
 
-    private static string GetStaffName(User? staffUser)
-    {
-        if (staffUser == null) return "Staff";
-        if (staffUser.Role == UserRole.DOCTOR && staffUser.DoctorProfile != null)
-            return WithRolePrefix(staffUser.DoctorProfile.FullName, "Dr.");
-        if (staffUser.Role == UserRole.NURSE && staffUser.NurseProfile != null)
-            return WithRolePrefix(staffUser.NurseProfile.FullName, "Nurse");
-        return staffUser.Email;
-    }
-
-    private static string WithRolePrefix(string? fullName, string prefix)
-    {
-        var name = (fullName ?? string.Empty).Trim();
-        if (string.IsNullOrEmpty(name))
-            return prefix.TrimEnd('.');
-        if (name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-            return name;
-        return $"{prefix} {name}".Trim();
-    }
+    private static string GetStaffName(User? staffUser) => StaffNameFormatter.Format(staffUser);
 
     private async Task<CoverQuotaDto> BuildQuotaAsync(
         Guid staffUserId,
