@@ -242,7 +242,7 @@ export default function WalkInRegistrationModal({
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
               <div className="modal-form-group">
-                <label className="modal-label">Dose Sequence</label>
+                <label className="modal-label">Dose Sequence (doctor prescribes the dosage)</label>
                 <select
                   name="dose"
                   value={formData.dose}

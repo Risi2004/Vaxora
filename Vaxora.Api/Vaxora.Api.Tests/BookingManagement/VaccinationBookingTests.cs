@@ -495,6 +495,8 @@ public class VaccinationBookingTests
         Assert.Equal("Paid", result.PaymentStatus);
         Assert.Equal("Walkin John Doe", result.PatientName);
         Assert.Equal("Tetanus Toxoid", result.VaccineName);
+        // The desk cannot prescribe: a doctor must set the dosage before administration.
+        Assert.Null(result.PrescribedDosage);
 
         // Confirm patient user was auto-provisioned
         var user = await context.Users.Include(u => u.PatientProfile)

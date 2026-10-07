@@ -631,7 +631,9 @@ public class AppointmentService : IAppointmentService
                 ? "Walk-in registration (patient account auto-created)"
                 : "Walk-in registration"
         };
-        if (!string.IsNullOrWhiteSpace(dto.Dose)) noteParts.Add($"Dose: {dto.Dose.Trim()}");
+        // The desk records which dose in the series this is; the dosage itself must be
+        // prescribed by a doctor, so the walk-in waits in the queue as "awaiting prescription".
+        if (!string.IsNullOrWhiteSpace(dto.Dose)) noteParts.Add($"Dose sequence: {dto.Dose.Trim()}");
         if (dto.Age.HasValue) noteParts.Add($"Age: {dto.Age.Value}");
         if (!string.IsNullOrWhiteSpace(dto.Gender)) noteParts.Add($"Gender: {dto.Gender.Trim()}");
         if (!createdAccount &&
@@ -667,7 +669,6 @@ public class AppointmentService : IAppointmentService
             PaymentMethod = "WalkIn",
             PaymentStatus = "Paid",
             Notes = string.Join(" · ", noteParts),
-            PrescribedDosage = string.IsNullOrWhiteSpace(dto.Dose) ? null : dto.Dose.Trim(),
             CreatedAt = DateTime.UtcNow
         };
 

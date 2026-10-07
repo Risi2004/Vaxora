@@ -410,7 +410,7 @@ export default function HospitalDashboardOverview() {
     });
     await loadAppointmentsQueue();
     showToast(
-      `Guest ${payload.patientName} queued. Login email is theirs; guest password is their NIC.`
+      `Guest ${payload.patientName} queued — awaiting a doctor's prescription. Login email is theirs; guest password is their NIC.`
     );
   };
 
