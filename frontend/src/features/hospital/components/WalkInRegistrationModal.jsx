@@ -40,16 +40,24 @@ export default function WalkInRegistrationModal({
     () => vaccines?.length > 0 ? vaccines : FALLBACK_VACCINES,
     [vaccines]
   );
-  const boothOptions = useMemo(
-    () => booths?.length > 0 ? booths : [{ id: 'default', label: 'Unassigned booth' }],
-    [booths]
-  );
-
   const [formData, setFormData] = useState({
     ...EMPTY_FORM,
     vaccine: vaccineOptions[0] || '',
-    assignedBooth: boothOptions[0]?.label || '',
   });
+
+  // Only offer booths that stock the chosen vaccine (all booths when none list it).
+  // "Auto" (empty value) lets the server pick a staffed booth with the shortest queue.
+  const boothOptions = useMemo(() => {
+    const list = Array.isArray(booths) ? booths : [];
+    const wanted = String(formData.vaccine || '').trim().toLowerCase();
+    const offering = list.filter((booth) =>
+      (booth.vaccineNames || []).some((name) => {
+        const value = String(name || '').trim().toLowerCase();
+        return value && (value === wanted || value.includes(wanted) || wanted.includes(value));
+      })
+    );
+    return offering.length > 0 ? offering : list;
+  }, [booths, formData.vaccine]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -60,15 +68,19 @@ export default function WalkInRegistrationModal({
       ...EMPTY_FORM,
       vaccine: vaccineOptions[0] || '',
       dose: DOSE_OPTIONS[0],
-      assignedBooth: boothOptions[0]?.label || '',
     });
-  }), [isOpen, vaccineOptions, boothOptions]);
+  }), [isOpen, vaccineOptions]);
 
   if (!isOpen) return null;
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    // A new vaccine may not be offered at the previously chosen booth.
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+      ...(name === 'vaccine' ? { assignedBooth: '' } : {}),
+    }));
   };
 
   const handleSubmit = async (e) => {
@@ -87,7 +99,7 @@ export default function WalkInRegistrationModal({
         patientPhone: formData.phone.trim(),
         vaccineName: formData.vaccine,
         dose: formData.dose,
-        boothLabel: formData.assignedBooth,
+        boothLabel: formData.assignedBooth || null,
         age: formData.age ? Number(formData.age) : null,
         gender: formData.gender,
       });
@@ -251,6 +263,7 @@ export default function WalkInRegistrationModal({
                   onChange={handleChange}
                   className="modal-select"
                 >
+                  <option value="">Auto — best booth for this vaccine</option>
                   {boothOptions.map((booth) => (
                     <option key={booth.id} value={booth.label}>{booth.label}</option>
                   ))}

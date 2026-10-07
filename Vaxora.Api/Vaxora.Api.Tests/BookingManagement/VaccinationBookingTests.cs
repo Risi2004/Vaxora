@@ -505,6 +505,103 @@ public class VaccinationBookingTests
         Assert.Equal("921234567V", user.PatientProfile.NicNumber);
     }
 
+    [Fact]
+    public async Task CreateWalkInAppointmentAsync_auto_assigns_staffed_booth_that_offers_the_vaccine()
+    {
+        await using var context = TestDb.CreateContext();
+        var hospital = TestDb.AddHospital(context);
+        var nurse = TestDb.AddNurse(context, "walkin.nurse@example.com", "VAX-N-4100");
+        var affiliation = TestDb.AddActiveAffiliation(context, hospital, nurse);
+        var tetanus = AddVaccine(context, "Tetanus Toxoid");
+        var flu = AddVaccine(context, "Influenza");
+        AddBooth(context, hospital, "B01", "Adult", 1, flu);
+        var quietBooth = AddBooth(context, hospital, "B02", "Travel", 2, tetanus);
+        var staffedBooth = AddBooth(context, hospital, "B03", "Wound care", 3, tetanus);
+        var shift = TestDb.AddLiveShift(context, affiliation, hospital);
+        shift.BoothId = staffedBooth.Id;
+        await context.SaveChangesAsync();
+        var service = CreateService(context);
+
+        var result = await service.CreateWalkInAppointmentAsync(hospital.Id, WalkIn("Tetanus Toxoid", boothLabel: null));
+
+        Assert.Equal(staffedBooth.DisplayLabel, result.BoothLabel);
+        Assert.NotEqual(quietBooth.DisplayLabel, result.BoothLabel);
+    }
+
+    [Fact]
+    public async Task CreateWalkInAppointmentAsync_rejects_desk_booth_that_does_not_offer_the_vaccine()
+    {
+        await using var context = TestDb.CreateContext();
+        var hospital = TestDb.AddHospital(context);
+        var tetanus = AddVaccine(context, "Tetanus Toxoid");
+        var flu = AddVaccine(context, "Influenza");
+        var fluBooth = AddBooth(context, hospital, "B01", "Adult", 1, flu);
+        AddBooth(context, hospital, "B02", "Travel", 2, tetanus);
+        await context.SaveChangesAsync();
+        var service = CreateService(context);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.CreateWalkInAppointmentAsync(hospital.Id, WalkIn("Tetanus Toxoid", fluBooth.DisplayLabel)));
+
+        Assert.Contains("does not offer", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task CreateWalkInAppointmentAsync_returns_clean_booth_label_from_notes()
+    {
+        await using var context = TestDb.CreateContext();
+        var hospital = TestDb.AddHospital(context);
+        var tetanus = AddVaccine(context, "Tetanus Toxoid");
+        var booth = AddBooth(context, hospital, "B02", "Travel", 1, tetanus);
+        await context.SaveChangesAsync();
+        var service = CreateService(context);
+
+        var dto = WalkIn("Tetanus Toxoid", booth.DisplayLabel);
+        dto.Age = 30;
+        dto.Gender = "Female";
+        var result = await service.CreateWalkInAppointmentAsync(hospital.Id, dto);
+
+        Assert.Equal("B02 · Travel", result.BoothLabel);
+    }
+
+    private static CreateWalkInAppointmentDto WalkIn(string vaccineName, string? boothLabel) => new()
+    {
+        PatientNic = "931234567V",
+        PatientName = "Walkin Jane",
+        PatientEmail = "walkin.jane@example.com",
+        PatientPhone = "+94771234567",
+        VaccineName = vaccineName,
+        Dose = "0.5ml",
+        BoothLabel = boothLabel
+    };
+
+    private static Vaccine AddVaccine(ApplicationDbContext context, string name)
+    {
+        var vaccine = new Vaccine { Name = name, Manufacturer = "Test Pharma" };
+        context.Vaccines.Add(vaccine);
+        return vaccine;
+    }
+
+    private static HospitalBooth AddBooth(
+        ApplicationDbContext context,
+        User hospital,
+        string code,
+        string name,
+        int sortOrder,
+        Vaccine vaccine)
+    {
+        var booth = new HospitalBooth
+        {
+            HospitalUserId = hospital.Id,
+            Code = code,
+            Name = name,
+            SortOrder = sortOrder
+        };
+        booth.Vaccines.Add(new HospitalBoothVaccine { BoothId = booth.Id, VaccineId = vaccine.Id, Vaccine = vaccine });
+        context.HospitalBooths.Add(booth);
+        return booth;
+    }
+
     private static AppointmentService CreateService(ApplicationDbContext context) =>
         new(
             context,

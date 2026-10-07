@@ -6,6 +6,7 @@ import '../../../auth/presentation/utils/home_route_utils.dart';
 import '../../../inventory/data/models/batch_model.dart';
 import '../../../inventory/data/repositories/inventory_repository.dart';
 import '../../data/models/affiliation_model.dart';
+import '../../data/models/shift_model.dart';
 import '../../data/models/staff_appointment_model.dart';
 import '../../data/repositories/staff_repository.dart';
 import '../utils/staff_date_utils.dart';
@@ -37,6 +38,9 @@ class StaffAppointmentsScreen extends StatefulWidget {
 class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
   List<AffiliationModel> _hospitals = [];
   List<StaffAppointmentModel> _appointments = [];
+  List<ShiftModel> _todayShifts = [];
+  // true = only my live shift's booth (plus unassigned patients).
+  bool _myBoothOnly = true;
   List<BatchModel> _lots = [];
   String _selectedHospitalId = '';
   late String _filterDate;
@@ -153,10 +157,13 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
           date: _filterDate,
         ),
         InventoryRepository.getBatches(hospitalUserId: _selectedHospitalId),
+        StaffRepository.getMyShifts(from: todayIsoDate(), to: todayIsoDate())
+            .catchError((_) => <ShiftModel>[]),
       ]);
       if (!mounted) return;
       final list = results[0] as List<StaffAppointmentModel>;
       final lots = results[1] as List<BatchModel>;
+      _todayShifts = results[2] as List<ShiftModel>;
       final consulting = list.where((a) => a.uiStatus == 'consulting').toList();
       setState(() {
         _appointments = list;
@@ -231,19 +238,56 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
     }
   }
 
-  List<StaffAppointmentModel> get _filteredAppointments {
+  /// Booth of my live shift at the selected hospital (clock-ins have none).
+  ({String? id, String label})? get _myBooth {
+    final hospital = _selectedHospital;
+    if (hospital == null || _filterDate != todayIsoDate()) return null;
+    final now = hospitalNow();
+    final nowMinutes = now.hour * 60 + now.minute;
+    int? minutes(String raw) {
+      final m = RegExp(r'^(\d{1,2}):(\d{2})').firstMatch(raw.trim());
+      return m == null ? null : int.parse(m.group(1)!) * 60 + int.parse(m.group(2)!);
+    }
+
+    for (final s in _todayShifts) {
+      if (s.affiliationId != hospital.affiliationId) continue;
+      final start = minutes(s.startTime);
+      final end = minutes(s.endTime);
+      if (start == null || end == null) continue;
+      if (start > nowMinutes || nowMinutes >= end) continue;
+      final label = s.boothOrStation?.trim() ?? '';
+      if ((s.boothId ?? '').isEmpty && label.isEmpty) return null;
+      return (id: s.boothId, label: label.isEmpty ? 'My booth' : label);
+    }
+    return null;
+  }
+
+  /// Patients in my booth scope; unassigned patients stay visible to everyone.
+  List<StaffAppointmentModel> get _scopedAppointments {
+    final booth = _myBooth;
+    if (booth == null || !_myBoothOnly) return _appointments;
     return _appointments.where((a) {
+      final label = a.boothLabel?.trim() ?? '';
+      final id = a.boothId ?? '';
+      if (label.isEmpty && id.isEmpty) return true;
+      if ((booth.id ?? '').isNotEmpty && id.isNotEmpty) return id == booth.id;
+      return label.toLowerCase() == booth.label.toLowerCase();
+    }).toList();
+  }
+
+  List<StaffAppointmentModel> get _filteredAppointments {
+    return _scopedAppointments.where((a) {
       if (_filterStatus == 'all') return true;
       return a.uiStatus == _filterStatus;
     }).toList();
   }
 
   int get _completedCount =>
-      _appointments.where((a) => a.uiStatus == 'completed').length;
+      _scopedAppointments.where((a) => a.uiStatus == 'completed').length;
   int get _waitingCount =>
-      _appointments.where((a) => a.uiStatus == 'waiting').length;
+      _scopedAppointments.where((a) => a.uiStatus == 'waiting').length;
   int get _observationCount =>
-      _appointments.where((a) => a.uiStatus == 'observation').length;
+      _scopedAppointments.where((a) => a.uiStatus == 'observation').length;
 
   void _toast(String message) {
     if (!mounted) return;
@@ -304,7 +348,8 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
       return;
     }
     StaffAppointmentModel? next;
-    for (final a in _appointments) {
+    final scoped = _scopedAppointments;
+    for (final a in scoped) {
       if (a.uiStatus == 'waiting' && a.isPaymentSettled && a.hasDosage) {
         next = a;
         break;
@@ -312,8 +357,8 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
     }
     if (next == null) {
       final unpaidWaiting =
-          _appointments.any((a) => a.uiStatus == 'waiting' && !a.isPaymentSettled);
-      final awaitingDose = _appointments.any(
+          scoped.any((a) => a.uiStatus == 'waiting' && !a.isPaymentSettled);
+      final awaitingDose = scoped.any(
           (a) => a.uiStatus == 'waiting' && a.isPaymentSettled && !a.hasDosage);
       _toast(
         awaitingDose
@@ -613,7 +658,7 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
                 title: 'Observation watch',
                 count: _observationCount,
               ),
-              ..._appointments
+              ..._scopedAppointments
                   .where((a) => a.uiStatus == 'observation')
                   .map(
                     (obs) => Padding(
@@ -629,6 +674,25 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
                   ),
             ],
             const SizedBox(height: 14),
+            if (_myBooth != null) ...[
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _FilterChip(
+                    label: 'My booth (${_myBooth!.label})',
+                    selected: _myBoothOnly,
+                    onTap: () => setState(() => _myBoothOnly = true),
+                  ),
+                  _FilterChip(
+                    label: 'All booths',
+                    selected: !_myBoothOnly,
+                    onTap: () => setState(() => _myBoothOnly = false),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+            ],
             Wrap(
               spacing: 8,
               runSpacing: 8,

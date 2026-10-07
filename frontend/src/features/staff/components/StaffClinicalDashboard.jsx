@@ -5,7 +5,7 @@ import staffService from '../../hospital/services/staffService';
 import clinicalPatientService from '../../doctor/services/clinicalPatientService';
 import ClinicalPrescribeModal from '../../doctor/components/ClinicalPrescribeModal';
 import staffAppointmentService from '../services/staffAppointmentService';
-import { hospitalToday } from '../../hospital/utils/hospitalDate';
+import { hospitalMinutesNow, hospitalToday } from '../../hospital/utils/hospitalDate';
 import {
   IconCalendar,
   IconCheck,
@@ -67,6 +67,15 @@ function presenceLabel(affiliation) {
   return 'Not on duty';
 }
 
+function clockToMinutes(value) {
+  const match = /^(\d{1,2}):(\d{2})/.exec(String(value || ''));
+  return match ? Number(match[1]) * 60 + Number(match[2]) : null;
+}
+
+function normalizeBooth(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
 function isPaymentSettled(patientOrStatus) {
   const value =
     typeof patientOrStatus === 'string'
@@ -103,6 +112,9 @@ export default function StaffClinicalDashboard({
   const [statsLoading, setStatsLoading] = useState(true);
   const [statusUpdating, setStatusUpdating] = useState(false);
   const [dutyUpdating, setDutyUpdating] = useState(false);
+  const [todayShifts, setTodayShifts] = useState([]);
+  // 'mine' = patients at the booth of my live shift (plus unassigned), 'all' = whole hospital.
+  const [boothScope, setBoothScope] = useState('mine');
   const [activePatientId, setActivePatientId] = useState(null);
   const [loadError, setLoadError] = useState('');
   const [now, setNow] = useState(() => Date.now());
@@ -169,10 +181,12 @@ export default function StaffClinicalDashboard({
         return;
       }
 
-      const [appts, lots] = await Promise.all([
+      const [appts, lots, shifts] = await Promise.all([
         staffAppointmentService.getHospitalAppointments(hospitalId, hospitalToday()),
         inventoryService.getInventory(hospitalId).catch(() => []),
+        staffService.getMyShifts({ from: hospitalToday(), to: hospitalToday() }).catch(() => []),
       ]);
+      setTodayShifts(Array.isArray(shifts) ? shifts : []);
       const rows = Array.isArray(appts) ? appts : [];
       setTodayAppointments(rows);
       setInventoryLots(Array.isArray(lots) ? lots : []);
@@ -295,6 +309,7 @@ export default function StaffClinicalDashboard({
         prescribedBy: a.prescribedByDoctorName || null,
         paymentStatus: a.paymentStatus || '—',
         booth: a.boothLabel || null,
+        boothId: a.boothId || null,
         time: a.timeSlot || [a.startTime, a.endTime].filter(Boolean).join(' – ') || '—',
         status,
         appointmentStatus: a.status,
@@ -304,9 +319,35 @@ export default function StaffClinicalDashboard({
     });
   }, [todayAppointments]);
 
+  // Booth of my live shift at this hospital, if any. Clock-ins without a shift have none.
+  const myBooth = useMemo(() => {
+    const nowMinutes = hospitalMinutesNow();
+    const live = todayShifts.find((s) => {
+      if (primaryAffiliation && s.affiliationId !== primaryAffiliation.affiliationId) return false;
+      const start = clockToMinutes(s.startTime);
+      const end = clockToMinutes(s.endTime);
+      return start != null && end != null && start <= nowMinutes && nowMinutes < end;
+    });
+    if (!live || (!live.boothId && !live.boothOrStation)) return null;
+    return { id: live.boothId || null, label: live.boothOrStation || 'My booth' };
+    // `now` ticks every 30s so the booth follows shift changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [todayShifts, primaryAffiliation, now]);
+
+  const boothFiltered = Boolean(myBooth) && boothScope === 'mine';
+  // Patients without a booth (e.g. walk-ins at a hospital with no booths) stay visible to everyone.
+  const scopedPatients = useMemo(() => {
+    if (!boothFiltered) return patients;
+    return patients.filter((p) => {
+      if (!p.booth && !p.boothId) return true;
+      if (myBooth.id && p.boothId) return p.boothId === myBooth.id;
+      return normalizeBooth(p.booth) === normalizeBooth(myBooth.label);
+    });
+  }, [patients, boothFiltered, myBooth]);
+
   const observationPatients = useMemo(
     () =>
-      patients
+      scopedPatients
         .filter((p) => p.status === 'observation')
         .map((p) => ({
           id: p.id,
@@ -318,7 +359,7 @@ export default function StaffClinicalDashboard({
             : '—',
           minsLeft: observationMinutesLeft(p.updatedAt, now),
         })),
-    [patients, now]
+    [scopedPatients, now]
   );
 
   const activePatient = useMemo(
@@ -351,14 +392,15 @@ export default function StaffClinicalDashboard({
   };
 
   const handleCallNext = async () => {
-    const nextWaiting = patients.find(
+    // Only call patients at my booth (or unassigned) so nobody is sent to the wrong booth.
+    const nextWaiting = scopedPatients.find(
       (p) => p.status === 'waiting' && isPaymentSettled(p) && p.hasDosage
     );
     if (!nextWaiting) {
-      const unpaidWaiting = patients.some(
+      const unpaidWaiting = scopedPatients.some(
         (p) => p.status === 'waiting' && !isPaymentSettled(p)
       );
-      const undosedWaiting = patients.some(
+      const undosedWaiting = scopedPatients.some(
         (p) => p.status === 'waiting' && isPaymentSettled(p) && !p.hasDosage
       );
       showToast(
@@ -366,7 +408,9 @@ export default function StaffClinicalDashboard({
           ? 'Paid patients are waiting for a doctor to prescribe their dose.'
           : unpaidWaiting
             ? 'No paid patients waiting. Unpaid appointments cannot be administered yet.'
-            : "No more waiting patients in today's queue."
+            : boothFiltered
+              ? `No more waiting patients at ${myBooth.label}. Switch to All booths to help elsewhere.`
+              : "No more waiting patients in today's queue."
       );
       return;
     }
@@ -536,7 +580,7 @@ export default function StaffClinicalDashboard({
     }
   };
 
-  const filteredPatients = patients.filter((p) => {
+  const filteredPatients = scopedPatients.filter((p) => {
     const q = searchQuery.toLowerCase();
     const matchesSearch =
       !q ||
@@ -555,16 +599,16 @@ export default function StaffClinicalDashboard({
     return p.status === filterStatus;
   });
 
-  const waitingCount = patients.filter(
+  const waitingCount = scopedPatients.filter(
     (p) => p.status === 'waiting' && isPaymentSettled(p)
   ).length;
-  const awaitingPaymentCount = patients.filter(
+  const awaitingPaymentCount = scopedPatients.filter(
     (p) =>
       p.status === 'waiting' &&
       !isPaymentSettled(p)
   ).length;
-  const completedCount = patients.filter((p) => p.status === 'completed').length;
-  const observationCount = patients.filter((p) => p.status === 'observation').length;
+  const completedCount = scopedPatients.filter((p) => p.status === 'completed').length;
+  const observationCount = scopedPatients.filter((p) => p.status === 'observation').length;
   // Show the switcher whenever staff have multiple affiliations (doctors + multi-hospital nurses).
   const showHospitalSwitch = (allowHospitalSwitch || affiliations.length > 1) && affiliations.length > 1;
   const canCertifyActive = activePatient?.status === 'consulting' && activePaymentSettled;
@@ -972,20 +1016,40 @@ export default function StaffClinicalDashboard({
                 Today&apos;s Consultation Queue
               </h2>
               <p className="section-title-desc">
-                All patients booked at this hospital today
+                {boothFiltered
+                  ? `Patients at ${myBooth.label} today, plus unassigned walk-ins`
+                  : 'All patients booked at this hospital today'}
               </p>
             </div>
           </div>
 
           <div className="queue-controls-bar">
             <div className="queue-controls-left">
+              {myBooth ? (
+                <div className="queue-scope-switch" role="group" aria-label="Booth scope">
+                  <button
+                    type="button"
+                    className={`queue-scope-btn${boothScope === 'mine' ? ' active' : ''}`}
+                    onClick={() => setBoothScope('mine')}
+                  >
+                    My booth ({myBooth.label})
+                  </button>
+                  <button
+                    type="button"
+                    className={`queue-scope-btn${boothScope === 'all' ? ' active' : ''}`}
+                    onClick={() => setBoothScope('all')}
+                  >
+                    All booths
+                  </button>
+                </div>
+              ) : null}
               <div className="queue-scope-switch">
                 <button
                   type="button"
                   className={`queue-scope-btn${filterStatus === 'all' ? ' active' : ''}`}
                   onClick={() => setFilterStatus('all')}
                 >
-                  All ({patients.length})
+                  All ({scopedPatients.length})
                 </button>
                 <button
                   type="button"

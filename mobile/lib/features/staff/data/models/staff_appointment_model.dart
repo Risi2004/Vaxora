@@ -17,6 +17,7 @@ class StaffAppointmentModel {
   final String status;
   final String paymentStatus;
   final String? notes;
+  final String? boothId;
   final String? boothLabel;
   final String? prescribedDosage;
   final String? prescribedByDoctorName;
@@ -42,6 +43,7 @@ class StaffAppointmentModel {
     required this.status,
     required this.paymentStatus,
     this.notes,
+    this.boothId,
     this.boothLabel,
     this.prescribedDosage,
     this.prescribedByDoctorName,
@@ -114,6 +116,7 @@ class StaffAppointmentModel {
       status: json['status']?.toString() ?? 'Confirmed',
       paymentStatus: json['paymentStatus']?.toString() ?? '—',
       notes: json['notes']?.toString(),
+      boothId: json['boothId']?.toString(),
       boothLabel: json['boothLabel']?.toString(),
       prescribedDosage: json['prescribedDosage']?.toString(),
       prescribedByDoctorName: json['prescribedByDoctorName']?.toString(),

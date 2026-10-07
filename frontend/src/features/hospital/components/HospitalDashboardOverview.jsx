@@ -368,6 +368,7 @@ export default function HospitalDashboardOverview() {
           name: booth.name || booth.displayLabel || 'Booth',
           boothName: booth.displayLabel || `${booth.code} · ${booth.name}`,
           staffMembers,
+          vaccineNames: booth.vaccineNames || [],
           status: !primary ? 'Unstaffed' : isLive ? 'On duty' : 'Scheduled',
           shiftCount: boothShifts.length,
         };
@@ -1092,7 +1093,7 @@ export default function HospitalDashboardOverview() {
         onClose={() => setIsWalkInOpen(false)}
         onAddPatient={handleAddWalkIn}
         vaccines={formularyVaccines.map((f) => f.vaccineName || f.name).filter(Boolean)}
-        booths={boothCards.map((b) => ({ id: b.id, label: b.boothName }))}
+        booths={boothCards.map((b) => ({ id: b.id, label: b.boothName, vaccineNames: b.vaccineNames }))}
       />
 
       {isRestockOpen && (

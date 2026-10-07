@@ -609,13 +609,21 @@ public class AppointmentService : IAppointmentService
             timeSlot = $"{FormatTime12h(start)} - {FormatTime12h(end)}";
         }
 
+        var (boothId, boothLabel) = await ResolveWalkInBoothAsync(hospital.Id, vaccineName, dto.BoothLabel);
+
         var vName = vaccineName.ToLowerInvariant();
-        var schedule = await _context.VaccineSchedules
-            .FirstOrDefaultAsync(s =>
+        var hospitalProfileId = hospital.HospitalProfile?.Id;
+        var scheduleQuery = _context.VaccineSchedules
+            .Where(s =>
                 s.Status == "Active" &&
                 (s.HospitalUserId == hospital.Id ||
-                 (hospital.HospitalProfile != null && s.HospitalProfileId == hospital.HospitalProfile.Id)) &&
+                 (hospitalProfileId != null && s.HospitalProfileId == hospitalProfileId)) &&
                 (s.VaccineName.ToLower() == vName || s.VaccineName.ToLower().Contains(vName)));
+        // Prefer the session running at the assigned booth so vaccine and booth agree.
+        var schedule = (boothId.HasValue
+                ? await scheduleQuery.FirstOrDefaultAsync(s => s.BoothId == boothId)
+                : null)
+            ?? await scheduleQuery.FirstOrDefaultAsync();
 
         var noteParts = new List<string>
         {
@@ -624,7 +632,6 @@ public class AppointmentService : IAppointmentService
                 : "Walk-in registration"
         };
         if (!string.IsNullOrWhiteSpace(dto.Dose)) noteParts.Add($"Dose: {dto.Dose.Trim()}");
-        if (!string.IsNullOrWhiteSpace(dto.BoothLabel)) noteParts.Add($"Booth: {dto.BoothLabel.Trim()}");
         if (dto.Age.HasValue) noteParts.Add($"Age: {dto.Age.Value}");
         if (!string.IsNullOrWhiteSpace(dto.Gender)) noteParts.Add($"Gender: {dto.Gender.Trim()}");
         if (!createdAccount &&
@@ -633,6 +640,8 @@ public class AppointmentService : IAppointmentService
         {
             noteParts.Add($"Presented as: {presentedName}");
         }
+        // Keep Booth last: booth labels contain " · ", and ExtractBoothFromNotes reads to end of line.
+        if (!string.IsNullOrWhiteSpace(boothLabel)) noteParts.Add($"Booth: {boothLabel}");
 
         var appointment = new Appointment
         {
@@ -1702,6 +1711,110 @@ public class AppointmentService : IAppointmentService
         return parts.Count == 0 ? null : string.Join("\n", parts);
     }
 
+    /// <summary>
+    /// Picks the walk-in booth. A desk-chosen booth must offer the vaccine (when any
+    /// booth lists it). Otherwise auto-assign: an offering booth with on-duty staff
+    /// first, then the shortest open queue today, then booth order.
+    /// </summary>
+    private async Task<(Guid? Id, string? Label)> ResolveWalkInBoothAsync(
+        Guid hospitalUserId,
+        string vaccineName,
+        string? requestedLabel)
+    {
+        var requested = requestedLabel?.Trim();
+        var booths = await _context.HospitalBooths
+            .AsNoTracking()
+            .Include(b => b.Vaccines).ThenInclude(v => v.Vaccine)
+            .Where(b => b.HospitalUserId == hospitalUserId && b.IsActive)
+            .OrderBy(b => b.SortOrder).ThenBy(b => b.Code)
+            .ToListAsync();
+
+        if (booths.Count == 0)
+            return (null, string.IsNullOrWhiteSpace(requested) ? null : requested);
+
+        var wanted = vaccineName.Trim().ToLowerInvariant();
+        var offering = booths
+            .Where(b => b.Vaccines.Any(v =>
+            {
+                var name = v.Vaccine?.Name?.Trim().ToLowerInvariant();
+                return !string.IsNullOrEmpty(name) && (name == wanted || name.Contains(wanted) || wanted.Contains(name));
+            }))
+            .ToList();
+
+        if (!string.IsNullOrWhiteSpace(requested))
+        {
+            var chosen = booths.FirstOrDefault(b =>
+                string.Equals(b.DisplayLabel, requested, StringComparison.OrdinalIgnoreCase));
+            if (chosen == null)
+                return (null, requested);
+            if (offering.Count > 0 && !offering.Contains(chosen))
+            {
+                throw new InvalidOperationException(
+                    $"{chosen.DisplayLabel} does not offer {vaccineName}. Choose " +
+                    $"{string.Join(", ", offering.Select(b => b.DisplayLabel))} or leave the booth on Auto.");
+            }
+            return (chosen.Id, chosen.DisplayLabel);
+        }
+
+        if (offering.Count == 0)
+            return (null, null);
+
+        var today = StaffDutyHelper.HospitalToday();
+        var now = TimeOnly.FromDateTime(StaffDutyHelper.HospitalNow());
+        var offeringIds = offering.Select(b => b.Id).ToList();
+        var liveShifts = await _context.StaffShifts
+            .AsNoTracking()
+            .Where(s =>
+                s.BoothId != null &&
+                offeringIds.Contains(s.BoothId.Value) &&
+                s.ShiftDate == today &&
+                s.StartTime <= now &&
+                s.EndTime > now)
+            .Select(s => new { BoothId = s.BoothId!.Value, s.AffiliationId })
+            .ToListAsync();
+        var onDuty = await StaffDutyHelper.GetOnDutyAffiliationIdsAsync(
+            _context,
+            liveShifts.Select(s => s.AffiliationId).Distinct().ToList());
+        var staffedBoothIds = liveShifts
+            .Where(s => onDuty.Contains(s.AffiliationId))
+            .Select(s => s.BoothId)
+            .ToHashSet();
+
+        var openToday = await _context.Appointments
+            .AsNoTracking()
+            .Where(a =>
+                a.HospitalUserId == hospitalUserId &&
+                a.AppointmentDate == today &&
+                (a.Status == "Confirmed" || a.Status == "PendingPayment" || a.Status == "Administering"))
+            .Select(a => new { a.Notes, a.VaccineScheduleId })
+            .ToListAsync();
+        var scheduleIds = openToday
+            .Where(a => a.VaccineScheduleId.HasValue)
+            .Select(a => a.VaccineScheduleId!.Value)
+            .Distinct()
+            .ToList();
+        var boothBySchedule = await _context.VaccineSchedules
+            .AsNoTracking()
+            .Where(s => scheduleIds.Contains(s.Id))
+            .ToDictionaryAsync(s => s.Id, s => s.BoothId);
+
+        int QueueLoad(HospitalBooth booth) => openToday.Count(a =>
+        {
+            var notesBooth = ExtractBoothFromNotes(a.Notes);
+            if (notesBooth != null)
+                return string.Equals(notesBooth, booth.DisplayLabel, StringComparison.OrdinalIgnoreCase);
+            return a.VaccineScheduleId.HasValue &&
+                   boothBySchedule.TryGetValue(a.VaccineScheduleId.Value, out var scheduleBooth) &&
+                   scheduleBooth == booth.Id;
+        });
+
+        var pick = offering
+            .OrderByDescending(b => staffedBoothIds.Contains(b.Id))
+            .ThenBy(QueueLoad)
+            .First();
+        return (pick.Id, pick.DisplayLabel);
+    }
+
     private static string? ExtractBoothFromNotes(string? notes)
     {
         if (string.IsNullOrWhiteSpace(notes)) return null;
@@ -1941,6 +2054,7 @@ public class AppointmentService : IAppointmentService
 
     private static AppointmentResponseDto MapToDto(Appointment a)
     {
+        var notesBooth = ExtractBoothFromNotes(a.Notes);
         var profile = a.PatientUser?.PatientProfile;
         var liveName = profile?.FullName?.Trim();
         var livePhone = profile?.PhoneNumber?.Trim() ?? a.PatientUser?.PhoneNumber?.Trim();
@@ -1974,8 +2088,12 @@ public class AppointmentService : IAppointmentService
             PaymentStatus = a.PaymentStatus,
             PaymentTransactionId = a.PaymentTransactionId,
             Notes = a.Notes,
-            BoothId = a.VaccineSchedule?.BoothId,
-            BoothLabel = a.VaccineSchedule?.BoothLabel ?? ExtractBoothFromNotes(a.Notes),
+            // Walk-ins record their assigned booth in notes; it wins over a linked session's booth.
+            BoothId = notesBooth == null ||
+                      string.Equals(notesBooth, a.VaccineSchedule?.BoothLabel, StringComparison.OrdinalIgnoreCase)
+                ? a.VaccineSchedule?.BoothId
+                : null,
+            BoothLabel = notesBooth ?? a.VaccineSchedule?.BoothLabel,
             PrescribedDosage = a.PrescribedDosage,
             PrescribedByDoctorUserId = a.PrescribedByDoctorUserId,
             PrescribedByDoctorName = a.PrescribedByDoctorName,
