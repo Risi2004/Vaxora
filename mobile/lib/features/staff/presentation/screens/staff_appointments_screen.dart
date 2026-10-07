@@ -681,7 +681,7 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
                 runSpacing: 8,
                 children: [
                   _FilterChip(
-                    label: 'My booth (${_myBooth!.label})',
+                    label: 'My booth · ${_myBooth!.label.split(' · ').first}',
                     selected: _myBoothOnly,
                     onTap: () => setState(() => _myBoothOnly = true),
                   ),
@@ -1027,30 +1027,37 @@ class _DutyBar extends StatelessWidget {
       ],
     ];
 
+    // Status on its own line, buttons below, so narrow phones never overflow.
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: StaffSurfaces.softWell(),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            onDuty ? Icons.circle : Icons.circle_outlined,
-            size: 12,
-            color: onDuty ? AppColors.success : StaffSurfaces.textSecondary,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              onDuty
-                  ? hospital.dutyLabel
-                  : '${hospital.dutyLabel} · clock in for walk-ins or cover',
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: StaffSurfaces.textPrimary,
+          Row(
+            children: [
+              Icon(
+                onDuty ? Icons.circle : Icons.circle_outlined,
+                size: 12,
+                color: onDuty ? AppColors.success : StaffSurfaces.textSecondary,
               ),
-            ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  onDuty
+                      ? hospital.dutyLabel
+                      : '${hospital.dutyLabel} · clock in for walk-ins or cover',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: StaffSurfaces.textPrimary,
+                  ),
+                ),
+              ),
+            ],
           ),
-          Wrap(spacing: 8, children: actions),
+          const SizedBox(height: 8),
+          Wrap(spacing: 8, runSpacing: 8, children: actions),
         ],
       ),
     );

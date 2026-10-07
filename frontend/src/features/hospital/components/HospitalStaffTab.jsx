@@ -549,6 +549,11 @@ export default function HospitalStaffTab() {
                       type="button"
                       onClick={() => handleRemoveStaff(staff.id)}
                       disabled={actionId === staff.id}
+                      title={
+                        confirmRemoveId === staff.id
+                          ? 'Their upcoming shifts here will be freed for reassignment'
+                          : undefined
+                      }
                       style={{
                         background: 'none',
                         border: 'none',
@@ -561,7 +566,7 @@ export default function HospitalStaffTab() {
                       {actionId === staff.id
                         ? 'Removing...'
                         : confirmRemoveId === staff.id
-                          ? 'Confirm remove (frees upcoming shifts)'
+                          ? 'Confirm remove?'
                           : 'Remove'}
                     </button>
                     {confirmRemoveId === staff.id && actionId !== staff.id ? (

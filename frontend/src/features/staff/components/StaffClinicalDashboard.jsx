@@ -717,56 +717,6 @@ export default function StaffClinicalDashboard({
             >
               Call Next Patient
             </button>
-            {primaryAffiliation ? (
-              onBreak ? (
-                <button
-                  type="button"
-                  className="doctor-btn-report-aefi"
-                  onClick={() => handleDutyChange('OnDuty')}
-                  disabled={dutyUpdating}
-                >
-                  End break
-                </button>
-              ) : primaryAffiliation.isClockedIn ? (
-                <>
-                  <button
-                    type="button"
-                    className="doctor-btn-report-aefi"
-                    onClick={() => handleDutyChange('OnBreak')}
-                    disabled={dutyUpdating}
-                  >
-                    Take break
-                  </button>
-                  <button
-                    type="button"
-                    className="doctor-btn-report-aefi"
-                    onClick={() => handleDutyChange('Off')}
-                    disabled={dutyUpdating}
-                  >
-                    Clock out
-                  </button>
-                </>
-              ) : notOnDuty ? (
-                <button
-                  type="button"
-                  className="doctor-btn-call-next"
-                  onClick={() => handleDutyChange('OnDuty')}
-                  disabled={dutyUpdating}
-                  title="For walk-ins or cover outside your rostered shift"
-                >
-                  Clock in
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="doctor-btn-report-aefi"
-                  onClick={() => handleDutyChange('OnBreak')}
-                  disabled={dutyUpdating}
-                >
-                  Take break
-                </button>
-              )
-            ) : null}
             <button
               type="button"
               className="doctor-btn-report-aefi"
@@ -776,6 +726,40 @@ export default function StaffClinicalDashboard({
             >
               Report AEFI
             </button>
+            {primaryAffiliation ? (
+              <div className="doctor-duty-controls" role="group" aria-label="Duty status">
+                {onBreak || notOnDuty ? (
+                  <button
+                    type="button"
+                    className="doctor-btn-duty doctor-btn-duty--start"
+                    onClick={() => handleDutyChange('OnDuty')}
+                    disabled={dutyUpdating}
+                    title={onBreak ? undefined : 'For walk-ins or cover outside your rostered shift'}
+                  >
+                    {onBreak ? 'End break' : 'Clock in'}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="doctor-btn-duty"
+                    onClick={() => handleDutyChange('OnBreak')}
+                    disabled={dutyUpdating}
+                  >
+                    Take break
+                  </button>
+                )}
+                {primaryAffiliation.isClockedIn && !onBreak ? (
+                  <button
+                    type="button"
+                    className="doctor-btn-duty"
+                    onClick={() => handleDutyChange('Off')}
+                    disabled={dutyUpdating}
+                  >
+                    Clock out
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
           </div>
         </div>
         <div className="hospital-hero-media" aria-hidden="true">
@@ -1027,7 +1011,7 @@ export default function StaffClinicalDashboard({
                     className={`queue-scope-btn${boothScope === 'mine' ? ' active' : ''}`}
                     onClick={() => setBoothScope('mine')}
                   >
-                    My booth ({myBooth.label})
+                    My booth · {String(myBooth.label).split(' · ')[0]}
                   </button>
                   <button
                     type="button"

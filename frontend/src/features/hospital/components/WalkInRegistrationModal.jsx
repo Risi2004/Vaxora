@@ -242,7 +242,7 @@ export default function WalkInRegistrationModal({
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
               <div className="modal-form-group">
-                <label className="modal-label">Dose Sequence (doctor prescribes the dosage)</label>
+                <label className="modal-label">Dose Sequence</label>
                 <select
                   name="dose"
                   value={formData.dose}
@@ -270,6 +270,9 @@ export default function WalkInRegistrationModal({
                 </select>
               </div>
             </div>
+            <span style={{ display: 'block', marginTop: 6, fontSize: '0.75rem', color: '#64748b' }}>
+              A doctor prescribes the dosage at the booth. Only booths offering this vaccine are listed.
+            </span>
           </div>
 
           <div className="modal-footer">

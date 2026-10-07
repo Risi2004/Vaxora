@@ -642,6 +642,50 @@
   border-color: rgba(254, 202, 202, 0.8);
 }
 
+/* Duty controls: neutral so they never read as clinical alerts. */
+.doctor-duty-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 12px;
+  border-left: 1px solid rgba(148, 163, 184, 0.45);
+}
+
+.doctor-btn-duty {
+  background: #ffffff;
+  color: #334155;
+  border: 1.5px solid #cbd5e1;
+  font-weight: 600;
+  font-size: 0.88rem;
+  padding: 10px 16px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.doctor-btn-duty:hover:not(:disabled) {
+  background: #f8fafc;
+  border-color: #94a3b8;
+}
+
+.doctor-btn-duty--start {
+  color: #047857;
+  border-color: #a7f3d0;
+}
+
+.doctor-btn-duty--start:hover:not(:disabled) {
+  background: #ecfdf5;
+  border-color: #6ee7b7;
+}
+
+.doctor-btn-duty:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 /* ==========================================================================
    3. Key Metrics Ribbon (4 Stat Cards)
    ========================================================================== */

@@ -246,8 +246,19 @@ class _CoverRequestCardState extends State<CoverRequestCard> {
                 alignment: Alignment.centerLeft,
                 child: OutlinedButton.icon(
                   onPressed: widget.busy || _ranking ? null : _rankWithAi,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: StaffSurfaces.brandSoft,
+                    side: const BorderSide(color: StaffSurfaces.chipNeutralBorder),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
                   icon: const Icon(Icons.auto_awesome, size: 16),
-                  label: Text(_ranking ? 'Ranking…' : 'Rank with AI'),
+                  label: Text(
+                    _ranking ? 'Ranking…' : 'Rank with AI',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
                 ),
               ),
             ],

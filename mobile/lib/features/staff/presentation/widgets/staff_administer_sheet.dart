@@ -307,7 +307,7 @@ class _StaffAdministerSheetState extends State<_StaffAdministerSheet> {
               onChanged: (v) => setState(() => _dose = v ?? false),
               controlAffinity: ListTileControlAffinity.leading,
               title: Text(
-                "Prescribed dose checked against the doctor's order "
+                "Dose matches doctor's order "
                 '(${widget.patient.prescribedDosage ?? 'not set'})',
                 style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600),
               ),
