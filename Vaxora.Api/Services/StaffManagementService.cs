@@ -13,7 +13,8 @@ public interface IStaffManagementService
     Task<List<StaffAffiliationDto>> GetHospitalStaffAsync(Guid hospitalUserId, string? role = null, string? dutyStatus = null, string? search = null, string? status = null);
     Task<List<StaffAffiliationDto>> GetMyInvitationsAsync(Guid staffUserId);
     Task<List<StaffAffiliationDto>> GetMyAffiliationsAsync(Guid staffUserId);
-    Task RemoveAffiliationAsync(Guid hospitalUserId, Guid affiliationId);
+    /// <summary>Removes staff from the roster and returns how many upcoming shifts were freed.</summary>
+    Task<int> RemoveAffiliationAsync(Guid hospitalUserId, Guid affiliationId);
     Task<StaffAffiliationDto> UpdateDutyStatusAsync(Guid actorUserId, Guid affiliationId, UpdateDutyStatusDto dto);
     Task<List<HospitalBoothDto>> GetHospitalBoothsAsync(Guid hospitalUserId, bool activeOnly = false);
     Task<HospitalBoothDto> CreateHospitalBoothAsync(Guid hospitalUserId, CreateHospitalBoothDto dto);
@@ -345,7 +346,7 @@ public class StaffManagementService : IStaffManagementService
         return dtos;
     }
 
-    public async Task RemoveAffiliationAsync(Guid hospitalUserId, Guid affiliationId)
+    public async Task<int> RemoveAffiliationAsync(Guid hospitalUserId, Guid affiliationId)
     {
         await EnsureActiveHospitalAsync(hospitalUserId);
 
@@ -363,6 +364,33 @@ public class StaffManagementService : IStaffManagementService
         affiliation.DutyStatus = DutyStatus.Off;
         affiliation.DutyUpdatedAt = DateTime.UtcNow;
         affiliation.DutyUpdatedByUserId = hospitalUserId;
+
+        // Roster views only show Active staff, so upcoming shifts would silently
+        // vanish. Free them here and report the count so the hospital can re-cover.
+        // Past and in-progress shifts stay for history.
+        var today = HospitalToday();
+        var nowTime = TimeOnly.FromDateTime(HospitalNow());
+        var upcomingShifts = await _context.StaffShifts
+            .Where(s =>
+                s.AffiliationId == affiliation.Id &&
+                (s.ShiftDate > today || (s.ShiftDate == today && s.StartTime > nowTime)))
+            .ToListAsync();
+        _context.StaffShifts.RemoveRange(upcomingShifts);
+
+        var pendingSwaps = await _context.ShiftSwapRequests
+            .Where(r =>
+                r.HospitalUserId == hospitalUserId &&
+                r.RequesterUserId == affiliation.StaffUserId &&
+                r.Status == ShiftSwapStatus.Pending)
+            .ToListAsync();
+        foreach (var swap in pendingSwaps)
+        {
+            swap.Status = ShiftSwapStatus.Cancelled;
+            swap.DecidedByUserId = hospitalUserId;
+            swap.DecidedAt = DateTime.UtcNow;
+            swap.DecisionNote = "Staff removed from roster";
+            swap.UpdatedAt = DateTime.UtcNow;
+        }
 
         // If staff no longer belongs to any hospital, revoke refresh session so
         // a phone/browser cannot keep renewing access after roster removal.
@@ -389,7 +417,16 @@ public class StaffManagementService : IStaffManagementService
                 : $"Hospital removed staff {affiliation.StaffUser.RegistrationNumber} from roster; refresh session revoked (no remaining affiliations)"
         });
 
+        if (upcomingShifts.Count > 0)
+        {
+            await AddShiftAuditAsync(
+                hospitalUserId,
+                "STAFF_SHIFTS_FREED",
+                $"{upcomingShifts.Count} upcoming shift(s) for {affiliation.StaffUser.RegistrationNumber} removed with roster removal");
+        }
+
         await _context.SaveChangesAsync();
+        return upcomingShifts.Count;
     }
 
     public async Task<StaffAffiliationDto> UpdateDutyStatusAsync(Guid actorUserId, Guid affiliationId, UpdateDutyStatusDto dto)

@@ -157,6 +157,30 @@ public class StaffManagementServiceTests
     }
 
     [Fact]
+    public async Task RemoveAffiliationAsync_frees_upcoming_shifts_and_cancels_pending_covers()
+    {
+        await using var context = CreateContext();
+        var hospital = AddHospital(context);
+        var doctor = AddDoctor(context, "doctor@example.com", "VAX-D-1001");
+        var affiliation = AddActiveAffiliation(context, hospital, doctor);
+        var pastShift = AddShift(context, hospital, affiliation, DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-3)));
+        var upcoming = AddShift(context, hospital, affiliation, DateOnly.FromDateTime(DateTime.UtcNow.AddDays(4)));
+        AddShift(context, hospital, affiliation, DateOnly.FromDateTime(DateTime.UtcNow.AddDays(6)));
+        var swap = AddPendingSwap(context, hospital, doctor, upcoming);
+        await context.SaveChangesAsync();
+        var service = CreateService(context);
+
+        var freed = await service.RemoveAffiliationAsync(hospital.Id, affiliation.Id);
+
+        Assert.Equal(2, freed);
+        var remaining = await context.StaffShifts.Select(s => s.Id).ToListAsync();
+        Assert.Equal(new[] { pastShift.Id }, remaining);
+        var storedSwap = await context.ShiftSwapRequests.SingleAsync(r => r.Id == swap.Id);
+        Assert.Equal(ShiftSwapStatus.Cancelled, storedSwap.Status);
+        Assert.Equal("Staff removed from roster", storedSwap.DecisionNote);
+    }
+
+    [Fact]
     public async Task GetCoverageReportAsync_marks_day_low_when_a_role_has_no_shift()
     {
         await using var context = CreateContext();

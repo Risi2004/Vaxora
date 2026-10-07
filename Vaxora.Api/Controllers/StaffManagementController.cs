@@ -187,8 +187,8 @@ public class StaffManagementController : ControllerBase
 
         try
         {
-            await _staffService.RemoveAffiliationAsync(hospitalUserId, affiliationId);
-            return Ok(new { message = "Staff affiliation removed." });
+            var freedShiftCount = await _staffService.RemoveAffiliationAsync(hospitalUserId, affiliationId);
+            return Ok(new { message = "Staff affiliation removed.", freedShiftCount });
         }
         catch (KeyNotFoundException ex)
         {
