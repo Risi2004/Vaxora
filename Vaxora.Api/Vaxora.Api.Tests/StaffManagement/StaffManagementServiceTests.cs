@@ -181,6 +181,34 @@ public class StaffManagementServiceTests
     }
 
     [Fact]
+    public async Task SuggestWeekCoverageAsync_skips_doctor_busy_at_another_hospital()
+    {
+        await using var context = CreateContext();
+        var hospital = AddHospital(context);
+        var otherHospital = AddHospital(context, "other@example.com", "VAX-H-2002");
+        var doctor = AddDoctor(context, "doctor@example.com", "VAX-D-1001");
+        var nurse = AddNurse(context, "nurse@example.com", "VAX-N-1001");
+        AddActiveAffiliation(context, hospital, doctor);
+        AddActiveAffiliation(context, hospital, nurse);
+        var externalAffiliation = AddActiveAffiliation(context, otherHospital, doctor);
+        var date = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(3));
+        // Busy elsewhere in the morning slot only.
+        AddShift(context, otherHospital, externalAffiliation, date);
+        await context.SaveChangesAsync();
+        var service = CreateService(context);
+
+        var result = await service.SuggestWeekCoverageAsync(hospital.Id, new SuggestWeekCoverageDto
+        {
+            From = date,
+            To = date
+        });
+
+        var doctorProposals = result.Proposals.Where(p => p.StaffRole == "DOCTOR").ToList();
+        Assert.NotEmpty(doctorProposals);
+        Assert.DoesNotContain(doctorProposals, p => p.StartTime < new TimeOnly(12, 0));
+    }
+
+    [Fact]
     public async Task GetCoverageReportAsync_marks_day_low_when_a_role_has_no_shift()
     {
         await using var context = CreateContext();

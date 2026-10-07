@@ -141,6 +141,17 @@ class StaffRepository {
     throw ApiException('Failed to update appointment status.');
   }
 
+  /// Clock in (OnDuty), take a break (OnBreak) or clock out (Off).
+  static Future<void> updateDutyStatus({
+    required String affiliationId,
+    required String dutyStatus,
+  }) async {
+    await ApiClient.put(
+      ApiConstants.hospitalAffiliationDuty(affiliationId),
+      body: {'dutyStatus': dutyStatus},
+    );
+  }
+
   /// Doctor-only: prescribe or amend the dose before the nurse administers it.
   static Future<void> updateDosage({
     required String appointmentId,

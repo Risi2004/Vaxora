@@ -389,11 +389,11 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff' }) {
                   className={`staff-affil-presence${item.isOnDutyNow ? ' is-live' : ''}`}
                   title={
                     item.isOnDutyNow
-                      ? 'You have a shift covering now at this hospital'
-                      : 'No shift covering now at this hospital'
+                      ? 'You can do clinical work at this hospital now'
+                      : 'Clock in from your dashboard, or wait for your rostered shift'
                   }
                 >
-                  {item.isOnDutyNow ? 'On duty now' : 'No active shift'}
+                  {item.isOnDutyNow ? 'On duty now' : 'Not on duty'}
                 </div>
               </div>
             ))}

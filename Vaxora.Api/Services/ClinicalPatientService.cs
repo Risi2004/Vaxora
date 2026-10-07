@@ -272,6 +272,8 @@ public class ClinicalPatientService : IClinicalPatientService
         if (!isAffiliated)
             throw new UnauthorizedAccessException("You are not affiliated with this hospital.");
 
+        await StaffDutyHelper.EnsureStaffOnDutyAsync(_context, doctorUserId, appointment.HospitalUserId);
+
         if (string.Equals(appointment.Status, "Completed", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(appointment.Status, "Cancelled", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(appointment.Status, "Rejected", StringComparison.OrdinalIgnoreCase))

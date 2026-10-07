@@ -16,7 +16,14 @@ import {
 function mapAffiliationToCard(item) {
   const isPending = item.status === 'Pending';
   const roleLabel = item.staffRole === 'DOCTOR' ? 'Doctor' : 'Nurse';
-  const liveDuty = item.isOnDutyNow ? 'On duty' : 'No active shift';
+  const liveDuty =
+    String(item.dutyStatus || '').toLowerCase() === 'onbreak'
+      ? 'On break'
+      : item.isOnDutyNow
+        ? item.isClockedIn
+          ? 'Clocked in'
+          : 'On shift'
+        : 'Not on duty';
 
   return {
     id: item.affiliationId,
@@ -467,7 +474,7 @@ export default function HospitalStaffTab() {
                       width: '6px',
                       height: '6px',
                       background:
-                        staff.status === 'On duty'
+                        staff.isOnDutyNow
                           ? '#22c55e'
                           : staff.affiliationStatus === 'Pending'
                             ? '#f59e0b'
@@ -477,7 +484,7 @@ export default function HospitalStaffTab() {
                   <span
                     style={{
                       color:
-                        staff.status === 'On duty'
+                        staff.isOnDutyNow
                           ? '#15803d'
                           : staff.affiliationStatus === 'Pending'
                             ? '#b45309'

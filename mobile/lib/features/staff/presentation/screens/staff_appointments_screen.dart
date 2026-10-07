@@ -44,6 +44,7 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
   bool _loadingHospitals = true;
   bool _loadingAppointments = false;
   bool _updating = false;
+  bool _dutyUpdating = false;
   String? _error;
   bool _allowHospitalSwitch = true;
   bool _isDoctor = false;
@@ -192,6 +193,35 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
 
   bool get _isOnDuty => _selectedHospital?.isOnDutyNow == true;
 
+  /// Clinical actions need a live shift or a clock-in; the API enforces the same rule.
+  bool _requireDuty() {
+    if (_selectedHospital == null || _isOnDuty) return true;
+    _toast('Clock in to start clinical work.');
+    return false;
+  }
+
+  Future<void> _changeDuty(String dutyStatus) async {
+    final hospital = _selectedHospital;
+    if (hospital == null) return;
+    setState(() => _dutyUpdating = true);
+    try {
+      await StaffRepository.updateDutyStatus(
+        affiliationId: hospital.affiliationId,
+        dutyStatus: dutyStatus,
+      );
+      await _loadHospitals();
+      _toast(switch (dutyStatus) {
+        'OnDuty' => 'You are on duty. Clinical actions are unlocked.',
+        'OnBreak' => 'Break started. Clinical actions are paused.',
+        _ => 'Clocked out.',
+      });
+    } catch (e) {
+      _toast(e is ApiException ? e.message : 'Could not update your duty status.');
+    } finally {
+      if (mounted) setState(() => _dutyUpdating = false);
+    }
+  }
+
   StaffAppointmentModel? get _activePatient {
     if (_activePatientId == null) return null;
     try {
@@ -243,6 +273,7 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
   }
 
   Future<void> _prescribe(StaffAppointmentModel patient) async {
+    if (!_requireDuty()) return;
     final dosage = await showStaffPrescribeSheet(
       context: context,
       patient: patient,
@@ -264,6 +295,7 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
   }
 
   Future<void> _callNext() async {
+    if (!_requireDuty()) return;
     final current = _activePatient;
     if (current != null && current.uiStatus == 'consulting') {
       _toast(
@@ -298,6 +330,7 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
   }
 
   Future<void> _examine(StaffAppointmentModel patient) async {
+    if (!_requireDuty()) return;
     if (!patient.isPaymentSettled) {
       _toast('Payment must be settled before starting consultation.');
       return;
@@ -313,6 +346,7 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
   }
 
   Future<void> _returnToQueue(StaffAppointmentModel patient) async {
+    if (!_requireDuty()) return;
     await _updateStatus(patient, 'Confirmed');
     if (_activePatientId == patient.id) {
       setState(() => _activePatientId = null);
@@ -321,6 +355,7 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
   }
 
   Future<void> _certify(StaffAppointmentModel patient) async {
+    if (!_requireDuty()) return;
     if (!patient.isPaymentSettled) {
       _toast('Payment must be settled before recording administration.');
       return;
@@ -348,6 +383,7 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
   }
 
   Future<void> _discharge(StaffAppointmentModel patient) async {
+    if (!_requireDuty()) return;
     if (!patient.isPaymentSettled) {
       _toast('Payment must be settled before discharging the patient.');
       return;
@@ -423,9 +459,7 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
         ? (_loadingHospitals ? 'Loading hospital…' : 'No affiliated hospital')
         : '${_selectedHospital!.hospitalName}$_facilitySuffix';
     final isToday = _filterDate == todayIsoDate();
-    final dutyLabel = _selectedHospital == null
-        ? null
-        : (_isOnDuty ? 'On duty' : 'No active shift');
+    final dutyLabel = _selectedHospital?.dutyLabel;
     final active = _activePatient;
     final now = hospitalNow();
 
@@ -479,6 +513,14 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
               ],
             ),
             const SizedBox(height: 14),
+            if (_selectedHospital != null) ...[
+              _DutyBar(
+                hospital: _selectedHospital!,
+                busy: _dutyUpdating,
+                onChange: _changeDuty,
+              ),
+              const SizedBox(height: 12),
+            ],
             if (_error != null) ...[
               StaffErrorBanner(
                 message: _error!,
@@ -511,7 +553,7 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
                           (h) => DropdownMenuItem(
                             value: h.hospitalUserId,
                             child: Text(
-                              '${h.hospitalName}${h.isOnDutyNow ? ' · On duty' : ''}',
+                              '${h.hospitalName} · ${h.dutyLabel}',
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
                                 fontWeight: FontWeight.w600,
@@ -875,6 +917,75 @@ class _ActivePatientCard extends StatelessWidget {
               label: const Text('Report AEFI'),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Clock in / break / clock out controls for the selected hospital.
+class _DutyBar extends StatelessWidget {
+  final AffiliationModel hospital;
+  final bool busy;
+  final ValueChanged<String> onChange;
+
+  const _DutyBar({
+    required this.hospital,
+    required this.busy,
+    required this.onChange,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final onDuty = hospital.isOnDutyNow;
+    final actions = <Widget>[
+      if (hospital.isOnBreak)
+        FilledButton(
+          onPressed: busy ? null : () => onChange('OnDuty'),
+          child: const Text('End break'),
+        )
+      else if (!onDuty)
+        FilledButton(
+          onPressed: busy ? null : () => onChange('OnDuty'),
+          child: const Text('Clock in'),
+        )
+      else ...[
+        OutlinedButton(
+          onPressed: busy ? null : () => onChange('OnBreak'),
+          child: const Text('Take break'),
+        ),
+        if (hospital.isClockedIn)
+          OutlinedButton(
+            onPressed: busy ? null : () => onChange('Off'),
+            child: const Text('Clock out'),
+          ),
+      ],
+    ];
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: StaffSurfaces.softWell(),
+      child: Row(
+        children: [
+          Icon(
+            onDuty ? Icons.circle : Icons.circle_outlined,
+            size: 12,
+            color: onDuty ? AppColors.success : StaffSurfaces.textSecondary,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              onDuty
+                  ? hospital.dutyLabel
+                  : '${hospital.dutyLabel} · clock in for walk-ins or cover',
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: StaffSurfaces.textPrimary,
+              ),
+            ),
+          ),
+          Wrap(spacing: 8, children: actions),
         ],
       ),
     );

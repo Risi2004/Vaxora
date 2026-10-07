@@ -982,6 +982,13 @@ public class AppointmentService : IAppointmentService
             }
         }
 
+        // Clinical session work needs the staff member to be on duty here
+        // (live rostered shift or clock-in, which also covers walk-ins).
+        if (!isHospitalOwner && (ClinicalSessionStatuses.Contains(nextStatus) || returningToQueue))
+        {
+            await StaffDutyHelper.EnsureStaffOnDutyAsync(_context, actorUserId, appointment.HospitalUserId);
+        }
+
         // Dose/session transitions require settled payment (free bookings are Paid at create).
         if (ClinicalSessionStatuses.Contains(nextStatus) &&
             !string.Equals(appointment.PaymentStatus, "Paid", StringComparison.OrdinalIgnoreCase))
