@@ -210,6 +210,49 @@ public class StaffManagementServiceTests
     }
 
     [Fact]
+    public async Task Booth_with_upcoming_sessions_cannot_be_deactivated_or_lose_that_vaccine()
+    {
+        await using var context = TestDb.CreateContext();
+        var hospital = AddHospital(context);
+        var hepB = new Vaccine { Name = "Hepatitis B", Manufacturer = "Test" };
+        var flu = new Vaccine { Name = "Influenza", Manufacturer = "Test" };
+        context.Vaccines.AddRange(hepB, flu);
+        var booth = new HospitalBooth { HospitalUserId = hospital.Id, Code = "B01", Name = "Adult" };
+        booth.Vaccines.Add(new HospitalBoothVaccine { BoothId = booth.Id, VaccineId = hepB.Id });
+        booth.Vaccines.Add(new HospitalBoothVaccine { BoothId = booth.Id, VaccineId = flu.Id });
+        context.HospitalBooths.Add(booth);
+        var session = AddSession(context, hospital, StaffDutyHelper.HospitalToday().AddDays(3));
+        session.BoothId = booth.Id;
+        session.VaccineId = hepB.Id;
+        await context.SaveChangesAsync();
+        var service = CreateService(context);
+
+        var deactivate = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.DeactivateHospitalBoothAsync(hospital.Id, booth.Id));
+        Assert.Contains("active session", deactivate.Message, StringComparison.OrdinalIgnoreCase);
+
+        var removeHepB = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.UpdateHospitalBoothAsync(hospital.Id, booth.Id, new UpdateHospitalBoothDto
+            {
+                Code = "B01",
+                Name = "Adult",
+                IsActive = true,
+                VaccineIds = new List<Guid> { flu.Id }
+            }));
+        Assert.Contains("Cancel them in Schedules", removeHepB.Message);
+
+        // Removing a vaccine with no sessions is still fine.
+        var updated = await service.UpdateHospitalBoothAsync(hospital.Id, booth.Id, new UpdateHospitalBoothDto
+        {
+            Code = "B01",
+            Name = "Adult",
+            IsActive = true,
+            VaccineIds = new List<Guid> { hepB.Id }
+        });
+        Assert.Equal(new[] { hepB.Id }, updated.VaccineIds);
+    }
+
+    [Fact]
     public async Task GetCoverageReportAsync_does_not_count_closed_or_past_days_as_low()
     {
         await using var context = TestDb.CreateContext();

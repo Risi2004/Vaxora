@@ -566,6 +566,23 @@ public class StaffManagementService : IStaffManagementService
         if (duplicate)
             throw new InvalidOperationException($"A booth with code '{code}' already exists.");
 
+        // Booking sessions depend on this booth and its vaccines: don't pull them out
+        // from under patients who can still book.
+        var upcomingSessions = await GetUpcomingBoothSessionsAsync(booth.Id);
+        if (booth.IsActive && !dto.IsActive && upcomingSessions.Count > 0)
+            throw new InvalidOperationException(BoothInUseMessage(booth, upcomingSessions));
+
+        var keptVaccineIds = (dto.VaccineIds ?? Enumerable.Empty<Guid>()).ToHashSet();
+        var removedVaccineIds = booth.Vaccines
+            .Select(v => v.VaccineId)
+            .Where(id => !keptVaccineIds.Contains(id))
+            .ToHashSet();
+        var affected = upcomingSessions
+            .Where(s => s.VaccineId.HasValue && removedVaccineIds.Contains(s.VaccineId.Value))
+            .ToList();
+        if (affected.Count > 0)
+            throw new InvalidOperationException(BoothInUseMessage(booth, affected));
+
         booth.Code = code;
         booth.Name = name;
         booth.IsActive = dto.IsActive;
@@ -598,6 +615,10 @@ public class StaffManagementService : IStaffManagementService
             .FirstOrDefaultAsync(b => b.Id == boothId && b.HospitalUserId == hospitalUserId);
         if (booth == null)
             throw new KeyNotFoundException("Booth not found for this hospital.");
+
+        var upcomingSessions = await GetUpcomingBoothSessionsAsync(booth.Id);
+        if (upcomingSessions.Count > 0)
+            throw new InvalidOperationException(BoothInUseMessage(booth, upcomingSessions));
 
         booth.IsActive = false;
         booth.UpdatedAt = DateTime.UtcNow;
@@ -1419,6 +1440,33 @@ public class StaffManagementService : IStaffManagementService
             return (null, boothOrStation.Trim());
 
         return (null, null);
+    }
+
+    /// <summary>Active vaccine sessions at this booth that patients can still book.</summary>
+    private async Task<List<VaccineSchedule>> GetUpcomingBoothSessionsAsync(Guid boothId)
+    {
+        var today = HospitalToday();
+        return await _context.VaccineSchedules
+            .AsNoTracking()
+            .Where(s =>
+                s.BoothId == boothId &&
+                s.Status == "Active" &&
+                (s.ScheduleType == "Weekly"
+                    ? s.EndDate == null || s.EndDate >= today
+                    : s.SpecificDate >= today))
+            .OrderBy(s => s.SpecificDate)
+            .ToListAsync();
+    }
+
+    private static string BoothInUseMessage(HospitalBooth booth, List<VaccineSchedule> sessions)
+    {
+        var shown = sessions.Take(3).Select(s => s.ScheduleType == "Weekly"
+            ? $"{s.VaccineName} ({s.DaysOfWeek})"
+            : $"{s.VaccineName} {s.SpecificDate:yyyy-MM-dd}");
+        var more = sessions.Count > 3 ? $" and {sessions.Count - 3} more" : string.Empty;
+        return $"{booth.DisplayLabel} still has {sessions.Count} active session" +
+               $"{(sessions.Count == 1 ? "" : "s")}: {string.Join(", ", shown)}{more}. " +
+               "Cancel them in Schedules first.";
     }
 
     private static string NormalizeBoothCode(string? code)
