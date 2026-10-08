@@ -88,6 +88,9 @@ public class AppointmentResponseDto
     public Guid? PrescribedByDoctorUserId { get; set; }
     public string? PrescribedByDoctorName { get; set; }
     public DateTime? DosageUpdatedAt { get; set; }
+    public DateTime? CheckedInAt { get; set; }
+    /// <summary>Walk-in registration matched the patient's existing booking for today (checked in, not duplicated).</summary>
+    public bool MatchedExistingBooking { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
 }
@@ -133,6 +136,9 @@ public class UpdateAppointmentStatusDto
     public bool? ConsentConfirmed { get; set; }
 
     public bool? VitalsConfirmed { get; set; }
+
+    /// <summary>Administering staff confirm the doctor's prescribed dose before giving it.</summary>
+    public bool? DoseConfirmed { get; set; }
 }
 
 public class CreateWalkInAppointmentDto
