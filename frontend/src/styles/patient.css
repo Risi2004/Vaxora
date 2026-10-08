@@ -7,6 +7,9 @@
   display: flex;
   flex-direction: column;
   background-color: #f8fafc;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 /* ==========================================================================
@@ -362,6 +365,8 @@
   width: 100%;
   margin: 0 auto;
   padding: 28px 24px 60px;
+  box-sizing: border-box;
+  min-width: 0;
 }
 
 .patient-subpage-page {
@@ -1851,16 +1856,36 @@
 
 @media (max-width: 768px) {
   .manage-appointments-card {
-    padding: 28px 20px;
+    padding: 24px 16px;
   }
 
   .book-appointment-box {
-    padding: 24px 16px;
+    padding: 20px 14px;
   }
 
   .book-form-grid {
     grid-template-columns: 1fr;
     gap: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .manage-appointments-card {
+    padding: 16px 10px;
+  }
+
+  .book-appointment-box {
+    padding: 16px 10px;
+  }
+
+  .appointments-filter-bar {
+    padding: 8px 10px;
+    gap: 8px;
+  }
+
+  .appointments-filter-pill {
+    padding: 6px 8px;
+    font-size: 0.76rem;
   }
 }
 
@@ -2845,8 +2870,11 @@
     flex-shrink: 0;
   }
 
-  .patient-content-area {
-    padding: 16px 12px 36px;
+  .patient-content-area,
+  .patient-main-content {
+    padding: 16px 10px 36px;
+    box-sizing: border-box;
+    min-width: 0;
   }
 
   .patient-welcome-banner {
@@ -2870,8 +2898,11 @@
 
   .btn-banner-action {
     width: 100%;
+    max-width: 100%;
     text-align: center;
-    padding: 10px 18px;
+    padding: 10px 14px;
+    white-space: normal;
+    box-sizing: border-box;
   }
 
   .overview-panel-card {

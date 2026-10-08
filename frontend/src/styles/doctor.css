@@ -1105,9 +1105,16 @@
    ========================================================================== */
 .doctor-main-grid {
   display: grid;
-  grid-template-columns: 1.75fr 1fr;
+  grid-template-columns: minmax(0, 1.75fr) minmax(0, 1fr);
   gap: 28px;
   align-items: start;
+  width: 100%;
+  max-width: 100%;
+}
+
+.doctor-main-grid > * {
+  min-width: 0;
+  max-width: 100%;
 }
 
 /* Queue Card & Table */
@@ -1117,6 +1124,9 @@
   border: 1px solid var(--color-border-light, #e2e8f0);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
   padding: 24px;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .doctor-card-header {
@@ -1220,6 +1230,9 @@
   overflow-x: auto;
   border: 1px solid #e2e8f0;
   border-radius: 12px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .doctor-queue-card .hospital-queue-table th:nth-child(4),
@@ -1901,20 +1914,26 @@
   to { transform: translateY(0); opacity: 1; }
 }
 
-/* Responsive */
+/* Responsive for Dashboard */
 @media (max-width: 1024px) {
   .doctor-stats-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .doctor-spotlight-details-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .doctor-main-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
-  .doctor-profile-top-grid {
-    grid-template-columns: 1fr;
-    gap: 32px;
+}
+
+@media (max-width: 768px) {
+  .doctor-content-area {
+    padding: 16px 12px 48px;
+  }
+  .doctor-card,
+  .doctor-queue-card {
+    padding: 16px 12px;
   }
 }
 
@@ -1923,15 +1942,10 @@
     flex-direction: column;
     align-items: flex-start;
     gap: 20px;
+    padding: 20px 16px;
   }
   .doctor-stats-grid {
-    grid-template-columns: 1fr;
-  }
-  .doctor-profile-card {
-    padding: 24px 20px;
-  }
-  .doctor-profile-field-row {
-    grid-template-columns: 130px 16px 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -1947,6 +1961,7 @@
   margin: 0 auto;
   padding: 10px 0 40px;
   width: 100%;
+  box-sizing: border-box;
 }
 
 .doctor-profile-card {
@@ -1955,14 +1970,18 @@
   border-radius: 22px;
   box-shadow: 0 6px 28px rgba(15, 23, 42, 0.05);
   width: 100%;
+  max-width: 100%;
   padding: 38px 48px;
+  box-sizing: border-box;
 }
 
 .doctor-profile-top-grid {
   display: grid;
-  grid-template-columns: 240px 1fr;
+  grid-template-columns: 240px minmax(0, 1fr);
   gap: 48px;
   align-items: center;
+  width: 100%;
+  max-width: 100%;
 }
 
 .doctor-profile-avatar-wrap {
@@ -2211,6 +2230,66 @@
   font-size: 0.95rem;
   color: #1e293b;
   background: #f8fafc;
+}
+
+/* Responsive for Doctor & Nurse Profile */
+@media (max-width: 1024px) {
+  .doctor-profile-top-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 28px;
+  }
+}
+
+@media (max-width: 768px) {
+  .doctor-profile-wrapper {
+    padding: 10px 0 30px;
+    gap: 20px;
+  }
+  .doctor-profile-card {
+    padding: 20px 14px;
+    border-radius: 16px;
+  }
+  .doctor-profile-top-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+  }
+  .doctor-profile-avatar-wrap {
+    width: 140px;
+    height: 140px;
+  }
+  .doctor-profile-info-box {
+    padding: 18px 14px 20px;
+    border-radius: 14px;
+  }
+  .doctor-profile-field-row {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+  .doctor-profile-field-colon {
+    display: none;
+  }
+  .doctor-profile-field-value {
+    word-break: break-word;
+  }
+  .doctor-prof-inner-box {
+    padding: 20px 14px;
+    border-radius: 14px;
+  }
+  .doctor-prof-details-header {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .doctor-prof-details-spacer {
+    display: none;
+  }
+  .doctor-prof-details-action {
+    width: auto;
+  }
+  .doctor-prof-row {
+    word-break: break-word;
+  }
 }
 
 /* ==========================================================================
