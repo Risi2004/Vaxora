@@ -571,7 +571,6 @@ export default function HospitalShiftsPanel() {
     const id = proposalIdentity(proposal);
     setProposalActionId(id);
     setError('');
-    // Declining never depends on the agent; an alternative is a bonus when it answers.
     let alternative = null;
     try {
       const res = await agentService.sendMessage(
@@ -595,8 +594,10 @@ export default function HospitalShiftsPanel() {
       } else if (res.proposal) {
         alternative = res.proposal;
       }
-    } catch {
-      alternative = null;
+    } catch (err) {
+      setError(err.message || 'Failed to decline suggestion.');
+      setProposalActionId(null);
+      return;
     }
 
     setPendingProposals((prev) => {

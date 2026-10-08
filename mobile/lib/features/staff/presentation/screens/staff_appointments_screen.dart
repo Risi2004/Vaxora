@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/services/storage_service.dart';
@@ -8,7 +6,6 @@ import '../../../auth/presentation/utils/home_route_utils.dart';
 import '../../../inventory/data/models/batch_model.dart';
 import '../../../inventory/data/repositories/inventory_repository.dart';
 import '../../data/models/affiliation_model.dart';
-import '../../data/models/shift_model.dart';
 import '../../data/models/staff_appointment_model.dart';
 import '../../data/repositories/staff_repository.dart';
 import '../utils/staff_date_utils.dart';
@@ -40,9 +37,6 @@ class StaffAppointmentsScreen extends StatefulWidget {
 class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
   List<AffiliationModel> _hospitals = [];
   List<StaffAppointmentModel> _appointments = [];
-  List<ShiftModel> _todayShifts = [];
-  // true = only my live shift's booth (plus unassigned patients).
-  bool _myBoothOnly = true;
   List<BatchModel> _lots = [];
   String _selectedHospitalId = '';
   late String _filterDate;
@@ -50,8 +44,6 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
   bool _loadingHospitals = true;
   bool _loadingAppointments = false;
   bool _updating = false;
-  bool _dutyUpdating = false;
-  Timer? _ticker;
   String? _error;
   bool _allowHospitalSwitch = true;
   bool _isDoctor = false;
@@ -67,16 +59,6 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
     super.initState();
     _filterDate = todayIsoDate();
     _bootstrap();
-    // Keep observation countdowns and live-shift booth scope current.
-    _ticker = Timer.periodic(const Duration(seconds: 30), (_) {
-      if (mounted) setState(() {});
-    });
-  }
-
-  @override
-  void dispose() {
-    _ticker?.cancel();
-    super.dispose();
   }
 
   Future<void> _bootstrap() async {
@@ -170,13 +152,10 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
           date: _filterDate,
         ),
         InventoryRepository.getBatches(hospitalUserId: _selectedHospitalId),
-        StaffRepository.getMyShifts(from: todayIsoDate(), to: todayIsoDate())
-            .catchError((_) => <ShiftModel>[]),
       ]);
       if (!mounted) return;
       final list = results[0] as List<StaffAppointmentModel>;
       final lots = results[1] as List<BatchModel>;
-      _todayShifts = results[2] as List<ShiftModel>;
       final consulting = list.where((a) => a.uiStatus == 'consulting').toList();
       setState(() {
         _appointments = list;
@@ -213,35 +192,6 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
 
   bool get _isOnDuty => _selectedHospital?.isOnDutyNow == true;
 
-  /// Clinical actions need a live shift or a clock-in; the API enforces the same rule.
-  bool _requireDuty() {
-    if (_selectedHospital == null || _isOnDuty) return true;
-    _toast('Clock in to start clinical work.');
-    return false;
-  }
-
-  Future<void> _changeDuty(String dutyStatus) async {
-    final hospital = _selectedHospital;
-    if (hospital == null) return;
-    setState(() => _dutyUpdating = true);
-    try {
-      await StaffRepository.updateDutyStatus(
-        affiliationId: hospital.affiliationId,
-        dutyStatus: dutyStatus,
-      );
-      await _loadHospitals();
-      _toast(switch (dutyStatus) {
-        'OnDuty' => 'You are on duty. Clinical actions are unlocked.',
-        'OnBreak' => 'Break started. Clinical actions are paused.',
-        _ => 'Clocked out.',
-      });
-    } catch (e) {
-      _toast(e is ApiException ? e.message : 'Could not update your duty status.');
-    } finally {
-      if (mounted) setState(() => _dutyUpdating = false);
-    }
-  }
-
   StaffAppointmentModel? get _activePatient {
     if (_activePatientId == null) return null;
     try {
@@ -251,56 +201,19 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
     }
   }
 
-  /// Booth of my live shift at the selected hospital (clock-ins have none).
-  ({String? id, String label})? get _myBooth {
-    final hospital = _selectedHospital;
-    if (hospital == null || _filterDate != todayIsoDate()) return null;
-    final now = hospitalNow();
-    final nowMinutes = now.hour * 60 + now.minute;
-    int? minutes(String raw) {
-      final m = RegExp(r'^(\d{1,2}):(\d{2})').firstMatch(raw.trim());
-      return m == null ? null : int.parse(m.group(1)!) * 60 + int.parse(m.group(2)!);
-    }
-
-    for (final s in _todayShifts) {
-      if (s.affiliationId != hospital.affiliationId) continue;
-      final start = minutes(s.startTime);
-      final end = minutes(s.endTime);
-      if (start == null || end == null) continue;
-      if (start > nowMinutes || nowMinutes >= end) continue;
-      final label = s.boothOrStation?.trim() ?? '';
-      if ((s.boothId ?? '').isEmpty && label.isEmpty) return null;
-      return (id: s.boothId, label: label.isEmpty ? 'My booth' : label);
-    }
-    return null;
-  }
-
-  /// Patients in my booth scope; unassigned patients stay visible to everyone.
-  List<StaffAppointmentModel> get _scopedAppointments {
-    final booth = _myBooth;
-    if (booth == null || !_myBoothOnly) return _appointments;
-    return _appointments.where((a) {
-      final label = a.boothLabel?.trim() ?? '';
-      final id = a.boothId ?? '';
-      if (label.isEmpty && id.isEmpty) return true;
-      if ((booth.id ?? '').isNotEmpty && id.isNotEmpty) return id == booth.id;
-      return label.toLowerCase() == booth.label.toLowerCase();
-    }).toList();
-  }
-
   List<StaffAppointmentModel> get _filteredAppointments {
-    return _scopedAppointments.where((a) {
+    return _appointments.where((a) {
       if (_filterStatus == 'all') return true;
       return a.uiStatus == _filterStatus;
     }).toList();
   }
 
   int get _completedCount =>
-      _scopedAppointments.where((a) => a.uiStatus == 'completed').length;
+      _appointments.where((a) => a.uiStatus == 'completed').length;
   int get _waitingCount =>
-      _scopedAppointments.where((a) => a.uiStatus == 'waiting').length;
+      _appointments.where((a) => a.uiStatus == 'waiting').length;
   int get _observationCount =>
-      _scopedAppointments.where((a) => a.uiStatus == 'observation').length;
+      _appointments.where((a) => a.uiStatus == 'observation').length;
 
   void _toast(String message) {
     if (!mounted) return;
@@ -330,7 +243,6 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
   }
 
   Future<void> _prescribe(StaffAppointmentModel patient) async {
-    if (!_requireDuty()) return;
     final dosage = await showStaffPrescribeSheet(
       context: context,
       patient: patient,
@@ -352,7 +264,6 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
   }
 
   Future<void> _callNext() async {
-    if (!_requireDuty()) return;
     final current = _activePatient;
     if (current != null && current.uiStatus == 'consulting') {
       _toast(
@@ -361,22 +272,16 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
       return;
     }
     StaffAppointmentModel? next;
-    final scoped = _scopedAppointments;
-    for (final a in scoped) {
-      if (a.uiStatus == 'waiting' && a.isCheckedIn && a.isPaymentSettled && a.hasDosage) {
+    for (final a in _appointments) {
+      if (a.uiStatus == 'waiting' && a.isPaymentSettled && a.hasDosage) {
         next = a;
         break;
       }
     }
     if (next == null) {
       final unpaidWaiting =
-          scoped.any((a) => a.uiStatus == 'waiting' && !a.isPaymentSettled);
-      final anyArrived = scoped.any((a) => a.uiStatus == 'waiting' && a.isCheckedIn);
-      if (!anyArrived && scoped.any((a) => a.uiStatus == 'waiting')) {
-        _toast('No checked-in patients yet. Patients join the queue when they check in.');
-        return;
-      }
-      final awaitingDose = scoped.any(
+          _appointments.any((a) => a.uiStatus == 'waiting' && !a.isPaymentSettled);
+      final awaitingDose = _appointments.any(
           (a) => a.uiStatus == 'waiting' && a.isPaymentSettled && !a.hasDosage);
       _toast(
         awaitingDose
@@ -392,25 +297,7 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
     _toast('Called ${next.patientName}');
   }
 
-  Future<void> _checkIn(StaffAppointmentModel patient) async {
-    setState(() => _updating = true);
-    try {
-      await StaffRepository.checkIn(patient.id);
-      await _loadAppointments();
-      _toast('${patient.patientName} checked in.');
-    } catch (e) {
-      _toast(e is ApiException ? e.message : 'Failed to check in patient.');
-    } finally {
-      if (mounted) setState(() => _updating = false);
-    }
-  }
-
   Future<void> _examine(StaffAppointmentModel patient) async {
-    if (!_requireDuty()) return;
-    if (!patient.isCheckedIn) {
-      _toast('This patient has not checked in yet.');
-      return;
-    }
     if (!patient.isPaymentSettled) {
       _toast('Payment must be settled before starting consultation.');
       return;
@@ -426,7 +313,6 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
   }
 
   Future<void> _returnToQueue(StaffAppointmentModel patient) async {
-    if (!_requireDuty()) return;
     await _updateStatus(patient, 'Confirmed');
     if (_activePatientId == patient.id) {
       setState(() => _activePatientId = null);
@@ -435,7 +321,6 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
   }
 
   Future<void> _certify(StaffAppointmentModel patient) async {
-    if (!_requireDuty()) return;
     if (!patient.isPaymentSettled) {
       _toast('Payment must be settled before recording administration.');
       return;
@@ -455,7 +340,6 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
         'injectionSite': result.injectionSite,
         'route': result.route,
         if (result.notes.isNotEmpty) 'administrationNotes': result.notes,
-        'doseConfirmed': result.doseConfirmed,
         'consentConfirmed': result.consentConfirmed,
         'vitalsConfirmed': result.vitalsConfirmed,
       },
@@ -464,7 +348,6 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
   }
 
   Future<void> _discharge(StaffAppointmentModel patient) async {
-    if (!_requireDuty()) return;
     if (!patient.isPaymentSettled) {
       _toast('Payment must be settled before discharging the patient.');
       return;
@@ -540,7 +423,9 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
         ? (_loadingHospitals ? 'Loading hospital…' : 'No affiliated hospital')
         : '${_selectedHospital!.hospitalName}$_facilitySuffix';
     final isToday = _filterDate == todayIsoDate();
-    final dutyLabel = _selectedHospital?.dutyLabel;
+    final dutyLabel = _selectedHospital == null
+        ? null
+        : (_isOnDuty ? 'On duty' : 'No active shift');
     final active = _activePatient;
     final now = hospitalNow();
 
@@ -594,14 +479,6 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
               ],
             ),
             const SizedBox(height: 14),
-            if (_selectedHospital != null) ...[
-              _DutyBar(
-                hospital: _selectedHospital!,
-                busy: _dutyUpdating,
-                onChange: _changeDuty,
-              ),
-              const SizedBox(height: 12),
-            ],
             if (_error != null) ...[
               StaffErrorBanner(
                 message: _error!,
@@ -634,7 +511,7 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
                           (h) => DropdownMenuItem(
                             value: h.hospitalUserId,
                             child: Text(
-                              '${h.hospitalName} · ${h.dutyLabel}',
+                              '${h.hospitalName}${h.isOnDutyNow ? ' · On duty' : ''}',
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
                                 fontWeight: FontWeight.w600,
@@ -694,7 +571,7 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
                 title: 'Observation watch',
                 count: _observationCount,
               ),
-              ..._scopedAppointments
+              ..._appointments
                   .where((a) => a.uiStatus == 'observation')
                   .map(
                     (obs) => Padding(
@@ -710,25 +587,6 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
                   ),
             ],
             const SizedBox(height: 14),
-            if (_myBooth != null) ...[
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  _FilterChip(
-                    label: 'My booth · ${_myBooth!.label.split(' · ').first}',
-                    selected: _myBoothOnly,
-                    onTap: () => setState(() => _myBoothOnly = true),
-                  ),
-                  _FilterChip(
-                    label: 'All booths',
-                    selected: !_myBoothOnly,
-                    onTap: () => setState(() => _myBoothOnly = false),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-            ],
             Wrap(
               spacing: 8,
               runSpacing: 8,
@@ -788,7 +646,6 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
                     canPrescribe: _isDoctor,
                     onPrescribe: () => _prescribe(a),
                     onExamine: () => _examine(a),
-                    onCheckIn: () => _checkIn(a),
                     onCertify: () => _certify(a),
                     onDischarge: () => _discharge(a),
                   ),
@@ -1024,82 +881,6 @@ class _ActivePatientCard extends StatelessWidget {
   }
 }
 
-/// Clock in / break / clock out controls for the selected hospital.
-class _DutyBar extends StatelessWidget {
-  final AffiliationModel hospital;
-  final bool busy;
-  final ValueChanged<String> onChange;
-
-  const _DutyBar({
-    required this.hospital,
-    required this.busy,
-    required this.onChange,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final onDuty = hospital.isOnDutyNow;
-    final actions = <Widget>[
-      if (hospital.isOnBreak)
-        FilledButton(
-          onPressed: busy ? null : () => onChange('OnDuty'),
-          child: const Text('End break'),
-        )
-      else if (!onDuty)
-        FilledButton(
-          onPressed: busy ? null : () => onChange('OnDuty'),
-          child: const Text('Clock in'),
-        )
-      else ...[
-        OutlinedButton(
-          onPressed: busy ? null : () => onChange('OnBreak'),
-          child: const Text('Take break'),
-        ),
-        if (hospital.isClockedIn)
-          OutlinedButton(
-            onPressed: busy ? null : () => onChange('Off'),
-            child: const Text('Clock out'),
-          ),
-      ],
-    ];
-
-    // Status on its own line, buttons below, so narrow phones never overflow.
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: StaffSurfaces.softWell(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                onDuty ? Icons.circle : Icons.circle_outlined,
-                size: 12,
-                color: onDuty ? AppColors.success : StaffSurfaces.textSecondary,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  onDuty
-                      ? hospital.dutyLabel
-                      : '${hospital.dutyLabel} · clock in for walk-ins or cover',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: StaffSurfaces.textPrimary,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Wrap(spacing: 8, runSpacing: 8, children: actions),
-        ],
-      ),
-    );
-  }
-}
-
 class _ObservationCard extends StatelessWidget {
   final StaffAppointmentModel patient;
   final int? minsLeft;
@@ -1153,14 +934,11 @@ class _ObservationCard extends StatelessWidget {
                 ),
               ),
               FilledButton(
-                // The API refuses discharge before the 15-minute window ends.
-                onPressed: busy || !patient.isPaymentSettled || (minsLeft ?? 0) > 0
+                onPressed: busy || !patient.isPaymentSettled
                     ? null
                     : onDischarge,
                 style: FilledButton.styleFrom(backgroundColor: AppColors.success),
-                child: Text(
-                  (minsLeft ?? 0) > 0 ? 'Discharge in $minsLeft min' : 'Discharge',
-                ),
+                child: const Text('Discharge'),
               ),
             ],
           ),
@@ -1186,7 +964,6 @@ class _AppointmentCard extends StatelessWidget {
   final bool canPrescribe;
   final VoidCallback onPrescribe;
   final VoidCallback onExamine;
-  final VoidCallback onCheckIn;
   final VoidCallback onCertify;
   final VoidCallback onDischarge;
 
@@ -1196,7 +973,6 @@ class _AppointmentCard extends StatelessWidget {
     required this.canPrescribe,
     required this.onPrescribe,
     required this.onExamine,
-    required this.onCheckIn,
     required this.onCertify,
     required this.onDischarge,
   });
@@ -1235,15 +1011,7 @@ class _AppointmentCard extends StatelessWidget {
     };
 
     Widget? action;
-    if (a.uiStatus == 'waiting' && !a.isCheckedIn) {
-      action = TextButton(
-        onPressed: busy ? null : onCheckIn,
-        child: const Text(
-          'Check in',
-          style: TextStyle(fontWeight: FontWeight.w700),
-        ),
-      );
-    } else if (a.uiStatus == 'waiting') {
+    if (a.uiStatus == 'waiting') {
       action = TextButton(
         onPressed: busy || !a.isPaymentSettled || !a.hasDosage
             ? null
@@ -1266,12 +1034,11 @@ class _AppointmentCard extends StatelessWidget {
         ),
       );
     } else if (a.uiStatus == 'observation') {
-      final left = _observationMinutesLeft(a.updatedAt, DateTime.now()) ?? 0;
       action = TextButton(
-        onPressed: busy || !a.isPaymentSettled || left > 0 ? null : onDischarge,
-        child: Text(
-          left > 0 ? 'In $left min' : 'Discharge',
-          style: const TextStyle(fontWeight: FontWeight.w700),
+        onPressed: busy || !a.isPaymentSettled ? null : onDischarge,
+        child: const Text(
+          'Discharge',
+          style: TextStyle(fontWeight: FontWeight.w700),
         ),
       );
     }

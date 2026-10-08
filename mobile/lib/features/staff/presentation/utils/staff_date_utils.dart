@@ -14,23 +14,6 @@ DateTime hospitalNow() {
 
 String todayIsoDate() => formatDateOnly(hospitalNow());
 
-/// True once a shift on [shiftDate] (yyyy-MM-dd) has reached its start time
-/// ([startTime] like "08:00" or "08:00:00"), in hospital wall-clock time.
-bool hasShiftStarted(String shiftDate, String? startTime) {
-  final day = shiftDate.length >= 10 ? shiftDate.substring(0, 10) : shiftDate;
-  if (day.isEmpty) return false;
-  final cmp = day.compareTo(todayIsoDate());
-  if (cmp < 0) return true;
-  if (cmp > 0) return false;
-  final match =
-      RegExp(r'^(\d{1,2}):(\d{2})').firstMatch(startTime?.trim() ?? '');
-  if (match == null) return false;
-  final now = hospitalNow();
-  final startMinutes =
-      int.parse(match.group(1)!) * 60 + int.parse(match.group(2)!);
-  return now.hour * 60 + now.minute >= startMinutes;
-}
-
 DateTime startOfLocalDay(DateTime dt) => DateTime(dt.year, dt.month, dt.day);
 
 DateTime addDays(DateTime dt, int days) => startOfLocalDay(dt).add(Duration(days: days));

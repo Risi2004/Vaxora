@@ -9,7 +9,6 @@ const emptyAdministration = {
   route: 'Intramuscular (IM)',
   dosage: '',
   notes: '',
-  doseConfirmed: false,
   consentConfirmed: false,
   vitalsConfirmed: false,
 };
@@ -64,8 +63,8 @@ export default function NurseClinicalAdministerModal({
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.doseConfirmed || !formData.consentConfirmed || !formData.vitalsConfirmed) {
-      alert('Please confirm the prescribed dose, informed consent and pre-vaccination vitals.');
+    if (!formData.consentConfirmed || !formData.vitalsConfirmed) {
+      alert('Please confirm informed consent and pre-vaccination vitals checklist.');
       return;
     }
     if (!formData.batchId && !formData.lotNumber) {
@@ -205,20 +204,11 @@ export default function NurseClinicalAdministerModal({
               <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.85rem', fontWeight: 600, color: '#166534', cursor: 'pointer', marginBottom: '8px' }}>
                 <input
                   type="checkbox"
-                  checked={formData.doseConfirmed}
-                  onChange={(e) => setFormData({ ...formData, doseConfirmed: e.target.checked })}
-                  disabled={submitting}
-                />
-                Prescribed dose checked against the doctor&apos;s order ({patient?.dose || 'not set'})
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.85rem', fontWeight: 600, color: '#166534', cursor: 'pointer', marginBottom: '8px' }}>
-                <input
-                  type="checkbox"
                   checked={formData.consentConfirmed}
                   onChange={(e) => setFormData({ ...formData, consentConfirmed: e.target.checked })}
                   disabled={submitting}
                 />
-                Informed patient consent verified
+                Informed patient consent verified &amp; physician order confirmed
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.85rem', fontWeight: 600, color: '#166534', cursor: 'pointer' }}>
                 <input

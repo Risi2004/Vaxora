@@ -576,24 +576,21 @@
   align-items: center;
   justify-content: space-between;
   gap: 14px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   margin: -8px 0 20px;
-  width: 100%;
-  max-width: 100%;
 }
 
 .hospital-staff-filters {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
-  max-width: 100%;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
 }
 
 .hospital-staff-search {
-  width: min(360px, 100%);
-  min-width: 0;
-  max-width: 100%;
+  width: min(360px, 34vw);
+  min-width: 260px;
   min-height: 46px;
   margin-left: auto;
   padding: 10px 16px;
@@ -602,7 +599,6 @@
   background: #ffffff;
   box-shadow: 0 2px 8px rgba(20, 45, 85, 0.08);
   font-size: 0.95rem;
-  box-sizing: border-box;
 }
 
 .hospital-staff-search:focus {
@@ -612,24 +608,13 @@
 
 @media (max-width: 760px) {
   .hospital-staff-toolbar {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 12px;
-  }
-
-  .hospital-staff-filters {
-    width: 100%;
-    flex-wrap: wrap;
-    gap: 6px;
+    overflow-x: auto;
+    padding-bottom: 4px;
   }
 
   .hospital-staff-search {
-    width: 100%;
-    max-width: 100%;
-    min-width: 0;
-    margin-left: 0;
-    flex: 1 1 auto;
-    box-sizing: border-box;
+    flex: 0 0 260px;
+    width: 260px;
   }
 }
 
@@ -876,48 +861,6 @@
   background: #fef2f2;
   color: #b91c1c;
   border: 1px solid #fecaca;
-}
-
-.hospital-cover-ai-btn {
-  margin-left: auto;
-  flex: 0 0 auto;
-  padding: 4px 10px;
-  border-radius: 999px;
-  border: 1px solid #c7d2fe;
-  background: #eef2ff;
-  color: #4338ca;
-  font-size: 0.75rem;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.hospital-cover-ai-btn:disabled {
-  opacity: 0.6;
-  cursor: progress;
-}
-
-.hospital-cover-ai-chip {
-  margin-left: auto;
-  flex: 0 0 auto;
-  padding: 3px 9px;
-  border-radius: 999px;
-  background: #ecfdf5;
-  color: #047857;
-  border: 1px solid #a7f3d0;
-  font-size: 0.72rem;
-  font-weight: 700;
-}
-
-.hospital-cover-rank-note {
-  margin: 6px 0 0;
-  font-size: 0.75rem;
-  color: #64748b;
-}
-
-.hospital-cover-status--neutral {
-  background: #f1f5f9;
-  color: #475569;
-  border: 1px solid #cbd5e1;
 }
 
 .hospital-cover-role {
@@ -1714,10 +1657,9 @@
 .hospital-queue-table td:nth-child(6),
 .hospital-queue-table col.col-actions {
   width: 1%;
-  min-width: 5.5rem;
+  min-width: 8.25rem;
   white-space: nowrap;
   text-align: center;
-  overflow: visible;
 }
 
 .hospital-queue-table th:first-child {
@@ -1884,21 +1826,6 @@
   cursor: pointer;
   white-space: nowrap;
   transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
-}
-
-.btn-queue-action--icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  padding: 0;
-  flex-shrink: 0;
-}
-
-.btn-queue-action--icon:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
 }
 
 .btn-queue-action:hover {
@@ -2380,14 +2307,6 @@
 
 .booth-status-indicator.is-unstaffed .booth-status-dot {
   background: #a8a29e;
-}
-
-.booth-status-indicator.is-needs-staff {
-  color: #b45309;
-}
-
-.booth-status-indicator.is-needs-staff .booth-status-dot {
-  background: #f59e0b;
 }
 
 .booth-status-indicator.is-on-duty,
@@ -4813,7 +4732,6 @@ select.schedule-input-field {
   }
 
   .hospital-metrics-grid,
-  .hospital-metrics-grid.hospital-metrics-grid--4,
   .inventory-metrics-grid {
     grid-template-columns: 1fr;
     gap: 10px;

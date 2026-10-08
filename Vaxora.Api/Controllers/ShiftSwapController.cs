@@ -114,7 +114,11 @@ public class ShiftSwapController : ControllerBase
 
         try
         {
-            var result = await _swapService.ListForHospitalAsync(hospitalUserId, status, limit);
+            var result = await _swapService.ListForHospitalAsync(
+                hospitalUserId,
+                status,
+                limit,
+                ExtractBearerToken());
             return Ok(result);
         }
         catch (UnauthorizedAccessException)
@@ -129,37 +133,6 @@ public class ShiftSwapController : ControllerBase
         {
             _logger.LogError(ex, "Error listing hospital cover requests");
             return StatusCode(500, new { message = "Failed to load cover requests." });
-        }
-    }
-
-    [HttpPost("{requestId:guid}/rank")]
-    [Authorize(Roles = "HOSPITAL")]
-    public async Task<IActionResult> RankWithAi(Guid requestId)
-    {
-        if (!TryGetUserId(out var hospitalUserId))
-            return Unauthorized(new { message = "Invalid identity claim." });
-
-        try
-        {
-            var result = await _swapService.RankWithAgentAsync(hospitalUserId, requestId, ExtractBearerToken());
-            return Ok(result);
-        }
-        catch (KeyNotFoundException ex)
-        {
-            return NotFound(new { message = ex.Message });
-        }
-        catch (UnauthorizedAccessException)
-        {
-            return Forbid();
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error ranking cover request {RequestId}", requestId);
-            return StatusCode(500, new { message = "Failed to rank replacements." });
         }
     }
 

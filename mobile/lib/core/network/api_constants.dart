@@ -99,8 +99,6 @@ static const String inventoryRestock = '/inventory/batches';
   static const String staffMyShiftSwaps = '/staff/shift-swaps/mine';
   static const String staffShiftSwapQuota = '/staff/shift-swaps/quota';
 
-  static String hospitalShiftSwapRank(String requestId) =>
-      '/staff/shift-swaps/$requestId/rank';
   static String hospitalShiftSwapDecision(String requestId) =>
       '/staff/shift-swaps/$requestId/decision';
 
@@ -110,7 +108,6 @@ static const String inventoryRestock = '/inventory/batches';
       '/staff/affiliations/$affiliationId';
 
   static String appointmentStatus(String id) => '/appointments/$id/status';
-  static String appointmentCheckIn(String id) => '/appointments/$id/check-in';
   static String appointmentAefi(String id) => '/appointments/$id/aefi';
   static String appointmentDosage(String id) =>
       '/clinical/appointments/$id/dosage';

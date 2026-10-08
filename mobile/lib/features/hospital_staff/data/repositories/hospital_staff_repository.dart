@@ -117,16 +117,6 @@ class HospitalStaffRepository {
     }
   }
 
-  /// Re-orders one pending request's replacements with the AI agent (on demand).
-  static Future<ShiftSwapRequestModel> rankShiftSwap(String requestId) async {
-    final response =
-        await ApiClient.post(ApiConstants.hospitalShiftSwapRank(requestId));
-    if (response is Map<String, dynamic>) {
-      return ShiftSwapRequestModel.fromJson(response);
-    }
-    throw ApiException('AI ranking unavailable right now.');
-  }
-
   static Future<ShiftSwapRequestModel> decideShiftSwap({
     required String requestId,
     required bool approved,

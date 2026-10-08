@@ -805,9 +805,7 @@ export default function AppointmentsTab() {
                 fontWeight: 700,
                 cursor: 'pointer',
                 boxShadow: '0 4px 12px rgba(2, 132, 199, 0.35)',
-                transition: 'all 0.2s ease',
-                maxWidth: '100%',
-                boxSizing: 'border-box'
+                transition: 'all 0.2s ease'
               }}
               onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}
               onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}

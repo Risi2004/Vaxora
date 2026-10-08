@@ -9,8 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:e2e": "playwright test",
-    "test:compat": "playwright test -c playwright.compat.config.js"
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "jspdf": "^4.2.1",
