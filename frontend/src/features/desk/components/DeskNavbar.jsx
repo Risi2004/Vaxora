@@ -81,7 +81,8 @@ export default function DeskNavbar() {
           <img src={logo} alt="Vaxora Logo" className="hospital-logo-img" />
         </div>
 
-        <div className="hospital-actions-area">
+        {/* No centre nav here, so pin the account menu to the last grid column. */}
+        <div className="hospital-actions-area" style={{ gridColumn: 3 }}>
           <div ref={profileMenuRef} style={{ position: 'relative' }}>
             <button
               type="button"
