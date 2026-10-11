@@ -98,7 +98,7 @@ export default function BatchAuditModal({ isOpen, onClose, vaccine }) {
           <div className="audit-timeline">
             {auditEntries.map((entry) => (
               <div key={entry.id} style={{ position: 'relative', paddingLeft: '28px', paddingBottom: '18px', borderLeft: '2px solid var(--color-border-card)', marginLeft: '8px' }}>
-                <div style={{ position: 'absolute', left: '-7px', top: '0px', width: '12px', height: '12px', borderRadius: '50%', background: entry.type === 'restock' ? 'var(--color-primary)' : entry.type === 'sensor' ? 'var(--color-success)' : entry.type === 'dispense' ? 'var(--color-ai)' : 'var(--color-info)', border: '2px solid var(--color-surface)', boxShadow: '0 0 0 2px var(--color-border-light)' }} />
+                <div style={{ position: 'absolute', left: '-7px', top: '0px', width: '12px', height: '12px', borderRadius: '50%', background: entry.type === 'restock' ? 'var(--color-primary)' : entry.type === 'sensor' ? 'var(--color-success)' : entry.type === 'dispense' ? 'var(--color-brand-blue)' : 'var(--color-info)', border: '2px solid var(--color-surface)', boxShadow: '0 0 0 2px var(--color-border-light)' }} />
                 <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 600 }}>{entry.timestamp}</div>
                 <div style={{ fontSize: '0.875rem', color: 'var(--color-text-title)', fontWeight: 600, margin: '2px 0 3px' }}>{entry.event}</div>
                 <div style={{ fontSize: '0.8125rem', color: 'var(--color-text-body)' }}>Authorized: <em>{entry.actor}</em></div>

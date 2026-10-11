@@ -1893,9 +1893,9 @@
 }
 
 .status-observation {
-  background: var(--color-ai-bg);
-  color: var(--color-ai);
-  border: 1px solid var(--color-ai-border);
+  background: var(--color-soft-panel-deep);
+  color: var(--color-primary-dark);
+  border: 1px solid var(--color-accent-frost);
 }
 
 .status-completed {
