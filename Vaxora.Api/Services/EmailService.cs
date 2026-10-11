@@ -80,6 +80,20 @@ public interface IEmailService
         string treatmentGiven,
         string reportedBy,
         string appointmentId);
+
+    // ============ ADDED: DAMAGE REPORT ============
+    Task<bool> SendDamageReportToSupplierAsync(
+        string toEmail,
+        string supplierName,
+        string hospitalName,
+        string vaccineName,
+        string lotNumber,
+        int quantity,
+        string damageType,
+        string notes,
+        byte[] photoBytes,
+        string photoFileName,
+        string photoContentType);
 }
 
 public class EmailService : IEmailService
@@ -606,6 +620,106 @@ public class EmailService : IEmailService
         return await SendEmailAsync(toEmail, recipientName, subject, bodyHtml);
     }
 
+    // ============ ADDED: DAMAGE REPORT EMAIL ============
+
+    public async Task<bool> SendDamageReportToSupplierAsync(
+        string toEmail,
+        string supplierName,
+        string hospitalName,
+        string vaccineName,
+        string lotNumber,
+        int quantity,
+        string damageType,
+        string notes,
+        byte[] photoBytes,
+        string photoFileName,
+        string photoContentType)
+    {
+        var subject = $"Damage Report — {lotNumber} — {hospitalName}";
+
+        var notesHtml = string.IsNullOrWhiteSpace(notes)
+            ? "<em style='color:#94a3b8;'>No additional notes provided.</em>"
+            : System.Net.WebUtility.HtmlEncode(notes).Replace("\n", "<br/>");
+
+        var bodyHtml = $@"
+<!DOCTYPE html>
+<html lang='en'>
+<head><meta charset='utf-8'><title>{subject}</title></head>
+<body style='margin:0; padding:24px; background:#f1f5f9; font-family:-apple-system,BlinkMacSystemFont,""Segoe UI"",Roboto,Arial,sans-serif; color:#1e293b;'>
+  <table role='presentation' width='100%' cellspacing='0' cellpadding='0' style='background:#f1f5f9;'>
+    <tr><td align='center'>
+      <table role='presentation' width='100%' cellspacing='0' cellpadding='0' style='max-width:640px; background:#ffffff; border-radius:12px; border:1px solid #e2e8f0; overflow:hidden;'>
+        <tr>
+          <td style='background:linear-gradient(135deg,#dc2626 0%,#991b1b 100%); padding:28px 24px; text-align:center;'>
+            <h1 style='margin:0; color:#ffffff; font-size:24px; font-weight:800; letter-spacing:2px;'>VAXORA</h1>
+            <p style='margin:6px 0 0 0; color:#fecaca; font-size:13px;'>Vaccine Damage Report</p>
+          </td>
+        </tr>
+        <tr>
+          <td style='padding:32px 28px;'>
+            <p style='margin:0 0 8px 0;'>Dear <strong>{supplierName}</strong>,</p>
+            <p style='margin:0 0 20px 0; color:#334155; line-height:1.6;'>
+              This is to report damage detected on a vaccine batch received at <strong>{hospitalName}</strong>.
+            </p>
+
+            <table role='presentation' width='100%' style='margin:20px 0; border-collapse:collapse; background:#f8fafc; border-radius:8px;'>
+              <tr><td style='padding:12px 16px; color:#64748b; width:40%; border-bottom:1px solid #e2e8f0;'>Vaccine</td><td style='padding:12px 16px; font-weight:700; border-bottom:1px solid #e2e8f0;'>{vaccineName}</td></tr>
+              <tr><td style='padding:12px 16px; color:#64748b; border-bottom:1px solid #e2e8f0;'>Lot Number</td><td style='padding:12px 16px; font-family:monospace; font-weight:700; border-bottom:1px solid #e2e8f0;'>{lotNumber}</td></tr>
+              <tr><td style='padding:12px 16px; color:#64748b; border-bottom:1px solid #e2e8f0;'>Quantity Damaged</td><td style='padding:12px 16px; font-weight:700; border-bottom:1px solid #e2e8f0;'>{quantity} vials</td></tr>
+              <tr><td style='padding:12px 16px; color:#64748b;'>Damage Type</td><td style='padding:12px 16px; font-weight:700; color:#dc2626;'>{damageType}</td></tr>
+            </table>
+
+            <div style='background:#fef2f2; border-left:4px solid #dc2626; padding:14px 18px; border-radius:6px; margin:20px 0;'>
+              <p style='margin:0 0 6px 0; color:#991b1b; font-weight:700; font-size:13px;'>DETAILS</p>
+              <p style='margin:0; color:#7f1d1d; font-size:14px; line-height:1.6;'>{notesHtml}</p>
+            </div>
+
+            <div style='background:#f0f9ff; border-left:4px solid #0284c7; padding:14px 18px; border-radius:6px; margin:20px 0;'>
+              <p style='margin:0; color:#0369a1; font-size:13.5px;'>
+                📎 <strong>Photographic evidence is attached</strong> for your review.
+              </p>
+            </div>
+
+            <p style='margin:24px 0 0 0; color:#334155; line-height:1.6;'>
+              Kindly advise on replacement or credit at your earliest convenience.
+            </p>
+
+            <p style='margin:24px 0 0 0; color:#64748b; font-size:13px;'>
+              Regards,<br/>
+              <strong>{hospitalName}</strong><br/>
+              Vaxora Hospital Inventory
+            </p>
+          </td>
+        </tr>
+        <tr>
+          <td style='background:#f8fafc; padding:20px; text-align:center; border-top:1px solid #e2e8f0;'>
+            <p style='margin:0; color:#64748b; font-size:12px;'>&copy; {DateTime.UtcNow.Year} Vaxora National Immunization Platform</p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>";
+
+        var safeContentType = string.IsNullOrWhiteSpace(photoContentType)
+            ? "image/jpeg"
+            : photoContentType;
+
+        var parts = safeContentType.Split('/');
+        var mediaType = parts.Length > 0 ? parts[0] : "image";
+        var mediaSubtype = parts.Length > 1 ? parts[1] : "jpeg";
+
+        return await SendEmailWithCustomAttachmentAsync(
+            toEmail,
+            supplierName,
+            subject,
+            bodyHtml,
+            photoBytes,
+            photoFileName,
+            new ContentType(mediaType, mediaSubtype));
+    }
+
     // ============ PRIVATE HELPERS ============
 
     private string? GetConfigValue(string configKey, string envKey)
@@ -660,6 +774,80 @@ public class EmailService : IEmailService
             if (attachmentBytes != null && !string.IsNullOrWhiteSpace(attachmentFilename))
             {
                 builder.Attachments.Add(attachmentFilename, attachmentBytes, new ContentType("application", "pdf"));
+            }
+
+            message.Body = builder.ToMessageBody();
+
+            int port = int.TryParse(portStr, out var p) ? p : 587;
+            bool enableSsl = bool.TryParse(enableSslStr, out var ssl) ? ssl : true;
+            var socketOptions = enableSsl
+                ? (port == 465 ? SecureSocketOptions.SslOnConnect : SecureSocketOptions.StartTls)
+                : SecureSocketOptions.Auto;
+
+            using var client = new SmtpClient();
+            client.ServerCertificateValidationCallback = (s, c, h, e) => true;
+
+            await client.ConnectAsync(host!, port, socketOptions);
+            await client.AuthenticateAsync(username!, password!);
+            await client.SendAsync(message);
+            await client.DisconnectAsync(true);
+
+            _logger.LogInformation("Successfully sent email '{Subject}' to '{Recipient}' from '{FromEmail}'.", subject, toEmail, fromEmail);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send email '{Subject}' to '{Recipient}'. Host: {Host}, Port: {Port}, User: {User}", subject, toEmail, host, portStr, username);
+            return false;
+        }
+    }
+
+    private async Task<bool> SendEmailWithCustomAttachmentAsync(
+        string toEmail,
+        string toName,
+        string subject,
+        string bodyHtml,
+        byte[]? attachmentBytes,
+        string? attachmentFilename,
+        ContentType? attachmentContentType)
+    {
+        var host = GetConfigValue("Smtp:Host", "SMTP_HOST");
+        var portStr = GetConfigValue("Smtp:Port", "SMTP_PORT") ?? "587";
+        var username = GetConfigValue("Smtp:Username", "SMTP_USERNAME");
+        var password = GetConfigValue("Smtp:Password", "SMTP_PASSWORD");
+        var fromEmail = GetConfigValue("Smtp:FromEmail", "SMTP_FROM_EMAIL");
+        var fromName = GetConfigValue("Smtp:FromName", "SMTP_FROM_NAME") ?? "Vaxora Immunization Platform";
+        var enableSslStr = GetConfigValue("Smtp:EnableSsl", "SMTP_ENABLE_SSL") ?? "true";
+
+        toEmail = toEmail?.Trim() ?? string.Empty;
+        toName = string.IsNullOrWhiteSpace(toName) ? (toEmail.Contains('@') ? toEmail.Split('@')[0] : "User") : toName.Trim();
+
+        if (string.IsNullOrWhiteSpace(host) || string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password) || string.IsNullOrWhiteSpace(toEmail))
+        {
+            _logger.LogWarning("SMTP credentials or recipient not fully configured (Host: {Host}, User: {User}, Recipient: {Recipient}). Skipping live email dispatch for '{Subject}'.", host, username, toEmail, subject);
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(fromEmail) || (host?.Contains("gmail.com", StringComparison.OrdinalIgnoreCase) == true))
+        {
+            fromEmail = username;
+        }
+
+        try
+        {
+            var message = new MimeMessage();
+            message.From.Add(new MailboxAddress(fromName, fromEmail));
+            message.To.Add(new MailboxAddress(toName, toEmail));
+            message.Subject = subject;
+
+            var builder = new BodyBuilder { HtmlBody = bodyHtml };
+
+            if (attachmentBytes != null && !string.IsNullOrWhiteSpace(attachmentFilename))
+            {
+                builder.Attachments.Add(
+                    attachmentFilename,
+                    attachmentBytes,
+                    attachmentContentType ?? new ContentType("application", "pdf"));
             }
 
             message.Body = builder.ToMessageBody();
