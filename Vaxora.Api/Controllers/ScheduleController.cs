@@ -56,6 +56,51 @@ public class ScheduleController : ControllerBase
         }
     }
 
+    [HttpPut("{id:guid}")]
+    [Authorize(Roles = "HOSPITAL")]
+    public async Task<IActionResult> UpdateSchedule(Guid id, [FromBody] CreateVaccineScheduleDto dto)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+            ?? User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)?.Value;
+
+        if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var hospitalUserId))
+        {
+            return Unauthorized(new { message = "Invalid authentication claims." });
+        }
+
+        try
+        {
+            var result = await _scheduleService.UpdateScheduleAsync(hospitalUserId, id, dto);
+            return Ok(result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(403, new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating schedule {ScheduleId}", id);
+            return StatusCode(500, new { message = "An error occurred while updating the schedule slot." });
+        }
+    }
+
     [HttpGet("hospital")]
     [Authorize(Roles = "HOSPITAL")]
     public async Task<IActionResult> GetHospitalSchedules()
