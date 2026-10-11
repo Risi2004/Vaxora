@@ -94,9 +94,6 @@ export default function HospitalStaffTab() {
       const invited = await staffService.inviteStaff(registrationNumber);
       showToast(`Invitation sent to ${invited.staffName} (${invited.staffRegistrationNumber}).`);
       await loadStaff();
-    } catch (err) {
-      setError(err.message || 'Failed to send staff invitation.');
-      throw err;
     } finally {
       setIsSubmitting(false);
     }
