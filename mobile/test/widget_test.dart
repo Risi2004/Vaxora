@@ -4,6 +4,9 @@ import 'package:mobile/main.dart';
 void main() {
   testWidgets('VaxoraApp smoke test loads landing screen', (WidgetTester tester) async {
     await tester.pumpWidget(const VaxoraApp());
-    expect(find.text('Book Your Vaccine In few Minutes'), findsOneWidget);
+    expect(
+      find.text('Vaccine booking and records for Sri Lanka'),
+      findsOneWidget,
+    );
   });
 }
