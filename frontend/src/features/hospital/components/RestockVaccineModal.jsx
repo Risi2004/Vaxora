@@ -39,6 +39,7 @@ export default function RestockVaccineModal({
   const [formData, setFormData] = useState(emptyForm);
   const [isCustomMode, setIsCustomMode] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
 
   // Reset whenever the modal opens or closes. Adjusting state during render
   // (instead of in an effect) applies before paint, so custom mode never flashes.
@@ -47,6 +48,7 @@ export default function RestockVaccineModal({
     setWasOpen(isOpen);
     setIsCustomMode(false);
     setSubmitting(false);
+    setError('');
     setFormData(emptyForm());
   }
 
@@ -74,19 +76,20 @@ export default function RestockVaccineModal({
       : formData.vaccineName.trim();
 
     if (!finalName) {
-      alert('Please select or enter a valid vaccine product name.');
+      setError('Please select or enter a valid vaccine product name.');
       return;
     }
     if (!formData.lotNumber.trim() || !String(formData.quantity).trim()) {
-      alert('Please fill the Lot Number and Quantity.');
+      setError('Please fill the Lot Number and Quantity.');
       return;
     }
     if (!formData.storageUnit) {
-      alert('Please select a cold vault.');
+      setError('Please select a cold vault.');
       return;
     }
 
     setSubmitting(true);
+    setError('');
     try {
       await onAddStock({
         vaccineName: finalName,
@@ -100,8 +103,9 @@ export default function RestockVaccineModal({
       setIsCustomMode(false);
       setFormData(emptyForm());
       onClose();
-    } catch {
-      // Parent toasts; keep values so the user can fix and retry.
+    } catch (err) {
+      // Keep values so the user can fix and retry.
+      setError(err?.message || 'Failed to log the restock shipment.');
     } finally {
       setSubmitting(false);
     }
@@ -309,6 +313,12 @@ export default function RestockVaccineModal({
                 autoComplete="off"
               />
             </div>
+
+            {error && (
+              <p role="alert" style={{ margin: '4px 0 0', color: 'var(--color-error)', fontSize: '0.875rem', fontWeight: 600 }}>
+                {error}
+              </p>
+            )}
           </div>
 
           <div className="modal-footer">

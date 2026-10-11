@@ -1,5 +1,5 @@
 import { deferEffectCallback } from '../../../shared/utils/deferEffectCallback.js';
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import RestockVaccineModal from './RestockVaccineModal';
 import VaccineWastageModal from './VaccineWastageModal';
 import BatchAuditModal from './BatchAuditModal';
@@ -23,6 +23,8 @@ import {
   IconTrash,
 } from './HospitalIcons';
 import useConfirmDialog from '../../../shared/hooks/useConfirmDialog';
+import { downloadCsv } from '../../../shared/utils/downloadCsv';
+import { hospitalToday } from '../utils/hospitalDate';
 
 const INVENTORY_VIEWS = ['stock', 'formulary', 'vaults'];
 
@@ -42,6 +44,8 @@ export default function HospitalInventoryTab() {
   const [isWastageOpen, setIsWastageOpen] = useState(false);
   const [selectedAuditVaccine, setSelectedAuditVaccine] = useState(null);
   const [toastMessage, setToastMessage] = useState('');
+  const [toastTone, setToastTone] = useState('success'); // success | error
+  const toastTimerRef = useRef(null);
   const [isAIAgentOpen, setIsAIAgentOpen] = useState(false);
 
   const [loading, setLoading] = useState(true);
@@ -89,10 +93,14 @@ export default function HospitalInventoryTab() {
     return map;
   }, [registeredVaccines]);
 
-  const showToast = (msg) => {
+  const showToast = (msg, tone = 'success') => {
     setToastMessage(msg);
-    setTimeout(() => setToastMessage(''), 4000);
+    setToastTone(tone);
+    clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => setToastMessage(''), 4000);
   };
+
+  useEffect(() => () => clearTimeout(toastTimerRef.current), []);
 
   const loadAll = useCallback(async () => {
     try {
@@ -139,7 +147,7 @@ export default function HospitalInventoryTab() {
           await loadAll();
           showToast(`Updated "${trimmed}" (${category}${Number(price) <= 0 ? ', Free' : `, LKR ${Number(price).toFixed(2)}`}).`);
         } catch (err) {
-          showToast(err.message);
+          showToast(err.message, 'error');
         }
       }
       return;
@@ -149,7 +157,7 @@ export default function HospitalInventoryTab() {
       await loadAll();
       showToast(`Registered "${trimmed}" as ${category}${Number(price) <= 0 ? ' · Free' : ` · LKR ${Number(price).toFixed(2)}`}.`);
     } catch (err) {
-      showToast(err.message);
+      showToast(err.message, 'error');
     }
   };
 
@@ -170,7 +178,7 @@ export default function HospitalInventoryTab() {
 
   const handleRemoveFormulation = async (name) => {
     if (uniqueFormulations.length <= 1) {
-      alert('You must keep at least one registered vaccine product.');
+      showToast('You must keep at least one registered vaccine product.', 'error');
       return;
     }
     const ok = await confirm({
@@ -195,7 +203,7 @@ export default function HospitalInventoryTab() {
       await loadAll();
       showToast(`Removed "${name}" from registered formulary options.`);
     } catch (err) {
-      showToast(err.message);
+      showToast(err.message, 'error');
       await loadAll();
     }
   };
@@ -214,7 +222,7 @@ export default function HospitalInventoryTab() {
       await loadAll();
       showToast(`Successfully logged restock of +${quantity} vials for ${vaccineName} (Lot ${lotNumber}).`);
     } catch (err) {
-      showToast(err.message);
+      showToast(err.message, 'error');
       throw err;
     }
   };
@@ -225,7 +233,7 @@ export default function HospitalInventoryTab() {
       await loadAll();
       showToast(`Logged ${quantity} wasted vials.`);
     } catch (err) {
-      showToast(err.message);
+      showToast(err.message, 'error');
       throw err;
     }
   };
@@ -235,8 +243,13 @@ export default function HospitalInventoryTab() {
       await inventoryService.adjustStock(id, delta, `Quick ${delta > 0 ? '+' : ''}${delta} adjustment`);
       await loadAll();
     } catch (err) {
-      showToast(err.message);
+      showToast(err.message, 'error');
     }
+  };
+
+  const handleRefreshRecords = async () => {
+    await loadAll();
+    showToast('Stock records refreshed.');
   };
 
   const filteredInventory = useMemo(() => {
@@ -257,6 +270,33 @@ export default function HospitalInventoryTab() {
     });
   }, [inventory, searchQuery, statusFilter, categoryFilter]);
 
+  const handleExportReport = () => {
+    if (filteredInventory.length === 0) {
+      showToast('There are no batches to export.', 'error');
+      return;
+    }
+    downloadCsv(`Vaxora_Stock_Ledger_${hospitalToday()}.csv`, [
+      ['Vaccine', 'Lot', 'Manufacturer', 'Category', 'Storage', 'Vials on hand', 'Vials received', 'Doses', 'Expiry', 'Status'],
+      ...filteredInventory.map((item) => [
+        item.name,
+        item.lotNumber,
+        item.manufacturer || '',
+        formatCategory(item.category),
+        item.storageUnit || '',
+        item.available,
+        item.capacity,
+        item.availableDoses ?? item.available * item.dosesPerVial,
+        item.expiry,
+        item.available <= item.minThreshold
+          ? 'Low stock'
+          : item.expiryStatus === 'expiring_soon'
+            ? 'Expiring soon'
+            : 'In stock',
+      ]),
+    ]);
+    showToast(`Exported ${filteredInventory.length} batch${filteredInventory.length === 1 ? '' : 'es'} to CSV.`);
+  };
+
   const inventoryCategories = useMemo(
     () => [...new Set(inventory.map((item) => item.category).filter(Boolean))].sort(),
     [inventory]
@@ -273,6 +313,10 @@ export default function HospitalInventoryTab() {
   const ultracoldCount = inventory.filter((item) =>
     (item.storageUnit || '').toLowerCase().includes('ultra-cold')
   ).length;
+  const vaultsOk = coldVaults.filter(
+    (vault) => !vault.status || /optimal|ok|normal|safe|active/i.test(String(vault.status))
+  ).length;
+  const vaultsNeedingAttention = coldVaults.length - vaultsOk;
 
   const inventorySubtitle =
     view === 'formulary'
@@ -316,7 +360,11 @@ export default function HospitalInventoryTab() {
       {inventoryHero}
       <div className="hospital-inventory-content">
         {toastMessage && (
-          <div className="inventory-toast-banner">
+          <div
+            className="inventory-toast-banner"
+            role={toastTone === 'error' ? 'alert' : 'status'}
+            style={toastTone === 'error' ? { background: 'var(--color-error)' } : undefined}
+          >
             <span>{toastMessage}</span>
             <button type="button" onClick={() => setToastMessage('')}>&times;</button>
           </div>
@@ -379,16 +427,24 @@ export default function HospitalInventoryTab() {
           </div>
 
           <div className="hospital-stat-card">
-            <div className="hospital-stat-icon stat-icon-green">
+            <div className={`hospital-stat-icon ${vaultsNeedingAttention === 0 ? 'stat-icon-green' : 'stat-icon-amber'}`}>
               <IconSnowflake size={22} />
             </div>
             <div className="hospital-stat-info">
               <span className="hospital-stat-label">Cold Storage Status</span>
-              <span className="hospital-stat-value">100%</span>
+              <span className="hospital-stat-value">
+                {coldVaults.length > 0 ? `${vaultsOk}/${coldVaults.length}` : '—'}
+              </span>
               <span className="hospital-stat-meta">
-                <span className="meta-positive">
-                  {coldVaults.length} units online · 0 excursions
-                </span>
+                {coldVaults.length === 0 ? (
+                  'No cold vaults linked'
+                ) : (
+                  <span className={vaultsNeedingAttention === 0 ? 'meta-positive' : 'meta-warning'}>
+                    {vaultsNeedingAttention === 0
+                      ? `${coldVaults.length} vault${coldVaults.length === 1 ? '' : 's'} optimal`
+                      : `${vaultsNeedingAttention} need${vaultsNeedingAttention === 1 ? 's' : ''} attention`}
+                  </span>
+                )}
               </span>
             </div>
           </div>
@@ -412,7 +468,7 @@ export default function HospitalInventoryTab() {
               <IconBot size={16} />
               Inventory assistant
             </button>
-            <button type="button" className="btn-inventory-action btn-export-neutral" onClick={() => showToast('Exporting official MOH Vaccine Stock Ledger (.CSV)...')}>
+            <button type="button" className="btn-inventory-action btn-export-neutral" onClick={handleExportReport}>
               <IconFile size={16} />
               Export report
             </button>
@@ -542,6 +598,11 @@ export default function HospitalInventoryTab() {
           </div>
         ) : (
           <div className="inventory-cards-grid">
+            {filteredInventory.length === 0 && (
+              <p className="empty-state-text" style={{ gridColumn: '1 / -1' }}>
+                No vaccines match the selected criteria.
+              </p>
+            )}
             {filteredInventory.map((item) => {
               const received = Math.max(item.capacity || 0, item.available || 0);
               const pct = received > 0
@@ -552,7 +613,7 @@ export default function HospitalInventoryTab() {
               return (
                 <div key={item.id} className={`inventory-card-item ${isLow ? 'card-low-stock' : ''}`}>
                   <div className="inv-card-top">
-                    <span className="category-tag">{item.category.toUpperCase()}</span>
+                    <span className="category-tag">{String(item.category || 'routine').toUpperCase()}</span>
                     {isLow ? <span className="stock-badge badge-reorder">Low Stock</span> : <span className="stock-badge badge-healthy">Optimal</span>}
                   </div>
                   <h4 className="inv-card-name">{item.name}</h4>
@@ -821,10 +882,10 @@ export default function HospitalInventoryTab() {
         <div className="inventory-footer-notice">
           <div className="footer-notice-text">
             <IconShield size={16} />
-            <span>Storage and lot records sync with the national immunization cold-chain registry.</span>
+            <span>Stock, lot and vault records shown here come live from the hospital database.</span>
           </div>
-          <button type="button" className="btn-sync-registry" onClick={() => showToast('Cold chain registry status: All batches verified.')}>
-            Sync registry
+          <button type="button" className="btn-sync-registry" onClick={handleRefreshRecords}>
+            Refresh records
           </button>
         </div>
         )}
