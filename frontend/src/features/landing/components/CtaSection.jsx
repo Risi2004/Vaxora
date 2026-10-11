@@ -8,7 +8,7 @@ export default function CtaSection() {
         <p className="cta-text">Create a free account and book in a few minutes.</p>
         <div className="cta-actions">
           <Link to="/signup" className="cta-btn-primary">
-            Sign up
+            Create free account
           </Link>
           <Link to="/login" className="cta-btn-secondary">
             Log in

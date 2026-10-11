@@ -1,67 +1,39 @@
 /* ==========================================================================
-   Landing page accent colours
-   Teal stays the brand and the colour of everything clickable. The tone-*
-   classes come from the shared colour language in tones.css.
+   Landing page accents
+   One brand blue for icons, links and buttons; navy for text; true greys
+   for everything else. Status colours only appear where they mean
+   something (a dose given or due in the previews).
    ========================================================================== */
-
-/* Icon tiles, bullets and hover borders follow the card's tone */
-.landing-container .feature-card .feature-icon,
-.landing-container .role-card .role-icon {
-  color: var(--tone, var(--color-primary));
-  background: var(--tone-bg, var(--color-primary-soft));
-}
-
-/* Same outline strength for every card, each in its own colour */
-.landing-container .feature-card:hover,
-.landing-container .role-card:hover {
-  border-color: color-mix(in srgb, var(--tone, var(--color-primary)) 55%, transparent);
-}
-
-.landing-container .role-card .role-tasks li::before {
-  background: var(--tone, var(--color-primary));
-}
-
-/* How it works: numbered steps in a blue, teal, green progression */
-.landing-container .step-card .step-number {
-  background: var(--tone, var(--color-primary));
-}
 
 /* "New" tag on a feature */
 .feature-badge {
   display: inline-block;
   margin-left: var(--space-2);
   padding: 2px 8px;
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   font-weight: var(--weight-bold);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   vertical-align: middle;
-  color: var(--color-warning);
-  background: var(--color-warning-bg);
-  border: 1px solid var(--color-warning-border);
+  color: var(--color-primary);
+  background: var(--color-soft-panel);
+  border: 1px solid var(--color-soft-panel-deep);
   border-radius: var(--radius-pill);
 }
 
-/* Tinted sections: full-width soft bands so the page isn't one long white
-   sheet. Roles get pale blue; reviews get the pale "positive" green. The
-   rest of the page stays white. */
-.landing-container #roles,
+/* Reviews sit on the page's one soft band, full width */
 .landing-container .reviews-section {
-  box-shadow: 0 0 0 100vmax var(--section-tint);
+  box-shadow: 0 0 0 100vmax var(--color-soft-panel);
   clip-path: inset(0 -100vmax);
-  background: var(--section-tint);
-}
-
-.landing-container #roles {
-  --section-tint: var(--color-info-bg);
-}
-
-.landing-container .reviews-section {
-  --section-tint: var(--color-success-bg);
+  background: var(--color-soft-panel);
   margin-top: 0;
   margin-bottom: 0;
   padding-top: 56px;
   padding-bottom: 56px;
+}
+
+.landing-container .reviews-section .section-eyebrow {
+  background: var(--color-surface);
 }
 
 @media (max-width: 768px) {
@@ -69,4 +41,121 @@
     padding-top: 40px;
     padding-bottom: 40px;
   }
+}
+
+/* ---- Preview card ---- */
+.mock-card {
+  position: relative;
+  width: 100%;
+  max-width: 300px;
+  padding: var(--space-5);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card-hover);
+}
+
+.mock-card-title {
+  margin-bottom: var(--space-4);
+  font-family: var(--font-heading);
+  font-size: 1rem;
+  font-weight: var(--weight-bold);
+  color: var(--color-text-title);
+}
+
+.mock-value {
+  display: block;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-title);
+}
+
+.mock-sub {
+  display: block;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.mock-list {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  list-style: none;
+}
+
+.mock-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--color-border-light);
+}
+
+.mock-row:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.mock-person {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.mock-token {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  color: var(--color-text-muted);
+}
+
+.mock-chip {
+  flex-shrink: 0;
+  padding: 3px 10px;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-muted);
+  background: var(--color-surface-subtle);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-pill);
+}
+
+.mock-chip.is-done {
+  color: var(--color-success);
+  background: var(--color-success-bg);
+  border-color: var(--color-success-border);
+}
+
+.mock-chip.is-due {
+  color: var(--color-warning);
+  background: var(--color-warning-bg);
+  border-color: var(--color-warning-border);
+}
+
+.mock-chip.is-now {
+  color: var(--color-text-inverse);
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.mock-stock {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  background: var(--color-surface-subtle);
+  border-radius: var(--radius-sm);
+}
+
+.mock-tick {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  color: var(--color-success);
+  background: var(--color-success-bg);
+  border-radius: 50%;
 }

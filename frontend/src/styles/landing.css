@@ -73,7 +73,7 @@
   border: none;
   line-height: 1.2;
   padding: 9px 20px;
-  font-size: 0.95rem;
+  font-size: 0.9375rem;
   font-weight: 600;
   color: var(--color-primary-dark);
   cursor: pointer;
@@ -101,7 +101,7 @@
   border: 1.5px solid var(--color-border-pill);
   border-radius: var(--radius-pill);
   padding: 9px 26px;
-  font-size: 0.95rem;
+  font-size: 0.9375rem;
   font-weight: 600;
   color: var(--color-primary-dark);
   cursor: pointer;
@@ -118,9 +118,9 @@
 }
 
 .btn-login:hover {
-  background-color: var(--color-primary-dark);
-  color: var(--color-text-inverse);
-  border-color: var(--color-primary-dark);
+  background-color: var(--btn-secondary-bg-hover);
+  color: var(--color-primary);
+  border-color: var(--color-primary);
   box-shadow: var(--shadow-sm);
 }
 
@@ -134,7 +134,7 @@
   border: 1.5px solid var(--color-primary);
   border-radius: var(--radius-pill);
   padding: 9px 26px;
-  font-size: 0.95rem;
+  font-size: 0.9375rem;
   font-weight: 600;
   cursor: pointer;
   transition: all var(--transition-smooth);
@@ -210,7 +210,7 @@
   border: 1px solid var(--color-border-light);
   border-radius: 10px;
   padding: 11px 16px;
-  font-size: 0.95rem;
+  font-size: 0.9375rem;
   font-weight: 700;
   color: var(--color-text-title);
   text-align: left;
@@ -243,7 +243,7 @@
   width: 100%;
   text-align: center;
   padding: 10px 0;
-  font-size: 0.92rem;
+  font-size: 0.9375rem;
 }
 
 @media (max-width: 860px) {
@@ -291,7 +291,7 @@
 }
 
 .hero-subtitle {
-  font-size: 1.15rem;
+  font-size: 1.125rem;
   color: var(--color-text-body);
   line-height: 1.65;
   margin-bottom: 32px;
@@ -373,7 +373,7 @@
 }
 
 .about-title {
-  font-size: 2.3rem;
+  font-size: 2.25rem;
   font-weight: 800;
   color: var(--color-primary-dark);
   margin-bottom: 20px;
@@ -381,7 +381,7 @@
 }
 
 .about-description {
-  font-size: 1.05rem;
+  font-size: 1rem;
   color: var(--color-text-body);
   line-height: 1.85;
   max-width: 960px;
@@ -437,14 +437,14 @@
 }
 
 .stat-highlight {
-  font-size: 1.12rem;
+  font-size: 1.125rem;
   font-weight: 700;
   color: var(--color-text-title);
   margin-bottom: 4px;
 }
 
 .stat-subtext {
-  font-size: 0.95rem;
+  font-size: 0.9375rem;
   color: var(--color-text-muted);
   font-weight: 500;
 }
@@ -483,14 +483,14 @@
 }
 
 .contact-sub-title {
-  font-size: 1.6rem;
+  font-size: 1.5rem;
   font-weight: 700;
   color: var(--color-text-subtitle);
   display: block;
 }
 
 .contact-paragraph {
-  font-size: 1.05rem;
+  font-size: 1rem;
   line-height: 1.75;
   color: var(--color-text-body);
   margin-bottom: 18px;
@@ -644,7 +644,7 @@
   margin: 0 auto 12px;
   background: var(--color-success);
   color: var(--color-text-inverse);
-  font-size: 1.4rem;
+  font-size: 1.5rem;
   font-weight: bold;
   border-radius: 50%;
 }
@@ -666,7 +666,7 @@
 }
 
 .reviews-title {
-  font-size: 2.3rem;
+  font-size: 2.25rem;
   font-weight: 800;
   color: var(--color-primary-dark);
   margin-bottom: 36px;
@@ -715,42 +715,38 @@
   height: 24px;
 }
 
-/* Sliding Viewport & Track */
+/* 3 cards visible; track steps one card at a time (right → left) */
 .carousel-viewport {
   overflow: hidden;
   width: 100%;
   border-radius: 20px;
-  padding: 12px 6px;
+  padding: 12px 0;
 }
 
 .carousel-track {
   display: flex;
-  width: 100%;
+  align-items: stretch;
   transition: transform 0.65s cubic-bezier(0.25, 1, 0.5, 1);
   will-change: transform;
 }
 
-.reviews-page {
-  min-width: 100%;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 24px;
-  box-sizing: border-box;
-  padding: 4px;
-  transition: opacity 0.5s cubic-bezier(0.25, 1, 0.5, 1), transform 0.5s cubic-bezier(0.25, 1, 0.5, 1);
-  opacity: 0.35;
-  transform: scale(0.98);
+.carousel-track.is-jumping {
+  transition: none;
 }
 
-.reviews-page.active-page {
-  opacity: 1;
-  transform: scale(1);
+.review-slide {
+  flex: 0 0 calc(100% / var(--reviews-visible, 3));
+  width: calc(100% / var(--reviews-visible, 3));
+  box-sizing: border-box;
+  padding: 4px 12px;
+  min-width: 0;
 }
 
 .review-card {
+  height: 100%;
   background: var(--color-surface);
-  border: 1.5px solid var(--color-border-card);
-  border-radius: 18px;
+  border: 1px solid var(--color-border-card);
+  border-radius: var(--radius-lg);
   padding: 0;
   overflow: hidden;
   box-shadow: var(--shadow-card);
@@ -759,19 +755,29 @@
 }
 
 .review-card:hover {
-  transform: translateY(-6px);
-  box-shadow: 0 16px 28px -4px rgba(var(--rgb-primary-dark), 0.14), 0 4px 10px rgba(0, 0, 0, 0.04);
-  border-color: var(--color-info);
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-card-hover);
+  border-color: var(--color-border-focus);
 }
 
 .review-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
   padding: 14px 20px;
-  border-bottom: 1.5px solid var(--color-border-light);
-  background-color: var(--color-bg);
+  border-bottom: 1px solid var(--color-border-light);
+  background-color: var(--color-surface-subtle);
+}
+
+.review-category {
+  padding: 0 20px 14px;
+  font-size: 0.75rem;
+  color: var(--color-text-body);
 }
 
 .reviewer-name {
-  font-size: 1.05rem;
+  font-size: 1rem;
   font-weight: 700;
   color: var(--color-primary-dark);
 }
@@ -917,7 +923,7 @@
 
 .section-lead {
   margin-top: var(--space-3);
-  font-size: 1.05rem;
+  font-size: 1rem;
   line-height: 1.6;
   color: var(--color-text-body);
 }
@@ -935,7 +941,7 @@
 .role-card,
 .step-card {
   background: var(--color-surface);
-  border: 1.5px solid var(--color-border-card);
+  border: 1px solid var(--color-border-card);
   border-radius: var(--radius-lg);
   padding: var(--space-6);
   box-shadow: var(--shadow-sm);
@@ -973,7 +979,7 @@
 
 .feature-text,
 .step-text {
-  font-size: 0.95rem;
+  font-size: 0.9375rem;
   line-height: 1.6;
   color: var(--color-text-body);
 }
@@ -1066,7 +1072,7 @@
   gap: var(--space-4);
   padding: var(--space-4) var(--space-5);
   font-family: var(--font-heading);
-  font-size: 1.02rem;
+  font-size: 1rem;
   font-weight: var(--weight-semibold);
   color: var(--color-text-title);
   cursor: pointer;
@@ -1080,7 +1086,7 @@
 .faq-question::after {
   content: "+";
   flex-shrink: 0;
-  font-size: 1.3rem;
+  font-size: 1.25rem;
   line-height: 1;
   color: var(--color-primary);
   transition: transform var(--transition-fast);
@@ -1092,7 +1098,7 @@
 
 .faq-answer {
   padding: 0 var(--space-5) var(--space-4);
-  font-size: 0.95rem;
+  font-size: 0.9375rem;
   line-height: 1.6;
   color: var(--color-text-body);
 }
@@ -1103,22 +1109,21 @@
 .cta-card {
   padding: var(--space-12) var(--space-8);
   text-align: center;
-  color: var(--color-text-inverse);
-  background: var(--gradient-primary);
+  background: var(--color-soft-panel);
+  border: 1px solid var(--color-soft-panel-deep);
   border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-card);
 }
 
 .cta-title {
   font-size: clamp(1.6rem, 3vw, 2.1rem);
   font-weight: 800;
-  color: var(--color-text-inverse);
+  color: var(--color-text-title);
 }
 
 .cta-text {
   margin-top: var(--space-2);
-  font-size: 1.05rem;
-  opacity: 0.9;
+  font-size: 1rem;
+  color: var(--color-text-body);
 }
 
 .cta-actions {
@@ -1144,24 +1149,24 @@
 }
 
 .cta-btn-primary {
-  color: var(--color-primary);
-  background: var(--color-surface);
-  border: 1.5px solid var(--color-surface);
+  color: var(--color-text-inverse);
+  background: var(--color-primary);
+  border: 1px solid var(--color-primary);
 }
 
 .cta-btn-primary:hover {
-  background: var(--color-soft-panel);
-  transform: translateY(-1px);
+  background: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
 }
 
 .cta-btn-secondary {
-  color: var(--color-text-inverse);
-  background: transparent;
-  border: 1.5px solid rgba(255, 255, 255, 0.6);
+  color: var(--color-primary);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-card);
 }
 
 .cta-btn-secondary:hover {
-  background: rgba(255, 255, 255, 0.12);
+  border-color: var(--color-primary);
 }
 
 /* ==========================================================================
@@ -1191,7 +1196,7 @@
 .footer-tagline {
   max-width: 300px;
   margin-top: var(--space-2);
-  font-size: 0.92rem;
+  font-size: 0.9375rem;
   line-height: 1.6;
   color: rgba(255, 255, 255, 0.72);
 }
@@ -1215,7 +1220,7 @@
 .footer-link {
   padding: 0;
   font-family: var(--font-body);
-  font-size: 0.92rem;
+  font-size: 0.9375rem;
   color: rgba(255, 255, 255, 0.85);
   background: none;
   border: none;
@@ -1236,7 +1241,7 @@
 }
 
 .footer-copyright {
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   color: rgba(255, 255, 255, 0.6);
 }
 
@@ -1322,7 +1327,7 @@
 
   .nav-link {
     padding: 6px 12px;
-    font-size: 0.85rem;
+    font-size: 0.875rem;
     white-space: nowrap;
     flex-shrink: 0;
   }
@@ -1334,7 +1339,7 @@
   .btn-login,
   .btn-signup {
     padding: 6px 14px;
-    font-size: 0.84rem;
+    font-size: 0.8125rem;
   }
 
   .hero-section {
@@ -1378,12 +1383,12 @@
   }
 
   .about-title {
-    font-size: 1.8rem;
+    font-size: 1.75rem;
     margin-bottom: 14px;
   }
 
   .about-text {
-    font-size: 0.98rem;
+    font-size: 1rem;
     line-height: 1.6;
   }
 
@@ -1392,13 +1397,12 @@
   }
 
   .reviews-landing-section-title {
-    font-size: 1.8rem;
+    font-size: 1.75rem;
     margin-bottom: 24px;
   }
 
-  .reviews-page {
-    grid-template-columns: 1fr;
-    gap: 16px;
+  .review-slide {
+    padding: 4px 6px;
   }
 
   .carousel-wrapper {
@@ -1458,7 +1462,7 @@
   .btn-login,
   .btn-signup {
     padding: 5px 10px;
-    font-size: 0.78rem;
+    font-size: 0.75rem;
   }
 
   .hero-section {
@@ -1466,7 +1470,7 @@
   }
 
   .hero-title {
-    font-size: 1.85rem;
+    font-size: 1.75rem;
   }
 
   .btn-primary.btn-book {
