@@ -43,34 +43,44 @@ async def tool_get_stock_levels(token: Optional[str] = None) -> Dict[str, Any]:
 
 async def tool_get_low_stock_items(token: Optional[str] = None) -> Dict[str, Any]:
     """
-    Returns ONLY batches where available <= minThreshold.
+    Returns ONLY vaccines whose total unexpired stock is <= minThreshold.
+    Stock is summed across all of a vaccine's batches, so a nearly empty lot
+    is not flagged while another lot of the same vaccine still covers it.
     Pre-filters on the Python side so the LLM doesn't have to compare numbers.
     Enriches each item with 'deficit' and 'suggested_qty' (pre-computed).
     """
     try:
         batches = await _api_get("/inventory/batches", token=token)
-        low: List[Dict[str, Any]] = []
+        vaccines: Dict[str, Dict[str, Any]] = {}
         for b in batches or []:
+            vaccine_id = b.get("vaccineId")
             available = b.get("available")
             min_threshold = b.get("minThreshold")
-            if not isinstance(available, int) or not isinstance(min_threshold, int):
+            if not vaccine_id or not isinstance(available, int) or not isinstance(min_threshold, int):
                 continue
+            entry = vaccines.setdefault(vaccine_id, {
+                "vaccineId": vaccine_id,
+                "vaccineName": b.get("name"),
+                "available": 0,
+                "minThreshold": min_threshold,
+                "batchCount": 0,
+            })
+            entry["batchCount"] += 1
+            if b.get("expiryStatus") != "expired":
+                entry["available"] += available
+
+        low: List[Dict[str, Any]] = []
+        for entry in vaccines.values():
+            available = entry["available"]
+            min_threshold = entry["minThreshold"]
             if available <= min_threshold:
-                deficit = min_threshold - available
                 # recommended = max(50, round_up_to_nearest_50((2 * threshold) - available))
                 target = (2 * min_threshold) - available
                 rounded = ((target + 49) // 50) * 50 if target > 0 else 50
-                suggested_qty = max(50, rounded)
                 low.append({
-                    "batchId": b.get("id"),
-                    "vaccineId": b.get("vaccineId"),
-                    "vaccineName": b.get("name"),
-                    "lotNumber": b.get("lotNumber"),
-                    "available": available,
-                    "minThreshold": min_threshold,
-                    "deficit": deficit,
-                    "suggested_qty": suggested_qty,
-                    "expiry": b.get("expiry"),
+                    **entry,
+                    "deficit": min_threshold - available,
+                    "suggested_qty": max(50, rounded),
                 })
         return {"success": True, "low_stock_items": low, "count": len(low)}
     except Exception as e:
@@ -188,7 +198,7 @@ RESTOCK_TOOLS_SCHEMA = [
         "function": {
             "name": "get_low_stock_items",
             "description": (
-                "Returns ONLY batches that are at or below their minimum threshold. "
+                "Returns ONLY vaccines whose total stock across all batches is at or below the minimum threshold. "
                 "Each item already includes 'deficit' and 'suggested_qty' (pre-computed). "
                 "Use this instead of get_stock_levels when you need to find restock candidates."
             ),

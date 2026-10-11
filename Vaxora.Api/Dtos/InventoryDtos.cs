@@ -62,6 +62,10 @@ public class InventoryItemDto
     public int Available { get; set; }
     public int Capacity { get; set; }
     public int MinThreshold { get; set; }
+    /// <summary>Unexpired vials of this vaccine across all of the hospital's batches.</summary>
+    public int VaccineAvailable { get; set; }
+    /// <summary>True when the vaccine as a whole (not just this batch) is at or below its threshold.</summary>
+    public bool IsLowStock { get; set; }
     public int DosesPerVial { get; set; }
     /// <summary>Doses left in the currently opened vial (0 if sealed-only stock).</summary>
     public int OpenVialDosesRemaining { get; set; }

@@ -109,7 +109,22 @@ public class InventoryServiceTests
     }
 
     [Fact]
-    public async Task GetSummary_CountsLowStockBatches()
+    public async Task GetSummary_CountsLowStockPerVaccine()
+    {
+        await using var ctx = TestDb.CreateContext();
+        var (user, hospital) = AddHospital(ctx);
+        var vaccine = AddVaccine(ctx, threshold: 50);
+        AddBatch(ctx, hospital.Id, vaccine.Id, available: 20, lot: "LOW-A");
+        AddBatch(ctx, hospital.Id, vaccine.Id, available: 25, lot: "LOW-B");
+        await ctx.SaveChangesAsync();
+
+        var summary = await CreateService(ctx).GetSummaryAsync(user.Id);
+
+        Assert.Equal(1, summary.LowStockCount);
+    }
+
+    [Fact]
+    public async Task GetSummary_LowBatchCoveredByAnotherBatch_IsNotLowStock()
     {
         await using var ctx = TestDb.CreateContext();
         var (user, hospital) = AddHospital(ctx);
@@ -118,9 +133,28 @@ public class InventoryServiceTests
         AddBatch(ctx, hospital.Id, vaccine.Id, available: 200, lot: "OK");
         await ctx.SaveChangesAsync();
 
-        var summary = await CreateService(ctx).GetSummaryAsync(user.Id);
+        var service = CreateService(ctx);
+        var summary = await service.GetSummaryAsync(user.Id);
+        var items = await service.GetInventoryAsync(user.Id);
 
-        Assert.Equal(1, summary.LowStockCount);
+        Assert.Equal(0, summary.LowStockCount);
+        Assert.All(items, i => Assert.False(i.IsLowStock));
+        Assert.All(items, i => Assert.Equal(230, i.VaccineAvailable));
+    }
+
+    [Fact]
+    public async Task GetInventory_ExpiredBatchDoesNotCoverLowStock()
+    {
+        await using var ctx = TestDb.CreateContext();
+        var (user, hospital) = AddHospital(ctx);
+        var vaccine = AddVaccine(ctx, threshold: 50);
+        AddBatch(ctx, hospital.Id, vaccine.Id, available: 30, lot: "LOW");
+        AddBatch(ctx, hospital.Id, vaccine.Id, available: 200, lot: "OLD", expiry: DateTime.UtcNow.AddDays(-1));
+        await ctx.SaveChangesAsync();
+
+        var items = await CreateService(ctx).GetInventoryAsync(user.Id);
+
+        Assert.All(items, i => Assert.True(i.IsLowStock));
     }
 
     // ==================== GetExpiringBatchesAsync ====================

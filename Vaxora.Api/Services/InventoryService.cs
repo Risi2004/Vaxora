@@ -143,7 +143,22 @@ public class InventoryService : IInventoryService
         _ => WastageReason.VialBreakage
     };
 
-    private static InventoryItemDto MapToItemDto(Batch b, Vaccine v)
+    // Low stock is judged per vaccine, not per batch: a nearly empty lot is not
+    // a shortage while other unexpired lots of the same vaccine still hold stock.
+    private static Dictionary<Guid, int> UsableStockByVaccine(IEnumerable<Batch> batches) =>
+        batches
+            .Where(b => b.ExpiryDate >= DateTime.UtcNow)
+            .GroupBy(b => b.VaccineId)
+            .ToDictionary(g => g.Key, g => g.Sum(b => b.QuantityAvailable));
+
+    private async Task<int> GetVaccineAvailableAsync(Guid hospitalProfileId, Guid vaccineId) =>
+        await _context.Batches
+            .Where(b => b.HospitalProfileId == hospitalProfileId
+                     && b.VaccineId == vaccineId
+                     && b.ExpiryDate >= DateTime.UtcNow)
+            .SumAsync(b => b.QuantityAvailable);
+
+    private static InventoryItemDto MapToItemDto(Batch b, Vaccine v, int vaccineAvailable)
     {
         var minThreshold = v.DefaultMinThreshold;
         var lastRestock = b.LastRestockedAt ?? b.CreatedAt;
@@ -159,6 +174,8 @@ public class InventoryService : IInventoryService
             Available = b.QuantityAvailable,
             Capacity = b.QuantityReceived,
             MinThreshold = minThreshold,
+            VaccineAvailable = vaccineAvailable,
+            IsLowStock = vaccineAvailable <= minThreshold,
             DosesPerVial = v.DosesPerVial,
             OpenVialDosesRemaining = openDoses,
             AvailableDoses = InventoryDoseHelper.AvailableDoseCount(b, v),
@@ -166,7 +183,7 @@ public class InventoryService : IInventoryService
             ExpiryStatus = ComputeExpiryStatus(b.ExpiryDate),
             Temp = v.RequiredTemp,
             StorageUnit = b.StorageUnit ?? "Chiller Unit B (2-8°C)",
-            StatusColor = ComputeStatusColor(b.QuantityAvailable, minThreshold),
+            StatusColor = ComputeStatusColor(vaccineAvailable, minThreshold),
             LastRestocked = lastRestock.ToString("yyyy-MM-dd")
         };
     }
@@ -430,7 +447,8 @@ public class InventoryService : IInventoryService
             .OrderBy(b => b.Vaccine.Name)
             .ToListAsync();
 
-        return batches.Select(b => MapToItemDto(b, b.Vaccine)).ToList();
+        var stock = UsableStockByVaccine(batches);
+        return batches.Select(b => MapToItemDto(b, b.Vaccine, stock.GetValueOrDefault(b.VaccineId))).ToList();
     }
 
     public async Task<InventoryItemDto> RestockBatchAsync(Guid userId, RestockBatchDto dto)
@@ -511,7 +529,7 @@ public class InventoryService : IInventoryService
         });
 
         await _context.SaveChangesAsync();
-        return MapToItemDto(batch, vaccine);
+        return MapToItemDto(batch, vaccine, await GetVaccineAvailableAsync(hospital.Id, vaccine.Id));
     }
 
     public async Task<InventoryItemDto> LogWastageAsync(Guid userId, Guid batchId, WastageDto dto)
@@ -563,7 +581,7 @@ public class InventoryService : IInventoryService
         });
 
         await _context.SaveChangesAsync();
-        return MapToItemDto(batch, batch.Vaccine);
+        return MapToItemDto(batch, batch.Vaccine, await GetVaccineAvailableAsync(batch.HospitalProfileId, batch.VaccineId));
     }
 
     // ==================== DAMAGE REPORT (NEW) ====================
@@ -703,7 +721,7 @@ public class InventoryService : IInventoryService
         });
 
         await _context.SaveChangesAsync();
-        return MapToItemDto(batch, batch.Vaccine);
+        return MapToItemDto(batch, batch.Vaccine, await GetVaccineAvailableAsync(batch.HospitalProfileId, batch.VaccineId));
     }
 
     public async Task<InventoryItemDto> IssueStockAsync(Guid userId, Guid batchId, IssueStockDto dto)
@@ -747,7 +765,7 @@ public class InventoryService : IInventoryService
         });
 
         await _context.SaveChangesAsync();
-        return MapToItemDto(batch, batch.Vaccine);
+        return MapToItemDto(batch, batch.Vaccine, await GetVaccineAvailableAsync(batch.HospitalProfileId, batch.VaccineId));
     }
 
     public async Task<BatchAuditDto> GetBatchAuditAsync(Guid userId, Guid batchId)
@@ -780,7 +798,7 @@ public class InventoryService : IInventoryService
 
         return new BatchAuditDto
         {
-            Vaccine = MapToItemDto(batch, batch.Vaccine),
+            Vaccine = MapToItemDto(batch, batch.Vaccine, await GetVaccineAvailableAsync(batch.HospitalProfileId, batch.VaccineId)),
             Entries = entries
         };
     }
@@ -898,7 +916,10 @@ public class InventoryService : IInventoryService
 
         var totalVials = batches.Sum(b => b.QuantityAvailable);
         var totalDoses = batches.Sum(b => InventoryDoseHelper.AvailableDoseCount(b, b.Vaccine));
-        var lowStock = batches.Count(b => b.QuantityAvailable <= b.Vaccine.DefaultMinThreshold);
+        var stock = UsableStockByVaccine(batches);
+        var lowStock = batches
+            .GroupBy(b => b.VaccineId)
+            .Count(g => stock.GetValueOrDefault(g.Key) <= g.First().Vaccine.DefaultMinThreshold);
         var expiring = batches.Count(b => b.ExpiryDate <= DateTime.UtcNow.AddDays(60) && b.ExpiryDate >= DateTime.UtcNow);
         var formulations = batches.Select(b => b.VaccineId).Distinct().Count();
 
@@ -930,7 +951,11 @@ public class InventoryService : IInventoryService
             .OrderBy(b => b.ExpiryDate)
             .ToListAsync();
 
-        return batches.Select(b => MapToItemDto(b, b.Vaccine)).ToList();
+        var vaccineIds = batches.Select(b => b.VaccineId).Distinct().ToList();
+        var stock = UsableStockByVaccine(await _context.Batches
+            .Where(b => b.HospitalProfileId == hospital.Id && vaccineIds.Contains(b.VaccineId))
+            .ToListAsync());
+        return batches.Select(b => MapToItemDto(b, b.Vaccine, stock.GetValueOrDefault(b.VaccineId))).ToList();
     }
 
     // ==================== AGENT DRAFT EXECUTION ====================

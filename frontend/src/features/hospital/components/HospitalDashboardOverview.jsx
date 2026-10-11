@@ -356,7 +356,8 @@ export default function HospitalDashboardOverview({ view = 'home' }) {
         const available = Number(b.available ?? b.quantity ?? 0);
         const capacity = Number(b.capacity ?? Math.max(available * 1.5, 400));
         const minThreshold = Number(b.minThreshold ?? 50);
-        const isLow = available <= minThreshold;
+        // Low stock is per vaccine (all unexpired lots together), as flagged by the API
+        const isLow = b.isLowStock ?? available <= minThreshold;
 
         return {
           id: b.id,

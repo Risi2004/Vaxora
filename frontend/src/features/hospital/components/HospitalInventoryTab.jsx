@@ -37,6 +37,11 @@ function formatCategory(category) {
     : c;
 }
 
+// Low stock is per vaccine (all unexpired lots together), as flagged by the API
+function isLowStock(item) {
+  return item.isLowStock ?? item.available <= item.minThreshold;
+}
+
 export default function HospitalInventoryTab() {
   const [confirm, confirmDialog] = useConfirmDialog();
   const [view, setView] = useViewParam(INVENTORY_VIEWS);
@@ -261,8 +266,8 @@ export default function HospitalInventoryTab() {
         (item.manufacturer || '').toLowerCase().includes(q) ||
         (item.storageUnit || '').toLowerCase().includes(q);
       if (!matchSearch) return false;
-      if (statusFilter === 'low' && item.available > item.minThreshold) return false;
-      if (statusFilter === 'sufficient' && item.available <= item.minThreshold) return false;
+      if (statusFilter === 'low' && !isLowStock(item)) return false;
+      if (statusFilter === 'sufficient' && isLowStock(item)) return false;
       if (statusFilter === 'expiring' && item.expiryStatus !== 'expiring_soon') return false;
       if (statusFilter === 'ultracold' && !(item.storageUnit || '').toLowerCase().includes('ultra-cold')) return false;
       if (categoryFilter !== 'all' && item.category !== categoryFilter) return false;
@@ -287,7 +292,7 @@ export default function HospitalInventoryTab() {
         item.capacity,
         item.availableDoses ?? item.available * item.dosesPerVial,
         item.expiry,
-        item.available <= item.minThreshold
+        isLowStock(item)
           ? 'Low stock'
           : item.expiryStatus === 'expiring_soon'
             ? 'Expiring soon'
@@ -307,8 +312,11 @@ export default function HospitalInventoryTab() {
     (acc, curr) => acc + (curr.availableDoses ?? curr.available * curr.dosesPerVial),
     0
   );
-  const lowStockCount = inventory.filter((item) => item.available <= item.minThreshold).length;
-  const healthyCount = inventory.filter((item) => item.available > item.minThreshold).length;
+  const lowStockCount = inventory.filter(isLowStock).length;
+  const lowVaccineCount = new Set(
+    inventory.filter(isLowStock).map((item) => item.vaccineId ?? item.name)
+  ).size;
+  const healthyCount = inventory.length - lowStockCount;
   const expiringCount = inventory.filter((item) => item.expiryStatus === 'expiring_soon').length;
   const ultracoldCount = inventory.filter((item) =>
     (item.storageUnit || '').toLowerCase().includes('ultra-cold')
@@ -398,12 +406,12 @@ export default function HospitalInventoryTab() {
             </div>
             <div className="hospital-stat-info">
               <span className="hospital-stat-label">Low Stock Reorders</span>
-              <span className={`hospital-stat-value${lowStockCount > 0 ? ' is-alert' : ''}`}>
-                {lowStockCount}
+              <span className={`hospital-stat-value${lowVaccineCount > 0 ? ' is-alert' : ''}`}>
+                {lowVaccineCount}
               </span>
               <span className="hospital-stat-meta">
-                {lowStockCount > 0
-                  ? `${lowStockCount} formulation${lowStockCount === 1 ? '' : 's'} need reorder`
+                {lowVaccineCount > 0
+                  ? `${lowVaccineCount} formulation${lowVaccineCount === 1 ? '' : 's'} need reorder`
                   : 'All stocks above safety threshold'}
               </span>
             </div>
@@ -543,7 +551,7 @@ export default function HospitalInventoryTab() {
                       ? Math.min(100, Math.round((item.available / received) * 100))
                       : 0;
                     const doseCount = item.availableDoses ?? item.available * item.dosesPerVial;
-                    const isLow = item.available <= item.minThreshold;
+                    const isLow = isLowStock(item);
                     const isExpiring = item.expiryStatus === 'expiring_soon';
                     return (
                       <tr key={item.id} className={isLow ? 'row-highlight-low' : ''}>
@@ -609,7 +617,7 @@ export default function HospitalInventoryTab() {
                 ? Math.min(100, Math.round((item.available / received) * 100))
                 : 0;
               const doseCount = item.availableDoses ?? item.available * item.dosesPerVial;
-              const isLow = item.available <= item.minThreshold;
+              const isLow = isLowStock(item);
               return (
                 <div key={item.id} className={`inventory-card-item ${isLow ? 'card-low-stock' : ''}`}>
                   <div className="inv-card-top">
