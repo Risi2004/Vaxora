@@ -435,6 +435,10 @@ export default function HospitalShiftsPanel() {
         : res.proposal
           ? [res.proposal]
           : [];
+      // The agent answered but its model was down: use the rules-based suggestions below.
+      if (proposals.length === 0 && res.modelUnavailable) {
+        throw new Error(res.content || 'The scheduling assistant is unavailable.');
+      }
       if (proposals.length === 0) {
         setSuggestModalError(
           res.content ||
