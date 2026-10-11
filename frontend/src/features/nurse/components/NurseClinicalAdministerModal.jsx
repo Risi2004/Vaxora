@@ -119,9 +119,11 @@ export default function NurseClinicalAdministerModal({
                 <span style={{ fontWeight: 800, color: 'var(--color-info)', fontSize: '1rem', marginLeft: '10px' }}>
                   {patient.name}
                 </span>
-                <div style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)', marginTop: '3px' }}>
-                  NIC: {patient.nic}
-                </div>
+                {patient.nic ? (
+                  <div style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)', marginTop: '3px' }}>
+                    NIC: {patient.nic}
+                  </div>
+                ) : null}
               </div>
               <div style={{ textAlign: 'right' }}>
                 <span style={{ fontSize: '0.75rem', color: 'var(--color-accent)', fontWeight: 700, background: 'var(--color-info-bg)', padding: '3px 8px', borderRadius: '6px' }}>
