@@ -113,7 +113,7 @@ describe('Front Desk - Desk Accounts Panel', () => {
     await screen.findByText('No front desk accounts yet.');
 
     fireEvent.click(screen.getByRole('button', { name: /Add Desk Account/i }));
-    fireEvent.change(screen.getByLabelText('Full name *'), { target: { value: ' Nimal Perera ' } });
+    fireEvent.change(screen.getByLabelText('Full name *'), { target: { value: ' John Smith ' } });
     fireEvent.change(screen.getByLabelText('Phone'), { target: { value: '0771234567' } });
     fireEvent.change(screen.getByLabelText('Email *'), { target: { value: ' desk@hospital.lk ' } });
     fireEvent.change(screen.getByLabelText('Password *'), { target: { value: 'secret12' } });
@@ -121,7 +121,7 @@ describe('Front Desk - Desk Accounts Panel', () => {
 
     await waitFor(() =>
       expect(deskService.createDeskAccount).toHaveBeenCalledWith({
-        fullName: 'Nimal Perera',
+        fullName: 'John Smith',
         phoneNumber: '0771234567',
         email: 'desk@hospital.lk',
         password: 'secret12',
@@ -152,7 +152,7 @@ describe('Front Desk - Desk Accounts Panel', () => {
     await screen.findByText('No front desk accounts yet.');
 
     fireEvent.click(screen.getByRole('button', { name: /Add Desk Account/i }));
-    fireEvent.change(screen.getByLabelText('Full name *'), { target: { value: 'Nimal Perera' } });
+    fireEvent.change(screen.getByLabelText('Full name *'), { target: { value: 'John Smith' } });
     fireEvent.change(screen.getByLabelText('Email *'), { target: { value: 'desk@hospital.lk' } });
     fireEvent.change(screen.getByLabelText('Password *'), { target: { value: '123' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create Account' }));
@@ -169,7 +169,7 @@ describe('Front Desk - Desk Accounts Panel', () => {
     await screen.findByText('No front desk accounts yet.');
 
     fireEvent.click(screen.getByRole('button', { name: /Add Desk Account/i }));
-    fireEvent.change(screen.getByLabelText('Full name *'), { target: { value: 'Nimal Perera' } });
+    fireEvent.change(screen.getByLabelText('Full name *'), { target: { value: 'John Smith' } });
     fireEvent.change(screen.getByLabelText('Email *'), { target: { value: 'taken@hospital.lk' } });
     fireEvent.change(screen.getByLabelText('Password *'), { target: { value: 'secret12' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create Account' }));

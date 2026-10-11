@@ -262,7 +262,7 @@ export default function DeskAccountsPanel() {
                     type="text"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
-                    placeholder="e.g. Nimal Perera"
+                    placeholder="e.g. John Smith"
                     className="modal-input"
                     disabled={isSubmitting}
                     maxLength={150}

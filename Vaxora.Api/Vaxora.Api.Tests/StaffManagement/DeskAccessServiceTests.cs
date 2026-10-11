@@ -17,7 +17,7 @@ public class DeskAccessServiceTests
         new(context, NullLogger<StaffManagementService>.Instance);
 
     private static CreateDeskAccountDto NewDesk(string email = "desk@example.com") =>
-        new() { FullName = "Nimal Perera", PhoneNumber = "0771234567", Email = email, Password = "desk-pass-1" };
+        new() { FullName = "John Smith", PhoneNumber = "0771234567", Email = email, Password = "desk-pass-1" };
 
     [Fact]
     public async Task CreateDeskAccountAsync_creates_active_front_desk_user_linked_to_hospital()
@@ -53,10 +53,10 @@ public class DeskAccessServiceTests
 
         var created = await service.CreateDeskAccountAsync(hospital.Id, NewDesk());
 
-        Assert.Equal("Nimal Perera", created.FullName);
+        Assert.Equal("John Smith", created.FullName);
         Assert.Equal("0771234567", created.PhoneNumber);
         var listed = Assert.Single(await service.GetDeskAccountsAsync(hospital.Id));
-        Assert.Equal("Nimal Perera", listed.FullName);
+        Assert.Equal("John Smith", listed.FullName);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             service.CreateDeskAccountAsync(
@@ -172,10 +172,10 @@ public class DeskAccessServiceTests
 
         var second = await service.CreateDeskAccountAsync(
             hospital.Id,
-            new CreateDeskAccountDto { FullName = "Kamal Silva", Email = "desk@example.com", Password = "new-pass-2" });
+            new CreateDeskAccountDto { FullName = "Jane Brown", Email = "desk@example.com", Password = "new-pass-2" });
 
         Assert.Equal(first.UserId, second.UserId);
-        Assert.Equal("Kamal Silva", second.FullName);
+        Assert.Equal("Jane Brown", second.FullName);
         Assert.Null(second.PhoneNumber);
         var deskUser = await context.Users.SingleAsync(u => u.Id == second.UserId);
         Assert.Equal(UserStatus.Active, deskUser.Status);
@@ -197,7 +197,7 @@ public class DeskAccessServiceTests
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             service.CreateDeskAccountAsync(
                 otherHospital.Id,
-                new CreateDeskAccountDto { FullName = "Kamal Silva", Email = "desk@example.com", Password = "new-pass-2" }));
+                new CreateDeskAccountDto { FullName = "Jane Brown", Email = "desk@example.com", Password = "new-pass-2" }));
 
         Assert.Contains("already exists", exception.Message, StringComparison.OrdinalIgnoreCase);
         var deskUser = await context.Users.SingleAsync(u => u.Id == first.UserId);
