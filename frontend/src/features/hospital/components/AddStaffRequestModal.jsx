@@ -126,7 +126,7 @@ export default function AddStaffRequestModal({ isOpen, onClose, onSendRequest, i
         <div className="modal-header">
           <div>
             <h3 style={{ margin: 0 }}>Add New Staff</h3>
-            <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', margin: '3px 0 0' }}>
+            <p style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)', margin: '3px 0 0' }}>
               Search by name, email, or Vaxora ID and invite an approved doctor or nurse
             </p>
           </div>
@@ -174,13 +174,13 @@ export default function AddStaffRequestModal({ isOpen, onClose, onSendRequest, i
                   }}
                 >
                   {searching && (
-                    <div style={{ padding: '10px 12px', color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>
+                    <div style={{ padding: '10px 12px', color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>
                       Searching...
                     </div>
                   )}
 
                   {!searching && results.length === 0 && (
-                    <div style={{ padding: '10px 12px', color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>
+                    <div style={{ padding: '10px 12px', color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>
                       No matching approved doctors or nurses found.
                     </div>
                   )}
@@ -205,15 +205,15 @@ export default function AddStaffRequestModal({ isOpen, onClose, onSendRequest, i
                             opacity: disabled ? 0.7 : 1,
                           }}
                         >
-                          <div style={{ fontWeight: 700, color: 'var(--color-text-title)', fontSize: '0.9rem' }}>
+                          <div style={{ fontWeight: 700, color: 'var(--color-text-title)', fontSize: '0.875rem' }}>
                             {candidate.fullName}
                           </div>
-                          <div style={{ fontSize: '0.78rem', color: 'var(--color-text-body)', marginTop: 2 }}>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--color-text-body)', marginTop: 2 }}>
                             {candidate.registrationNumber} · {candidate.email} · {candidate.role}
                             {candidate.specialization ? ` · ${candidate.specialization}` : ''}
                           </div>
                           {disabled && (
-                            <div style={{ fontSize: '0.72rem', color: 'var(--color-warning)', marginTop: 2 }}>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--color-warning)', marginTop: 2 }}>
                               Already invited or affiliated
                             </div>
                           )}
@@ -232,7 +232,7 @@ export default function AddStaffRequestModal({ isOpen, onClose, onSendRequest, i
                   background: 'var(--color-info-bg)',
                   border: '1px solid var(--color-info-border)',
                   borderRadius: 8,
-                  fontSize: '0.85rem',
+                  fontSize: '0.875rem',
                   color: 'var(--color-primary-dark)',
                 }}
               >
@@ -241,7 +241,7 @@ export default function AddStaffRequestModal({ isOpen, onClose, onSendRequest, i
             )}
 
             {error && (
-              <div style={{ color: 'var(--color-error)', fontSize: '0.85rem', marginTop: '8px' }} role="alert">
+              <div style={{ color: 'var(--color-error)', fontSize: '0.875rem', marginTop: '8px' }} role="alert">
                 {error}
               </div>
             )}

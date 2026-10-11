@@ -38,7 +38,7 @@ export default function BatchAuditModal({ isOpen, onClose, vaccine }) {
               <span style={{ display: 'inline-flex', color: 'var(--color-text-body)' }}><IconPackage size={22} /></span>
               <h3 style={{ margin: 0 }}>Batch Audit &amp; Traceability Ledger</h3>
             </div>
-            <p style={{ margin: '4px 0 0', fontSize: '0.86rem', color: 'var(--color-text-muted)' }}>
+            <p style={{ margin: '4px 0 0', fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>
               Lot Tracking &bull; <strong style={{ color: 'var(--color-text-title)' }}>{vaccine.lotNumber}</strong> &bull; {vaccine.name}
             </p>
           </div>
@@ -51,26 +51,26 @@ export default function BatchAuditModal({ isOpen, onClose, vaccine }) {
             <div>
               <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', fontWeight: 600, display: 'block' }}>Current In-Stock</span>
               <span style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--color-text-title)' }}>
-                {vaccine.available} <small style={{ fontSize: '0.8rem', fontWeight: 500, color: 'var(--color-text-muted)' }}>/ {vaccine.capacity} vials</small>
+                {vaccine.available} <small style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--color-text-muted)' }}>/ {vaccine.capacity} vials</small>
               </span>
             </div>
             <div>
               <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', fontWeight: 600, display: 'block' }}>Storage Vault</span>
-              <span style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--color-primary)' }}>
+              <span style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--color-primary)' }}>
                 {vaccine.storageUnit || 'Cold Vault A'}
               </span>
             </div>
             <div>
               <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', fontWeight: 600, display: 'block' }}>Expiration Date</span>
-              <span style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--color-success)' }}>
+              <span style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--color-success)' }}>
                 {vaccine.expiry}
               </span>
             </div>
           </div>
 
           {/* Technical Specifications */}
-          <h4 style={{ margin: '0 0 10px', fontSize: '0.98rem', color: 'var(--color-text-title)', fontWeight: 700 }}>Technical Product Metadata</h4>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '0.88rem', background: 'var(--color-surface)', border: '1px solid var(--color-border-light)', borderRadius: '10px', padding: '12px 16px', marginBottom: '24px' }}>
+          <h4 style={{ margin: '0 0 10px', fontSize: '1rem', color: 'var(--color-text-title)', fontWeight: 700 }}>Technical Product Metadata</h4>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '0.875rem', background: 'var(--color-surface)', border: '1px solid var(--color-border-light)', borderRadius: '10px', padding: '12px 16px', marginBottom: '24px' }}>
             <div><strong style={{ color: 'var(--color-text-body)' }}>Manufacturer:</strong>{' '}<span style={{ color: 'var(--color-text-title)' }}>{vaccine.manufacturer || 'BioPharma Global'}</span></div>
             <div><strong style={{ color: 'var(--color-text-body)' }}>Dosage per Vial:</strong>{' '}<span style={{ color: 'var(--color-text-title)' }}>{vaccine.dosesPerVial ? `${vaccine.dosesPerVial} Doses` : '5 Doses (Multi-dose)'}</span></div>
             <div><strong style={{ color: 'var(--color-text-body)' }}>Required Temperature:</strong>{' '}<span style={{ color: 'var(--color-text-title)' }}>{vaccine.temp || '2°C to 8°C'}</span></div>
@@ -78,7 +78,7 @@ export default function BatchAuditModal({ isOpen, onClose, vaccine }) {
           </div>
 
           {/* Chronological Audit Timeline */}
-          <h4 style={{ margin: '0 0 14px', fontSize: '0.98rem', color: 'var(--color-text-title)', fontWeight: 700 }}>Traceability &amp; Custody Events</h4>
+          <h4 style={{ margin: '0 0 14px', fontSize: '1rem', color: 'var(--color-text-title)', fontWeight: 700 }}>Traceability &amp; Custody Events</h4>
 
           {loading && <p style={{ color: 'var(--color-text-muted)' }}>Loading audit trail…</p>}
           {error && <p style={{ color: 'var(--color-error)' }}>{error}</p>}
@@ -91,9 +91,9 @@ export default function BatchAuditModal({ isOpen, onClose, vaccine }) {
             {auditEntries.map((entry) => (
               <div key={entry.id} style={{ position: 'relative', paddingLeft: '28px', paddingBottom: '18px', borderLeft: '2px solid var(--color-border-card)', marginLeft: '8px' }}>
                 <div style={{ position: 'absolute', left: '-7px', top: '0px', width: '12px', height: '12px', borderRadius: '50%', background: entry.type === 'restock' ? 'var(--color-primary)' : entry.type === 'sensor' ? 'var(--color-success)' : entry.type === 'dispense' ? 'var(--color-ai)' : 'var(--color-info)', border: '2px solid var(--color-surface)', boxShadow: '0 0 0 2px var(--color-border-light)' }} />
-                <div style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', fontWeight: 600 }}>{entry.timestamp}</div>
-                <div style={{ fontSize: '0.9rem', color: 'var(--color-text-title)', fontWeight: 600, margin: '2px 0 3px' }}>{entry.event}</div>
-                <div style={{ fontSize: '0.8rem', color: 'var(--color-text-body)' }}>Authorized: <em>{entry.actor}</em></div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 600 }}>{entry.timestamp}</div>
+                <div style={{ fontSize: '0.875rem', color: 'var(--color-text-title)', fontWeight: 600, margin: '2px 0 3px' }}>{entry.event}</div>
+                <div style={{ fontSize: '0.8125rem', color: 'var(--color-text-body)' }}>Authorized: <em>{entry.actor}</em></div>
               </div>
             ))}
           </div>

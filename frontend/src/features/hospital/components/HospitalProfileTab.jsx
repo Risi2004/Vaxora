@@ -278,7 +278,7 @@ export default function HospitalProfileTab() {
                   </h2>
                   <span
                     style={{
-                      fontSize: '0.8rem',
+                      fontSize: '0.8125rem',
                       fontWeight: 700,
                       color: hospitalInfo.verificationStatus === 'Approved' || hospitalInfo.verificationStatus === '1' ? 'var(--color-success)' : 'var(--color-warning)',
                     }}
@@ -433,14 +433,14 @@ export default function HospitalProfileTab() {
                         target="_blank"
                         rel="noopener noreferrer"
                         className="admin-action-btn view"
-                        style={{ textDecoration: 'none', fontSize: '0.8rem' }}
+                        style={{ textDecoration: 'none', fontSize: '0.8125rem' }}
                       >
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                           <IconFile size={14} /> Reg Certificate
                         </span>
                       </a>
                     ) : (
-                      <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Registration Document on File</span>
+                      <span style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>Registration Document on File</span>
                     )}
 
                     {hospitalInfo.mohDocKey && (
@@ -449,7 +449,7 @@ export default function HospitalProfileTab() {
                         target="_blank"
                         rel="noopener noreferrer"
                         className="admin-action-btn view"
-                        style={{ textDecoration: 'none', fontSize: '0.8rem' }}
+                        style={{ textDecoration: 'none', fontSize: '0.8125rem' }}
                       >
                         🏛️ MOH Clearance
                       </a>
@@ -533,7 +533,7 @@ export default function HospitalProfileTab() {
 
         {/* Danger Zone Card */}
         <div
-          className="danger-zone-card hospital-staff-section"
+          className="danger-zone-card"
         >
           <div className="danger-zone-row"
           >

@@ -269,7 +269,7 @@ export default function NursePatientsTab() {
               )}
             </div>
 
-            <div style={{ fontSize: '0.88rem', color: 'var(--color-text-muted)', fontWeight: 600 }}>
+            <div style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)', fontWeight: 600 }}>
               {recentLoading
                 ? 'Loading...'
                 : `${recentUpdates.length} recent update${recentUpdates.length === 1 ? '' : 's'}`}
@@ -360,7 +360,7 @@ export default function NursePatientsTab() {
                     <span className="doctor-filter-label">Phone: {selectedPatient.phone || '—'}</span>
                     <span className="doctor-filter-label">Email: {selectedPatient.email || '—'}</span>
                   </div>
-                  <div style={{ fontSize: '0.88rem', color: 'var(--color-text-muted)', fontWeight: 600 }}>
+                  <div style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)', fontWeight: 600 }}>
                     {selectedPatient.vaccinationHistory.length} completed ·{' '}
                     {selectedPatient.pendingVaccines.filter((pv) => !pv.isOverdue).length} upcoming ·{' '}
                     {selectedPatient.pendingVaccines.filter((pv) => pv.isOverdue).length} missed

@@ -184,11 +184,11 @@ export default function AuthPage({ onAuthSuccess }) {
               <>
                 {signupPendingInfo ? (
                   <div className="auth-success-alert" role="alert" style={{ textAlign: 'left' }}>
-                    <h4 style={{ color: 'var(--color-accent)', fontSize: '1.15rem' }}>Application Under Review</h4>
+                    <h4 style={{ color: 'var(--color-accent)', fontSize: '1.125rem' }}>Application Under Review</h4>
                     <p style={{ marginTop: '8px', color: 'var(--color-text-body)' }}>
                       Thank you, <strong>{signupPendingInfo.name}</strong>. Your <strong>{signupPendingInfo.role}</strong> registration documents have been securely submitted for administrative verification.
                     </p>
-                    <p style={{ marginTop: '8px', color: 'var(--color-text-body)', fontSize: '0.85rem' }}>
+                    <p style={{ marginTop: '8px', color: 'var(--color-text-body)', fontSize: '0.875rem' }}>
                       Once approved, you will be able to log into your dashboard and access clinical features.
                     </p>
                     <div style={{ marginTop: '18px' }}>

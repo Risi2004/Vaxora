@@ -210,7 +210,7 @@ export default function HospitalSignupForm({ onSuccess }) {
           color: 'var(--color-error)', 
           padding: '10px 14px', 
           borderRadius: '8px', 
-          fontSize: '0.85rem', 
+          fontSize: '0.875rem', 
           fontWeight: 600,
           border: '1px solid rgba(var(--rgb-error), 0.2)' 
         }}>
@@ -344,7 +344,7 @@ export default function HospitalSignupForm({ onSuccess }) {
         return (
           <div className="auth-grid-2col">
             <div className="auth-input-group">
-              <label className="auth-label" style={{ fontSize: '0.82rem', color: 'var(--color-text-body)', fontWeight: 600 }}>
+              <label className="auth-label" style={{ fontSize: '0.8125rem', color: 'var(--color-text-body)', fontWeight: 600 }}>
                 Province *
               </label>
               <select
@@ -365,7 +365,7 @@ export default function HospitalSignupForm({ onSuccess }) {
             </div>
 
             <div className="auth-input-group">
-              <label className="auth-label" style={{ fontSize: '0.82rem', color: 'var(--color-text-body)', fontWeight: 600 }}>
+              <label className="auth-label" style={{ fontSize: '0.8125rem', color: 'var(--color-text-body)', fontWeight: 600 }}>
                 District *
               </label>
               <select

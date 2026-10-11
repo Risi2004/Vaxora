@@ -147,7 +147,7 @@ export default function AdminDashboardOverview() {
           <button
             type="button"
             className="doctor-btn-call-next"
-            style={{ background: '#0369a1', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+            style={{ background: '#0077b6', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
             onClick={() => navigate('/admin/approvals')}
           >
             <IconClipboard size={16} /> Review Approvals ({pendingCount})
@@ -214,7 +214,7 @@ export default function AdminDashboardOverview() {
         <div className="doctor-stat-card">
           <div className="doctor-stat-content">
             <span className="doctor-stat-label">National Wastage Rate</span>
-            <span className="doctor-stat-value" style={{ color: '#38bdf8' }}>{wastageRate}%</span>
+            <span className="doctor-stat-value" style={{ color: '#00b4d8' }}>{wastageRate}%</span>
             <span className="doctor-stat-meta">
               <span style={{ color: '#059669', fontWeight: 700 }}>Well below WHO threshold (5.0%)</span>
             </span>
@@ -237,7 +237,7 @@ export default function AdminDashboardOverview() {
             <button
               type="button"
               className="doctor-table-btn"
-              style={{ background: '#0369a1', color: '#fff', borderColor: '#0ea5e9' }}
+              style={{ background: '#0077b6', color: '#fff', borderColor: '#00b4d8' }}
               onClick={() => navigate('/admin/users')}
             >
               View All Centers ↗
@@ -271,7 +271,7 @@ export default function AdminDashboardOverview() {
                         <span style={{ fontWeight: 700, color: '#059669' }}>{h.dosesToday || 0} doses</span>
                       </td>
                       <td>
-                        <span style={{ fontWeight: 600, color: '#38bdf8' }}>{h.temp || '3.8°C'}</span>
+                        <span style={{ fontWeight: 600, color: '#00b4d8' }}>{h.temp || '3.8°C'}</span>
                       </td>
                       <td>
                         <span className="doctor-status-badge status-completed">
@@ -326,7 +326,7 @@ export default function AdminDashboardOverview() {
                       <button
                         type="button"
                         className="doctor-table-btn"
-                        style={{ background: '#0369a1', color: '#fff', fontSize: '0.78rem', borderColor: '#0ea5e9' }}
+                        style={{ background: '#0077b6', color: '#fff', fontSize: '0.78rem', borderColor: '#00b4d8' }}
                         onClick={(e) => {
                           e.stopPropagation();
                           navigate('/admin/approvals');

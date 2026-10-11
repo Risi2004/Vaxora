@@ -864,7 +864,7 @@ export default function HospitalShiftsPanel() {
                   }}
                 >
                   {filteredStaff.length === 0 ? (
-                    <div style={{ padding: '10px 12px', color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>
+                    <div style={{ padding: '10px 12px', color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>
                       No matching staff
                     </div>
                   ) : (
@@ -888,7 +888,7 @@ export default function HospitalShiftsPanel() {
                           borderBottom: '1px solid var(--color-border-light)',
                           background: form.affiliationId === opt.value ? 'var(--color-info-bg)' : 'var(--color-surface)',
                           color: 'var(--color-text-title)',
-                          fontSize: '0.85rem',
+                          fontSize: '0.875rem',
                           cursor: 'pointer',
                         }}
                       >
@@ -957,7 +957,7 @@ export default function HospitalShiftsPanel() {
                 ))}
               </select>
               {booths.length === 0 && (
-                <p style={{ margin: '6px 0 0', fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>
+                <p style={{ margin: '6px 0 0', fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
                   Add booths under Booths to assign stations here.
                 </p>
               )}
@@ -994,7 +994,7 @@ export default function HospitalShiftsPanel() {
             </button>
           </div>
           {error && (
-            <p role="alert" style={{ margin: 0, color: 'var(--color-error)', fontSize: '0.85rem' }}>
+            <p role="alert" style={{ margin: 0, color: 'var(--color-error)', fontSize: '0.875rem' }}>
               {error}
             </p>
           )}
@@ -1074,7 +1074,7 @@ export default function HospitalShiftsPanel() {
         />
       )}
 
-      <h3 style={{ margin: '0 0 12px' }}>Week calendar</h3>
+      <h3 style={{ margin: '0 0 12px', fontSize: '1.125rem' }}>Week calendar</h3>
       {loading ? (
         <div className="hospital-section-card">
           <p style={{ color: 'var(--color-text-muted)' }}>Loading roster...</p>

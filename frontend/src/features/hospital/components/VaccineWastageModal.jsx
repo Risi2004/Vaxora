@@ -49,9 +49,11 @@ export default function VaccineWastageModal({ isOpen, onClose, inventoryItems, o
     <div className="modal-overlay" onClick={onClose}>
       <div className="hospital-modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '580px' }}>
         <div className="modal-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ fontSize: '1.4rem' }}>⚠️</span>
-            <h3 style={{ margin: 0 }}>Record Vaccine Wastage / Spoilage</h3>
+          <div>
+            <h3 style={{ margin: 0 }}>Record Vaccine Wastage</h3>
+            <p style={{ margin: '4px 0 0', fontSize: '0.8125rem', color: 'var(--color-text-muted)' }}>
+              Wasted or spoiled vials are deducted from stock and added to the MOH audit trail.
+            </p>
           </div>
           <button type="button" className="modal-close-btn" onClick={onClose}>
             &times;
@@ -60,10 +62,6 @@ export default function VaccineWastageModal({ isOpen, onClose, inventoryItems, o
 
         <form onSubmit={handleSubmit}>
           <div className="modal-body">
-            <p style={{ fontSize: '0.88rem', color: 'var(--color-text-muted)', marginTop: 0, marginBottom: '16px', lineHeight: '1.5' }}>
-              Accurately logging vaccine wastage ensures strict compliance with National Immunization &amp; Cold-Chain standards. All reported entries are stamped in the MOH audit trail.
-            </p>
-
             <div className="modal-form-group">
               <label className="modal-label">Select Vaccine Formulation *</label>
               <select
@@ -75,7 +73,7 @@ export default function VaccineWastageModal({ isOpen, onClose, inventoryItems, o
               >
                 {inventoryItems.map((item) => (
                   <option key={item.id} value={item.id}>
-                    {item.name} — Lot: {item.lotNumber} ({item.available} vials in stock)
+                    {item.name} · Lot {item.lotNumber} ({item.available} vials in stock)
                   </option>
                 ))}
               </select>
@@ -167,16 +165,12 @@ export default function VaccineWastageModal({ isOpen, onClose, inventoryItems, o
             </div>
           </div>
 
-          <div className="modal-footer" style={{ borderTop: '1px solid var(--color-border-light)', paddingTop: '16px' }}>
+          <div className="modal-footer">
             <button type="button" className="btn-modal-cancel" onClick={onClose}>
               Cancel
             </button>
-            <button
-              type="submit"
-              className="btn-modal-submit"
-              style={{ background: 'var(--color-error)', borderColor: 'var(--color-error)', boxShadow: '0 4px 14px rgba(var(--rgb-error), 0.35)' }}
-            >
-              Confirm &amp; Deduct Wasted Stock
+            <button type="submit" className="btn-danger">
+              Deduct Wasted Stock
             </button>
           </div>
         </form>

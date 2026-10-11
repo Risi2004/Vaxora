@@ -798,14 +798,15 @@ export default function AppointmentsTab() {
                 alignItems: 'center',
                 gap: '8px',
                 padding: '9px 18px',
-                background: 'linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent) 100%)',
+                background: 'var(--color-accent)',
                 color: 'var(--color-text-inverse)',
                 border: 'none',
-                borderRadius: '10px',
-                fontSize: '14px',
-                fontWeight: 700,
+                borderRadius: 'var(--btn-radius)',
+                fontFamily: 'var(--btn-font)',
+                fontSize: 'var(--btn-size-md)',
+                fontWeight: 'var(--btn-weight)',
                 cursor: 'pointer',
-                boxShadow: '0 4px 12px rgba(var(--rgb-info), 0.35)',
+                boxShadow: 'var(--shadow-btn)',
                 transition: 'all 0.2s ease'
               }}
               onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}
@@ -817,7 +818,7 @@ export default function AppointmentsTab() {
                 background: 'rgba(255, 255, 255, 0.25)',
                 padding: '2px 8px',
                 borderRadius: '12px',
-                fontSize: '11px',
+                fontSize: '12px',
                 fontWeight: 600
               }}>AI</span>
             </button>
@@ -950,7 +951,7 @@ export default function AppointmentsTab() {
                           : 'Click to select available date from calendar'}
                       </span>
                     </span>
-                    <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
+                    <span style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)' }}>
                       {showCalendarPopup ? '▲' : '▼'}
                     </span>
                   </button>
@@ -1201,10 +1202,10 @@ export default function AppointmentsTab() {
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
                   <div>
-                    <div style={{ fontSize: '0.82rem', textTransform: 'uppercase', letterSpacing: '0.6px', color: selectedFee > 0 ? 'var(--color-accent)' : 'var(--color-success)', fontWeight: 800 }}>
+                    <div style={{ fontSize: '0.8125rem', textTransform: 'uppercase', letterSpacing: '0.6px', color: selectedFee > 0 ? 'var(--color-accent)' : 'var(--color-success)', fontWeight: 800 }}>
                       Vaccination Fee (Configured by Hospital)
                     </div>
-                    <div style={{ fontSize: '1.45rem', fontWeight: 800, color: selectedFee > 0 ? 'var(--color-accent)' : 'var(--color-success)', marginTop: '2px' }}>
+                    <div style={{ fontSize: '1.5rem', fontWeight: 800, color: selectedFee > 0 ? 'var(--color-accent)' : 'var(--color-success)', marginTop: '2px' }}>
                       {selectedFee > 0 ? `Rs. ${selectedFee.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : 'Free (0 Rs - Fully Subsidized)'}
                     </div>
                   </div>
@@ -1214,7 +1215,7 @@ export default function AppointmentsTab() {
                       borderRadius: '20px',
                       background: selectedFee > 0 ? 'var(--color-info-bg)' : 'var(--color-success-bg)',
                       color: selectedFee > 0 ? 'var(--color-accent)' : 'var(--color-success)',
-                      fontSize: '0.82rem',
+                      fontSize: '0.8125rem',
                       fontWeight: 700,
                     }}
                   >
@@ -1236,12 +1237,12 @@ export default function AppointmentsTab() {
                         background: 'var(--color-surface)',
                       }}
                     >
-                      <span style={{ fontSize: '1.4rem' }}>💳</span>
+                      <span style={{ fontSize: '1.5rem' }}>💳</span>
                       <div>
-                        <div style={{ fontWeight: 700, color: 'var(--color-accent)', fontSize: '0.92rem' }}>
+                        <div style={{ fontWeight: 700, color: 'var(--color-accent)', fontSize: '0.9375rem' }}>
                           Online Card Payment Required
                         </div>
-                        <div style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)', marginTop: '2px', lineHeight: 1.4 }}>
+                        <div style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)', marginTop: '2px', lineHeight: 1.4 }}>
                           Payment of <strong>Rs. {selectedFee.toLocaleString()}</strong> is completed securely via online card payment to confirm your booking.
                         </div>
                       </div>
@@ -1425,7 +1426,7 @@ export default function AppointmentsTab() {
                         <td className="td-vaccine">
                           <div style={{ fontWeight: 600 }}>{apt.vaccineName || apt.vaccine}</div>
                           {apt.doctorName && (
-                            <div style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
                               Dr. {apt.doctorName.replace(/^(?:(?:dr\.|dr\s|doctor\s)\s*)+/i, '')}
                             </div>
                           )}
@@ -1438,21 +1439,21 @@ export default function AppointmentsTab() {
                         </td>
                         <td className="td-location">{apt.hospitalName || apt.location}</td>
                         <td style={{ textAlign: 'center' }}>
-                          <div style={{ fontWeight: 700, fontSize: '0.9rem', color: feeNum > 0 ? 'var(--color-accent)' : 'var(--color-success)' }}>
+                          <div style={{ fontWeight: 700, fontSize: '0.875rem', color: feeNum > 0 ? 'var(--color-accent)' : 'var(--color-success)' }}>
                             {feeNum > 0 ? `LKR ${feeNum.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : 'Free'}
                           </div>
                           <div style={{ marginTop: '3px' }}>
                             {feeNum <= 0 ? (
-                              <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: '10px', fontSize: '0.74rem', fontWeight: 700, backgroundColor: 'var(--color-success-bg)', color: 'var(--color-success)' }}>
+                              <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 700, backgroundColor: 'var(--color-success-bg)', color: 'var(--color-success)' }}>
                                 ✓ Subsidized
                               </span>
                             ) : payStatus === 'Paid' ? (
-                              <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: '10px', fontSize: '0.74rem', fontWeight: 700, backgroundColor: 'var(--color-success-bg)', color: 'var(--color-success)' }}>
+                              <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 700, backgroundColor: 'var(--color-success-bg)', color: 'var(--color-success)' }}>
                                 ✓ Paid Online
                               </span>
                             ) : (
                               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-                                <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: '10px', fontSize: '0.72rem', fontWeight: 700, backgroundColor: 'var(--color-error-bg)', color: 'var(--color-error)' }}>
+                                <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 700, backgroundColor: 'var(--color-error-bg)', color: 'var(--color-error)' }}>
                                   Payment Due
                                 </span>
                                 {(apt.status || '').toLowerCase() !== 'cancelled' && (
@@ -1466,7 +1467,7 @@ export default function AppointmentsTab() {
                                       color: 'var(--color-text-inverse)',
                                       border: 'none',
                                       borderRadius: '4px',
-                                      fontSize: '0.72rem',
+                                      fontSize: '0.75rem',
                                       fontWeight: 700,
                                       cursor: 'pointer',
                                     }}
