@@ -203,6 +203,7 @@ export default function HospitalDashboardOverview({ view = 'home' }) {
   const [sessionFilter, setSessionFilter] = useState('all');
   const [todaySessions, setTodaySessions] = useState([]);
   const [toastMessage, setToastMessage] = useState('');
+  const [toastTone, setToastTone] = useState('success'); // success | error
   // Tick so missed slots drop off the live board when their window ends.
   const [nowMinutes, setNowMinutes] = useState(() => hospitalMinutesNow());
 
@@ -260,8 +261,9 @@ export default function HospitalDashboardOverview({ view = 'home' }) {
 
   const toastTimerRef = useRef(null);
 
-  const showToast = (msg) => {
+  const showToast = (msg, tone = 'success') => {
     setToastMessage(msg);
+    setToastTone(tone);
     clearTimeout(toastTimerRef.current);
     toastTimerRef.current = setTimeout(() => setToastMessage(''), 3500);
   };
@@ -274,7 +276,7 @@ export default function HospitalDashboardOverview({ view = 'home' }) {
       showToast('Counter payment recorded — patient is ready for clinical queue.');
       await loadAppointmentsQueue();
     } catch (err) {
-      showToast(err.message || 'Failed to record payment.');
+      showToast(err.message || 'Failed to record payment.', 'error');
     }
   };
 
@@ -284,7 +286,7 @@ export default function HospitalDashboardOverview({ view = 'home' }) {
       showToast('Patient checked in — now in the clinical queue.');
       await loadAppointmentsQueue();
     } catch (err) {
-      showToast(err.message || 'Failed to check in patient.');
+      showToast(err.message || 'Failed to check in patient.', 'error');
     }
   };
 
@@ -304,7 +306,7 @@ export default function HospitalDashboardOverview({ view = 'home' }) {
       showToast('Marked as no-show.');
       await loadAppointmentsQueue();
     } catch (err) {
-      showToast(err.message || 'Failed to mark no-show.');
+      showToast(err.message || 'Failed to mark no-show.', 'error');
     }
   };
 
@@ -321,7 +323,7 @@ export default function HospitalDashboardOverview({ view = 'home' }) {
       showToast('Unpaid appointment declined.');
       await loadAppointmentsQueue();
     } catch (err) {
-      showToast(err.message || 'Failed to decline appointment.');
+      showToast(err.message || 'Failed to decline appointment.', 'error');
     }
   };
 
@@ -624,7 +626,7 @@ export default function HospitalDashboardOverview({ view = 'home' }) {
       showToast(`Logged restock shipment for ${vaccineName} (${quantity} vials).`);
     } catch (err) {
       console.error('Failed to restock batch:', err);
-      alert('Failed to log restock shipment: ' + err.message);
+      showToast(`Failed to log restock shipment: ${err.message}`, 'error');
       throw err;
     }
   };
@@ -747,6 +749,12 @@ export default function HospitalDashboardOverview({ view = 'home' }) {
     () => todayPatients.filter((p) => p.status === 'waiting' && p.checkedIn).length,
     [todayPatients]
   );
+
+  const hasQueueFilters =
+    statusFilter !== 'all'
+    || boothFilter !== 'all'
+    || sessionFilter !== 'all'
+    || Boolean(searchQuery.trim());
 
   const queueRows = isQueueView ? filteredQueue : filteredQueue.slice(0, HOME_QUEUE_PREVIEW_ROWS);
 
@@ -943,7 +951,9 @@ export default function HospitalDashboardOverview({ view = 'home' }) {
             ) : filteredQueue.length === 0 ? (
               <tr>
                 <td colSpan={isQueueView ? 6 : 5} className="empty-table-cell">
-                  No patients in today's queue.
+                  {hasQueueFilters && todayQueuePatients.length > 0
+                    ? 'No patients match these filters.'
+                    : "No patients in today's queue."}
                 </td>
               </tr>
             ) : (
@@ -1094,10 +1104,11 @@ export default function HospitalDashboardOverview({ view = 'home' }) {
       {/* Toast Notice */}
       {toastMessage && (
         <div
+          role={toastTone === 'error' ? 'alert' : 'status'}
           style={{
-            background: 'var(--color-success-bg)',
-            border: '1px solid var(--color-success-border)',
-            color: 'var(--color-success)',
+            background: `var(--color-${toastTone}-bg)`,
+            border: `1px solid var(--color-${toastTone}-border)`,
+            color: `var(--color-${toastTone})`,
             padding: '12px 18px',
             borderRadius: '10px',
             marginBottom: '20px',
@@ -1105,7 +1116,7 @@ export default function HospitalDashboardOverview({ view = 'home' }) {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            boxShadow: '0 4px 12px rgba(var(--rgb-success), 0.12)',
+            boxShadow: `0 4px 12px rgba(var(--rgb-${toastTone}), 0.12)`,
             animation: 'fadeIn 0.2s ease',
           }}
         >
@@ -1113,7 +1124,8 @@ export default function HospitalDashboardOverview({ view = 'home' }) {
           <button
             type="button"
             onClick={() => setToastMessage('')}
-            style={{ background: 'none', border: 'none', color: 'var(--color-success)', cursor: 'pointer', fontWeight: 800 }}
+            aria-label="Dismiss"
+            style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontWeight: 800 }}
           >
             <IconClose size={14} />
           </button>
