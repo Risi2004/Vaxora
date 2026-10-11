@@ -1,5 +1,5 @@
 import { deferEffectCallback } from '../../../shared/utils/deferEffectCallback.js';
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { inventoryService } from '../services/inventoryService';
 import { scheduleService } from '../services/scheduleService';
 import { staffService } from '../services/staffService';
@@ -135,11 +135,16 @@ export default function HospitalAppointmentsTab({ view = 'sessions' }) {
   const [loadingHorizon, setLoadingHorizon] = useState(false);
   const [editingScheduleId, setEditingScheduleId] = useState(null);
 
+  const toastTimerRef = useRef(null);
+
   const showToast = (msg, tone = 'success') => {
     setNotification(msg);
     setNotificationTone(tone);
-    setTimeout(() => setNotification(''), 3500);
+    clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => setNotification(''), 3500);
   };
+
+  useEffect(() => () => clearTimeout(toastTimerRef.current), []);
 
   const toastStyles = {
     success: { background: 'var(--color-success-bg)', color: 'var(--color-success)', border: '1.5px solid var(--color-success-border)' },
@@ -454,45 +459,45 @@ export default function HospitalAppointmentsTab({ view = 'sessions' }) {
     e.preventDefault();
 
     if (!scheduleForm.vaccineType) {
-      alert('Please select a Vaccine Type.');
+      showToast('Please select a Vaccine Type.', 'warning');
       return;
     }
     if (!scheduleForm.boothId) {
-      alert('Please select a Booth for this schedule.');
+      showToast('Please select a Booth for this schedule.', 'warning');
       return;
     }
     if (!scheduleForm.startTime || !scheduleForm.endTime) {
-      alert('Please select both Start Time and End Time.');
+      showToast('Please select both Start Time and End Time.', 'warning');
       return;
     }
 
     const isWeekly = scheduleForm.scheduleType === 'Weekly';
     if (isWeekly) {
       if (scheduleForm.daysOfWeek.length === 0) {
-        alert('Please select at least one day of the week (e.g. Mon, Wed).');
+        showToast('Please select at least one day of the week (e.g. Mon, Wed).', 'warning');
         return;
       }
       if (!scheduleForm.startDate || !scheduleForm.endDate) {
-        alert('Please specify the Start Date and End Date range for recurring weekly slots.');
+        showToast('Please specify the Start Date and End Date range for recurring weekly slots.', 'warning');
         return;
       }
       if (scheduleForm.endDate < scheduleForm.startDate) {
-        alert('End Date cannot be earlier than Start Date.');
+        showToast('End Date cannot be earlier than Start Date.', 'warning');
         return;
       }
     } else {
       if (!scheduleForm.specificDate) {
-        alert('Please select a Date for the one-time schedule.');
+        showToast('Please select a Date for the one-time schedule.', 'warning');
         return;
       }
       if (!editingScheduleId && scheduleForm.specificDate < todayStr) {
-        alert('One-time schedule date cannot be in the past.');
+        showToast('One-time schedule date cannot be in the past.', 'warning');
         return;
       }
     }
 
     if (scheduleForm.endTime <= scheduleForm.startTime) {
-      alert('End time must be after start time.');
+      showToast('End time must be after start time.', 'warning');
       return;
     }
 
@@ -506,26 +511,26 @@ export default function HospitalAppointmentsTab({ view = 'sessions' }) {
           timeZone: 'Asia/Colombo',
         });
         if (scheduleForm.startTime < nowHm) {
-          alert('Schedule start time cannot be in the past for today.');
+          showToast('Schedule start time cannot be in the past for today.', 'warning');
           return;
         }
       }
 
       if (isWeekly && scheduleForm.startDate && scheduleForm.startDate < todayStr) {
-        alert('Weekly schedule start date cannot be in the past.');
+        showToast('Weekly schedule start date cannot be in the past.', 'warning');
         return;
       }
     }
 
     if (isWeekly && scheduleForm.endDate && scheduleForm.endDate < todayStr) {
-      alert('Weekly schedule end date cannot be in the past.');
+      showToast('Weekly schedule end date cannot be in the past.', 'warning');
       return;
     }
 
     // Validate price
     const parsedPrice = parseFloat(scheduleForm.price || 0);
     if (isNaN(parsedPrice) || parsedPrice < 0) {
-      alert('Please specify a valid vaccine price (enter 0 for free / subsidized vaccinations).');
+      showToast('Please specify a valid vaccine price (enter 0 for free / subsidized vaccinations).', 'warning');
       return;
     }
 
@@ -647,6 +652,10 @@ export default function HospitalAppointmentsTab({ view = 'sessions' }) {
           className="appointment-alert-pill"
           role="status"
           style={{
+            // Stays in view below the navbar so form messages are seen from anywhere on the page.
+            position: 'sticky',
+            top: '84px',
+            zIndex: 50,
             maxWidth: '1060px',
             width: '100%',
             marginBottom: '20px',
@@ -1176,15 +1185,6 @@ export default function HospitalAppointmentsTab({ view = 'sessions' }) {
                 >
                   All Dates ({appointments.length})
                 </button>
-                {filterDate && (
-                  <button
-                    type="button"
-                    className="hospital-filter-btn active"
-                    onClick={() => setFilterDate(filterDate)}
-                  >
-                    {filterDate}
-                  </button>
-                )}
               </div>
             </div>
 
@@ -1192,7 +1192,7 @@ export default function HospitalAppointmentsTab({ view = 'sessions' }) {
               <table className="hospital-appointments-mockup-table">
                 <thead>
                   <tr>
-                    <th style={{ width: '22%' }}>P-Name</th>
+                    <th style={{ width: '22%' }}>Patient</th>
                     <th style={{ width: '18%' }}>Date</th>
                     <th style={{ width: '18%' }}>Time</th>
                     <th style={{ width: '22%' }}>Vaccine</th>
@@ -1203,7 +1203,7 @@ export default function HospitalAppointmentsTab({ view = 'sessions' }) {
                   {filteredAppointments.length === 0 ? (
                     <tr>
                       <td colSpan={5} className="empty-table-cell">
-                        No patient appointments found for date {filterDate || 'all dates'}.{' '}
+                        {filterDate ? `No bookings on ${filterDate}.` : 'No bookings yet.'}{' '}
                         {filterDate && (
                           <button
                             type="button"
