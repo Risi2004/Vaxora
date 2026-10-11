@@ -192,6 +192,8 @@ export default function WalkInRegistrationModal({
                     value={formData.age}
                     onChange={handleChange}
                     placeholder="Age"
+                    min="0"
+                    max="120"
                     className="modal-input"
                   />
                   <select
