@@ -4,6 +4,8 @@ import { inventoryService } from '../services/inventoryService';
 import { scheduleService } from '../services/scheduleService';
 import { staffService } from '../services/staffService';
 import { appointmentService } from '../../patient/services/appointmentService';
+import deskService from '../../desk/services/deskService';
+import { authService } from '../../auth';
 import { getAppointmentActionDisplay } from '../utils/appointmentStatus';
 import { IconCalendar, IconRefresh } from '../../../shared/icons/AppIcons';
 import useConfirmDialog from '../../../shared/hooks/useConfirmDialog';
@@ -150,9 +152,11 @@ export default function HospitalAppointmentsTab({ view = 'sessions' }) {
   const loadOptions = useCallback(async () => {
     try {
       setLoadingOptions(true);
+      // The front desk reads the vaccine list through its own endpoint; inventory stays manager-only.
+      const isDeskUser = String(authService.getUser()?.role || '').toUpperCase() === 'FRONT_DESK';
       const [formularyData, globalVaccinesData, boothData] = await Promise.allSettled([
-        inventoryService.getFormulary(),
-        inventoryService.getGlobalVaccines(),
+        isDeskUser ? deskService.getFormulary() : inventoryService.getFormulary(),
+        isDeskUser ? Promise.resolve([]) : inventoryService.getGlobalVaccines(),
         staffService.getHospitalBooths({ activeOnly: true }),
       ]);
 
