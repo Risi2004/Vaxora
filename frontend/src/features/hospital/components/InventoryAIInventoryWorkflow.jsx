@@ -77,8 +77,8 @@ export default function InventoryAIInventoryWorkflow({ isOpen, onClose, onApprov
       title: isPurchaseOrder ? 'Approve AI purchase draft?' : 'Approve AI expiry memo?',
       message: isPurchaseOrder
         ? lineCount > 0
-          ? `Execute this draft with ${lineCount} line item${lineCount === 1 ? '' : 's'}? Stock changes will be applied.`
-          : 'Execute this draft? Stock changes will be applied.'
+          ? `Send this order with ${lineCount} line item${lineCount === 1 ? '' : 's'} to the supplier? Stock is added when you receive the delivery.`
+          : 'Send this order to the supplier? Stock is added when you receive the delivery.'
         : batchCount > 1
           ? `Execute this memo? The recommended action is recorded for the first of the ${batchCount} listed batches.`
           : 'Execute this memo? The recommended action will be recorded for the listed batch.',

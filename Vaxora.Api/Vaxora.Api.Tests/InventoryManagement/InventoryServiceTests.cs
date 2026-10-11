@@ -201,6 +201,120 @@ public class InventoryServiceTests
         Assert.Equal(900m, both.SupplierCost);
     }
 
+    // ==================== Purchase orders: on order, then received ====================
+
+    private static ExecuteDraftDto PurchaseOrder(Guid vaccineId, int quantity, string poNumber = "AI-PO-TEST-1")
+    {
+        var lineItems = System.Text.Json.JsonSerializer.SerializeToElement(new[]
+        {
+            new { vaccine_id = vaccineId.ToString(), vaccine_name = "Pfizer", quantity, unit_price_lkr = 100, total_lkr = quantity * 100 }
+        });
+        return new ExecuteDraftDto
+        {
+            WorkflowId = "wf-1",
+            DraftType = "purchase_order",
+            Payload = new Dictionary<string, object> { ["po_number"] = poNumber, ["line_items"] = lineItems }
+        };
+    }
+
+    [Fact]
+    public async Task ApprovingPurchaseOrder_PlacesStockOnOrder_WithoutAddingUsableStock()
+    {
+        await using var ctx = TestDb.CreateContext();
+        var (user, hospital) = AddHospital(ctx);
+        var vaccine = AddVaccine(ctx, threshold: 50);
+        AddBatch(ctx, hospital.Id, vaccine.Id, available: 20, lot: "LOW");
+        await ctx.SaveChangesAsync();
+        var service = CreateService(ctx);
+
+        await service.ExecuteAgentDraftAsync(user.Id, PurchaseOrder(vaccine.Id, 100));
+
+        var items = await service.GetInventoryAsync(user.Id);
+        var ordered = Assert.Single(items, i => i.Status == "ordered");
+        Assert.Equal(0, ordered.Available);
+        Assert.Equal(100, ordered.Capacity);
+        Assert.All(items, i => Assert.Equal(20, i.VaccineAvailable));
+        Assert.All(items, i => Assert.Equal(100, i.VaccineOnOrder));
+        // Covered by the order, so it is no longer flagged for reorder
+        Assert.All(items, i => Assert.False(i.IsLowStock));
+
+        var summary = await service.GetSummaryAsync(user.Id);
+        Assert.Equal(20, summary.TotalVials);
+        Assert.Equal(0, summary.LowStockCount);
+    }
+
+    [Fact]
+    public async Task ApprovingSamePurchaseOrderTwice_IsRejected()
+    {
+        await using var ctx = TestDb.CreateContext();
+        var (user, _) = AddHospital(ctx);
+        var vaccine = AddVaccine(ctx);
+        await ctx.SaveChangesAsync();
+        var service = CreateService(ctx);
+
+        await service.ExecuteAgentDraftAsync(user.Id, PurchaseOrder(vaccine.Id, 100));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.ExecuteAgentDraftAsync(user.Id, PurchaseOrder(vaccine.Id, 100)));
+    }
+
+    [Fact]
+    public async Task ReceivingOrderedBatch_MakesItUsableWithRealLotAndExpiry()
+    {
+        await using var ctx = TestDb.CreateContext();
+        var (user, _) = AddHospital(ctx);
+        var vaccine = AddVaccine(ctx, threshold: 50);
+        await ctx.SaveChangesAsync();
+        var service = CreateService(ctx);
+        await service.ExecuteAgentDraftAsync(user.Id, PurchaseOrder(vaccine.Id, 100));
+        var ordered = Assert.Single(await service.GetInventoryAsync(user.Id));
+        var expiry = DateTime.UtcNow.AddMonths(8);
+
+        var received = await service.ReceiveOrderedBatchAsync(user.Id, ordered.Id, new ReceiveBatchDto
+        {
+            LotNumber = "PF-9921", ExpiryDate = expiry, Quantity = 90
+        });
+
+        Assert.Equal("active", received.Status);
+        Assert.Equal("PF-9921", received.LotNumber);
+        Assert.Equal(90, received.Available);
+        Assert.Equal(90, received.VaccineAvailable);
+        Assert.Equal(0, received.VaccineOnOrder);
+        Assert.Equal(expiry.ToString("yyyy-MM-dd"), received.Expiry);
+    }
+
+    [Fact]
+    public async Task ReceivingBatch_RejectsActiveBatchAndDuplicateLot()
+    {
+        await using var ctx = TestDb.CreateContext();
+        var (user, hospital) = AddHospital(ctx);
+        var vaccine = AddVaccine(ctx);
+        var active = AddBatch(ctx, hospital.Id, vaccine.Id, lot: "LOT-001");
+        await ctx.SaveChangesAsync();
+        var service = CreateService(ctx);
+        await service.ExecuteAgentDraftAsync(user.Id, PurchaseOrder(vaccine.Id, 100));
+        var ordered = Assert.Single(await service.GetInventoryAsync(user.Id), i => i.Status == "ordered");
+        var dto = new ReceiveBatchDto { LotNumber = "LOT-001", ExpiryDate = DateTime.UtcNow.AddMonths(6), Quantity = 100 };
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.ReceiveOrderedBatchAsync(user.Id, active.Id, dto));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.ReceiveOrderedBatchAsync(user.Id, ordered.Id, dto));
+    }
+
+    [Fact]
+    public async Task AdjustStock_OnOrderedBatch_IsRejected()
+    {
+        await using var ctx = TestDb.CreateContext();
+        var (user, _) = AddHospital(ctx);
+        var vaccine = AddVaccine(ctx);
+        await ctx.SaveChangesAsync();
+        var service = CreateService(ctx);
+        await service.ExecuteAgentDraftAsync(user.Id, PurchaseOrder(vaccine.Id, 100));
+        var ordered = Assert.Single(await service.GetInventoryAsync(user.Id));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.AdjustStockAsync(user.Id, ordered.Id, new AdjustStockDto { Delta = 20 }));
+    }
+
     // ==================== GetExpiringBatchesAsync ====================
 
     [Fact]

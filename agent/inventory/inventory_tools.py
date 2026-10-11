@@ -46,6 +46,8 @@ async def tool_get_low_stock_items(token: Optional[str] = None) -> Dict[str, Any
     Returns ONLY vaccines whose total unexpired stock is <= minThreshold.
     Stock is summed across all of a vaccine's batches, so a nearly empty lot
     is not flagged while another lot of the same vaccine still covers it.
+    Vials already on order (purchase order sent, delivery pending) count as
+    covered, so the same shortage is not ordered twice.
     Pre-filters on the Python side so the LLM doesn't have to compare numbers.
     Enriches each item with 'deficit' and 'suggested_qty' (pre-computed).
     """
@@ -62,9 +64,14 @@ async def tool_get_low_stock_items(token: Optional[str] = None) -> Dict[str, Any
                 "vaccineId": vaccine_id,
                 "vaccineName": b.get("name"),
                 "available": 0,
+                "onOrder": 0,
                 "minThreshold": min_threshold,
                 "batchCount": 0,
             })
+            if b.get("status") == "ordered":
+                capacity = b.get("capacity")
+                entry["onOrder"] += capacity if isinstance(capacity, int) else 0
+                continue
             entry["batchCount"] += 1
             if b.get("expiryStatus") != "expired":
                 entry["available"] += available
@@ -72,10 +79,11 @@ async def tool_get_low_stock_items(token: Optional[str] = None) -> Dict[str, Any
         low: List[Dict[str, Any]] = []
         for entry in vaccines.values():
             available = entry["available"]
+            covered = available + entry["onOrder"]
             min_threshold = entry["minThreshold"]
-            if available <= min_threshold:
-                # recommended = max(50, round_up_to_nearest_50((2 * threshold) - available))
-                target = (2 * min_threshold) - available
+            if covered <= min_threshold:
+                # recommended = max(50, round_up_to_nearest_50((2 * threshold) - covered))
+                target = (2 * min_threshold) - covered
                 rounded = ((target + 49) // 50) * 50 if target > 0 else 50
                 low.append({
                     **entry,

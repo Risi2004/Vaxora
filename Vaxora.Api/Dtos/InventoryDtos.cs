@@ -64,9 +64,13 @@ public class InventoryItemDto
     public int Available { get; set; }
     public int Capacity { get; set; }
     public int MinThreshold { get; set; }
+    /// <summary>active | ordered | depleted | expired. An ordered row is a purchase order awaiting delivery.</summary>
+    public string Status { get; set; } = "active";
     /// <summary>Unexpired vials of this vaccine across all of the hospital's batches.</summary>
     public int VaccineAvailable { get; set; }
-    /// <summary>True when the vaccine as a whole (not just this batch) is at or below its threshold.</summary>
+    /// <summary>Vials of this vaccine ordered from the supplier and not delivered yet.</summary>
+    public int VaccineOnOrder { get; set; }
+    /// <summary>True when the vaccine as a whole (stock on hand plus on order) is at or below its threshold.</summary>
     public bool IsLowStock { get; set; }
     public int DosesPerVial { get; set; }
     /// <summary>Doses left in the currently opened vial (0 if sealed-only stock).</summary>
@@ -210,6 +214,23 @@ public class AdjustStockDto
 
     [MaxLength(500)]
     public string? Reason { get; set; }
+}
+
+public class ReceiveBatchDto
+{
+    [Required]
+    [MaxLength(100)]
+    public string LotNumber { get; set; } = string.Empty;
+
+    [Required]
+    public DateTime ExpiryDate { get; set; }
+
+    [Required]
+    [Range(1, int.MaxValue)]
+    public int Quantity { get; set; }
+
+    [MaxLength(200)]
+    public string? StorageUnit { get; set; }
 }
 
 public class IssueStockDto

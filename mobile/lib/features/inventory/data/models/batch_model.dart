@@ -20,6 +20,8 @@ class BatchModel {
   // Vaccine-level flag from the API: all unexpired lots together are at or
   // below the threshold. Null when the API did not send it.
   final bool? lowStock;
+  // 'ordered' marks a purchase order awaiting delivery: no usable stock yet.
+  final String status;
 
   const BatchModel({
     required this.id,
@@ -41,8 +43,10 @@ class BatchModel {
     required this.statusColor,
     required this.lastRestocked,
     this.lowStock,
+    this.status = 'active',
   });
 
+  bool get isOnOrder => status == 'ordered';
   bool get isLowStock => lowStock ?? available <= minThreshold;
   bool get isExpiringSoon => expiryStatus == 'expiring_soon';
   bool get isExpired => expiryStatus == 'expired';
@@ -81,6 +85,7 @@ class BatchModel {
       statusColor: json['statusColor']?.toString() ?? 'bar-green',
       lastRestocked: json['lastRestocked']?.toString() ?? '',
       lowStock: json['isLowStock'] as bool?,
+      status: json['status']?.toString() ?? 'active',
     );
   }
 }

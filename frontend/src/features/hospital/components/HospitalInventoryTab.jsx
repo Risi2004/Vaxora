@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import RestockVaccineModal from './RestockVaccineModal';
 import VaccineWastageModal from './VaccineWastageModal';
 import BatchAuditModal from './BatchAuditModal';
+import ReceiveOrderModal from './ReceiveOrderModal';
 import inventoryService from '../services/inventoryService';
 import InventoryAIInventoryWorkflow from './InventoryAIInventoryWorkflow';
 import HospitalSubpageHero from './HospitalSubpageHero';
@@ -43,12 +44,18 @@ function isLowStock(item) {
   return item.isLowStock ?? item.available <= item.minThreshold;
 }
 
+// A purchase order awaiting delivery: listed, but holds no usable stock yet
+function isOnOrder(item) {
+  return item.status === 'ordered';
+}
+
 export default function HospitalInventoryTab() {
   const [confirm, confirmDialog] = useConfirmDialog();
   const [view, setView] = useViewParam(INVENTORY_VIEWS);
   const [isRestockOpen, setIsRestockOpen] = useState(false);
   const [isWastageOpen, setIsWastageOpen] = useState(false);
   const [selectedAuditVaccine, setSelectedAuditVaccine] = useState(null);
+  const [receivingBatch, setReceivingBatch] = useState(null);
   const [toastMessage, setToastMessage] = useState('');
   const [toastTone, setToastTone] = useState('success'); // success | error
   const toastTimerRef = useRef(null);
@@ -253,6 +260,17 @@ export default function HospitalInventoryTab() {
     }
   };
 
+  const handleReceiveOrder = async (batch, { lotNumber, quantity, expiryDate, storageUnit }) => {
+    try {
+      await inventoryService.receiveOrderedBatch(batch.id, { lotNumber, quantity, expiryDate, storageUnit });
+      await loadAll();
+      showToast(`Received ${quantity} vials of ${batch.name} (Lot ${lotNumber}).`);
+    } catch (err) {
+      showToast(err.message, 'error');
+      throw err;
+    }
+  };
+
   const handleLogWastage = async ({ vaccineId, quantity, reason, reportedBy, notes, incidentDate }) => {
     try {
       await inventoryService.logWastage(vaccineId, { quantity, reason, reportedBy, notes, incidentDate });
@@ -312,12 +330,14 @@ export default function HospitalInventoryTab() {
         item.available,
         item.capacity,
         item.availableDoses ?? item.available * item.dosesPerVial,
-        item.expiry,
-        isLowStock(item)
-          ? 'Low stock'
-          : item.expiryStatus === 'expiring_soon'
-            ? 'Expiring soon'
-            : 'In stock',
+        isOnOrder(item) ? '' : item.expiry,
+        isOnOrder(item)
+          ? 'On order'
+          : isLowStock(item)
+            ? 'Low stock'
+            : item.expiryStatus === 'expiring_soon'
+              ? 'Expiring soon'
+              : 'In stock',
       ]),
     ]);
     showToast(`Exported ${filteredInventory.length} batch${filteredInventory.length === 1 ? '' : 'es'} to CSV.`);
@@ -574,6 +594,37 @@ export default function HospitalInventoryTab() {
                     const doseCount = item.availableDoses ?? item.available * item.dosesPerVial;
                     const isLow = isLowStock(item);
                     const isExpiring = item.expiryStatus === 'expiring_soon';
+                    if (isOnOrder(item)) {
+                      return (
+                        <tr key={item.id}>
+                          <td className="is-left">
+                            <div className="inv-name">{item.name}</div>
+                            <div className="inv-sub">Order {item.lotNumber}{item.manufacturer ? ` · ${item.manufacturer}` : ''}</div>
+                          </td>
+                          <td className="is-left"><span className="inv-category">{formatCategory(item.category)}</span></td>
+                          <td className="is-left"><div className="inv-sub">Assigned on receipt</div></td>
+                          <td className="is-left">
+                            <div className="inv-main"><strong>{item.capacity}</strong> ordered</div>
+                            <div className="inv-sub">Not in stock yet</div>
+                          </td>
+                          <td className="is-left"><div className="inv-sub">—</div></td>
+                          <td className="is-left"><div className="inv-sub">Set on receipt</div></td>
+                          <td className="is-left"><span className="inv-status is-due">On order</span></td>
+                          <td>
+                            <div className="inv-actions">
+                              <button type="button" className="inv-action is-primary" onClick={() => setReceivingBatch(item)} title="Record the delivery and add it to stock">
+                                <IconPackage size={14} />
+                                Receive
+                              </button>
+                              <button type="button" className="inv-action" onClick={() => setSelectedAuditVaccine(item)} title="View batch audit">
+                                <IconClipboard size={14} />
+                                Audit
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    }
                     return (
                       <tr key={item.id} className={isLow ? 'row-highlight-low' : ''}>
                         <td className="is-left">
@@ -594,6 +645,9 @@ export default function HospitalInventoryTab() {
                             <div className={`stock-progress-fill ${item.statusColor}`} style={{ width: `${pct}%` }} />
                           </div>
                           {isLow && <div className="inv-alert">Below {item.minThreshold} minimum</div>}
+                          {!isLow && item.vaccineOnOrder > 0 && item.vaccineAvailable <= item.minThreshold && (
+                            <div className="inv-sub">{item.vaccineOnOrder} more on order</div>
+                          )}
                         </td>
                         <td className="is-left">
                           <div className="inv-main"><strong>{doseCount.toLocaleString()}</strong></div>
@@ -639,6 +693,32 @@ export default function HospitalInventoryTab() {
                 : 0;
               const doseCount = item.availableDoses ?? item.available * item.dosesPerVial;
               const isLow = isLowStock(item);
+              if (isOnOrder(item)) {
+                return (
+                  <div key={item.id} className="inventory-card-item">
+                    <div className="inv-card-top">
+                      <span className="category-tag">{String(item.category || 'routine').toUpperCase()}</span>
+                      <span className="stock-badge badge-expiring">On order</span>
+                    </div>
+                    <h4 className="inv-card-name">{item.name}</h4>
+                    <div className="inv-card-meta">
+                      <span>Order: <strong>{item.lotNumber}</strong></span>
+                      <span>Expiry: <strong>Set on receipt</strong></span>
+                    </div>
+                    <div className="inv-card-stock-block">
+                      <div className="stock-header-flex">
+                        <span>Ordered:</span>
+                        <strong>{item.capacity} vials</strong>
+                      </div>
+                      <div className="doses-sub-line">Not in stock yet. Receive it when the delivery arrives.</div>
+                    </div>
+                    <div className="inv-card-actions">
+                      <button type="button" className="btn-card-audit" onClick={() => setSelectedAuditVaccine(item)}>Audit Ledger</button>
+                      <button type="button" className="btn-card-restock" onClick={() => setReceivingBatch(item)}>Receive</button>
+                    </div>
+                  </div>
+                );
+              }
               return (
                 <div key={item.id} className={`inventory-card-item ${isLow ? 'card-low-stock' : ''}`}>
                   <div className="inv-card-top">
@@ -973,7 +1053,7 @@ export default function HospitalInventoryTab() {
       <VaccineWastageModal
         isOpen={isWastageOpen}
         onClose={() => setIsWastageOpen(false)}
-        inventoryItems={inventory}
+        inventoryItems={inventory.filter((item) => !isOnOrder(item))}
         onLogWastage={handleLogWastage}
       />
 
@@ -981,6 +1061,12 @@ export default function HospitalInventoryTab() {
         isOpen={Boolean(selectedAuditVaccine)}
         onClose={() => setSelectedAuditVaccine(null)}
         vaccine={selectedAuditVaccine}
+      />
+
+      <ReceiveOrderModal
+        batch={receivingBatch}
+        onClose={() => setReceivingBatch(null)}
+        onReceive={handleReceiveOrder}
       />
 
       <InventoryAIInventoryWorkflow

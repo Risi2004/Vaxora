@@ -352,7 +352,8 @@ export default function HospitalDashboardOverview({ view = 'home' }) {
       setColdVaults(vaults);
 
       // Map DB batches to inventory cards
-      const mappedBatches = batches.map((b) => {
+      // Orders awaiting delivery hold no stock yet, so they are not shown as inventory cards
+      const mappedBatches = batches.filter((b) => b.status !== 'ordered').map((b) => {
         const available = Number(b.available ?? b.quantity ?? 0);
         const capacity = Number(b.capacity ?? Math.max(available * 1.5, 400));
         const minThreshold = Number(b.minThreshold ?? 50);

@@ -127,6 +127,19 @@ export const inventoryService = {
     });
   },
 
+  // Turns an on-order row into usable stock once the delivery is in hand
+  async receiveOrderedBatch(batchId, { lotNumber, expiryDate, quantity, storageUnit }) {
+    return await apiRequest(`/inventory/batches/${batchId}/receive`, {
+      method: 'POST',
+      body: JSON.stringify({
+        lotNumber,
+        expiryDate,
+        quantity: Number(quantity),
+        storageUnit,
+      }),
+    });
+  },
+
   async issueStock(batchId, quantity, sessionReference) {
     return await apiRequest(`/inventory/batches/${batchId}/issue`, {
       method: 'POST',
