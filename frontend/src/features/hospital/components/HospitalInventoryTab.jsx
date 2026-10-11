@@ -754,22 +754,6 @@ export default function HospitalInventoryTab() {
                   </select>
                 </div>
                 <div className="formulary-input-group formulary-input-group--fee">
-                  <label className="formulary-label" htmlFor="formulary-vaccine-price">
-                    Fee / person (LKR)
-                  </label>
-                  <input
-                    id="formulary-vaccine-price"
-                    type="number"
-                    min="0"
-                    step="1"
-                    className="formulary-text-input"
-                    placeholder="0 = Free"
-                    value={newVaccinePriceInput}
-                    onChange={(e) => setNewVaccinePriceInput(e.target.value)}
-                    title="Enter 0 for Free / MOH-subsidized vaccines"
-                  />
-                </div>
-                <div className="formulary-input-group formulary-input-group--fee">
                   <label className="formulary-label" htmlFor="formulary-vaccine-cost">
                     Cost / vial (LKR)
                   </label>
@@ -783,6 +767,22 @@ export default function HospitalInventoryTab() {
                     value={newVaccineCostInput}
                     onChange={(e) => setNewVaccineCostInput(e.target.value)}
                     title="What the supplier charges per vial. Used on purchase orders."
+                  />
+                </div>
+                <div className="formulary-input-group formulary-input-group--fee">
+                  <label className="formulary-label" htmlFor="formulary-vaccine-price">
+                    Fee / person (LKR)
+                  </label>
+                  <input
+                    id="formulary-vaccine-price"
+                    type="number"
+                    min="0"
+                    step="1"
+                    className="formulary-text-input"
+                    placeholder="0 = Free"
+                    value={newVaccinePriceInput}
+                    onChange={(e) => setNewVaccinePriceInput(e.target.value)}
+                    title="Enter 0 for Free / MOH-subsidized vaccines"
                   />
                 </div>
                 <div className="formulary-input-group formulary-input-group--action">
