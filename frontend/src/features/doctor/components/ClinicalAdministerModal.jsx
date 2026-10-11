@@ -25,6 +25,7 @@ export default function ClinicalAdministerModal({
 }) {
   const [formData, setFormData] = useState(emptyAdministration);
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
 
   const usableLots = useMemo(() => {
     const vaccineName = String(patient?.vaccine || '').trim().toLowerCase();
@@ -45,6 +46,7 @@ export default function ClinicalAdministerModal({
     if (!isOpen) return;
     const firstLot = usableLots[0];
     setSubmitting(false);
+    setError('');
     setFormData({
       ...emptyAdministration,
       dosage: patient?.hasDosage ? patient.dose : '',
@@ -67,14 +69,15 @@ export default function ClinicalAdministerModal({
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.doseConfirmed || !formData.consentConfirmed || !formData.vitalsConfirmed) {
-      alert('Please confirm the prescribed dose, informed consent and pre-vaccination vitals.');
+      setError('Please confirm the prescribed dose, informed consent and pre-vaccination vitals.');
       return;
     }
     if (!formData.batchId && !formData.lotNumber) {
-      alert('Select the vaccine lot being administered from hospital inventory.');
+      setError('Select the vaccine lot being administered from hospital inventory.');
       return;
     }
     setSubmitting(true);
+    setError('');
     try {
       await onCertify({
         ...patient,
@@ -255,6 +258,11 @@ export default function ClinicalAdministerModal({
                 disabled={submitting}
               />
             </div>
+            {error && (
+              <p role="alert" style={{ margin: '12px 0 0', color: 'var(--color-error)', fontSize: '0.8125rem', fontWeight: 600 }}>
+                {error}
+              </p>
+            )}
           </div>
 
           <div className="doctor-modal-footer">
