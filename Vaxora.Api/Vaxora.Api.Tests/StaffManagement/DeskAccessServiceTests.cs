@@ -160,6 +160,27 @@ public class DeskAccessServiceTests
     }
 
     [Fact]
+    public async Task CreateDeskAccountAsync_does_not_let_another_hospital_take_a_removed_desk_account()
+    {
+        await using var context = TestDb.CreateContext();
+        var hospital = TestDb.AddHospital(context);
+        var otherHospital = TestDb.AddHospital(context, "other-hospital@example.com", "VAX-H-9002");
+        await context.SaveChangesAsync();
+        var service = CreateService(context);
+        var first = await service.CreateDeskAccountAsync(hospital.Id, NewDesk());
+        await service.RemoveDeskAccountAsync(hospital.Id, first.AffiliationId);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.CreateDeskAccountAsync(
+                otherHospital.Id,
+                new CreateDeskAccountDto { Email = "desk@example.com", Password = "new-pass-2" }));
+
+        Assert.Contains("already exists", exception.Message, StringComparison.OrdinalIgnoreCase);
+        var deskUser = await context.Users.SingleAsync(u => u.Id == first.UserId);
+        Assert.Equal(UserStatus.Suspended, deskUser.Status);
+    }
+
+    [Fact]
     public async Task ResolveHospitalUserIdAsync_returns_own_id_for_hospital_and_linked_hospital_for_desk()
     {
         await using var context = TestDb.CreateContext();

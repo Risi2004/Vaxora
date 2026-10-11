@@ -56,11 +56,18 @@ public class DeskAccessService : IDeskAccessService
         var deskUser = await _context.Users.FirstOrDefaultAsync(u => u.Email == email);
         if (deskUser != null)
         {
-            // A removed front-desk account can be brought back; any other account keeps its email.
-            var stillLinked = deskUser.Role == UserRole.FRONT_DESK &&
-                await _context.StaffAffiliations.AnyAsync(a =>
-                    a.StaffUserId == deskUser.Id && a.Status == AffiliationStatus.Active);
-            if (deskUser.Role != UserRole.FRONT_DESK || stillLinked)
+            // A removed front-desk account can be brought back by the hospital it belonged to;
+            // any other account keeps its email.
+            var deskLinks = deskUser.Role == UserRole.FRONT_DESK
+                ? await _context.StaffAffiliations
+                    .Where(a => a.StaffUserId == deskUser.Id)
+                    .Select(a => new { a.HospitalUserId, a.Status })
+                    .ToListAsync()
+                : null;
+            var canRestore = deskLinks != null &&
+                deskLinks.All(a => a.Status != AffiliationStatus.Active) &&
+                deskLinks.Any(a => a.HospitalUserId == hospitalUserId);
+            if (!canRestore)
                 throw new InvalidOperationException("An account with this email already exists.");
 
             deskUser.PasswordHash = _passwordHasher.HashPassword(dto.Password);
