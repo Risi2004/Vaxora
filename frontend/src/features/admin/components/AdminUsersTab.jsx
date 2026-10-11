@@ -269,7 +269,7 @@ export default function AdminUsersTab() {
                             {u.registrationNumber}
                           </span>
                         )}
-                        <span className="admin-id-pill" style={{ color: '#38bdf8', borderColor: 'rgba(56, 189, 248, 0.3)', fontSize: '0.74rem' }}>
+                        <span className="admin-id-pill" style={{ color: '#00b4d8', borderColor: 'rgba(0, 180, 216, 0.3)', fontSize: '0.74rem' }}>
                           {u.identifier}
                         </span>
                       </div>
@@ -310,7 +310,7 @@ export default function AdminUsersTab() {
                         <button
                           type="button"
                           className="doctor-table-btn"
-                          style={{ background: '#0369a1', color: '#ffffff', borderColor: '#38bdf8' }}
+                          style={{ background: '#0077b6', color: '#ffffff', borderColor: '#00b4d8' }}
                           onClick={() => {
                             setSelectedUser(u);
                             setIsDetailModalOpen(true);
@@ -353,7 +353,7 @@ export default function AdminUsersTab() {
       {isDetailModalOpen && selectedUser && (
         <div className="doctor-modal-overlay" onClick={() => setIsDetailModalOpen(false)}>
           <div className="doctor-modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '640px' }}>
-            <div className="doctor-modal-header" style={{ background: 'linear-gradient(135deg, #0369a1 0%, #0369a1 100%)' }}>
+            <div className="doctor-modal-header" style={{ background: '#0077b6' }}>
               <div>
                 <h3 className="doctor-modal-title">Account Profile &amp; Credentials</h3>
                 <p style={{ margin: '4px 0 0 0', fontSize: '0.82rem', color: 'rgba(255,255,255,0.85)' }}>
@@ -389,7 +389,7 @@ export default function AdminUsersTab() {
                 </div>
                 <div className="admin-detail-item">
                   <span className="admin-detail-label">Official Registration / ID</span>
-                  <span className="admin-detail-val" style={{ fontWeight: 700, color: '#38bdf8' }}>{selectedUser.identifier}</span>
+                  <span className="admin-detail-val" style={{ fontWeight: 700, color: '#00b4d8' }}>{selectedUser.identifier}</span>
                 </div>
                 <div className="admin-detail-item">
                   <span className="admin-detail-label">Hospital / Details</span>

@@ -98,7 +98,7 @@
   gap: 6px;
   margin: 0;
   padding: 4px 12px;
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -125,7 +125,7 @@
 .portal-hero__sub {
   margin: 0;
   max-width: 52ch;
-  font-size: 0.97rem;
+  font-size: 1rem;
   line-height: 1.55;
   color: var(--color-text-body);
 }

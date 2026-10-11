@@ -232,7 +232,7 @@ export default function HospitalBoothsPanel() {
           <div className="modal-form-group" style={{ margin: 0 }}>
             <label className="modal-label">Vaccines this booth gives</label>
             {vaccines.length === 0 ? (
-              <p style={{ margin: '6px 0 0', color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>
+              <p style={{ margin: '6px 0 0', color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>
                 Register vaccines under Inventory before assigning them here.
               </p>
             ) : (
@@ -250,7 +250,7 @@ export default function HospitalBoothsPanel() {
                         borderRadius: '999px',
                         border: `1px solid ${checked ? 'var(--color-info-border)' : 'var(--color-border-light)'}`,
                         background: checked ? 'var(--color-info-bg)' : 'var(--color-surface)',
-                        fontSize: '0.82rem',
+                        fontSize: '0.8125rem',
                         color: 'var(--color-text-title)',
                         cursor: 'pointer',
                       }}
@@ -279,16 +279,7 @@ export default function HospitalBoothsPanel() {
             <button
               type="submit"
               disabled={saving}
-              style={{
-                padding: '8px 16px',
-                fontSize: '0.88rem',
-                fontWeight: 700,
-                color: 'var(--color-text-inverse)',
-                background: 'var(--color-primary)',
-                border: '1px solid var(--color-primary)',
-                borderRadius: '8px',
-                cursor: 'pointer',
-              }}
+              className="btn-hospital-primary"
             >
               {saving ? 'Saving...' : editingId ? 'Save Changes' : 'Add Booth'}
             </button>
@@ -297,16 +288,7 @@ export default function HospitalBoothsPanel() {
                 type="button"
                 onClick={resetForm}
                 disabled={saving}
-                style={{
-                  padding: '8px 16px',
-                  fontSize: '0.88rem',
-                  fontWeight: 600,
-                  color: 'var(--color-text-body)',
-                  background: 'var(--color-surface)',
-                  border: '1px solid var(--color-border-card)',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                }}
+                className="btn-hospital-secondary"
               >
                 Cancel
               </button>
@@ -315,16 +297,7 @@ export default function HospitalBoothsPanel() {
               type="button"
               onClick={loadBooths}
               disabled={loading}
-              style={{
-                padding: '8px 16px',
-                fontSize: '0.88rem',
-                fontWeight: 600,
-                color: 'var(--color-text-body)',
-                background: 'var(--color-surface)',
-                border: '1px solid var(--color-border-card)',
-                borderRadius: '8px',
-                cursor: 'pointer',
-              }}
+              className="btn-hospital-secondary"
             >
               Refresh
             </button>
@@ -398,7 +371,7 @@ export default function HospitalBoothsPanel() {
                     <span key={name} className="booth-vaccine-chip">{name}</span>
                   ))
                 ) : (
-                  <span style={{ fontSize: '0.78rem', color: 'var(--color-text-placeholder)' }}>No vaccines assigned</span>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--color-text-placeholder)' }}>No vaccines assigned</span>
                 )}
               </div>
 
@@ -426,7 +399,7 @@ export default function HospitalBoothsPanel() {
                     padding: '4px 2px',
                     border: 'none',
                     background: 'transparent',
-                    fontSize: '0.78rem',
+                    fontSize: '0.75rem',
                     fontWeight: 600,
                     cursor: 'pointer',
                     color: booth.isActive ? 'var(--color-error)' : 'var(--color-success)',

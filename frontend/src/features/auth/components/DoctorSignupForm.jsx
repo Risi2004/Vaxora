@@ -112,7 +112,7 @@ export default function DoctorSignupForm({ onSuccess }) {
           color: 'var(--color-error)', 
           padding: '10px 14px', 
           borderRadius: '8px', 
-          fontSize: '0.85rem', 
+          fontSize: '0.875rem', 
           fontWeight: 600,
           border: '1px solid rgba(var(--rgb-error), 0.2)' 
         }}>

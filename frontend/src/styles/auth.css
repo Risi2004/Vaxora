@@ -36,7 +36,7 @@
   border: 1.5px solid var(--color-border-pill);
   border-radius: var(--radius-pill, 9999px);
   padding: 8px 18px;
-  font-size: 0.92rem;
+  font-size: 0.9375rem;
   font-weight: 600;
   color: var(--color-primary-dark);
   cursor: pointer;
@@ -45,8 +45,9 @@
 }
 
 .btn-back-home:hover {
-  background: var(--color-primary-dark);
-  color: var(--color-text-inverse);
+  background: var(--btn-secondary-bg-hover);
+  color: var(--color-primary);
+  border-color: var(--color-primary);
   transform: translateX(-3px);
 }
 
@@ -108,7 +109,7 @@
 
 .auth-banner-subtext {
   color: rgba(255, 255, 255, 0.88);
-  font-size: 0.98rem;
+  font-size: 1rem;
   margin-top: 16px;
   max-width: 260px;
   line-height: 1.6;
@@ -163,7 +164,7 @@
 }
 
 .auth-form-title {
-  font-size: 1.45rem;
+  font-size: 1.5rem;
   font-weight: 700;
   color: var(--color-text-title);
   text-align: center;
@@ -181,7 +182,7 @@
 
 .role-selector-label {
   display: block;
-  font-size: 0.82rem;
+  font-size: 0.8125rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -206,7 +207,7 @@
   background: none;
   border: none;
   padding: 8px 4px;
-  font-size: 0.82rem;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: var(--color-text-body);
   border-radius: 8px;
@@ -230,7 +231,7 @@
 }
 
 .role-tab-btn.active {
-  background: var(--color-brand-blue);
+  background: var(--pill-active-bg);
   color: var(--color-text-inverse);
   box-shadow: 0 2px 6px rgba(var(--rgb-primary), 0.3);
 }
@@ -282,7 +283,7 @@
 }
 
 .auth-label {
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   font-weight: 600;
   color: var(--color-text-body);
 }
@@ -295,7 +296,7 @@
   border: 1.5px solid var(--color-border-auth-input);
   border-radius: 10px;
   padding: 10px 14px;
-  font-size: 0.95rem;
+  font-size: 0.9375rem;
   color: var(--color-text-title);
   font-weight: 500;
   outline: none;
@@ -387,7 +388,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 0.88rem;
+  font-size: 0.875rem;
   color: var(--color-text-body);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -408,7 +409,7 @@
   border: 1px solid var(--color-border-auth-input);
   border-radius: 6px;
   padding: 4px 10px;
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   font-weight: 600;
   color: var(--color-text-title);
   white-space: nowrap;
@@ -438,7 +439,7 @@
 .btn-forgot-password {
   background: none;
   border: none;
-  font-size: 0.86rem;
+  font-size: 0.875rem;
   font-weight: 600;
   color: var(--color-text-title);
   cursor: pointer;
@@ -497,7 +498,7 @@
 .btn-auth-switch {
   background: none;
   border: none;
-  font-size: 0.92rem;
+  font-size: 0.9375rem;
   font-weight: 600;
   color: var(--color-text-title);
   cursor: pointer;
@@ -523,7 +524,7 @@
 }
 
 .auth-success-alert h4 {
-  font-size: 1.15rem;
+  font-size: 1.125rem;
   color: var(--color-success);
   margin-bottom: 6px;
 }
@@ -561,12 +562,12 @@
 
   .auth-welcome-text {
     max-width: 100%;
-    font-size: 1.85rem;
+    font-size: 1.75rem;
   }
 
   .auth-banner-subtext {
     max-width: 440px;
-    font-size: 0.9rem;
+    font-size: 0.875rem;
     margin-top: 8px;
     line-height: 1.5;
   }
@@ -598,7 +599,7 @@
 
   .role-tab-btn {
     padding: 9px 6px;
-    font-size: 0.85rem;
+    font-size: 0.875rem;
     min-height: 38px;
   }
 
@@ -620,7 +621,7 @@
 
   .btn-back-home {
     padding: 6px 14px;
-    font-size: 0.85rem;
+    font-size: 0.875rem;
   }
 
   .auth-container {
@@ -634,11 +635,11 @@
   }
 
   .auth-welcome-text {
-    font-size: 1.55rem;
+    font-size: 1.5rem;
   }
 
   .auth-banner-subtext {
-    font-size: 0.84rem;
+    font-size: 0.8125rem;
     margin-top: 4px;
     line-height: 1.45;
   }
@@ -671,7 +672,7 @@
   }
 
   .role-selector-label {
-    font-size: 0.78rem;
+    font-size: 0.75rem;
     margin-bottom: 6px;
   }
 
@@ -689,7 +690,7 @@
   }
 
   .file-upload-info {
-    font-size: 0.82rem;
+    font-size: 0.8125rem;
   }
 
   .file-upload-btn-text {
@@ -723,15 +724,15 @@
   }
 
   .auth-welcome-text {
-    font-size: 1.35rem;
+    font-size: 1.25rem;
   }
 
   .role-tab-btn {
-    font-size: 0.78rem;
+    font-size: 0.75rem;
     padding: 7px 4px;
   }
 
   .btn-auth-switch {
-    font-size: 0.85rem;
+    font-size: 0.875rem;
   }
 }

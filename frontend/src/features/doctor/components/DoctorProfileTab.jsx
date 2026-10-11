@@ -259,7 +259,7 @@ export default function DoctorProfileTab() {
                 </h2>
                 <span
                   style={{
-                    fontSize: '0.8rem',
+                    fontSize: '0.8125rem',
                     fontWeight: 700,
                     color: personalInfo.verificationStatus === 'Approved' || personalInfo.verificationStatus === '1' ? 'var(--color-success)' : 'var(--color-warning)',
                   }}
@@ -510,12 +510,12 @@ export default function DoctorProfileTab() {
                       target="_blank"
                       rel="noopener noreferrer"
                       className="admin-action-btn view"
-                      style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem' }}
+                      style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.875rem' }}
                     >
                       <IconFile size={14} /> View SLMC Certificate
                     </a>
                   ) : (
-                    <span style={{ color: 'var(--color-text-placeholder)', fontSize: '0.85rem' }}>SLMC Document Uploaded on File</span>
+                    <span style={{ color: 'var(--color-text-placeholder)', fontSize: '0.875rem' }}>SLMC Document Uploaded on File</span>
                   )}
 
                   {personalInfo.supportingDocKey && (
@@ -524,7 +524,7 @@ export default function DoctorProfileTab() {
                       target="_blank"
                       rel="noopener noreferrer"
                       className="admin-action-btn view"
-                      style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem' }}
+                      style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.875rem' }}
                     >
                       <IconFile size={14} /> View Supporting Credentials
                     </a>
@@ -537,7 +537,7 @@ export default function DoctorProfileTab() {
 
         {/* Danger Zone Card */}
         <div
-          className="danger-zone-card doctor-profile-card"
+          className="danger-zone-card"
         >
           <div className="danger-zone-row"
           >

@@ -698,7 +698,7 @@ export default function StaffSchedulingAgentChat({
               border: `1px solid ${agentHealth?.online ? 'rgba(var(--rgb-success), 0.4)' : 'rgba(var(--rgb-error), 0.4)'}`,
               padding: '4px 10px',
               borderRadius: '20px',
-              fontSize: '11px',
+              fontSize: '12px',
               fontWeight: 600,
             }}
           >
@@ -847,29 +847,29 @@ export default function StaffSchedulingAgentChat({
                                 {proposal.staffName}
                               </div>
                               {proposal.specialization ? (
-                                <div style={{ color: 'var(--color-text-body)', fontSize: '11px', lineHeight: 1.3 }}>
+                                <div style={{ color: 'var(--color-text-body)', fontSize: '12px', lineHeight: 1.3 }}>
                                   {proposal.specialization}
                                 </div>
                               ) : null}
                               {proposal.vaccineName ? (
-                                <div style={{ color: 'var(--color-accent)', fontSize: '11px', fontWeight: 600, lineHeight: 1.3 }}>
+                                <div style={{ color: 'var(--color-accent)', fontSize: '12px', fontWeight: 600, lineHeight: 1.3 }}>
                                   {proposal.vaccineName}
                                 </div>
                               ) : null}
-                              <div style={{ color: 'var(--color-text-muted)', fontSize: '11px', lineHeight: 1.3 }}>
+                              <div style={{ color: 'var(--color-text-muted)', fontSize: '12px', lineHeight: 1.3 }}>
                                 {proposal.staffRole || 'Staff'} · {String(proposal.startTime).slice(0, 5)}–
                                 {String(proposal.endTime).slice(0, 5)}
                               </div>
                               {typeof proposal.reason === 'string' &&
                               proposal.reason.toLowerCase().includes('specialization') ? (
-                                <div style={{ color: 'var(--color-primary)', fontSize: '10px', marginTop: '2px', lineHeight: 1.3 }}>
+                                <div style={{ color: 'var(--color-primary)', fontSize: '12px', marginTop: '2px', lineHeight: 1.3 }}>
                                   {proposal.reason.includes('·')
                                     ? proposal.reason.split('·').slice(1).join('·').trim()
                                     : proposal.reason}
                                 </div>
                               ) : null}
                               {Array.isArray(proposal.alternatives) && proposal.alternatives.length > 0 ? (
-                                <div style={{ color: 'var(--color-text-muted)', fontSize: '10px', marginTop: '4px' }}>
+                                <div style={{ color: 'var(--color-text-muted)', fontSize: '12px', marginTop: '4px' }}>
                                   Alt: {proposal.alternatives.map((alt) => alt.staffName).join(', ')}
                                 </div>
                               ) : null}
@@ -878,7 +878,7 @@ export default function StaffSchedulingAgentChat({
                                   style={{
                                     marginTop: '4px',
                                     fontWeight: 700,
-                                    fontSize: '11px',
+                                    fontSize: '12px',
                                     color: status === 'approved' ? 'var(--color-success)' : 'var(--color-text-muted)',
                                   }}
                                 >
@@ -905,7 +905,7 @@ export default function StaffSchedulingAgentChat({
                                       background: 'var(--color-surface)',
                                       color: 'var(--color-text-muted)',
                                       fontWeight: 600,
-                                      fontSize: '11px',
+                                      fontSize: '12px',
                                       cursor: 'pointer',
                                     }}
                                   >
@@ -929,7 +929,7 @@ export default function StaffSchedulingAgentChat({
                                       background: 'var(--color-success)',
                                       color: 'var(--color-text-inverse)',
                                       fontWeight: 600,
-                                      fontSize: '11px',
+                                      fontSize: '12px',
                                       cursor: 'pointer',
                                     }}
                                   >
@@ -1077,7 +1077,7 @@ export default function StaffSchedulingAgentChat({
                     borderRadius: '8px',
                     padding: '6px 10px',
                     marginTop: '2px',
-                    fontSize: '11px',
+                    fontSize: '12px',
                     color: 'var(--color-text-body)',
                     fontWeight: 600,
                   }}

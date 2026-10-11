@@ -22,13 +22,13 @@ export default function DraftDocument({ draft, onApprove, onReject, disabled }) 
           padding: '16px 22px',
         }}
       >
-        <div style={{ fontSize: '0.72rem', letterSpacing: '0.1em', opacity: 0.85, fontWeight: 700 }}>
+        <div style={{ fontSize: '0.75rem', letterSpacing: '0.1em', opacity: 0.85, fontWeight: 700 }}>
           AGENT DRAFT — {draft.draft_type === 'purchase_order' ? 'PURCHASE ORDER' : 'OFFICIAL MEMO'}
         </div>
-        <div style={{ fontSize: '1.15rem', fontWeight: 800, marginTop: '4px' }}>
+        <div style={{ fontSize: '1.125rem', fontWeight: 800, marginTop: '4px' }}>
           {draft.title}
         </div>
-        <div style={{ fontSize: '0.82rem', opacity: 0.9, marginTop: '4px' }}>
+        <div style={{ fontSize: '0.8125rem', opacity: 0.9, marginTop: '4px' }}>
           Document No: <strong>{draft.document_number}</strong> • Generated {new Date(draft.generated_at).toLocaleString()}
         </div>
       </div>
@@ -45,7 +45,7 @@ export default function DraftDocument({ draft, onApprove, onReject, disabled }) 
               DETERMINISTIC VALIDATION
             </div>
             {draft.validation_checks.map((v, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', marginBottom: '4px', color: v.passed ? 'var(--color-success)' : 'var(--color-error)' }}>
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.875rem', marginBottom: '4px', color: v.passed ? 'var(--color-success)' : 'var(--color-error)' }}>
                 <span>{v.passed ? '✔' : '✘'}</span>
                 <span>{v.rule}</span>
                 {v.detail && <span style={{ color: 'var(--color-text-muted)' }}>({v.detail})</span>}
@@ -55,7 +55,7 @@ export default function DraftDocument({ draft, onApprove, onReject, disabled }) 
         )}
 
         {draft.notes && (
-          <div style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', marginTop: '14px', fontStyle: 'italic' }}>
+          <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '14px', fontStyle: 'italic' }}>
             ℹ️ {draft.notes}
           </div>
         )}
@@ -100,13 +100,13 @@ function PurchaseOrderBody({ draft }) {
       {/* Meta grid */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
         <div>
-          <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', fontWeight: 700, letterSpacing: '0.05em' }}>BUYER</div>
-          <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--color-text-title)', marginTop: '2px' }}>{draft.buyer?.name || 'N/A'}</div>
-          <div style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>{draft.buyer?.registration || ''}</div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 700, letterSpacing: '0.05em' }}>BUYER</div>
+          <div style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--color-text-title)', marginTop: '2px' }}>{draft.buyer?.name || 'N/A'}</div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>{draft.buyer?.registration || ''}</div>
         </div>
         <div>
-          <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', fontWeight: 700, letterSpacing: '0.05em' }}>SUPPLIER</div>
-          <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--color-text-title)', marginTop: '2px' }}>{draft.supplier || 'N/A'}</div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 700, letterSpacing: '0.05em' }}>SUPPLIER</div>
+          <div style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--color-text-title)', marginTop: '2px' }}>{draft.supplier || 'N/A'}</div>
         </div>
       </div>
 
@@ -120,7 +120,7 @@ function PurchaseOrderBody({ draft }) {
       {/* Line items */}
       <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 700, letterSpacing: '0.05em', marginBottom: '8px' }}>LINE ITEMS</div>
       <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
           <thead>
             <tr style={{ background: 'var(--color-bg)', borderBottom: '1px solid var(--color-border-light)' }}>
               <th style={{ textAlign: 'left', padding: '8px 10px', fontWeight: 700 }}>#</th>
@@ -138,7 +138,7 @@ function PurchaseOrderBody({ draft }) {
                   <div style={{ fontWeight: 700 }}>{li.vaccine_name}</div>
                   <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '2px' }}>{li.justification}</div>
                   {li.urgency === 'high' && (
-                    <span style={{ display: 'inline-block', marginTop: '4px', fontSize: '0.68rem', background: 'var(--color-error-bg)', color: 'var(--color-error)', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                    <span style={{ display: 'inline-block', marginTop: '4px', fontSize: '0.75rem', background: 'var(--color-error-bg)', color: 'var(--color-error)', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
                       HIGH URGENCY
                     </span>
                   )}
@@ -154,7 +154,7 @@ function PurchaseOrderBody({ draft }) {
 
       {/* Totals */}
       <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end' }}>
-        <div style={{ minWidth: '260px', fontSize: '0.9rem' }}>
+        <div style={{ minWidth: '260px', fontSize: '0.875rem' }}>
           <Row label="Subtotal" value={`LKR ${(draft.subtotal_lkr || 0).toLocaleString()}`} />
           <Row label="Tax" value={`LKR ${(draft.tax_lkr || 0).toLocaleString()}`} />
           <div style={{ borderTop: '1px solid var(--color-border-card)', marginTop: '8px', paddingTop: '8px' }}>
@@ -169,8 +169,8 @@ function PurchaseOrderBody({ draft }) {
 function MetaCell({ label, value }) {
   return (
     <div>
-      <div style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)', fontWeight: 700, letterSpacing: '0.05em' }}>{label}</div>
-      <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--color-text-title)', marginTop: '2px' }}>{value}</div>
+      <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 700, letterSpacing: '0.05em' }}>{label}</div>
+      <div style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--color-text-title)', marginTop: '2px' }}>{value}</div>
     </div>
   );
 }
@@ -192,24 +192,24 @@ function ExpiryMemoBody({ draft }) {
       {/* Memo header */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '16px' }}>
         <div>
-          <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', fontWeight: 700 }}>TO</div>
-          <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--color-text-title)' }}>{draft.recipient?.name || 'N/A'}</div>
-          <div style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>{draft.recipient?.role || ''}</div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 700 }}>TO</div>
+          <div style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--color-text-title)' }}>{draft.recipient?.name || 'N/A'}</div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>{draft.recipient?.role || ''}</div>
         </div>
         <div>
-          <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', fontWeight: 700 }}>SUBJECT</div>
-          <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--color-text-title)' }}>{draft.subject}</div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 700 }}>SUBJECT</div>
+          <div style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--color-text-title)' }}>{draft.subject}</div>
         </div>
       </div>
 
       {/* Summary */}
-      <div style={{ background: 'var(--color-ai-bg)', border: '1px solid var(--color-ai-border)', padding: '12px 16px', borderRadius: '8px', marginBottom: '20px', fontSize: '0.88rem', color: 'var(--color-ai)', lineHeight: 1.5 }}>
+      <div style={{ background: 'var(--color-ai-bg)', border: '1px solid var(--color-ai-border)', padding: '12px 16px', borderRadius: '8px', marginBottom: '20px', fontSize: '0.875rem', color: 'var(--color-ai)', lineHeight: 1.5 }}>
         {draft.summary}
       </div>
 
       {/* Affected batches */}
       <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 700, letterSpacing: '0.05em', marginBottom: '8px' }}>AFFECTED BATCHES</div>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', marginBottom: '20px' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', marginBottom: '20px' }}>
         <thead>
           <tr style={{ background: 'var(--color-bg)', borderBottom: '1px solid var(--color-border-light)' }}>
             <th style={{ textAlign: 'left', padding: '8px 10px', fontWeight: 700 }}>Vaccine</th>
@@ -241,11 +241,11 @@ function ExpiryMemoBody({ draft }) {
       <div>
         {(draft.rescue_plan || []).map((s, i) => (
           <div key={i} style={{ display: 'flex', gap: '12px', padding: '10px 0', borderBottom: i < draft.rescue_plan.length - 1 ? '1px solid var(--color-border-light)' : 'none' }}>
-            <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: 'var(--color-ai)', color: 'var(--color-text-inverse)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.8rem', flexShrink: 0 }}>
+            <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: 'var(--color-ai)', color: 'var(--color-text-inverse)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.8125rem', flexShrink: 0 }}>
               {s.step}
             </div>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: '0.88rem', color: 'var(--color-text-title)', fontWeight: 600 }}>{s.action_text}</div>
+              <div style={{ fontSize: '0.875rem', color: 'var(--color-text-title)', fontWeight: 600 }}>{s.action_text}</div>
               <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '2px' }}>
                 Lot {s.lot_number} • Deadline: {s.deadline}
               </div>
@@ -266,7 +266,7 @@ function PriorityBadge({ priority }) {
   };
   const c = colors[priority?.toLowerCase()] || colors.low;
   return (
-    <span style={{ background: c.bg, color: c.color, padding: '2px 8px', borderRadius: '4px', fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase' }}>
+    <span style={{ background: c.bg, color: c.color, padding: '2px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase' }}>
       {priority}
     </span>
   );

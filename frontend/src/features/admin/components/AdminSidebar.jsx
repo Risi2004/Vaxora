@@ -172,9 +172,9 @@ export default function AdminSidebar({ pendingApprovalsCount = 0 }) {
           <div className="admin-sidebar-user-card" onClick={() => handleNavigate('/admin/profile')}>
             <div className="admin-sidebar-avatar">
               <svg viewBox="0 0 40 40" width="36" height="36" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="20" cy="20" r="19" fill="#0f172a" stroke="#0ea5e9" strokeWidth="1.5" />
-                <circle cx="20" cy="15" r="7" fill="#38bdf8" />
-                <path d="M8 34C8 27.5 13.5 24 20 24C26.5 24 32 27.5 32 34" fill="#38bdf8" />
+                <circle cx="20" cy="20" r="19" fill="#0f172a" stroke="#00b4d8" strokeWidth="1.5" />
+                <circle cx="20" cy="15" r="7" fill="#00b4d8" />
+                <path d="M8 34C8 27.5 13.5 24 20 24C26.5 24 32 27.5 32 34" fill="#00b4d8" />
               </svg>
             </div>
             <div className="admin-sidebar-user-info">

@@ -1,6 +1,7 @@
 class HospitalScheduleModel {
   final String id;
   final String vaccineName;
+  final String? vaccineId;
   final String? boothLabel;
   final String? boothId;
   final String scheduleType;
@@ -16,6 +17,7 @@ class HospitalScheduleModel {
   const HospitalScheduleModel({
     required this.id,
     required this.vaccineName,
+    this.vaccineId,
     this.boothLabel,
     this.boothId,
     required this.scheduleType,
@@ -51,6 +53,7 @@ class HospitalScheduleModel {
     return HospitalScheduleModel(
       id: json['id']?.toString() ?? '',
       vaccineName: json['vaccineName']?.toString() ?? 'Vaccine',
+      vaccineId: json['vaccineId']?.toString(),
       boothLabel: json['boothLabel']?.toString() ??
           json['boothName']?.toString() ??
           json['boothDisplayLabel']?.toString(),

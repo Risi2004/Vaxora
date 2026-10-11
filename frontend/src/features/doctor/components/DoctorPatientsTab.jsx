@@ -103,16 +103,16 @@ function MedicalHistoryRow({ record }) {
     <tr key={record.id}>
       <td>
         <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-          <strong style={{ color: "var(--color-text-title)", fontSize: "0.9rem" }}>
+          <strong style={{ color: "var(--color-text-title)", fontSize: "0.875rem" }}>
             {record.title}
           </strong>
           {hasDesc && (
-            <span style={{ fontSize: "0.78rem", color: "var(--color-text-muted)" }}>
+            <span style={{ fontSize: "0.75rem", color: "var(--color-text-muted)" }}>
               {hasDesc}
             </span>
           )}
           {hasIcd && (
-            <span style={{ fontSize: "0.72rem", color: "var(--color-text-placeholder)" }}>
+            <span style={{ fontSize: "0.75rem", color: "var(--color-text-placeholder)" }}>
               ICD-10: {hasIcd}
             </span>
           )}
@@ -129,7 +129,7 @@ function MedicalHistoryRow({ record }) {
           {record.status || "—"}
         </span>
       </td>
-      <td style={{ fontSize: "0.82rem", color: "var(--color-text-muted)" }}>
+      <td style={{ fontSize: "0.8125rem", color: "var(--color-text-muted)" }}>
         {record.recordedByName || "—"}
       </td>
     </tr>
@@ -495,7 +495,7 @@ export default function DoctorPatientsTab() {
 
               <div
                 style={{
-                  fontSize: "0.88rem",
+                  fontSize: "0.875rem",
                   color: "var(--color-text-muted)",
                   fontWeight: 600,
                 }}
@@ -643,7 +643,7 @@ export default function DoctorPatientsTab() {
                     </div>
                     <div
                       style={{
-                        fontSize: "0.88rem",
+                        fontSize: "0.875rem",
                         color: "var(--color-text-muted)",
                         fontWeight: 600,
                       }}
@@ -943,7 +943,7 @@ export default function DoctorPatientsTab() {
                     </h3>
                     <div
                       style={{
-                        fontSize: "0.88rem",
+                        fontSize: "0.875rem",
                         color: "var(--color-text-muted)",
                         fontWeight: 600,
                       }}
@@ -966,7 +966,7 @@ export default function DoctorPatientsTab() {
                         borderRadius: "10px",
                         padding: "10px 14px",
                         marginBottom: "14px",
-                        fontSize: "0.85rem",
+                        fontSize: "0.875rem",
                       }}
                     >
                       {medicalHistoryError}
@@ -1013,7 +1013,7 @@ export default function DoctorPatientsTab() {
                                     style={{
                                       fontWeight: 700,
                                       color: "var(--color-text-title)",
-                                      fontSize: "0.8rem",
+                                      fontSize: "0.8125rem",
                                       letterSpacing: 0.4,
                                     }}
                                   >

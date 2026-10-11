@@ -9,73 +9,88 @@
   --font-heading: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-body: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 
-  /* Primary & Brand Colors */
-  --color-primary: #06736c;
-  --color-primary-hover: #066d68;
-  --color-primary-dark: #12384b;
-  --color-primary-deep: #0b2c3d;
-  --color-brand-blue: #123e5d;
-  --color-accent: #117a80;
-  --color-accent-teal: #06736c;
-  --color-primary-soft: rgba(6, 115, 108, 0.1);
+  /* Brand palette (ocean blues):
+       Deep Twilight     #03045E  navy for titles, footer
+       Bright Teal Blue  #0077B6  everything clickable
+       Hover             #00689f  same blue, a touch darker
+       Royal Blue        #023E8A  appointments tone
+       Turquoise Surf    #00B4D8  decorative accents only (fails text contrast)
+       Frosted Blue      #90E0EF  soft borders and highlights
+       Light Cyan        #CAF0F8  chips and soft fills
+     The old extra shade names stay as aliases so existing styles work. */
+  --color-primary: #0077b6;
+  --color-primary-hover: #00689f;
+  --color-primary-dark: #03045e;
+  --color-primary-deep: #03045e;
+  --color-brand-blue: #023e8a;
+  /* --color-accent is used as text and button colour across the portals,
+     so it must stay readable on white */
+  --color-accent: #0077b6;
+  --color-accent-surf: #00b4d8;
+  --color-accent-teal: #0077b6;
+  --color-accent-frost: #90e0ef;
+  --color-accent-cyan: #caf0f8;
+  --color-primary-soft: rgba(0, 119, 182, 0.08);
   /* RGB triplets for translucent shades: rgba(var(--rgb-primary), 0.3) */
-  --rgb-primary: 6, 115, 108;
-  --rgb-primary-dark: 18, 56, 75;
-  --rgb-success: 31, 122, 76;
+  --rgb-primary: 0, 119, 182;
+  --rgb-primary-dark: 3, 4, 94;
+  --rgb-success: 21, 128, 61;
   --rgb-error: 181, 71, 67;
-  --rgb-info: 39, 109, 130;
-  --rgb-info-bg: 237, 246, 248;
-  --rgb-soft-panel: 234, 245, 242;
-  --gradient-primary: linear-gradient(180deg, #0b8279 0%, #066d68 100%);
+  --rgb-info: 0, 119, 182;
+  --rgb-info-bg: 238, 249, 252;
+  --rgb-soft-panel: 238, 249, 252;
+  /* Flat on purpose: buttons and banners are solid colour */
+  --gradient-primary: var(--color-primary);
 
-  /* Neutral & Surface Colors */
-  --color-bg: #f5f8f7;
+  /* Neutral & Surface Colors: true greys, only the soft panels carry a
+     light brand tint */
+  --color-bg: #f7f8fa;
   --color-surface: #ffffff;
-  --color-surface-subtle: #f1f6f4;
-  --color-soft-panel: #eaf5f2;
-  --color-soft-panel-deep: #d9ece7;
-  --color-soft-panel-mid: #e2f1ee;
-  --color-input-bg: #f8faf9;
-  --color-input-auth-bg: #f6f9f7;
-  --color-overlay: rgba(11, 44, 61, 0.45);
+  --color-surface-subtle: #f5f7f9;
+  --color-soft-panel: #eef9fc;
+  --color-soft-panel-deep: #caf0f8;
+  --color-soft-panel-mid: #dff5fa;
+  --color-input-bg: #f9fafb;
+  --color-input-auth-bg: #f9fafb;
+  --color-overlay: rgba(3, 4, 94, 0.4);
 
   /* Borders */
-  --color-border-light: #e1e9e6;
-  --color-border-card: #d5e1dd;
-  --color-border-pill: #d5e1dd;
-  --color-border-focus: #06736c;
-  --color-border-auth-card: #d5e4df;
-  --color-border-auth-input: #d5e1dd;
+  --color-border-light: #e6e9ed;
+  --color-border-card: #dde2e8;
+  --color-border-pill: #dde2e8;
+  --color-border-focus: #0077b6;
+  --color-border-auth-card: #dde2e8;
+  --color-border-auth-input: #d3d9e0;
 
   /* Typography Colors */
-  --color-text-title: #12384b;
-  --color-text-subtitle: #06736c;
-  --color-text-body: #354e59;
-  --color-text-muted: #5a6e76;
-  --color-text-placeholder: #7b8e94;
+  --color-text-title: #03045e;
+  --color-text-subtitle: #0077b6;
+  --color-text-body: #3a4660;
+  --color-text-muted: #5b6680;
+  --color-text-placeholder: #8a96a0;
   --color-text-inverse: #ffffff;
 
   /* Status Colors (text/icon, background, border) */
-  --color-success: #1f7a4c;
-  --color-success-bg: #edf7f0;
-  --color-success-border: #c3e3cf;
+  --color-success: #15803d;
+  --color-success-bg: #effaf2;
+  --color-success-border: #bfe5cb;
   --color-error: #b54743;
   --color-error-bg: #fff1ef;
   --color-error-border: #fecaca;
   --color-warning: #a35d08;
   --color-warning-bg: #fff4e5;
   --color-warning-border: #f5b168;
-  --color-info: #276d82;
-  --color-info-bg: #edf6f8;
-  --color-info-border: #c7e0e7;
+  --color-info: #0077b6;
+  --color-info-bg: #eef9fc;
+  --color-info-border: #caf0f8;
 
-  /* True blue accent for the "schedules / appointments" tone (tones.css).
-     --color-info stays for info alerts; it reads too close to teal to be
-     a distinct accent. */
-  --color-blue: #2a63c9;
-  --color-blue-bg: #eaf1fd;
-  --color-blue-border: #c6d8f7;
-  --rgb-blue: 42, 99, 201;
+  /* Deep royal blue for the "schedules / appointments" tone (tones.css),
+     from the same ocean palette but darker so it never reads as the bright
+     brand blue */
+  --color-blue: #023e8a;
+  --color-blue-bg: #e8eef8;
+  --color-blue-border: #c3d3ec;
+  --rgb-blue: 2, 62, 138;
 
   /* Role stripes on shift cards (roster and My shifts calendars).
      Bright for a 4px stripe; card text uses the darker AA-safe tokens. */
@@ -103,12 +118,12 @@
   --btn-font: var(--font-heading);
   --btn-weight: 600;
   --btn-primary-bg: var(--gradient-primary);
-  --btn-primary-bg-hover: linear-gradient(180deg, #06736c 0%, #055a56 100%);
+  --btn-primary-bg-hover: var(--color-primary-hover);
   --btn-pad-sm: 7px 16px;
   --btn-pad-md: 10px 22px;
   --btn-pad-lg: 12px 30px;
-  --btn-size-sm: 0.85rem;
-  --btn-size-md: 0.92rem;
+  --btn-size-sm: 0.8125rem;
+  --btn-size-md: 0.9375rem;
   --btn-size-lg: 1rem;
   --btn-secondary-bg: var(--color-surface);
   --btn-secondary-bg-hover: var(--color-soft-panel);
@@ -124,27 +139,27 @@
   --pill-text-hover: var(--color-primary);
   --pill-active-bg: var(--color-primary);
   --pill-active-text: var(--color-text-inverse);
-  --pill-active-shadow: 0 2px 8px rgba(6, 115, 108, 0.25);
+  --pill-active-shadow: 0 1px 4px rgba(var(--rgb-primary), 0.25);
   --pill-pad: 6px 14px;
-  --pill-size: 0.84rem;
+  --pill-size: 0.8125rem;
 
   /* Empty states */
   --empty-text: var(--color-text-muted);
-  --empty-size: 0.92rem;
+  --empty-size: 0.9375rem;
   --empty-bg: var(--color-surface-subtle);
   --empty-border: var(--color-border-card);
   --empty-pad: 28px 20px;
 
   /* Focus */
-  --focus-ring: 0 0 0 3px rgba(6, 115, 108, 0.25);
+  --focus-ring: 0 0 0 3px rgba(var(--rgb-primary), 0.25);
 
   /* Elevation Shadows */
-  --shadow-sm: 0 1px 3px rgba(18, 56, 75, 0.06);
-  --shadow-card: 0 4px 16px -2px rgba(18, 56, 75, 0.08), 0 2px 6px -1px rgba(18, 56, 75, 0.04);
-  --shadow-card-hover: 0 12px 24px -4px rgba(18, 56, 75, 0.12), 0 4px 8px -2px rgba(18, 56, 75, 0.06);
-  --shadow-modal: 0 24px 48px -12px rgba(11, 44, 61, 0.28);
-  --shadow-btn: 0 4px 14px rgba(6, 115, 108, 0.3);
-  --shadow-btn-hover: 0 6px 20px rgba(6, 115, 108, 0.4);
+  --shadow-sm: 0 1px 3px rgba(3, 4, 94, 0.06);
+  --shadow-card: 0 4px 16px -2px rgba(3, 4, 94, 0.08), 0 2px 6px -1px rgba(3, 4, 94, 0.04);
+  --shadow-card-hover: 0 12px 24px -4px rgba(3, 4, 94, 0.12), 0 4px 8px -2px rgba(3, 4, 94, 0.06);
+  --shadow-modal: 0 24px 48px -12px rgba(3, 4, 94, 0.28);
+  --shadow-btn: 0 1px 2px rgba(3, 4, 94, 0.08);
+  --shadow-btn-hover: 0 4px 12px rgba(var(--rgb-primary), 0.22);
 
   /* Spacing (4px grid) */
   --space-1: 4px;

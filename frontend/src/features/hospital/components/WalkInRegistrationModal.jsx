@@ -134,7 +134,7 @@ export default function WalkInRegistrationModal({
                   background: 'rgba(var(--rgb-error), 0.12)',
                   border: '1px solid var(--color-error)',
                   color: 'var(--color-error)',
-                  fontSize: '0.85rem',
+                  fontSize: '0.875rem',
                   fontWeight: 600,
                 }}
               >

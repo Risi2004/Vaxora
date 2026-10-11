@@ -81,6 +81,29 @@ function queueTimeSortKey(time) {
   return Number(match[1]) * 60 + Number(match[2]);
 }
 
+/** Minutes from midnight for the slot end (last time in "09:40 AM - 10:00 AM"). */
+function parseSlotEndMinutes(timeSlot) {
+  const matches = [...String(timeSlot || '').matchAll(/(\d{1,2}):(\d{2})\s*(AM|PM)?/gi)];
+  if (!matches.length) return null;
+  const last = matches[matches.length - 1];
+  let hour = Number(last[1]);
+  const minute = Number(last[2]);
+  const meridiem = String(last[3] || '').toUpperCase();
+  if (Number.isNaN(hour) || Number.isNaN(minute)) return null;
+  if (meridiem === 'PM' && hour < 12) hour += 12;
+  if (meridiem === 'AM' && hour === 12) hour = 0;
+  return hour * 60 + minute;
+}
+
+/** Unchecked-in desk rows whose slot has already ended. */
+function isMissedSlot(patient, nowMinutes) {
+  if (patient.checkedIn) return false;
+  if (patient.status !== 'waiting' && patient.status !== 'awaiting_payment') return false;
+  const endMinutes = parseSlotEndMinutes(patient.time);
+  if (endMinutes == null) return false;
+  return nowMinutes >= endMinutes;
+}
+
 function formatVaultTemp(temp) {
   const raw = String(temp || '').trim();
   if (!raw) return null;
@@ -106,7 +129,29 @@ function parseBoothLabel(label) {
 }
 
 function resolveQueueBooth(appointment, boothCards) {
-  if (appointment.boothLabel) return parseBoothLabel(appointment.boothLabel);
+  const boothId = appointment.boothId || appointment.BoothId || null;
+  if (boothId && boothCards.length > 0) {
+    const byId = boothCards.find((b) => String(b.id) === String(boothId));
+    if (byId) {
+      return {
+        id: byId.id,
+        code: byId.code || null,
+        name: byId.name || parseBoothLabel(byId.boothName).name,
+      };
+    }
+  }
+
+  if (appointment.boothLabel) {
+    const parsed = parseBoothLabel(appointment.boothLabel);
+    const byCode = boothCards.find(
+      (b) => parsed.code && String(b.code).toLowerCase() === String(parsed.code).toLowerCase()
+    );
+    return {
+      id: byCode?.id || boothId,
+      code: parsed.code || byCode?.code || null,
+      name: parsed.name,
+    };
+  }
 
   const practitioner = normalizePersonName(appointment.doctorName || appointment.nurseName);
   if (practitioner && boothCards.length > 0) {
@@ -118,13 +163,25 @@ function resolveQueueBooth(appointment, boothCards) {
     );
     if (match) {
       return {
+        id: match.id,
         code: match.code || null,
         name: match.name || parseBoothLabel(match.boothName).name,
       };
     }
   }
 
-  return { code: null, name: 'Unassigned' };
+  return { id: boothId, code: null, name: 'Unassigned' };
+}
+
+function normalizeVaccineKey(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function formatSessionWindow(start, end) {
+  const s = String(start || '').slice(0, 5);
+  const e = String(end || '').slice(0, 5);
+  if (!s && !e) return '';
+  return `${s}–${e}`;
 }
 
 const HOME_QUEUE_PREVIEW_ROWS = 6;
@@ -141,7 +198,12 @@ export default function HospitalDashboardOverview({ view = 'home' }) {
   const [isRestockOpen, setIsRestockOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [boothFilter, setBoothFilter] = useState('all');
+  const [sessionFilter, setSessionFilter] = useState('all');
+  const [todaySessions, setTodaySessions] = useState([]);
   const [toastMessage, setToastMessage] = useState('');
+  // Tick so missed slots drop off the live board when their window ends.
+  const [nowMinutes, setNowMinutes] = useState(() => hospitalMinutesNow());
 
   // 1. Logged in Hospital Profile Context
   const [hospitalUser, setHospitalUser] = useState(() => authService.getUser());
@@ -159,6 +221,13 @@ export default function HospitalDashboardOverview({ view = 'home' }) {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  useEffect(() => {
+    const tick = () => setNowMinutes(hospitalMinutesNow());
+    tick();
+    const id = window.setInterval(tick, 30_000);
+    return () => window.clearInterval(id);
   }, []);
 
   const hospitalDetails = hospitalUser?.profileDetails || {};
@@ -385,18 +454,46 @@ export default function HospitalDashboardOverview({ view = 'home' }) {
         staffService.getHospitalStaff({ status: 'Active' }),
         scheduleService.getHospitalSchedules().catch(() => null),
       ]);
-      // Booths that run a vaccine session today (null when sessions could not be loaded).
-      const sessionBoothIds = Array.isArray(scheduleList)
-        ? new Set(
-            scheduleList
-              .filter((sch) => sch.boothId && sessionRunsOn(sch, today))
-              .map((sch) => sch.boothId)
-          )
-        : null;
-
       const booths = Array.isArray(boothList) ? boothList : [];
       const shifts = Array.isArray(shiftList) ? shiftList : [];
       const staff = Array.isArray(staffList) ? staffList : [];
+
+      // Booths that run a vaccine session today (null when sessions could not be loaded).
+      const todaysSchedules = Array.isArray(scheduleList)
+        ? scheduleList.filter((sch) => sessionRunsOn(sch, today))
+        : [];
+      const sessionBoothIds = Array.isArray(scheduleList)
+        ? new Set(todaysSchedules.filter((sch) => sch.boothId).map((sch) => sch.boothId))
+        : null;
+
+      const boothById = new Map(
+        booths.map((b, index) => [
+          b.boothId,
+          {
+            code: b.code || String(index + 1).padStart(2, '0'),
+            name: b.name || b.displayLabel || 'Booth',
+          },
+        ])
+      );
+
+      setTodaySessions(
+        todaysSchedules.map((sch, index) => {
+          const boothMeta = boothById.get(sch.boothId) || {};
+          const window = formatSessionWindow(sch.startTime, sch.endTime);
+          const vaccine = sch.vaccineName || sch.VaccineName || 'Session';
+          const boothCode = boothMeta.code || '—';
+          return {
+            id: String(sch.id || sch.scheduleId || `session-${index}`),
+            boothId: sch.boothId ? String(sch.boothId) : '',
+            boothCode,
+            vaccineName: vaccine,
+            startTime: sch.startTime,
+            endTime: sch.endTime,
+            label: window ? `${vaccine} · ${window}` : vaccine,
+            subLabel: boothCode,
+          };
+        })
+      );
 
       // The server decides who is on duty (live shift or clock-in, not on break),
       // so the count and booth badges match what clinical staff can actually do.
@@ -462,6 +559,7 @@ export default function HospitalDashboardOverview({ view = 'home' }) {
       setBoothCards(cards);
     } catch (err) {
       setBoothCards([]);
+      setTodaySessions([]);
       setOnDutyCount(0);
       setBoothsError(err.message || 'Failed to load booth staffing.');
     } finally {
@@ -533,14 +631,48 @@ export default function HospitalDashboardOverview({ view = 'home' }) {
   );
 
   const filteredQueue = useMemo(() => {
+    const selectedSession =
+      sessionFilter === 'all'
+        ? null
+        : todaySessions.find((s) => s.id === sessionFilter) || null;
+
     // Today only: other dates live under Appointments → Bookings.
     const list = todayQueuePatients.filter((p) => {
-      // Status filter
-      if (statusFilter !== 'all' && p.status !== statusFilter) {
+      const missed = isMissedSlot(p, nowMinutes);
+
+      if (statusFilter === 'all') {
+        if (p.status === 'cancelled' || missed) return false;
+      } else if (statusFilter === 'missed') {
+        if (p.status !== 'cancelled' && !missed) return false;
+      } else if (p.status !== statusFilter) {
+        return false;
+      } else if (
+        (statusFilter === 'waiting' || statusFilter === 'awaiting_payment')
+        && missed
+      ) {
         return false;
       }
 
-      // Search query filter
+      if (boothFilter === 'unassigned') {
+        if (p.booth?.id || p.booth?.code) return false;
+      } else if (boothFilter !== 'all') {
+        const boothKey = String(boothFilter);
+        const matchesBooth =
+          String(p.booth?.id || '') === boothKey
+          || String(p.booth?.code || '').toLowerCase() === boothKey.toLowerCase();
+        if (!matchesBooth) return false;
+      }
+
+      if (selectedSession) {
+        const sameBooth =
+          !selectedSession.boothId
+          || String(p.booth?.id || '') === selectedSession.boothId
+          || String(p.booth?.code || '').toLowerCase() === String(selectedSession.boothCode || '').toLowerCase();
+        const sameVaccine =
+          normalizeVaccineKey(p.vaccine) === normalizeVaccineKey(selectedSession.vaccineName);
+        if (!sameBooth || !sameVaccine) return false;
+      }
+
       if (!searchQuery.trim()) return true;
       const q = searchQuery.toLowerCase();
       return (
@@ -556,7 +688,15 @@ export default function HospitalDashboardOverview({ view = 'home' }) {
       if (byTime !== 0) return byTime;
       return String(a.token || '').localeCompare(String(b.token || ''));
     });
-  }, [todayQueuePatients, statusFilter, searchQuery]);
+  }, [
+    todayQueuePatients,
+    statusFilter,
+    boothFilter,
+    sessionFilter,
+    todaySessions,
+    searchQuery,
+    nowMinutes,
+  ]);
 
   const totalStock = useMemo(() => {
     return inventory.reduce((acc, curr) => acc + (curr.available || 0), 0);
@@ -570,9 +710,12 @@ export default function HospitalDashboardOverview({ view = 'home' }) {
 
   const activeQueueCount = useMemo(() => {
     return todayPatients.filter(
-      (p) => p.status !== 'completed' && p.status !== 'cancelled'
+      (p) =>
+        p.status !== 'completed'
+        && p.status !== 'cancelled'
+        && !isMissedSlot(p, nowMinutes)
     ).length;
-  }, [todayPatients]);
+  }, [todayPatients, nowMinutes]);
 
   const observationCount = useMemo(
     () => todayPatients.filter((p) => p.status === 'observation').length,
@@ -580,13 +723,17 @@ export default function HospitalDashboardOverview({ view = 'home' }) {
   );
 
   const awaitingPaymentCount = useMemo(
-    () => todayPatients.filter((p) => p.status === 'awaiting_payment').length,
-    [todayPatients]
+    () => todayPatients.filter(
+      (p) => p.status === 'awaiting_payment' && !isMissedSlot(p, nowMinutes)
+    ).length,
+    [todayPatients, nowMinutes]
   );
 
   const notArrivedCount = useMemo(
-    () => todayPatients.filter((p) => p.status === 'waiting' && !p.checkedIn).length,
-    [todayPatients]
+    () => todayPatients.filter(
+      (p) => p.status === 'waiting' && !p.checkedIn && !isMissedSlot(p, nowMinutes)
+    ).length,
+    [todayPatients, nowMinutes]
   );
 
   const checkedInCount = useMemo(
@@ -659,19 +806,71 @@ export default function HospitalDashboardOverview({ view = 'home' }) {
               onChange={(e) => setSearchQuery(e.target.value)}
               className="queue-search-input"
             />
+
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
               className="queue-filter-select"
               aria-label="Filter queue by status"
             >
-              <option value="all">All Statuses</option>
+              <option value="all">Active queue</option>
               <option value="awaiting_payment">Awaiting payment</option>
               <option value="waiting">Waiting</option>
               <option value="administering">Administering</option>
               <option value="observation">In Observation</option>
               <option value="completed">Completed</option>
+              <option value="missed">Missed / no-show</option>
               <option value="cancelled">Cancelled</option>
+            </select>
+
+            <select
+              value={boothFilter}
+              onChange={(e) => {
+                const next = e.target.value;
+                setBoothFilter(next);
+                if (
+                  next !== 'all'
+                  && sessionFilter !== 'all'
+                  && todaySessions.find((s) => s.id === sessionFilter)?.boothId !== next
+                ) {
+                  setSessionFilter('all');
+                }
+              }}
+              className="queue-filter-select"
+              aria-label="Filter queue by booth"
+            >
+              <option value="all">All booths</option>
+              {boothCards.map((booth) => (
+                <option key={booth.id} value={String(booth.id)}>
+                  {booth.code ? `${booth.code} · ${booth.name}` : booth.name}
+                </option>
+              ))}
+              <option value="unassigned">Unassigned</option>
+            </select>
+
+            <select
+              value={sessionFilter}
+              onChange={(e) => {
+                const next = e.target.value;
+                setSessionFilter(next);
+                if (next !== 'all') {
+                  const session = todaySessions.find((s) => s.id === next);
+                  if (session?.boothId) setBoothFilter(session.boothId);
+                }
+              }}
+              className="queue-filter-select queue-filter-select--session"
+              aria-label="Filter queue by session today"
+            >
+              <option value="all">All sessions today</option>
+              {todaySessions.length === 0 ? (
+                <option value="__none" disabled>No sessions today</option>
+              ) : (
+                todaySessions.map((session) => (
+                  <option key={session.id} value={session.id}>
+                    {session.label} · {session.subLabel}
+                  </option>
+                ))
+              )}
             </select>
 
             <button
@@ -679,6 +878,9 @@ export default function HospitalDashboardOverview({ view = 'home' }) {
               className="btn-inventory-refresh"
               onClick={() => {
                 setStatusFilter('all');
+                setBoothFilter('all');
+                setSessionFilter('all');
+                loadBoothStaffing();
                 loadAppointmentsQueue();
               }}
               disabled={queueLoading}
@@ -699,13 +901,14 @@ export default function HospitalDashboardOverview({ view = 'home' }) {
       )}
 
       <div className="table-responsive">
-        <table className="hospital-queue-table">
+        <table className={`hospital-queue-table${isQueueView ? ' has-desk-actions' : ''}`}>
           <colgroup>
             <col className="col-token" />
             <col className="col-patient" />
             <col className="col-vaccine" />
             <col className="col-booth" />
             <col className="col-status" />
+            {isQueueView ? <col className="col-actions" /> : null}
           </colgroup>
           <thead>
             <tr>
@@ -714,124 +917,142 @@ export default function HospitalDashboardOverview({ view = 'home' }) {
               <th>Vaccine &amp; Dose</th>
               <th>Booth Station</th>
               <th>Status</th>
+              {isQueueView ? <th>Action</th> : null}
             </tr>
           </thead>
           <tbody>
             {queueLoading ? (
               <tr>
-                <td colSpan={5} style={{ textAlign: 'center', padding: '32px', color: 'var(--color-text-muted)' }}>
+                <td colSpan={isQueueView ? 6 : 5} style={{ textAlign: 'center', padding: '32px', color: 'var(--color-text-muted)' }}>
                   Loading live queue from database...
                 </td>
               </tr>
             ) : queueError ? (
               <tr>
-                <td colSpan={5} style={{ textAlign: 'center', padding: '32px', color: 'var(--color-error)' }}>
+                <td colSpan={isQueueView ? 6 : 5} style={{ textAlign: 'center', padding: '32px', color: 'var(--color-error)' }}>
                   {queueError}
                 </td>
               </tr>
             ) : filteredQueue.length === 0 ? (
               <tr>
-                <td colSpan={5} className="empty-table-cell">
+                <td colSpan={isQueueView ? 6 : 5} className="empty-table-cell">
                   No patients in today's queue.
                 </td>
               </tr>
             ) : (
-              queueRows.map((patient) => (
-                <tr key={patient.id}>
-                  <td>
-                    <span className="queue-token-pill">{String(patient.token || '').replace(/-/g, '\u2011')}</span>
-                  </td>
-                  <td>
-                    <div className="queue-patient-name">{patient.name}</div>
-                    <div className="queue-patient-meta">
-                      {patient.phone ? patient.phone : patient.date}
-                    </div>
-                    {patient.time ? (
-                      <div className="queue-patient-meta queue-patient-time">{patient.time}</div>
-                    ) : null}
-                  </td>
-                  <td>
-                    <div className="queue-vaccine-badge">{patient.vaccine}</div>
-                    <div className="queue-dose-meta" title={patient.dose}>{patient.dose}</div>
-                  </td>
-                  <td>
-                    <span
-                      className={`queue-booth-tag${
-                        !patient.booth?.code ? ' is-unassigned' : ''
-                      }`}
-                    >
-                      {patient.booth?.code || 'Unassigned'}
-                    </span>
-                  </td>
-                  <td>
-                    {!isQueueView ? (
-                      <span className={`queue-status-badge status-${patient.status}`}>
-                        {patient.status === 'awaiting_payment'
-                          ? 'Awaiting payment'
-                          : patient.status === 'waiting'
-                            ? (patient.checkedIn ? 'Checked in' : 'Not arrived')
-                            : queueStatusLabel(patient.status)}
-                      </span>
-                    ) : patient.status === 'awaiting_payment' ? (
-                      <div className="hospital-action-buttons-wrapper">
-                        <span className="mockup-status-badge pending">Awaiting payment</span>
-                        {!patient.checkedIn && patient.date === todayStr ? (
-                          <button
-                            type="button"
-                            className="btn-hospital-confirm-action"
-                            title="Patient has arrived at the hospital"
-                            onClick={() => handleDeskCheckIn(patient.id)}
-                          >
-                            Check in
-                          </button>
-                        ) : null}
+              queueRows.map((patient) => {
+                const statusLabel =
+                  patient.status === 'awaiting_payment'
+                    ? 'Awaiting payment'
+                    : patient.status === 'waiting'
+                      ? (patient.checkedIn ? 'Checked in' : 'Not arrived')
+                      : queueStatusLabel(patient.status);
+
+                const statusClass =
+                  patient.status === 'awaiting_payment'
+                    ? 'status-awaiting-payment'
+                    : `status-${patient.status}`;
+
+                let deskActions = null;
+                if (isQueueView && patient.status === 'awaiting_payment') {
+                  deskActions = (
+                    <div className="queue-desk-actions">
+                      {!patient.checkedIn && patient.date === todayStr ? (
                         <button
                           type="button"
-                          className="btn-hospital-confirm-action"
-                          title="Record desk/cash payment at the hospital counter"
-                          onClick={() => handleDeskMarkPaid(patient.id)}
-                        >
-                          Mark paid
-                        </button>
-                        <button
-                          type="button"
-                          className="btn-hospital-cancel-action"
-                          title="Decline unpaid appointment"
-                          onClick={() => handleDeskDeclineUnpaid(patient.id)}
-                        >
-                          ✕ Decline
-                        </button>
-                      </div>
-                    ) : patient.status === 'waiting' && !patient.checkedIn && patient.date === todayStr ? (
-                      <div className="hospital-action-buttons-wrapper">
-                        <span className="mockup-status-badge pending">Not arrived</span>
-                        <button
-                          type="button"
-                          className="btn-hospital-confirm-action"
+                          className="queue-desk-btn is-primary"
                           title="Patient has arrived at the hospital"
                           onClick={() => handleDeskCheckIn(patient.id)}
                         >
                           Check in
                         </button>
-                        <button
-                          type="button"
-                          className="btn-hospital-cancel-action"
-                          title="Patient did not come"
-                          onClick={() => handleDeskNoShow(patient.id)}
-                        >
-                          No-show
-                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        className="queue-desk-btn is-primary"
+                        title="Record desk/cash payment at the hospital counter"
+                        onClick={() => handleDeskMarkPaid(patient.id)}
+                      >
+                        Mark paid
+                      </button>
+                      <button
+                        type="button"
+                        className="queue-desk-btn is-danger"
+                        title="Decline unpaid appointment"
+                        onClick={() => handleDeskDeclineUnpaid(patient.id)}
+                      >
+                        Decline
+                      </button>
+                    </div>
+                  );
+                } else if (
+                  isQueueView
+                  && patient.status === 'waiting'
+                  && !patient.checkedIn
+                  && patient.date === todayStr
+                ) {
+                  deskActions = (
+                    <div className="queue-desk-actions">
+                      <button
+                        type="button"
+                        className="queue-desk-btn is-primary"
+                        title="Patient has arrived at the hospital"
+                        onClick={() => handleDeskCheckIn(patient.id)}
+                      >
+                        Check in
+                      </button>
+                      <button
+                        type="button"
+                        className="queue-desk-btn is-danger"
+                        title="Patient did not come"
+                        onClick={() => handleDeskNoShow(patient.id)}
+                      >
+                        No-show
+                      </button>
+                    </div>
+                  );
+                }
+
+                return (
+                  <tr key={patient.id}>
+                    <td>
+                      <span className="queue-token-pill">{String(patient.token || '').replace(/-/g, '\u2011')}</span>
+                    </td>
+                    <td>
+                      <div className="queue-patient-name">{patient.name}</div>
+                      <div className="queue-patient-meta">
+                        {patient.phone ? patient.phone : patient.date}
                       </div>
-                    ) : (
-                      <span className={`queue-status-badge status-${patient.status}`}>
-                        {patient.status === 'waiting' && patient.checkedIn
-                          ? 'Checked in'
-                          : queueStatusLabel(patient.status)}
+                      {patient.time ? (
+                        <div className="queue-patient-meta queue-patient-time">{patient.time}</div>
+                      ) : null}
+                    </td>
+                    <td>
+                      <div className="queue-vaccine-badge">{patient.vaccine}</div>
+                      <div className="queue-dose-meta" title={patient.dose}>{patient.dose}</div>
+                    </td>
+                    <td>
+                      <span
+                        className={`queue-booth-tag${
+                          !patient.booth?.code ? ' is-unassigned' : ''
+                        }`}
+                      >
+                        {patient.booth?.code || 'Unassigned'}
                       </span>
-                    )}
-                  </td>
-                </tr>
-              ))
+                    </td>
+                    <td>
+                      <span className={`queue-status-badge ${statusClass}`}>
+                        {statusLabel}
+                      </span>
+                    </td>
+                    {isQueueView ? (
+                      <td className="queue-actions-cell">
+                        {deskActions || <span className="queue-actions-empty">—</span>}
+                      </td>
+                    ) : null}
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
@@ -877,7 +1098,7 @@ export default function HospitalDashboardOverview({ view = 'home' }) {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            boxShadow: '0 4px 12px rgba(6, 95, 70, 0.1)',
+            boxShadow: '0 4px 12px rgba(var(--rgb-success), 0.12)',
             animation: 'fadeIn 0.2s ease',
           }}
         >
@@ -1139,7 +1360,7 @@ export default function HospitalDashboardOverview({ view = 'home' }) {
                     </div>
 
                     {item.warning && (
-                      <div style={{ color: 'var(--color-warning)', fontSize: '0.72rem', fontWeight: 700, marginTop: '6px' }}>
+                      <div style={{ color: 'var(--color-warning)', fontSize: '0.75rem', fontWeight: 700, marginTop: '6px' }}>
                         {item.warning}
                       </div>
                     )}
@@ -1182,7 +1403,7 @@ export default function HospitalDashboardOverview({ view = 'home' }) {
                 className="btn-hospital-secondary"
                 onClick={loadBoothStaffing}
                 disabled={boothsLoading}
-                style={{ padding: '6px 12px', fontSize: '0.82rem' }}
+                style={{ padding: '6px 12px', fontSize: '0.8125rem' }}
               >
                 {boothsLoading ? 'Refreshing...' : 'Refresh'}
               </button>

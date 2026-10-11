@@ -377,10 +377,12 @@ export default function HospitalStaffTab() {
               key={staff.id}
               className="booth-card"
               style={{
+                // Top stripe and role tag follow the role colour, as on the roster
+                '--tone': staff.role === 'Doctor' ? 'var(--color-role-doctor)' : 'var(--color-success)',
                 padding: '22px',
                 border:
                   staff.affiliationStatus === 'Pending'
-                    ? '1px solid rgba(245, 158, 11, 0.45)'
+                    ? '1px solid var(--color-warning-border)'
                     : '1px solid rgba(var(--rgb-primary-dark), 0.18)',
               }}
             >
@@ -389,9 +391,9 @@ export default function HospitalStaffTab() {
                   <span
                     className="booth-number-tag"
                     style={{
-                      background: staff.role === 'Doctor' ? 'var(--color-brand-blue)' : 'var(--color-primary)',
+                      background: staff.role === 'Doctor' ? 'var(--color-role-doctor)' : 'var(--color-success)',
                       color: 'var(--color-text-inverse)',
-                      borderColor: staff.role === 'Doctor' ? 'var(--color-primary-dark)' : 'var(--color-primary-hover)',
+                      borderColor: staff.role === 'Doctor' ? 'var(--color-role-doctor)' : 'var(--color-success)',
                     }}
                   >
                     {staff.role}
@@ -400,7 +402,7 @@ export default function HospitalStaffTab() {
                     style={{
                       fontFamily: 'var(--font-heading)',
                       fontWeight: 700,
-                      fontSize: '0.78rem',
+                      fontSize: '0.75rem',
                       background: 'var(--color-info-bg)',
                       color: 'var(--color-primary)',
                       padding: '2px 8px',
@@ -435,7 +437,7 @@ export default function HospitalStaffTab() {
                             ? 'var(--color-warning)'
                             : 'var(--color-text-muted)',
                       fontWeight: 700,
-                      fontSize: '0.78rem',
+                      fontSize: '0.75rem',
                     }}
                   >
                     {staff.status}
@@ -459,7 +461,7 @@ export default function HospitalStaffTab() {
                   )}
                 </div>
                 <div className="staff-text-group" style={{ gap: '2px' }}>
-                  <span className="staff-name" style={{ fontSize: '1.08rem' }}>
+                  <span className="staff-name" style={{ fontSize: '1.125rem' }}>
                     {staff.name}
                   </span>
                   <span className="staff-role-desc" style={{ color: 'var(--color-primary)', fontWeight: 600 }}>
@@ -482,7 +484,7 @@ export default function HospitalStaffTab() {
                       border: 'none',
                       color: 'var(--color-error)',
                       fontWeight: 600,
-                      fontSize: '0.78rem',
+                      fontSize: '0.75rem',
                       cursor: 'pointer',
                     }}
                   >
@@ -500,7 +502,7 @@ export default function HospitalStaffTab() {
                         border: 'none',
                         color: 'var(--color-error)',
                         fontWeight: 600,
-                        fontSize: '0.78rem',
+                        fontSize: '0.75rem',
                         cursor: 'pointer',
                       }}
                     >
@@ -527,7 +529,7 @@ export default function HospitalStaffTab() {
           >
             Previous
           </button>
-          <span style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>
+          <span style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>
             Page {page} of {pageCount}
           </span>
           <button

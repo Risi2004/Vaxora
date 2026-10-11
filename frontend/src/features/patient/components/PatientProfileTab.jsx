@@ -367,7 +367,7 @@ export default function PatientProfileTab() {
                     <h2 className="profile-info-title">Personal Information</h2>
                     <span
                       style={{
-                        fontSize: "0.8rem",
+                        fontSize: "0.8125rem",
                         color: "var(--color-success)",
                         fontWeight: 600,
                       }}
@@ -559,7 +559,7 @@ export default function PatientProfileTab() {
                             {rec.icd10Code && (
                               <span
                                 style={{
-                                  fontSize: "0.72rem",
+                                  fontSize: "0.75rem",
                                   color: "var(--color-text-placeholder)",
                                 }}
                               >
@@ -569,7 +569,7 @@ export default function PatientProfileTab() {
                             {rec.description && (
                               <span
                                 style={{
-                                  fontSize: "0.78rem",
+                                  fontSize: "0.75rem",
                                   color: "var(--color-text-body)",
                                 }}
                               >
@@ -706,7 +706,7 @@ export default function PatientProfileTab() {
               <button
                 type="button"
                 className="btn-book-appointment"
-                style={{ padding: "9px 24px", fontSize: "0.96rem" }}
+                style={{ padding: "9px 24px", fontSize: "0.9375rem" }}
                 onClick={() => navigate("/patient/appointments")}
               >
                 Book Appointment
@@ -768,7 +768,7 @@ export default function PatientProfileTab() {
                             <span
                               style={{
                                 marginLeft: "8px",
-                                fontSize: "0.78rem",
+                                fontSize: "0.75rem",
                                 color: "var(--color-text-body)",
                               }}
                             >
@@ -803,7 +803,7 @@ export default function PatientProfileTab() {
             4. DANGER ZONE: Delete Account
            ========================================================================= */}
         <div
-          className="danger-zone-card patient-profile-card"
+          className="danger-zone-card"
         >
           <div className="danger-zone-row"
           >

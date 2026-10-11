@@ -241,11 +241,11 @@ export default function BookingAgentChat({ onAppointmentCreated, launchPayHere, 
             display: 'flex',
             alignItems: 'center',
             gap: '6px',
-            background: agentHealth?.online ? 'rgba(34, 197, 94, 0.2)' : 'rgba(var(--rgb-error), 0.2)',
-            border: `1px solid ${agentHealth?.online ? 'rgba(34, 197, 94, 0.4)' : 'rgba(var(--rgb-error), 0.4)'}`,
+            background: agentHealth?.online ? 'rgba(var(--rgb-success), 0.2)' : 'rgba(var(--rgb-error), 0.2)',
+            border: `1px solid ${agentHealth?.online ? 'rgba(var(--rgb-success), 0.4)' : 'rgba(var(--rgb-error), 0.4)'}`,
             padding: '4px 10px',
             borderRadius: '20px',
-            fontSize: '11px',
+            fontSize: '12px',
             fontWeight: 600
           }}>
             <span style={{

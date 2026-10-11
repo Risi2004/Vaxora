@@ -76,7 +76,7 @@ export default function DeleteAccountModal({ isOpen, onClose, userName, roleName
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: '1.4rem',
+              fontSize: '1.5rem',
               flexShrink: 0,
             }}
           >
@@ -94,7 +94,7 @@ export default function DeleteAccountModal({ isOpen, onClose, userName, roleName
             >
               Delete Account
             </h3>
-            <p style={{ margin: '2px 0 0', fontSize: '0.82rem', color: 'var(--color-text-placeholder)' }}>
+            <p style={{ margin: '2px 0 0', fontSize: '0.8125rem', color: 'var(--color-text-placeholder)' }}>
               Permanent action for {roleName || 'User'}
             </p>
           </div>
@@ -109,7 +109,7 @@ export default function DeleteAccountModal({ isOpen, onClose, userName, roleName
               color: 'var(--color-error)',
               padding: '10px 12px',
               borderRadius: '8px',
-              fontSize: '0.84rem',
+              fontSize: '0.8125rem',
               marginBottom: '16px',
             }}
           >
@@ -120,7 +120,7 @@ export default function DeleteAccountModal({ isOpen, onClose, userName, roleName
         {/* Description Body */}
         <div
           style={{
-            fontSize: '0.88rem',
+            fontSize: '0.875rem',
             lineHeight: 1.5,
             color: 'var(--color-border-card)',
             marginBottom: '20px',
@@ -133,7 +133,7 @@ export default function DeleteAccountModal({ isOpen, onClose, userName, roleName
           <p style={{ margin: '0 0 8px', fontWeight: 600, color: 'var(--color-error)' }}>
             Are you sure you want to delete the account for "{userName || 'this profile'}"?
           </p>
-          <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--color-text-placeholder)' }}>
+          <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--color-text-placeholder)' }}>
             This will permanently remove your profile, registration details, documents, and credentials from the Vaxora database. This action cannot be undone.
           </p>
         </div>
@@ -150,7 +150,7 @@ export default function DeleteAccountModal({ isOpen, onClose, userName, roleName
               border: '1px solid var(--color-text-body)',
               borderRadius: '8px',
               padding: '9px 18px',
-              fontSize: '0.88rem',
+              fontSize: '0.875rem',
               fontWeight: 600,
               cursor: loading ? 'not-allowed' : 'pointer',
               transition: 'background 0.2s',
@@ -169,7 +169,7 @@ export default function DeleteAccountModal({ isOpen, onClose, userName, roleName
               border: '1px solid var(--color-error)',
               borderRadius: '8px',
               padding: '9px 20px',
-              fontSize: '0.88rem',
+              fontSize: '0.875rem',
               fontWeight: 700,
               cursor: loading ? 'not-allowed' : 'pointer',
               boxShadow: '0 4px 14px rgba(var(--rgb-error), 0.4)',

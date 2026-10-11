@@ -633,7 +633,7 @@ class _FairnessCompare extends StatelessWidget {
             style: TextStyle(
               fontWeight: FontWeight.w800,
               fontSize: 13,
-              color: Color(0xFF1D4ED8),
+              color: Color(0xFF023E8A),
             ),
           ),
           const SizedBox(height: 8),

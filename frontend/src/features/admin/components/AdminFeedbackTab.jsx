@@ -252,7 +252,7 @@ export default function AdminFeedbackTab() {
               National Feedback Inbox
             </span>
             <span
-              style={{ color: "#38bdf8", fontSize: "0.8rem", fontWeight: 600 }}
+              style={{ color: "#00b4d8", fontSize: "0.8rem", fontWeight: 600 }}
             >
               • Real-time Grievance Stream
             </span>
@@ -304,14 +304,14 @@ export default function AdminFeedbackTab() {
         <div className="doctor-stat-card">
           <div
             className="doctor-stat-icon-wrapper"
-            style={{ background: "rgba(2, 132, 199, 0.15)", color: "#38bdf8" }}
+            style={{ background: "rgba(0, 119, 182, 0.15)", color: "#00b4d8" }}
           >
             💬
           </div>
           <div className="doctor-stat-content">
             <span className="doctor-stat-label">Total Received</span>
             <div className="doctor-stat-value">{stats.total}</div>
-            <span className="doctor-stat-meta" style={{ color: "#38bdf8" }}>
+            <span className="doctor-stat-meta" style={{ color: "#00b4d8" }}>
               All stakeholder tiers
             </span>
           </div>
@@ -344,13 +344,13 @@ export default function AdminFeedbackTab() {
         <div className="doctor-stat-card">
           <div
             className="doctor-stat-icon-wrapper"
-            style={{ background: "rgba(56, 189, 248, 0.15)", color: "#38bdf8" }}
+            style={{ background: "rgba(0, 180, 216, 0.15)", color: "#00b4d8" }}
           >
             <IconClock size={22} />
           </div>
           <div className="doctor-stat-content">
             <span className="doctor-stat-label">Pending Review</span>
-            <div className="doctor-stat-value" style={{ color: "#38bdf8" }}>
+            <div className="doctor-stat-value" style={{ color: "#00b4d8" }}>
               {stats.pending}
             </div>
             <span className="doctor-stat-meta" style={{ color: "#94a3b8" }}>
@@ -614,7 +614,7 @@ export default function AdminFeedbackTab() {
                       <div
                         style={{
                           fontWeight: 700,
-                          color: "#38bdf8",
+                          color: "#00b4d8",
                           fontSize: "0.88rem",
                           marginBottom: 3,
                         }}
@@ -674,9 +674,9 @@ export default function AdminFeedbackTab() {
                           type="button"
                           className="doctor-table-btn"
                           style={{
-                            background: "#0369a1",
+                            background: "#0077b6",
                             color: "#ffffff",
-                            borderColor: "#38bdf8",
+                            borderColor: "#00b4d8",
                           }}
                           onClick={() => handleOpenReviewModal(item)}
                         >
@@ -812,7 +812,7 @@ export default function AdminFeedbackTab() {
                   </div>
                   {!selectedFeedback.isAnonymous &&
                     selectedFeedback.submitterEmail && (
-                      <div style={{ fontSize: "0.8rem", color: "#38bdf8" }}>
+                      <div style={{ fontSize: "0.8rem", color: "#00b4d8" }}>
                         {selectedFeedback.submitterEmail}
                       </div>
                     )}
