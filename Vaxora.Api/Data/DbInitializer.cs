@@ -14,6 +14,7 @@ public static class DbInitializer
     public const string SchemaSafetySql = @"
                     ALTER TABLE ""Users"" ADD COLUMN IF NOT EXISTS ""FullName"" VARCHAR(150) NULL;
                     ALTER TABLE ""VaccineSchedules"" ADD COLUMN IF NOT EXISTS ""Price"" NUMERIC(18,2) NOT NULL DEFAULT 0.00;
+                    ALTER TABLE ""HospitalFormularies"" ADD COLUMN IF NOT EXISTS ""SupplierCost"" NUMERIC NOT NULL DEFAULT 0;
                     ALTER TABLE ""Appointments"" ADD COLUMN IF NOT EXISTS ""Fee"" NUMERIC(18,2) NOT NULL DEFAULT 0.00;
                     ALTER TABLE ""Appointments"" ADD COLUMN IF NOT EXISTS ""PaymentMethod"" VARCHAR(50) NOT NULL DEFAULT 'Free';
                     ALTER TABLE ""Appointments"" ADD COLUMN IF NOT EXISTS ""PaymentStatus"" VARCHAR(50) NOT NULL DEFAULT 'Paid';
@@ -158,7 +159,8 @@ public static class DbInitializer
                     ("20261001120000_AddAgentWorkflowExecutionEvidence", "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'AgentWorkflows' AND column_name = 'CompletedStepsJson');"),
                     ("20261002120000_AddBatchOpenVialDosesRemaining", "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'Batches' AND column_name = 'OpenVialDosesRemaining');"),
                     ("20261002130000_AllowGuestWalkInAppointments", "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'Appointments' AND column_name = 'GuestWalkInPatientName');"),
-                    ("20261005120000_AddHospitalFormularyPrice", "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'HospitalFormularies' AND column_name = 'Price');")
+                    ("20261005120000_AddHospitalFormularyPrice", "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'HospitalFormularies' AND column_name = 'Price');"),
+                    ("20261012120000_AddHospitalFormularySupplierCost", "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'HospitalFormularies' AND column_name = 'SupplierCost');")
                 };
 
                 foreach (var (migrationId, sqlCheck) in subsequentChecks)

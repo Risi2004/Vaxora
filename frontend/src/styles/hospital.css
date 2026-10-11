@@ -3676,7 +3676,7 @@ select.schedule-input-field {
 
 .formulary-input-row {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.9fr) minmax(120px, 0.55fr) minmax(110px, 0.5fr) auto;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.9fr) minmax(120px, 0.55fr) minmax(110px, 0.5fr) minmax(110px, 0.5fr) auto;
   gap: 12px;
   align-items: end;
 }
@@ -3864,6 +3864,18 @@ select.schedule-input-field {
 .pill-remove-btn:hover {
   background: var(--color-error-bg);
   color: var(--color-error);
+}
+
+.pill-remove-btn.pill-edit-btn:hover {
+  background: var(--color-surface-subtle);
+  color: var(--color-primary);
+}
+
+.formulary-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
 }
 
 @media (max-width: 900px) {

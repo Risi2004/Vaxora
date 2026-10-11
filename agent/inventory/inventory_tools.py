@@ -95,6 +95,30 @@ async def tool_get_vaccines(token: Optional[str] = None) -> Dict[str, Any]:
         return {"success": False, "error": str(e)}
 
 
+async def get_formulary_pricing(token: Optional[str] = None) -> Dict[str, Dict[str, Any]]:
+    """
+    vaccine_id -> {"supplier_cost", "category"} from the hospital's formulary.
+    Returns {} on any failure so the PO falls back to category estimates.
+    """
+    try:
+        entries = await _api_get("/inventory/formulary", token=token)
+    except Exception:
+        return {}
+    pricing: Dict[str, Dict[str, Any]] = {}
+    for e in entries or []:
+        vaccine_id = e.get("vaccineId")
+        if not vaccine_id:
+            continue
+        cost = e.get("supplierCost") or 0
+        # Whole-rupee costs stay ints so the PO shows 1,200 rather than 1,200.0
+        cost = int(cost) if float(cost).is_integer() else float(cost)
+        pricing[str(vaccine_id).lower()] = {
+            "supplier_cost": cost,
+            "category": e.get("category"),
+        }
+    return pricing
+
+
 async def tool_get_expiring_batches(days_threshold: int = 60, token: Optional[str] = None) -> Dict[str, Any]:
     try:
         data = await _api_get(

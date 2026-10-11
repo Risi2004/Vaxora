@@ -272,20 +272,13 @@ public class InventoryService : IInventoryService
         var hospital = await GetHospitalAsync(userId);
         if (hospital == null) return new List<FormularyEntryDto>();
 
-        return await _context.HospitalFormularies
+        var entries = await _context.HospitalFormularies
             .Where(f => f.HospitalProfileId == hospital.Id)
             .Include(f => f.Vaccine)
             .OrderBy(f => f.Vaccine.Name)
-            .Select(f => new FormularyEntryDto
-            {
-                Id = f.Id,
-                VaccineId = f.VaccineId,
-                VaccineName = f.Vaccine.Name,
-                Manufacturer = f.Vaccine.Manufacturer,
-                Price = f.Price,
-                RegisteredAt = f.RegisteredAt
-            })
             .ToListAsync();
+
+        return entries.Select(f => MapFormularyDto(f, f.Vaccine)).ToList();
     }
 
     public async Task<FormularyEntryDto> RegisterFormularyAsync(Guid userId, RegisterFormularyDto dto)
@@ -327,6 +320,8 @@ public class InventoryService : IInventoryService
         if (existing != null)
         {
             existing.Price = price;
+            if (dto.SupplierCost.HasValue)
+                existing.SupplierCost = Math.Max(0.00m, dto.SupplierCost.Value);
             await SyncActiveSchedulePricesAsync(hospital.UserId, hospital.Id, vaccine.Id, price);
             await _context.SaveChangesAsync();
             return MapFormularyDto(existing, vaccine);
@@ -336,7 +331,8 @@ public class InventoryService : IInventoryService
         {
             HospitalProfileId = hospital.Id,
             VaccineId = vaccine.Id,
-            Price = price
+            Price = price,
+            SupplierCost = Math.Max(0.00m, dto.SupplierCost ?? 0.00m)
         };
         _context.HospitalFormularies.Add(entry);
 
@@ -367,6 +363,8 @@ public class InventoryService : IInventoryService
 
         var price = Math.Max(0.00m, dto.Price);
         entry.Price = price;
+        if (dto.SupplierCost.HasValue)
+            entry.SupplierCost = Math.Max(0.00m, dto.SupplierCost.Value);
         if (!string.IsNullOrWhiteSpace(dto.Category) && entry.Vaccine != null)
             entry.Vaccine.Category = ParseCategory(dto.Category);
         await SyncActiveSchedulePricesAsync(hospital.UserId, hospital.Id, entry.VaccineId, price);
@@ -400,6 +398,7 @@ public class InventoryService : IInventoryService
         Manufacturer = vaccine.Manufacturer,
         Category = ComputeCategory(vaccine.Category),
         Price = entry.Price,
+        SupplierCost = entry.SupplierCost,
         RegisteredAt = entry.RegisteredAt
     };
 

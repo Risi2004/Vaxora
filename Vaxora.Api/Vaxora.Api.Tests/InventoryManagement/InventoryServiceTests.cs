@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
+using Vaxora.Api.Dtos;
 using Vaxora.Api.Models;
 using Vaxora.Api.Services;
 
@@ -155,6 +156,49 @@ public class InventoryServiceTests
         var items = await CreateService(ctx).GetInventoryAsync(user.Id);
 
         Assert.All(items, i => Assert.True(i.IsLowStock));
+    }
+
+    // ==================== Formulary supplier cost ====================
+
+    [Fact]
+    public async Task RegisterFormulary_StoresSupplierCostSeparatelyFromFee()
+    {
+        await using var ctx = TestDb.CreateContext();
+        var (user, _) = AddHospital(ctx);
+        await ctx.SaveChangesAsync();
+        var service = CreateService(ctx);
+
+        await service.RegisterFormularyAsync(user.Id, new RegisterFormularyDto
+        {
+            VaccineName = "BCG", Category = "pediatric", Price = 0m, SupplierCost = 850m
+        });
+
+        var entry = Assert.Single(await service.GetFormularyAsync(user.Id));
+        Assert.Equal(0m, entry.Price);
+        Assert.Equal(850m, entry.SupplierCost);
+        Assert.Equal("pediatric", entry.Category);
+    }
+
+    [Fact]
+    public async Task UpdateFormularyPrice_ChangesSupplierCostOnlyWhenSent()
+    {
+        await using var ctx = TestDb.CreateContext();
+        var (user, _) = AddHospital(ctx);
+        await ctx.SaveChangesAsync();
+        var service = CreateService(ctx);
+        var created = await service.RegisterFormularyAsync(user.Id, new RegisterFormularyDto
+        {
+            VaccineName = "BCG", Price = 500m, SupplierCost = 850m
+        });
+
+        var feeOnly = await service.UpdateFormularyPriceAsync(user.Id, created.Id,
+            new UpdateFormularyPriceDto { Price = 600m });
+        Assert.Equal(600m, feeOnly.Price);
+        Assert.Equal(850m, feeOnly.SupplierCost);
+
+        var both = await service.UpdateFormularyPriceAsync(user.Id, created.Id,
+            new UpdateFormularyPriceDto { Price = 600m, SupplierCost = 900m });
+        Assert.Equal(900m, both.SupplierCost);
     }
 
     // ==================== GetExpiringBatchesAsync ====================

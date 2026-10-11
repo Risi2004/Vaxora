@@ -9,7 +9,8 @@ from typing import Dict, Any, List, Optional
 
 
 # ==================== PRICE LOOKUP ====================
-# Simple price map by category. In real deployment this would come from supplier APIs.
+# Each line is priced from the supplier cost the hospital saved on its formulary.
+# This category map is only the fallback estimate for vaccines with no cost set.
 
 CATEGORY_UNIT_PRICES_LKR = {
     "mrna": 2000,
@@ -42,6 +43,7 @@ def generate_purchase_order_draft(
     restock_proposals: List[Dict[str, Any]],
     hospital_name: str,
     hospital_registration: Optional[str] = None,
+    formulary_pricing: Optional[Dict[str, Dict[str, Any]]] = None,
 ) -> Optional[Dict[str, Any]]:
     """
     Combines one or more restock proposals into a single draft PO.
@@ -51,6 +53,7 @@ def generate_purchase_order_draft(
             Each has: vaccine_id, vaccine_name, current_stock, recommended_quantity, reason, urgency
         hospital_name: buyer hospital display name
         hospital_registration: MOH registration number if available
+        formulary_pricing: vaccine_id -> {"supplier_cost", "category"} from the hospital formulary
 
     Returns:
         Draft PO document, or None if no valid proposals.
@@ -68,9 +71,11 @@ def generate_purchase_order_draft(
 
     for p in valid:
         qty = int(p.get("recommended_quantity", 0))
-        # Best-effort category guess from name
-        category = _guess_category(p.get("vaccine_name", ""))
-        unit = _get_unit_price(category)
+        priced = (formulary_pricing or {}).get(str(p.get("vaccine_id", "")).lower(), {})
+        # Formulary category when known, otherwise a best-effort guess from the name
+        category = priced.get("category") or _guess_category(p.get("vaccine_name", ""))
+        supplier_cost = priced.get("supplier_cost") or 0
+        unit = supplier_cost if supplier_cost > 0 else _get_unit_price(category)
         line_total = qty * unit
         subtotal += line_total
 

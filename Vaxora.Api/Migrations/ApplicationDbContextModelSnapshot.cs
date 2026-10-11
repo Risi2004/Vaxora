@@ -636,6 +636,9 @@ namespace Vaxora.Api.Migrations
                     b.Property<decimal>("Price")
                         .HasColumnType("numeric");
 
+                    b.Property<decimal>("SupplierCost")
+                        .HasColumnType("numeric");
+
                     b.Property<Guid>("VaccineId")
                         .HasColumnType("uuid");
 

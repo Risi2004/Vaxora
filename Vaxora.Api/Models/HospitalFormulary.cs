@@ -21,6 +21,10 @@ public class HospitalFormulary
     [Range(0, 1000000)]
     public decimal Price { get; set; } = 0.00m;
 
+    /// <summary>What the hospital pays the supplier per vial in LKR (0 = not set). Used on purchase orders.</summary>
+    [Range(0, 1000000)]
+    public decimal SupplierCost { get; set; } = 0.00m;
+
     // Navigation
     [ForeignKey(nameof(HospitalProfileId))]
     public virtual HospitalProfile HospitalProfile { get; set; } = null!;

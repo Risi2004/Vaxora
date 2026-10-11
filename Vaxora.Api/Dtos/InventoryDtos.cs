@@ -48,6 +48,8 @@ public class FormularyEntryDto
     public decimal Price { get; set; }
     public bool IsFree => Price <= 0;
     public string FormattedPrice => Price <= 0 ? "Free" : $"LKR {Price:N2}";
+    /// <summary>Supplier cost per vial in LKR (0 = not set).</summary>
+    public decimal SupplierCost { get; set; }
     public DateTime RegisteredAt { get; set; }
 }
 
@@ -136,12 +138,20 @@ public class RegisterFormularyDto
     /// <summary>Hospital fee per person in LKR (0 = Free).</summary>
     [Range(0, 1000000)]
     public decimal Price { get; set; } = 0.00m;
+
+    /// <summary>Supplier cost per vial in LKR. Omit to leave an existing cost unchanged.</summary>
+    [Range(0, 1000000)]
+    public decimal? SupplierCost { get; set; }
 }
 
 public class UpdateFormularyPriceDto
 {
     [Range(0, 1000000)]
     public decimal Price { get; set; }
+
+    /// <summary>Supplier cost per vial in LKR. Omit to leave it unchanged.</summary>
+    [Range(0, 1000000)]
+    public decimal? SupplierCost { get; set; }
 
     /// <summary>Optional catalog category update: routine | mrna | seasonal | pediatric.</summary>
     [MaxLength(40)]
