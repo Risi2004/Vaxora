@@ -742,7 +742,7 @@ class _ShiftCard extends StatelessWidget {
         : 'Unassigned booth';
     final cover = shift.coverStatus?.toLowerCase();
     final barColor = switch (cover) {
-      'requested' => const Color(0xFFB2660A),
+      'requested' => AppColors.warning,
       'declined' => AppColors.error,
       'covering' => AppColors.success,
       _ => StaffSurfaces.accentBar,
@@ -750,7 +750,7 @@ class _ShiftCard extends StatelessWidget {
     final borderColor = selected
         ? StaffSurfaces.cta
         : switch (cover) {
-            'requested' => const Color(0xFFF5B168),
+            'requested' => AppColors.warningBorder,
             'declined' => AppColors.error.withValues(alpha: 0.28),
             'covering' => AppColors.success.withValues(alpha: 0.28),
             _ => StaffSurfaces.cardBorder,
@@ -959,7 +959,15 @@ class _ShiftActionSheet extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             const Divider(color: StaffSurfaces.divider, height: 1),
-            if (shift.isCoverRequested)
+            if (!shift.isCoverRequested &&
+                hasShiftStarted(shift.shiftDate, shift.startTime))
+              _MenuTile(
+                icon: Icons.schedule,
+                label: 'Shift already started',
+                subtitle: 'Cover can no longer be requested — tell the hospital desk directly',
+                onTap: () => Navigator.of(context).pop(),
+              )
+            else if (shift.isCoverRequested)
               _MenuTile(
                 icon: Icons.hourglass_top_outlined,
                 label: 'Cover requested',

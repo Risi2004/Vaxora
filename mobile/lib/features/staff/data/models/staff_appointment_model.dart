@@ -1,6 +1,7 @@
 class StaffAppointmentModel {
   final String id;
   final String patientUserId;
+  final String? patientProfileId;
   final String patientName;
   final String? patientNic;
   final String? patientPhone;
@@ -17,15 +18,22 @@ class StaffAppointmentModel {
   final String status;
   final String paymentStatus;
   final String? notes;
+  final String? boothId;
   final String? boothLabel;
   final String? prescribedDosage;
   final String? prescribedByDoctorName;
   final String? dosageUpdatedAt;
   final String? updatedAt;
+  final String? checkedInAt;
+
+  /// Doctor or nurse running the live session (Administering or Observation).
+  final String? sessionStaffUserId;
+  final String? sessionStaffName;
 
   const StaffAppointmentModel({
     required this.id,
     required this.patientUserId,
+    this.patientProfileId,
     required this.patientName,
     this.patientNic,
     this.patientPhone,
@@ -42,11 +50,15 @@ class StaffAppointmentModel {
     required this.status,
     required this.paymentStatus,
     this.notes,
+    this.boothId,
     this.boothLabel,
     this.prescribedDosage,
     this.prescribedByDoctorName,
     this.dosageUpdatedAt,
     this.updatedAt,
+    this.checkedInAt,
+    this.sessionStaffUserId,
+    this.sessionStaffName,
   });
 
   /// UI queue bucket mirrored from web StaffClinicalDashboard.
@@ -59,7 +71,12 @@ class StaffAppointmentModel {
     return 'waiting';
   }
 
+  /// Patient has arrived and been checked in at the desk (or by staff).
+  bool get isCheckedIn => (checkedInAt ?? '').isNotEmpty;
+
   String get statusLabel {
+    if (uiStatus == 'waiting' && !isCheckedIn) return 'Not arrived';
+    if (uiStatus == 'waiting' && !isPaymentSettled) return 'Awaiting payment';
     switch (uiStatus) {
       case 'completed':
         return 'Completed';
@@ -98,6 +115,7 @@ class StaffAppointmentModel {
     return StaffAppointmentModel(
       id: json['id']?.toString() ?? '',
       patientUserId: json['patientUserId']?.toString() ?? '',
+      patientProfileId: json['patientProfileId']?.toString(),
       patientName: json['patientName']?.toString() ?? 'Patient',
       patientNic: json['patientNic']?.toString(),
       patientPhone: json['patientPhone']?.toString(),
@@ -114,11 +132,15 @@ class StaffAppointmentModel {
       status: json['status']?.toString() ?? 'Confirmed',
       paymentStatus: json['paymentStatus']?.toString() ?? '—',
       notes: json['notes']?.toString(),
+      boothId: json['boothId']?.toString(),
       boothLabel: json['boothLabel']?.toString(),
       prescribedDosage: json['prescribedDosage']?.toString(),
       prescribedByDoctorName: json['prescribedByDoctorName']?.toString(),
       dosageUpdatedAt: json['dosageUpdatedAt']?.toString(),
       updatedAt: json['updatedAt']?.toString(),
+      checkedInAt: json['checkedInAt']?.toString(),
+      sessionStaffUserId: json['sessionStaffUserId']?.toString(),
+      sessionStaffName: json['sessionStaffName']?.toString(),
     );
   }
 }

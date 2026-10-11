@@ -4,6 +4,7 @@ import clinicalPatientService from '../services/clinicalPatientService';
 import staffAppointmentService from '../../staff/services/staffAppointmentService';
 import { IconClose, IconSearch } from '../../../shared/icons/AppIcons';
 import StaffSubpageHeader from '../../staff/components/StaffSubpageHeader';
+import useConfirmDialog from '../../../shared/hooks/useConfirmDialog';
 
 function isPastDate(dateStr) {
   if (!dateStr) return false;
@@ -66,6 +67,7 @@ function mapPatientDetail(detail) {
 }
 
 export default function NursePatientsTab() {
+  const [confirm, confirmDialog] = useConfirmDialog();
   const [searchQuery, setSearchQuery] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
@@ -158,9 +160,13 @@ export default function NursePatientsTab() {
 
   const handleMarkMissed = async (pv) => {
     if (!pv?.id) return;
-    if (!window.confirm(`Mark ${pv.vaccine} on ${pv.date} as missed? This closes the incomplete visit.`)) {
-      return;
-    }
+    const ok = await confirm({
+      title: 'Mark visit as missed?',
+      message: `Mark ${pv.vaccine} on ${pv.date} as missed? This closes the incomplete visit.`,
+      confirmLabel: 'Mark missed',
+      destructive: true,
+    });
+    if (!ok) return;
     setClosingMissedId(pv.id);
     setError('');
     try {
@@ -198,7 +204,7 @@ export default function NursePatientsTab() {
         <div
           className="appointment-alert-pill"
           role="alert"
-          style={{ background: '#fef2f2', color: '#b91c1c', borderColor: '#fecaca' }}
+          style={{ background: 'var(--color-error-bg)', color: 'var(--color-error)', borderColor: 'var(--color-error-border)' }}
         >
           {error}
         </div>
@@ -206,6 +212,14 @@ export default function NursePatientsTab() {
 
       {!selectedPatient && (
         <div className="doctor-appointment-inner-card">
+          <div className="section-title-group" style={{ marginBottom: 16 }}>
+            <h2 className="doctor-card-title" style={{ margin: 0 }}>
+              Recent Dosage Updates
+            </h2>
+            <p className="section-title-desc">
+              Latest vaccination dosage changes — search to open a full patient record
+            </p>
+          </div>
           <div className="doctor-appointments-filter-bar">
             <div className="doctor-filter-group" style={{ flex: 1, position: 'relative' }}>
               <label className="doctor-filter-label" htmlFor="ph-nurse-search" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
@@ -255,7 +269,7 @@ export default function NursePatientsTab() {
               )}
             </div>
 
-            <div style={{ fontSize: '0.88rem', color: '#64748b', fontWeight: 600 }}>
+            <div style={{ fontSize: '0.88rem', color: 'var(--color-text-muted)', fontWeight: 600 }}>
               {recentLoading
                 ? 'Loading...'
                 : `${recentUpdates.length} recent update${recentUpdates.length === 1 ? '' : 's'}`}
@@ -346,7 +360,7 @@ export default function NursePatientsTab() {
                     <span className="doctor-filter-label">Phone: {selectedPatient.phone || '—'}</span>
                     <span className="doctor-filter-label">Email: {selectedPatient.email || '—'}</span>
                   </div>
-                  <div style={{ fontSize: '0.88rem', color: '#64748b', fontWeight: 600 }}>
+                  <div style={{ fontSize: '0.88rem', color: 'var(--color-text-muted)', fontWeight: 600 }}>
                     {selectedPatient.vaccinationHistory.length} completed ·{' '}
                     {selectedPatient.pendingVaccines.filter((pv) => !pv.isOverdue).length} upcoming ·{' '}
                     {selectedPatient.pendingVaccines.filter((pv) => pv.isOverdue).length} missed
@@ -502,6 +516,7 @@ export default function NursePatientsTab() {
         </>
       )}
       </div>
+      {confirmDialog}
     </div>
   );
 }

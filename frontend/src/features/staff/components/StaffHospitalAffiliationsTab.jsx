@@ -2,8 +2,15 @@ import { deferEffectCallback } from '../../../shared/utils/deferEffectCallback.j
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import staffService from '../../hospital/services/staffService';
 import { addHospitalDays, hospitalToday } from '../../hospital/utils/hospitalDate';
-import { IconHospital } from '../../../shared/icons/AppIcons';
-import affilHeroImage from '../../../assets/images/staff-affiliations-hero.png';
+import { IconCalendar, IconHospital, IconRepeat } from '../../../shared/icons/AppIcons';
+import PortalHero from '../../../components/PortalHero';
+import HeroTabs from '../../../components/HeroTabs';
+import useConfirmDialog from '../../../shared/hooks/useConfirmDialog';
+import useViewParam from '../../../shared/hooks/useViewParam';
+
+/** First key = default full page; second = focused alternate view (same pattern as hospital roster). */
+const SHIFT_SECTIONS = ['week', 'cover'];
+const HOSPITAL_SECTIONS = ['hospitals', 'invitations'];
 
 function toDateInputValue(date = new Date()) {
   const y = date.getFullYear();
@@ -54,18 +61,108 @@ function coverStatusTone(status) {
   const s = String(status || '').toLowerCase();
   if (s === 'approved' || s === 'covering') return 'is-approved';
   if (s === 'declined') return 'is-declined';
+  if (s === 'cancelled') return 'is-cancelled';
   if (s === 'requested' || s === 'pending') return 'is-pending';
   return 'is-pending';
 }
 
-function coverActivityTone(status, direction) {
-  const s = String(status || '').toLowerCase();
-  if (s === 'declined') return 'is-declined';
-  if (s === 'pending' || s === 'requested') return 'is-pending';
-  if (String(direction || '').toLowerCase() === 'incoming' || s === 'covering') {
-    return 'is-incoming';
+function coverActivityTone(status) {
+  return coverStatusTone(status);
+}
+
+function formatShiftDate(dateInput) {
+  const day = String(dateInput || '').slice(0, 10);
+  if (!day) return '';
+  return new Date(`${day}T00:00:00`).toLocaleDateString(undefined, {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  });
+}
+
+/**
+ * How a shift card looks and whether cover can be asked for.
+ * Colours follow the app's meaning: blue = scheduled, green = live or resolved,
+ * amber = waiting on the hospital, grey = past.
+ */
+function shiftCardState(shift, today) {
+  const cover = String(shift.coverStatus || '').trim().toLowerCase();
+  const finished = isShiftFinished(shift, today);
+  const started = isShiftStarted(shift, today);
+  const canRequest = !started && (!cover || cover === 'declined' || cover === 'requested');
+
+  if (finished) return { tone: 'is-finished', chip: { tone: 'is-grey', label: 'Finished' }, canRequest: false };
+  if (cover === 'covering') return { tone: 'is-upcoming', chip: { tone: 'is-blue', label: 'Covering' }, canRequest: false };
+  if (cover === 'approved') return { tone: 'is-finished', chip: { tone: 'is-green', label: 'Covered' }, canRequest: false };
+  if (started) return { tone: 'is-live', chip: { tone: 'is-green', label: 'On now' }, canRequest: false };
+  if (cover === 'requested' || cover === 'pending') {
+    return { tone: 'is-requested', chip: { tone: 'is-amber', label: 'Cover requested' }, canRequest, action: 'Edit request' };
   }
-  return 'is-approved';
+  if (cover === 'declined') {
+    return { tone: 'is-upcoming', chip: { tone: 'is-red', label: 'Cover declined' }, canRequest, action: 'Ask again' };
+  }
+  return { tone: 'is-upcoming', chip: null, canRequest, action: 'Request cover' };
+}
+
+function shiftCardTitle(state) {
+  if (state.canRequest) return `${state.action} for this shift`;
+  if (state.chip?.label === 'Finished') return 'This shift has finished';
+  if (state.chip?.label === 'On now') return 'Shift in progress. For cover, tell the hospital desk directly.';
+  if (state.chip?.label === 'Covering') return 'You are covering this shift for a colleague';
+  if (state.chip?.label === 'Covered') return 'A colleague is covering this shift';
+  return undefined;
+}
+
+const COVER_STATUS_TONE = {
+  'is-pending': 'is-amber',
+  'is-approved': 'is-green',
+  'is-declined': 'is-red',
+  'is-cancelled': 'is-grey',
+};
+
+const COVER_RANGES = [
+  { key: 'recent', label: '30 days', title: 'Past 30 days and upcoming' },
+  { key: 'upcoming', label: 'Upcoming', title: 'From today on' },
+  { key: 'all', label: 'All', title: 'Every cover request' },
+];
+
+const COVER_STATUSES = [
+  { key: 'all', label: 'All' },
+  { key: 'pending', label: 'Pending' },
+  { key: 'approved', label: 'Approved' },
+  { key: 'declined', label: 'Declined' },
+  { key: 'cancelled', label: 'Cancelled' },
+];
+
+const COVER_LANE_LIMIT = 4;
+
+function coverDay(request) {
+  return String(request?.shiftDate || '').slice(0, 10);
+}
+
+function coverStatusKey(status, fallback = 'pending') {
+  const s = String(status || fallback).toLowerCase();
+  if (s === 'covering') return 'approved';
+  if (s === 'requested') return 'pending';
+  return s;
+}
+
+/** Upcoming covers soonest first, then past covers most recent first. */
+function sortCovers(rows, today) {
+  const upcoming = rows.filter((r) => coverDay(r) >= today).sort((a, b) => coverDay(a).localeCompare(coverDay(b)));
+  const past = rows.filter((r) => coverDay(r) < today).sort((a, b) => coverDay(b).localeCompare(coverDay(a)));
+  return [...upcoming, ...past];
+}
+
+function coverDateParts(request) {
+  const day = coverDay(request);
+  if (!day) return null;
+  const date = new Date(`${day}T00:00:00`);
+  return {
+    weekday: date.toLocaleDateString(undefined, { weekday: 'short' }),
+    day: date.getDate(),
+    month: date.toLocaleDateString(undefined, { month: 'short' }),
+  };
 }
 
 function isShiftFinished(shift, today) {
@@ -80,10 +177,23 @@ function isShiftFinished(shift, today) {
   return `${hh}:${mm}` >= end;
 }
 
+/** Cover can only be requested before the shift starts (hospital-local time). */
+function isShiftStarted(shift, today) {
+  const day = String(shift?.shiftDate || '').slice(0, 10);
+  if (!day) return true;
+  if (day < today) return true;
+  if (day > today) return false;
+  const start = String(shift?.startTime || '00:00').slice(0, 5);
+  const now = new Date();
+  const hh = String(now.getHours()).padStart(2, '0');
+  const mm = String(now.getMinutes()).padStart(2, '0');
+  return `${hh}:${mm}` >= start;
+}
+
 function localQuotaFallback(shift, today) {
   const day = String(shift?.shiftDate || '').slice(0, 10);
-  const finished = isShiftFinished(shift, today);
-  if (finished) {
+  const started = isShiftStarted(shift, today);
+  if (started) {
     return {
       usedThisMonth: 0,
       monthlyLimit: 3,
@@ -94,7 +204,7 @@ function localQuotaFallback(shift, today) {
       reasonRequired: false,
       alreadyPending: false,
       isUrgent: false,
-      blockReason: 'This shift has already finished.',
+      blockReason: 'This shift has already started. Tell the hospital desk directly.',
       summary: 'This shift has already finished.',
     };
   }
@@ -115,7 +225,7 @@ function localQuotaFallback(shift, today) {
     isUrgent,
     summary: isUrgent
       ? `Short notice (${daysUntil} day${daysUntil === 1 ? '' : 's'} left). Add a reason.`
-      : 'Cover limits could not be verified from the server — you can still try to send.',
+      : 'Cover limits could not be checked right now. You can still send the request.',
   };
 }
 
@@ -131,10 +241,15 @@ function HospitalAvatar({ logoUrl }) {
 }
 
 /**
- * Shared doctor/nurse view for hospital invitations, active affiliations,
+ * Shared doctor/nurse data for hospital invitations, active affiliations,
  * week shifts, and cover requests (parity with mobile staff cover flow).
+ * view="shifts": My shifts page (week calendar and cover activity).
+ * view="hospitals": Hospitals page (active affiliations and invitations).
  */
-export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff' }) {
+export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff', view = 'shifts' }) {
+  const [confirm, confirmDialog] = useConfirmDialog();
+  const isShiftsView = view === 'shifts';
+  const [section, setSection] = useViewParam(isShiftsView ? SHIFT_SECTIONS : HOSPITAL_SECTIONS);
   const today = useMemo(() => hospitalToday(), []);
   const [weekStart, setWeekStart] = useState(() => startOfWeek(hospitalToday()));
   const [invitations, setInvitations] = useState([]);
@@ -151,6 +266,10 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff' }) {
   const [coverLoading, setCoverLoading] = useState(false);
   const [coverSubmitting, setCoverSubmitting] = useState(false);
   const [coverError, setCoverError] = useState('');
+  const [coverRange, setCoverRange] = useState('recent');
+  const [coverStatusFilter, setCoverStatusFilter] = useState('all');
+  const [coverHospital, setCoverHospital] = useState('all');
+  const [expandedLanes, setExpandedLanes] = useState({});
   const toastTimerRef = useRef(null);
 
   const weekEnd = useMemo(() => addHospitalDays(weekStart, 6), [weekStart]);
@@ -195,6 +314,44 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff' }) {
     (r) => String(r.status || '').toLowerCase() === 'pending'
   ).length;
 
+  const coverHospitals = useMemo(
+    () => [...new Set(coverRequests.map((r) => r.hospitalName).filter(Boolean))].sort(),
+    [coverRequests]
+  );
+
+  // Range and hospital narrow the set; status counts are taken from what is left.
+  const coverInScope = useCallback(
+    (req) => {
+      const day = coverDay(req);
+      if (coverRange === 'upcoming' && !(day && day >= today)) return false;
+      if (coverRange === 'recent' && day && day < addHospitalDays(today, -30)) return false;
+      if (coverHospital !== 'all' && req.hospitalName !== coverHospital) return false;
+      return true;
+    },
+    [coverRange, coverHospital, today]
+  );
+
+  const coverStatusCounts = useMemo(() => {
+    const counts = { all: 0 };
+    coverRequests.filter(coverInScope).forEach((req) => {
+      const fallback = String(req.direction || '').toLowerCase() === 'incoming' ? 'approved' : 'pending';
+      const key = coverStatusKey(req.status, fallback);
+      counts.all += 1;
+      counts[key] = (counts[key] || 0) + 1;
+    });
+    return counts;
+  }, [coverRequests, coverInScope]);
+
+  const filterCoverLane = (rows, fallback) =>
+    sortCovers(
+      rows.filter(
+        (req) =>
+          coverInScope(req) &&
+          (coverStatusFilter === 'all' || coverStatusKey(req.status, fallback) === coverStatusFilter)
+      ),
+      today
+    );
+
   const showToast = (message) => {
     setToast(message);
     clearTimeout(toastTimerRef.current);
@@ -233,6 +390,17 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff' }) {
   }), [loadData]);
 
   const handleRespond = async (affiliationId, decision) => {
+    if (decision === 'Reject') {
+      const item = invitations.find((row) => row.affiliationId === affiliationId);
+      const ok = await confirm({
+        title: 'Reject invitation?',
+        message: `Decline the invitation from ${item?.hospitalName || 'this hospital'}? You can be invited again later.`,
+        confirmLabel: 'Reject',
+        destructive: true,
+      });
+      if (!ok) return;
+    }
+
     setActionId(`${affiliationId}-${decision}`);
     try {
       await staffService.respondToInvitation(affiliationId, decision);
@@ -246,8 +414,8 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff' }) {
   };
 
   const openCoverModal = async (shift) => {
-    if (isShiftFinished(shift, today)) {
-      showToast('This shift has already finished — cover cannot be requested.');
+    if (isShiftStarted(shift, today)) {
+      showToast('This shift has already started. Tell the hospital desk directly.');
       return;
     }
     setCoverShift(shift);
@@ -287,6 +455,13 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff' }) {
       return;
     }
 
+    const ok = await confirm({
+      title: 'Request cover?',
+      message: `Ask the hospital to find cover for your ${formatShiftTime(coverShift)} shift on ${String(coverShift.shiftDate || '').slice(0, 10)}?`,
+      confirmLabel: 'Send request',
+    });
+    if (!ok) return;
+
     setCoverSubmitting(true);
     setCoverError('');
     try {
@@ -325,361 +500,462 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff' }) {
       )}
 
       {error && (
-        <div className="doctor-toast" role="alert" style={{ background: '#fef2f2', color: '#b91c1c' }}>
+        <div className="doctor-toast" role="alert" style={{ background: 'var(--color-error-bg)', color: 'var(--color-error)' }}>
           {error}
           <button
             type="button"
             onClick={() => setError('')}
-            style={{ marginLeft: 12, border: 'none', background: 'none', cursor: 'pointer', color: '#b91c1c' }}
+            style={{ marginLeft: 12, border: 'none', background: 'none', cursor: 'pointer', color: 'var(--color-error)' }}
           >
             Dismiss
           </button>
         </div>
       )}
 
-      <section className="hospital-hero-banner staff-affil-hero">
-        <div className="hospital-hero-content staff-affil-hero-content">
-          <p className="hospital-hero-eyebrow">Roster &amp; cover</p>
-          <h1>Hospital Affiliations</h1>
-          <p className="hospital-hero-sub">
-            Invitations, roster membership, shifts, and cover requests for your {roleLabel.toLowerCase()} account.
-          </p>
-          <div className="staff-affil-hero-pills" aria-label="Affiliation summary">
-            <span className="staff-affil-hero-pill">
-              <strong>{loading ? '—' : invitations.length}</strong> Pending invites
-            </span>
-            <span className="staff-affil-hero-pill">
-              <strong>{loading ? '—' : affiliations.length}</strong> Active
-            </span>
-            <span className="staff-affil-hero-pill">
-              <strong>{loading ? '—' : shifts.length}</strong> Shifts (week)
-            </span>
-            <span className="staff-affil-hero-pill">
-              <strong>{loading ? '—' : pendingOutgoing}</strong> Cover pending
-            </span>
-          </div>
-        </div>
-        <div className="hospital-hero-media" aria-hidden="true">
-          <img src={affilHeroImage} alt="" className="hospital-hero-image staff-affil-hero-image" />
-        </div>
-      </section>
+      {isShiftsView ? (
+        <>
+          <PortalHero
+            eyebrow="Roster & cover"
+            title="My shifts"
+            subtitle="Your week on the roster. Ask for cover on an upcoming shift, and follow covers you sent or took on."
+          >
+            <HeroTabs
+              label="Shift views"
+              active={section}
+              onChange={setSection}
+              tabs={[
+                { key: 'week', label: 'This week' },
+                { key: 'cover', label: 'Cover activity' },
+              ]}
+            />
+          </PortalHero>
 
-      <div className="doctor-card" style={{ padding: '24px', marginBottom: '24px' }}>
-        <h2 className="doctor-card-title" style={{ marginTop: 0, marginBottom: 18 }}>
-          Active Affiliations ({affiliations.length})
-        </h2>
-
-        {loading ? (
-          <p style={{ color: '#64748b' }}>Loading affiliations...</p>
-        ) : affiliations.length === 0 ? (
-          <p style={{ color: '#64748b' }}>
-            You are not affiliated with any hospital yet. Accept an invitation to join a roster.
-          </p>
-        ) : (
-          <div style={{ display: 'grid', gap: '14px' }}>
-            {affiliations.map((item) => (
-              <div key={item.affiliationId} className="staff-affil-item-card">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0, flex: 1 }}>
-                  <HospitalAvatar logoUrl={item.hospitalLogoUrl} />
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontWeight: 700, color: '#0f172a', lineHeight: 1.4 }}>
-                      {item.hospitalName || 'Hospital'}
-                    </div>
-                    <div style={{ fontSize: '0.85rem', color: '#64748b', marginTop: 8 }}>
-                      Joined: {item.respondedAt ? new Date(item.respondedAt).toLocaleDateString() : '—'}
-                    </div>
-                  </div>
-                </div>
-                <div
-                  className={`staff-affil-presence${item.isOnDutyNow ? ' is-live' : ''}`}
-                  title={
-                    item.isOnDutyNow
-                      ? 'You have a shift covering now at this hospital'
-                      : 'No shift covering now at this hospital'
-                  }
-                >
-                  {item.isOnDutyNow ? 'On duty now' : 'No active shift'}
-                </div>
+          {section === 'week' ? (
+          <>
+          <div className="hospital-metrics-grid hospital-metrics-grid--3" aria-label="Shift summary" style={{ marginBottom: '24px' }}>
+            <div className="hospital-stat-card">
+              <div className="hospital-stat-icon stat-icon-blue">
+                <IconCalendar size={22} />
               </div>
-            ))}
-          </div>
-        )}
-      </div>
+              <div className="hospital-stat-info">
+                <span className="hospital-stat-label">Shifts this week</span>
+                <span className="hospital-stat-value">{loading ? '—' : shifts.length}</span>
+                <span className="hospital-stat-meta">On your roster</span>
+              </div>
+            </div>
 
-      <div className="doctor-card" style={{ padding: '24px', marginBottom: '24px' }}>
-        <div className="staff-shift-week-header">
-          <h2 className="doctor-card-title" style={{ margin: 0 }}>
-            My Shifts — week calendar
-          </h2>
-          <div className="staff-shift-week-nav">
-            <button
-              type="button"
-              className="staff-shift-week-nav-btn"
-              onClick={() => setWeekStart((prev) => addHospitalDays(prev, -7))}
-            >
-              Prev
-            </button>
-            <button
-              type="button"
-              className="staff-shift-week-nav-btn"
-              onClick={() => setWeekStart(startOfWeek(today))}
-            >
-              This week
-            </button>
-            <button
-              type="button"
-              className="staff-shift-week-nav-btn"
-              onClick={() => setWeekStart((prev) => addHospitalDays(prev, 7))}
-            >
-              Next
-            </button>
-          </div>
-        </div>
-        <p className="staff-shift-week-range">{formatWeekRangeLabel(weekStart, weekEnd)}</p>
-        <p className="staff-cover-hint">
-          Click a shift to request hospital cover. Limits: 3 covers / month, 1 short-notice (&lt; 2 days).
-        </p>
+            <div className="hospital-stat-card">
+              <div className="hospital-stat-icon stat-icon-amber">
+                <IconRepeat size={22} />
+              </div>
+              <div className="hospital-stat-info">
+                <span className="hospital-stat-label">Cover pending</span>
+                <span className="hospital-stat-value">{loading ? '—' : pendingOutgoing}</span>
+                <span className="hospital-stat-meta">Requests you sent</span>
+              </div>
+            </div>
 
-        {loading ? (
-          <p style={{ color: '#64748b' }}>Loading shifts...</p>
-        ) : (
-          <div className="staff-shift-week-calendar">
-            <div className="staff-shift-week-calendar-scroll">
-              <div className="staff-shift-week-calendar-grid">
-                {weekDays.map((day) => {
-                  const header = formatDayHeader(day);
-                  const isToday = day === today;
-                  return (
-                    <div
-                      key={`head-${day}`}
-                      className={`staff-shift-week-day-head${isToday ? ' is-today' : ''}`}
-                    >
-                      <div className="staff-shift-week-day-top">
-                        <span className="staff-shift-week-weekday">{header.weekday}</span>
-                        {isToday ? <span className="staff-shift-week-today-pill">Today</span> : null}
-                      </div>
-                      <span className="staff-shift-week-date">{header.dateLabel}</span>
-                    </div>
-                  );
-                })}
-
-                {weekDays.map((day) => {
-                  const dayShifts = shiftsByDay[day] || [];
-                  const isToday = day === today;
-                  return (
-                    <div
-                      key={`cell-${day}`}
-                      className={`staff-shift-week-cell${isToday ? ' is-today' : ''}`}
-                    >
-                      {dayShifts.length === 0 ? (
-                        <span className="staff-shift-week-empty">—</span>
-                      ) : (
-                        dayShifts.map((shift) => {
-                          const cover = String(shift.coverStatus || '').trim();
-                          const finished = isShiftFinished(shift, today);
-                          const canRequest =
-                            !finished &&
-                            (!cover ||
-                              cover.toLowerCase() === 'declined' ||
-                              cover.toLowerCase() === 'requested');
-                          return (
-                            <button
-                              type="button"
-                              key={shift.shiftId}
-                              className={`staff-shift-week-card staff-shift-week-card--action${
-                                cover ? ` is-cover-${cover.toLowerCase()}` : ''
-                              }${finished ? ' is-finished' : ''}`}
-                              onClick={() => canRequest && openCoverModal(shift)}
-                              disabled={!canRequest}
-                              title={
-                                finished
-                                  ? 'This shift has already finished'
-                                  : cover.toLowerCase() === 'covering'
-                                    ? 'You are covering this shift for a colleague'
-                                    : canRequest
-                                      ? 'Request cover for this shift'
-                                      : undefined
-                              }
-                            >
-                              <div className="staff-shift-week-card-time">{formatShiftTime(shift)}</div>
-                              <div className="staff-shift-week-card-booth">
-                                {shift.boothOrStation || 'Unassigned booth'}
-                              </div>
-                              {shift.notes ? (
-                                <div className="staff-shift-week-card-notes">{shift.notes}</div>
-                              ) : null}
-                              <div className="staff-shift-week-card-hospital">
-                                {hospitalNameByAffiliation[shift.affiliationId] || 'Hospital'}
-                              </div>
-                              {finished ? (
-                                <span className="staff-cover-chip is-declined">Finished</span>
-                              ) : cover ? (
-                                <span className={`staff-cover-chip ${coverStatusTone(cover)}`}>
-                                  {cover}
-                                </span>
-                              ) : (
-                                <span className="staff-cover-chip is-request">Request cover</span>
-                              )}
-                            </button>
-                          );
-                        })
-                      )}
-                    </div>
-                  );
-                })}
+            <div className="hospital-stat-card">
+              <div className="hospital-stat-icon stat-icon-green">
+                <IconHospital size={22} />
+              </div>
+              <div className="hospital-stat-info">
+                <span className="hospital-stat-label">Covering for others</span>
+                <span className="hospital-stat-value">{loading ? '—' : incomingCovers.length}</span>
+                <span className="hospital-stat-meta">Shifts handed to you</span>
               </div>
             </div>
           </div>
-        )}
-      </div>
 
-      <div className="doctor-card staff-cover-activity">
-        <h2 className="doctor-card-title" style={{ marginTop: 0, marginBottom: 8 }}>
-          Cover activity
-        </h2>
-        <p className="staff-cover-hint" style={{ marginTop: 0 }}>
-          Outgoing requests you filed, and incoming shifts assigned to you after hospital approval.
-        </p>
+          <div id="staff-shifts-week" className="doctor-card staff-page-section" style={{ padding: '24px', marginBottom: '24px' }}>
+            <div className="staff-shift-week-header">
+              <div>
+                <h2 className="doctor-card-title" style={{ margin: 0 }}>
+                  Week of {formatWeekRangeLabel(weekStart, weekEnd)}
+                </h2>
+                <p className="staff-cover-hint">
+                  Tap an upcoming shift to ask for cover. Up to 3 covers a month, 1 at short notice (under 2 days).
+                </p>
+              </div>
+              <div className="staff-shift-week-nav">
+                <button
+                  type="button"
+                  className="staff-shift-week-nav-btn"
+                  onClick={() => setWeekStart((prev) => addHospitalDays(prev, -7))}
+                  aria-label="Previous week"
+                >
+                  ‹ Prev
+                </button>
+                <button
+                  type="button"
+                  className="staff-shift-week-nav-btn"
+                  onClick={() => setWeekStart(startOfWeek(today))}
+                  disabled={weekStart === startOfWeek(today)}
+                >
+                  This week
+                </button>
+                <button
+                  type="button"
+                  className="staff-shift-week-nav-btn"
+                  onClick={() => setWeekStart((prev) => addHospitalDays(prev, 7))}
+                  aria-label="Next week"
+                >
+                  Next ›
+                </button>
+              </div>
+            </div>
 
-        {loading ? (
-          <p className="staff-cover-activity-empty">Loading cover activity...</p>
-        ) : coverRequests.length === 0 ? (
-          <p className="staff-cover-activity-empty">No cover requests yet.</p>
-        ) : (
-          <div className="staff-cover-columns">
-            <section className="staff-cover-column">
-              <h3 className="staff-cover-column-title is-outgoing">
-                Outgoing
-                <span className="staff-cover-column-count">{outgoingCovers.length}</span>
-              </h3>
-              {outgoingCovers.length === 0 ? (
-                <p className="staff-cover-activity-empty is-compact">No outgoing requests.</p>
-              ) : (
-                <div className="staff-cover-list">
-                  {outgoingCovers.map((req) => {
-                    const tone = coverActivityTone(req.status, 'outgoing');
-                    return (
-                      <article key={req.id} className={`staff-cover-item ${tone}`}>
-                        <div className="staff-cover-item-top">
-                          <strong>{req.hospitalName || 'Hospital'}</strong>
-                          <span className={`staff-cover-badge ${tone}`}>
-                            {req.status || 'Pending'}
-                          </span>
-                        </div>
-                        <div className="staff-cover-item-main">
-                          <div className="staff-cover-item-meta">{formatCoverWhen(req)}</div>
-                          {req.boothOrStation ? (
-                            <div className="staff-cover-item-booth">{req.boothOrStation}</div>
-                          ) : null}
-                        </div>
-                        {req.reason || req.replacementName ? (
-                          <div className="staff-cover-item-bottom">
-                            {req.reason ? (
-                              <div className="staff-cover-item-reason">{req.reason}</div>
-                            ) : null}
-                            {req.replacementName ? (
-                              <div className="staff-cover-item-foot">
-                                Covered by {req.replacementName}
-                              </div>
-                            ) : null}
+            {loading ? (
+              <p style={{ color: 'var(--color-text-muted)' }}>Loading shifts...</p>
+            ) : (
+              <div className={`staff-shift-week-calendar is-${String(roleLabel).toLowerCase()}`}>
+                <div className="staff-shift-week-calendar-scroll">
+                  <div className="staff-shift-week-calendar-grid">
+                    {weekDays.map((day) => {
+                      const header = formatDayHeader(day);
+                      const isToday = day === today;
+                      return (
+                        <div
+                          key={`head-${day}`}
+                          className={`staff-shift-week-day-head${isToday ? ' is-today' : ''}`}
+                        >
+                          <div className="staff-shift-week-day-top">
+                            <span className="staff-shift-week-weekday">{header.weekday}</span>
+                            {isToday ? <span className="staff-shift-week-today-pill">Today</span> : null}
                           </div>
-                        ) : (
-                          <div className="staff-cover-item-bottom is-spacer" aria-hidden="true" />
-                        )}
-                      </article>
-                    );
-                  })}
-                </div>
-              )}
-            </section>
-
-            <section className="staff-cover-column">
-              <h3 className="staff-cover-column-title is-incoming">
-                Incoming
-                <span className="staff-cover-column-count">{incomingCovers.length}</span>
-              </h3>
-              {incomingCovers.length === 0 ? (
-                <p className="staff-cover-activity-empty is-compact">No assigned cover shifts.</p>
-              ) : (
-                <div className="staff-cover-list">
-                  {incomingCovers.map((req) => {
-                    const tone = coverActivityTone(req.status, 'incoming');
-                    return (
-                      <article key={req.id} className={`staff-cover-item ${tone}`}>
-                        <div className="staff-cover-item-top">
-                          <strong>{req.hospitalName || 'Hospital'}</strong>
-                          <span className={`staff-cover-badge ${tone}`}>
-                            {req.status || 'Approved'}
-                          </span>
+                          <span className="staff-shift-week-date">{header.dateLabel}</span>
                         </div>
-                        <div className="staff-cover-item-main">
-                          <div className="staff-cover-item-meta">{formatCoverWhen(req)}</div>
-                          {req.boothOrStation ? (
-                            <div className="staff-cover-item-booth">{req.boothOrStation}</div>
-                          ) : null}
-                        </div>
-                        <div className="staff-cover-item-bottom">
-                          <div className="staff-cover-item-foot">
-                            Covering for {req.requesterName || 'colleague'}
-                          </div>
-                        </div>
-                      </article>
-                    );
-                  })}
-                </div>
-              )}
-            </section>
-          </div>
-        )}
-      </div>
+                      );
+                    })}
 
-      <div className="doctor-card" style={{ padding: '24px' }}>
-        <h2 className="doctor-card-title" style={{ marginTop: 0, marginBottom: 18 }}>
-          Pending Invitations ({invitations.length})
-        </h2>
-
-        {loading ? (
-          <p style={{ color: '#64748b' }}>Loading invitations...</p>
-        ) : invitations.length === 0 ? (
-          <p style={{ color: '#64748b' }}>No pending hospital invitations.</p>
-        ) : (
-          <div style={{ display: 'grid', gap: '14px' }}>
-            {invitations.map((item) => (
-              <div key={item.affiliationId} className="staff-affil-item-card">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
-                  <HospitalAvatar logoUrl={item.hospitalLogoUrl} />
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontWeight: 700, color: '#0f172a', lineHeight: 1.4 }}>
-                      {item.hospitalName || 'Hospital invitation'}
-                    </div>
-                    <div style={{ fontSize: '0.85rem', color: '#64748b', marginTop: 8 }}>
-                      Invited: {item.invitedAt ? new Date(item.invitedAt).toLocaleString() : '—'}
-                    </div>
+                    {weekDays.map((day) => {
+                      const dayShifts = shiftsByDay[day] || [];
+                      const isToday = day === today;
+                      return (
+                        <div
+                          key={`cell-${day}`}
+                          className={`staff-shift-week-cell${isToday ? ' is-today' : ''}`}
+                        >
+                          {dayShifts.length === 0 ? (
+                            <span className="shift-week-calendar-empty" aria-label="No shift" />
+                          ) : (
+                            dayShifts.map((shift) => {
+                              const state = shiftCardState(shift, today);
+                              const booth = shift.boothOrStation || 'Unassigned booth';
+                              return (
+                                <button
+                                  type="button"
+                                  key={shift.shiftId}
+                                  className={`staff-shift-card ${state.tone}${state.canRequest ? ' is-actionable' : ''}`}
+                                  onClick={() => state.canRequest && openCoverModal(shift)}
+                                  disabled={!state.canRequest}
+                                  title={shiftCardTitle(state)}
+                                >
+                                  <span className="staff-shift-card-time">{formatShiftTime(shift)}</span>
+                                  <span className="staff-shift-card-booth" title={booth}>{booth}</span>
+                                  {shift.notes ? (
+                                    <span className="staff-shift-card-line" title={shift.notes}>{shift.notes}</span>
+                                  ) : null}
+                                  <span className="staff-shift-card-line">
+                                    {hospitalNameByAffiliation[shift.affiliationId] || 'Hospital'}
+                                  </span>
+                                  {state.chip ? (
+                                    <span className={`staff-shift-chip ${state.chip.tone}`}>{state.chip.label}</span>
+                                  ) : null}
+                                  {state.canRequest ? (
+                                    <span className="staff-shift-card-action">
+                                      <IconRepeat size={13} aria-hidden="true" /> {state.action}
+                                    </span>
+                                  ) : null}
+                                </button>
+                              );
+                            })
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                  <button
-                    type="button"
-                    className="staff-affil-reject-btn"
-                    disabled={actionId != null && String(actionId).startsWith(item.affiliationId)}
-                    onClick={() => handleRespond(item.affiliationId, 'Reject')}
-                  >
-                    {actionId === `${item.affiliationId}-Reject` ? 'Rejecting...' : 'Reject'}
-                  </button>
-                  <button
-                    type="button"
-                    className="staff-affil-accept-btn"
-                    disabled={actionId != null && String(actionId).startsWith(item.affiliationId)}
-                    onClick={() => handleRespond(item.affiliationId, 'Accept')}
-                  >
-                    {actionId === `${item.affiliationId}-Accept` ? 'Accepting...' : 'Accept'}
-                  </button>
-                </div>
               </div>
-            ))}
+            )}
           </div>
-        )}
-      </div>
+          </>
+          ) : null}
+
+          <div id="staff-cover-activity" className="doctor-card staff-cover-activity staff-page-section">
+            <div className="staff-cover-activity-header">
+              <h2 className="doctor-card-title" style={{ margin: 0 }}>
+                Cover requests
+              </h2>
+              <p className="staff-cover-hint" style={{ margin: '4px 0 0' }}>
+                Covers you asked for, and shifts you are covering for colleagues.
+              </p>
+            </div>
+
+            <div className="staff-cover-toolbar" aria-label="Filter cover requests">
+              <div className="staff-cover-seg" role="group" aria-label="Date range">
+                {COVER_RANGES.map((opt) => (
+                  <button
+                    type="button"
+                    key={opt.key}
+                    title={opt.title}
+                    className={`staff-cover-seg-btn${coverRange === opt.key ? ' is-active' : ''}`}
+                    aria-pressed={coverRange === opt.key}
+                    onClick={() => setCoverRange(opt.key)}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="staff-cover-seg" role="group" aria-label="Status">
+                {COVER_STATUSES.map((opt) => (
+                  <button
+                    type="button"
+                    key={opt.key}
+                    className={`staff-cover-seg-btn${coverStatusFilter === opt.key ? ' is-active' : ''}`}
+                    aria-pressed={coverStatusFilter === opt.key}
+                    onClick={() => setCoverStatusFilter(opt.key)}
+                  >
+                    {opt.label}
+                    <span className="staff-cover-seg-count">{coverStatusCounts[opt.key] || 0}</span>
+                  </button>
+                ))}
+              </div>
+
+              {coverHospitals.length > 1 ? (
+                <select
+                  className="staff-cover-select"
+                  aria-label="Hospital"
+                  value={coverHospital}
+                  onChange={(e) => setCoverHospital(e.target.value)}
+                >
+                  <option value="all">All hospitals</option>
+                  {coverHospitals.map((name) => (
+                    <option key={name} value={name}>{name}</option>
+                  ))}
+                </select>
+              ) : null}
+            </div>
+
+            {loading ? (
+              <p className="staff-cover-quiet">Loading cover requests...</p>
+            ) : (
+              <div className="staff-cover-board">
+                {[
+                  {
+                    key: 'out',
+                    title: 'You asked for cover',
+                    icon: <IconRepeat size={16} aria-hidden="true" />,
+                    rows: outgoingCovers,
+                    empty: 'You have not asked for cover yet.',
+                    fallbackStatus: 'Pending',
+                    note: (req) =>
+                      req.replacementName
+                        ? `Covered by ${req.replacementName}`
+                        : String(req.status || '').toLowerCase() === 'cancelled' && req.decisionNote
+                          ? req.decisionNote
+                          : req.reason || '',
+                  },
+                  {
+                    key: 'in',
+                    title: "You're covering",
+                    icon: <IconHospital size={16} aria-hidden="true" />,
+                    rows: incomingCovers,
+                    empty: 'No shifts handed to you.',
+                    fallbackStatus: 'Approved',
+                    note: (req) => `For ${req.requesterName || 'a colleague'}`,
+                  },
+                ].map((lane) => {
+                  const rows = filterCoverLane(lane.rows, lane.fallbackStatus);
+                  const expanded = Boolean(expandedLanes[lane.key]);
+                  const visible = expanded ? rows : rows.slice(0, COVER_LANE_LIMIT);
+                  const hidden = rows.length - visible.length;
+                  return (
+                    <section key={lane.key} className={`staff-cover-lane is-${lane.key}`}>
+                      <header className="staff-cover-lane-head">
+                        <h3 className="staff-cover-lane-title">
+                          <span className="staff-cover-lane-icon">{lane.icon}</span>
+                          {lane.title}
+                        </h3>
+                        <span className="staff-cover-lane-count" title={`${rows.length} of ${lane.rows.length} shown by filters`}>
+                          {rows.length}
+                        </span>
+                      </header>
+
+                      {rows.length === 0 ? (
+                        <p className="staff-cover-quiet">
+                          {lane.rows.length === 0 ? lane.empty : 'Nothing matches these filters.'}
+                        </p>
+                      ) : (
+                        <ul className="staff-cover-list">
+                          {visible.map((req, index) => {
+                            const status = req.status || lane.fallbackStatus;
+                            const note = lane.note(req);
+                            const parts = coverDateParts(req);
+                            const isPast = coverDay(req) < today;
+                            const startsPast = isPast && index > 0 && coverDay(visible[index - 1]) >= today;
+                            return (
+                              <li key={req.id} className="staff-cover-row" aria-label={`${formatCoverWhen(req)}, ${status}`}>
+                                {startsPast ? <span className="staff-cover-divider">Earlier</span> : null}
+                                <div className={`staff-cover-item${isPast ? ' is-past' : ''}`}>
+                                  <div className="staff-cover-date" aria-hidden="true">
+                                    {parts ? (
+                                      <>
+                                        <span className="staff-cover-date-wd">{parts.weekday}</span>
+                                        <span className="staff-cover-date-day">{parts.day}</span>
+                                        <span className="staff-cover-date-mon">{parts.month}</span>
+                                      </>
+                                    ) : (
+                                      <span className="staff-cover-date-day">-</span>
+                                    )}
+                                  </div>
+                                  <div className="staff-cover-item-main">
+                                    <span className="staff-cover-item-when">
+                                      {req.shiftWindow || 'Time not set'}
+                                    </span>
+                                    <span className="staff-cover-item-where">
+                                      {[req.hospitalName || 'Hospital', req.boothOrStation].filter(Boolean).join(' · ')}
+                                    </span>
+                                    {note ? <span className="staff-cover-item-note">{note}</span> : null}
+                                  </div>
+                                  <span className={`staff-shift-chip ${COVER_STATUS_TONE[coverActivityTone(status)] || 'is-amber'}`}>
+                                    {status}
+                                  </span>
+                                </div>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
+
+                      {rows.length > COVER_LANE_LIMIT ? (
+                        <button
+                          type="button"
+                          className="staff-cover-more"
+                          onClick={() => setExpandedLanes((prev) => ({ ...prev, [lane.key]: !expanded }))}
+                        >
+                          {expanded ? 'Show less' : `Show ${hidden} more`}
+                        </button>
+                      ) : null}
+                    </section>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </>
+      ) : (
+        <>
+          <PortalHero
+            eyebrow="Affiliations"
+            title="Hospitals"
+            subtitle={`Hospitals you work at, and invitations to join a roster as a ${roleLabel.toLowerCase()}.`}
+          >
+            <HeroTabs
+              label="Hospital views"
+              active={section}
+              onChange={setSection}
+              tabs={[
+                { key: 'hospitals', label: 'Hospitals' },
+                { key: 'invitations', label: 'Pending invites', badge: invitations.length },
+              ]}
+            />
+          </PortalHero>
+
+          <div id="staff-invitations" className="doctor-card staff-page-section" style={{ padding: '24px', marginBottom: '24px' }}>
+            <h2 className="doctor-card-title" style={{ marginTop: 0, marginBottom: 18 }}>
+              Pending Invitations ({invitations.length})
+            </h2>
+
+            {loading ? (
+              <p style={{ color: 'var(--color-text-muted)' }}>Loading invitations...</p>
+            ) : invitations.length === 0 ? (
+              <p style={{ color: 'var(--color-text-muted)' }}>No pending hospital invitations.</p>
+            ) : (
+              <div style={{ display: 'grid', gap: '14px' }}>
+                {invitations.map((item) => (
+                  <div key={item.affiliationId} className="staff-affil-item-card">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
+                      <HospitalAvatar logoUrl={item.hospitalLogoUrl} />
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, color: 'var(--color-text-title)', lineHeight: 1.4 }}>
+                          {item.hospitalName || 'Hospital invitation'}
+                        </div>
+                        <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginTop: 8 }}>
+                          Invited: {item.invitedAt ? new Date(item.invitedAt).toLocaleString() : '—'}
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                      <button
+                        type="button"
+                        className="staff-affil-reject-btn"
+                        disabled={actionId != null && String(actionId).startsWith(item.affiliationId)}
+                        onClick={() => handleRespond(item.affiliationId, 'Reject')}
+                      >
+                        {actionId === `${item.affiliationId}-Reject` ? 'Rejecting...' : 'Reject'}
+                      </button>
+                      <button
+                        type="button"
+                        className="staff-affil-accept-btn"
+                        disabled={actionId != null && String(actionId).startsWith(item.affiliationId)}
+                        onClick={() => handleRespond(item.affiliationId, 'Accept')}
+                      >
+                        {actionId === `${item.affiliationId}-Accept` ? 'Accepting...' : 'Accept'}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {section === 'hospitals' ? (
+          <div id="staff-affiliations" className="doctor-card staff-page-section" style={{ padding: '24px', marginBottom: '24px' }}>
+            <h2 className="doctor-card-title" style={{ marginTop: 0, marginBottom: 18 }}>
+              Active Affiliations ({affiliations.length})
+            </h2>
+
+            {loading ? (
+              <p style={{ color: 'var(--color-text-muted)' }}>Loading affiliations...</p>
+            ) : affiliations.length === 0 ? (
+              <p style={{ color: 'var(--color-text-muted)' }}>
+                You are not affiliated with any hospital yet. Accept an invitation to join a roster.
+              </p>
+            ) : (
+              <div style={{ display: 'grid', gap: '14px' }}>
+                {affiliations.map((item) => (
+                  <div key={item.affiliationId} className="staff-affil-item-card">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0, flex: 1 }}>
+                      <HospitalAvatar logoUrl={item.hospitalLogoUrl} />
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, color: 'var(--color-text-title)', lineHeight: 1.4 }}>
+                          {item.hospitalName || 'Hospital'}
+                        </div>
+                        <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginTop: 8 }}>
+                          Joined: {item.respondedAt ? new Date(item.respondedAt).toLocaleDateString() : '—'}
+                        </div>
+                      </div>
+                    </div>
+                    <div
+                      className={`staff-affil-presence${item.isOnDutyNow ? ' is-live' : ''}`}
+                      title={
+                        item.isOnDutyNow
+                          ? 'You can do clinical work at this hospital now'
+                          : 'Clock in from your dashboard, or wait for your rostered shift'
+                      }
+                    >
+                      {item.isOnDutyNow ? 'On duty now' : 'Not on duty'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          ) : null}
+        </>
+      )}
 
       {coverShift && (
         <div className="doctor-modal-overlay" onClick={closeCoverModal}>
@@ -688,7 +964,7 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff' }) {
               <div>
                 <h3 className="doctor-modal-title">Request cover</h3>
                 <p style={{ margin: '4px 0 0', fontSize: '0.82rem', color: 'rgba(255,255,255,0.85)' }}>
-                  Hospital will assign a replacement — not a peer swap
+                  The hospital assigns a replacement for you.
                 </p>
               </div>
               <button
@@ -707,7 +983,7 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff' }) {
                   {hospitalNameByAffiliation[coverShift.affiliationId] || 'Hospital'}
                 </strong>
                 <div>
-                  {String(coverShift.shiftDate || '').slice(0, 10)} · {formatShiftTime(coverShift)}
+                  {formatShiftDate(coverShift.shiftDate)} · {formatShiftTime(coverShift)}
                 </div>
                 <div>{coverShift.boothOrStation || 'Unassigned booth'}</div>
               </div>
@@ -717,6 +993,13 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff' }) {
               ) : coverQuota?.canRequest === false ? (
                 <p className="staff-cover-blocked" role="alert">
                   {coverQuota.blockReason || coverQuota.summary || 'Cover cannot be requested for this shift.'}
+                </p>
+              ) : coverQuota ? (
+                <p className="staff-cover-quota">
+                  {Number.isFinite(coverQuota.usedThisMonth) && Number.isFinite(coverQuota.monthlyLimit)
+                    ? `${coverQuota.usedThisMonth} of ${coverQuota.monthlyLimit} covers used this month.`
+                    : null}
+                  {coverQuota.isUrgent ? ' Short notice, so a reason is required.' : ''}
                 </p>
               ) : null}
 
@@ -732,20 +1015,20 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff' }) {
                   onChange={(e) => setCoverReason(e.target.value)}
                   placeholder={
                     coverQuota?.reasonRequired
-                      ? 'Short notice — explain why you need cover'
+                      ? 'Short notice: explain why you need cover'
                       : 'Why do you need cover for this shift?'
                   }
                   disabled={coverSubmitting || coverQuota?.canRequest === false}
                 />
                 {coverQuota?.alreadyPending && coverQuota?.canRequest !== false ? (
                   <p className="staff-cover-hint-inline">
-                    You already have a pending request — submitting updates the reason.
+                    You already have a pending request. Sending again updates the reason.
                   </p>
                 ) : null}
               </div>
 
               {coverError ? (
-                <p role="alert" style={{ color: '#b91c1c', fontWeight: 600, margin: '0 0 8px' }}>
+                <p role="alert" style={{ color: 'var(--color-error)', fontWeight: 600, margin: '0 0 8px' }}>
                   {coverError}
                 </p>
               ) : null}
@@ -776,6 +1059,7 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff' }) {
           </div>
         </div>
       )}
+      {confirmDialog}
     </div>
   );
 }

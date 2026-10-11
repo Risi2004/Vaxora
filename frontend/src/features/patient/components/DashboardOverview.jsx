@@ -16,7 +16,8 @@ import {
   IconStethoscope,
   IconSyringe,
 } from "../../../shared/icons/AppIcons";
-import heroImage from "../../../assets/images/patient-home-hero.png";
+import heroImage from "../../../assets/images/portal/hero-patient.jpg";
+import PortalHero from "../../../components/PortalHero";
 
 // ---------- Date helpers ----------
 /** Local calendar YYYY-MM-DD (avoid UTC shift from toISOString). */
@@ -302,74 +303,65 @@ export default function DashboardOverview({ onNavigateTab, onOpenBookModal }) {
   return (
     <div className="dashboard-overview-tab">
       {/* ---------- 1. Welcome Banner ---------- */}
-      <section className="patient-welcome-banner">
-        <div className="patient-welcome-content">
-          <p className="patient-welcome-eyebrow">
-            <IconStethoscope size={14} /> Your care hub
-          </p>
-          <h1>Welcome back{displayName ? `, ${displayName}` : ""}!</h1>
-          <p className="welcome-subtitle">
-            {nextAppointment
-              ? `Your next vaccination is scheduled for ${formatShortDate(nextApptDate)}.`
-              : "Your Vaxora immunization pass is cryptographically verified and up-to-date. No upcoming appointments scheduled."}
-          </p>
-          <div className="patient-welcome-tags">
-            <span className="patient-welcome-tag">
-              <IconShield size={13} /> Protected
-            </span>
-            <span className="patient-welcome-tag">
-              <IconSyringe size={13} /> Vaccination ready
-            </span>
-            <span className="patient-welcome-tag patient-welcome-tag--soft">
-              Care-first support
-            </span>
-          </div>
-          <div className="patient-welcome-actions">
-            {carePlanResult ? (
-              <>
-                <button
-                  type="button"
-                  className="btn-banner-action"
-                  onClick={() => setCarePlanOpen(true)}
-                >
-                  <IconBot size={16} /> View Care Plan
-                </button>
-              </>
-            ) : (
+      <PortalHero
+        eyebrow={<><IconStethoscope size={14} /> Your care hub</>}
+        title={`Welcome back${displayName ? `, ${displayName}` : ""}!`}
+        subtitle={
+          nextAppointment
+            ? `Your next vaccination is scheduled for ${formatShortDate(nextApptDate)}.`
+            : "Your Vaxora immunization pass is cryptographically verified and up-to-date. No upcoming appointments scheduled."
+        }
+        image={heroImage}
+      >
+        <div className="patient-welcome-tags">
+          <span className="patient-welcome-tag">
+            <IconShield size={13} /> Protected
+          </span>
+          <span className="patient-welcome-tag">
+            <IconSyringe size={13} /> Vaccination ready
+          </span>
+          <span className="patient-welcome-tag patient-welcome-tag--soft">
+            Care-first support
+          </span>
+        </div>
+        <div className="patient-welcome-actions">
+          {carePlanResult ? (
+            <>
               <button
                 type="button"
                 className="btn-banner-action"
-                onClick={handleGenerateCarePlan}
+                onClick={() => setCarePlanOpen(true)}
               >
-                <IconBot size={16} /> Generate AI Care Plan
+                <IconBot size={16} /> View Care Plan
               </button>
-            )}
+            </>
+          ) : (
             <button
               type="button"
-              className="btn-banner-action btn-banner-action--primary"
-              onClick={() =>
-                onOpenBookModal
-                  ? onOpenBookModal()
-                  : navigate("/patient/appointments")
-              }
+              className="btn-banner-action"
+              onClick={handleGenerateCarePlan}
             >
-              + Book Vaccination
+              <IconBot size={16} /> Generate AI Care Plan
             </button>
-          </div>
+          )}
+          <button
+            type="button"
+            className="btn-banner-action btn-banner-action--primary"
+            onClick={() =>
+              onOpenBookModal
+                ? onOpenBookModal()
+                : navigate("/patient/appointments")
+            }
+          >
+            + Book Vaccination
+          </button>
         </div>
-        <div className="patient-welcome-media" aria-hidden="true">
-          <img
-            src={heroImage}
-            alt=""
-            className="patient-welcome-image"
-          />
-        </div>
-      </section>
+      </PortalHero>
 
       {/* ---------- 2. Stat Metric Cards (match hospital home pattern) ---------- */}
       <div className="hospital-metrics-grid hospital-metrics-grid--4">
         <div className="hospital-stat-card">
-          <div className="hospital-stat-icon stat-icon-purple">
+          <div className="hospital-stat-icon stat-icon-blue">
             <IconCalendar size={22} />
           </div>
           <div className="hospital-stat-info">
@@ -392,7 +384,7 @@ export default function DashboardOverview({ onNavigateTab, onOpenBookModal }) {
         </div>
 
         <div className="hospital-stat-card">
-          <div className="hospital-stat-icon stat-icon-blue">
+          <div className="hospital-stat-icon stat-icon-green">
             <IconSyringe size={22} />
           </div>
           <div className="hospital-stat-info">
@@ -426,7 +418,7 @@ export default function DashboardOverview({ onNavigateTab, onOpenBookModal }) {
         </div>
 
         <div className="hospital-stat-card">
-          <div className="hospital-stat-icon stat-icon-amber">
+          <div className="hospital-stat-icon stat-icon-slate">
             <IconClock size={22} />
           </div>
           <div className="hospital-stat-info">
@@ -454,7 +446,7 @@ export default function DashboardOverview({ onNavigateTab, onOpenBookModal }) {
             <div className="section-card-header">
               <div className="section-title-group">
                 <h2>
-                  <span className="section-title-icon icon-shade-purple">
+                  <span className="section-title-icon icon-shade-blue">
                     <IconCalendar size={22} />
                   </span>
                   Next Confirmed Appointment
@@ -531,7 +523,7 @@ export default function DashboardOverview({ onNavigateTab, onOpenBookModal }) {
                   {nextAppointment.doctorName && (
                     <span className="appointment-meta-icon">
                       <IconDoctor size={14} />
-                      Dr. {nextAppointment.doctorName}
+                      Dr. {nextAppointment.doctorName.replace(/^(?:(?:dr\.|dr\s|doctor\s)\s*)+/i, '')}
                     </span>
                   )}
                 </div>
@@ -563,7 +555,7 @@ export default function DashboardOverview({ onNavigateTab, onOpenBookModal }) {
 
           <div className="hospital-section-card patient-advisory-card">
             <div className="patient-advisory-row">
-              <div className="hospital-stat-icon stat-icon-teal">
+              <div className="hospital-stat-icon stat-icon-amber">
                 <IconRocket size={22} />
               </div>
               <div>

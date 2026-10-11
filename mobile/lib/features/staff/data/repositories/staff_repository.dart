@@ -114,6 +114,26 @@ class StaffRepository {
 
   /// Status values: Confirmed, Administering, Observation, Completed, Cancelled, Rejected.
   /// Optional [administration] fields are used when certifying to Observation.
+  /// Marks a patient as arrived (today only).
+  static Future<void> checkIn(String appointmentId) async {
+    await ApiClient.post(ApiConstants.appointmentCheckIn(appointmentId));
+  }
+
+  /// Take over a colleague's live session; [status] must be the current status.
+  static Future<StaffAppointmentModel> takeOverSession({
+    required String appointmentId,
+    required String status,
+  }) async {
+    final response = await ApiClient.patch(
+      ApiConstants.appointmentStatus(appointmentId),
+      body: {'status': status, 'takeOver': true},
+    );
+    if (response is Map<String, dynamic>) {
+      return StaffAppointmentModel.fromJson(response);
+    }
+    throw ApiException('Failed to take over the session.');
+  }
+
   static Future<StaffAppointmentModel> updateAppointmentStatus({
     required String appointmentId,
     required String status,
@@ -141,6 +161,17 @@ class StaffRepository {
     throw ApiException('Failed to update appointment status.');
   }
 
+  /// Clock in (OnDuty), take a break (OnBreak) or clock out (Off).
+  static Future<void> updateDutyStatus({
+    required String affiliationId,
+    required String dutyStatus,
+  }) async {
+    await ApiClient.put(
+      ApiConstants.hospitalAffiliationDuty(affiliationId),
+      body: {'dutyStatus': dutyStatus},
+    );
+  }
+
   /// Doctor-only: prescribe or amend the dose before the nurse administers it.
   static Future<void> updateDosage({
     required String appointmentId,
@@ -150,6 +181,59 @@ class StaffRepository {
       ApiConstants.appointmentDosage(appointmentId),
       body: {'dosage': dosage.trim()},
     );
+  }
+
+  /// Privacy-gated NIC / phone for the active clinical patient.
+  static Future<Map<String, String?>> getPatientContact(String appointmentId) async {
+    final response = await ApiClient.get(
+      ApiConstants.appointmentStaffContact(appointmentId),
+    );
+    if (response is Map<String, dynamic>) {
+      return {
+        'nic': response['nic']?.toString() ?? response['patientNic']?.toString(),
+        'phone':
+            response['phone']?.toString() ?? response['patientPhone']?.toString(),
+        'email':
+            response['email']?.toString() ?? response['patientEmail']?.toString(),
+      };
+    }
+    throw ApiException('Failed to load patient contact.');
+  }
+
+  /// Medical history timeline for a patient profile (staff clinical use).
+  static Future<List<Map<String, dynamic>>> getMedicalTimeline(
+    String patientProfileId,
+  ) async {
+    try {
+      final response = await ApiClient.get(
+        ApiConstants.patientMedicalTimeline(patientProfileId),
+      );
+      if (response is Map<String, dynamic> && response['records'] is List) {
+        return (response['records'] as List)
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  /// Vaccination timeline (includes AEFI flags) for a patient profile.
+  static Future<List<Map<String, dynamic>>> getVaccinationTimeline(
+    String patientProfileId,
+  ) async {
+    try {
+      final response = await ApiClient.get(
+        ApiConstants.patientVaccinationTimeline(patientProfileId),
+      );
+      if (response is Map<String, dynamic> && response['records'] is List) {
+        return (response['records'] as List)
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      }
+    } catch (_) {}
+    return [];
   }
 
   /// Clinical AEFI report: care, dose documentation, and follow-up visit.

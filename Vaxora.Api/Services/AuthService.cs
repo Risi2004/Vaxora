@@ -265,7 +265,7 @@ public class AuthService : IAuthService
             {
                 await _emailService.SendPendingApprovalEmailAsync(
                     user.Email,
-                    $"Dr. {profile.FullName}",
+                    StaffNameFormatter.WithRolePrefix(profile.FullName, "Dr."),
                     regNumber,
                     "Doctor");
             }
@@ -378,7 +378,7 @@ public class AuthService : IAuthService
             {
                 await _emailService.SendPendingApprovalEmailAsync(
                     user.Email,
-                    $"Nurse {profile.FullName}",
+                    StaffNameFormatter.WithRolePrefix(profile.FullName, "Nurse"),
                     regNumber,
                     "Nurse");
             }
@@ -925,6 +925,24 @@ public class AuthService : IAuthService
                     if (!string.IsNullOrWhiteSpace(dto.FullName)) user.PatientProfile.FullName = dto.FullName.Trim();
                     if (!string.IsNullOrWhiteSpace(dto.PhoneNumber)) user.PatientProfile.PhoneNumber = dto.PhoneNumber.Trim();
                     if (dto.DateOfBirth.HasValue) user.PatientProfile.DateOfBirth = dto.DateOfBirth.Value;
+
+                    // Keep denormalized appointment rows aligned with the live profile.
+                    var syncedName = user.PatientProfile.FullName;
+                    var syncedPhone = user.PatientProfile.PhoneNumber ?? user.PhoneNumber;
+                    var linkedAppointments = await _context.Appointments
+                        .Where(a => a.PatientUserId == user.Id)
+                        .ToListAsync();
+                    foreach (var appointment in linkedAppointments)
+                    {
+                        if (!string.IsNullOrWhiteSpace(syncedName))
+                            appointment.PatientName = syncedName;
+                        if (!string.IsNullOrWhiteSpace(syncedPhone))
+                            appointment.PatientPhone = syncedPhone;
+                        appointment.PatientEmail = user.Email;
+                        if (!string.IsNullOrWhiteSpace(user.PatientProfile.NicNumber))
+                            appointment.PatientNic = user.PatientProfile.NicNumber;
+                        appointment.UpdatedAt = DateTime.UtcNow;
+                    }
                 }
                 break;
 
@@ -1218,8 +1236,8 @@ public class AuthService : IAuthService
         return user.Role switch
         {
             UserRole.PATIENT => user.PatientProfile?.FullName ?? "Patient",
-            UserRole.DOCTOR => $"Dr. {user.DoctorProfile?.FullName ?? "Doctor"}",
-            UserRole.NURSE => $"Nurse {user.NurseProfile?.FullName ?? "Nurse"}",
+            UserRole.DOCTOR => StaffNameFormatter.WithRolePrefix(user.DoctorProfile?.FullName ?? "Doctor", "Dr."),
+            UserRole.NURSE => StaffNameFormatter.WithRolePrefix(user.NurseProfile?.FullName ?? "Nurse", "Nurse"),
             UserRole.HOSPITAL => user.HospitalProfile?.HospitalName ?? "Hospital",
             UserRole.ADMIN => "System Administrator",
             _ => "User"

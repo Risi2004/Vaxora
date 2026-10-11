@@ -182,7 +182,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
                   value: _loading ? '—' : '$actionCount',
                   icon: Icons.mark_email_unread_outlined,
                   accent: actionCount > 0
-                      ? const Color(0xFFB2660A)
+                      ? AppColors.warning
                       : AppColors.success,
                 ),
               ],
@@ -203,7 +203,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
                   title: 'Hospital invitations',
                   detail:
                       '$_pendingInvitations invitation${_pendingInvitations == 1 ? '' : 's'} waiting for your response.',
-                  onTap: () => widget.onNavigateTab(3),
+                  onTap: () => widget.onNavigateTab(4),
                 ),
               if (_pendingCovers > 0)
                 _HomeNotice(
@@ -254,12 +254,20 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
               onTap: () => widget.onNavigateTab(2),
             ),
             _HomeShortcut(
+              icon: Icons.folder_shared_outlined,
+              accent: const Color(0xFF315F8A),
+              tint: const Color(0xFFE4EEF8),
+              title: 'Patient history',
+              detail: 'Search records, allergies, and AEFI.',
+              onTap: () => widget.onNavigateTab(3),
+            ),
+            _HomeShortcut(
               icon: Icons.local_hospital_outlined,
               accent: const Color(0xFF7658B7),
               tint: const Color(0xFFEEE8FA),
               title: 'Hospitals',
               detail: 'Manage affiliations and invitations.',
-              onTap: () => widget.onNavigateTab(3),
+              onTap: () => widget.onNavigateTab(4),
             ),
             _HomeShortcut(
               icon: Icons.swap_horiz,
@@ -381,7 +389,7 @@ class _HomeNotice extends StatelessWidget {
           decoration: StaffSurfaces.card(),
           child: Row(
             children: [
-              Icon(icon, color: const Color(0xFFB2660A), size: 20),
+              Icon(icon, color: AppColors.warning, size: 20),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(

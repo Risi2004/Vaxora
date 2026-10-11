@@ -6,6 +6,8 @@ import BatchAuditModal from './BatchAuditModal';
 import inventoryService from '../services/inventoryService';
 import InventoryAIInventoryWorkflow from './InventoryAIInventoryWorkflow';
 import HospitalSubpageHero from './HospitalSubpageHero';
+import HeroTabs from '../../../components/HeroTabs';
+import useViewParam from '../../../shared/hooks/useViewParam';
 import {
   IconBot,
   IconClipboard,
@@ -18,8 +20,13 @@ import {
   IconSyringe,
   IconTrash,
 } from './HospitalIcons';
+import useConfirmDialog from '../../../shared/hooks/useConfirmDialog';
+
+const INVENTORY_VIEWS = ['stock', 'formulary', 'vaults'];
 
 export default function HospitalInventoryTab() {
+  const [confirm, confirmDialog] = useConfirmDialog();
+  const [view, setView] = useViewParam(INVENTORY_VIEWS);
   const [isRestockOpen, setIsRestockOpen] = useState(false);
   const [isWastageOpen, setIsWastageOpen] = useState(false);
   const [selectedAuditVaccine, setSelectedAuditVaccine] = useState(null);
@@ -33,14 +40,19 @@ export default function HospitalInventoryTab() {
   const [newVaccineMfrInput, setNewVaccineMfrInput] = useState('');
   const [newVaccineCategoryInput, setNewVaccineCategoryInput] = useState('routine');
   const [newVaccinePriceInput, setNewVaccinePriceInput] = useState('0');
-  const [showRegistryBox, setShowRegistryBox] = useState(true);
-
+  const [showRegistryBox, setShowRegistryBox] = useState(() => view === 'formulary');
+  // Opening the formulary view expands the registry box (adjusted during render, not in an effect).
+  const [registryView, setRegistryView] = useState(view);
+  if (view !== registryView) {
+    setRegistryView(view);
+    if (view === 'formulary') setShowRegistryBox(true);
+  }
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [viewMode, setViewMode] = useState('table');
-
   const [inventory, setInventory] = useState([]);
+
 
   const uniqueFormulations = useMemo(() => {
     const seen = new Set();
@@ -150,6 +162,13 @@ export default function HospitalInventoryTab() {
       alert('You must keep at least one registered vaccine product.');
       return;
     }
+    const ok = await confirm({
+      title: 'Remove product?',
+      message: `Remove "${name}" from the hospital formulary?`,
+      confirmLabel: 'Remove',
+      destructive: true,
+    });
+    if (!ok) return;
     try {
       const formulary = await inventoryService.getFormulary();
       const matches = (Array.isArray(formulary) ? formulary : []).filter(
@@ -255,15 +274,36 @@ export default function HospitalInventoryTab() {
     estimatedDays <= 14 ? 'is-alert' :
     estimatedDays <= 30 ? 'is-warning' : '';
   // =======================================================
+  const inventorySubtitle =
+    view === 'formulary'
+      ? 'Register vaccine products once — they appear in restock and session fee dropdowns.'
+      : view === 'vaults'
+        ? 'Live temperature, humidity, and lot occupancy for each cold-chain storage unit.'
+        : 'Monitor stock levels, expiry risk, and restock activity from one operational workspace.';
+
+  const inventoryHero = (
+    <HospitalSubpageHero
+      eyebrow="Cold-chain operations"
+      title="Vaccine inventory"
+      subtitle={inventorySubtitle}
+    >
+      <HeroTabs
+        label="Inventory views"
+        tabs={[
+          { key: 'stock', label: 'Stock' },
+          { key: 'formulary', label: 'Formulary' },
+          { key: 'vaults', label: 'Cold vaults', badge: coldVaults.length },
+        ]}
+        active={view}
+        onChange={setView}
+      />
+    </HospitalSubpageHero>
+  );
 
   if (loading) {
     return (
       <div className="hospital-manage-appointments-wrapper">
-        <HospitalSubpageHero
-          eyebrow="Cold-chain operations"
-          title="Vaccine inventory"
-          subtitle="Monitor stock, cold storage, expiry risk, and restock activity from one operational workspace."
-        />
+        {inventoryHero}
         <div className="hospital-inventory-content hospital-inventory-loading">
           <h3>Loading inventory…</h3>
         </div>
@@ -273,11 +313,7 @@ export default function HospitalInventoryTab() {
 
   return (
     <div className="hospital-manage-appointments-wrapper">
-      <HospitalSubpageHero
-        eyebrow="Cold-chain operations"
-        title="Vaccine inventory"
-        subtitle="Monitor stock, cold storage, expiry risk, and restock activity from one operational workspace."
-      />
+      {inventoryHero}
       <div className="hospital-inventory-content">
         {toastMessage && (
           <div className="inventory-toast-banner">
@@ -287,14 +323,16 @@ export default function HospitalInventoryTab() {
         )}
 
         {errorMsg && (
-          <div style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#991b1b', padding: '12px', borderRadius: '8px', marginBottom: '16px' }}>
+          <div style={{ background: 'var(--color-error-bg)', border: '1px solid var(--color-error-border)', color: 'var(--color-error)', padding: '12px', borderRadius: '8px', marginBottom: '16px' }}>
             ⚠️ {errorMsg}
           </div>
         )}
 
+        {view === 'stock' && (
+        <>
         <div className="hospital-metrics-grid hospital-metrics-grid--4">
           <div className="hospital-stat-card">
-            <div className="hospital-stat-icon stat-icon-blue">
+            <div className="hospital-stat-icon stat-icon-slate">
               <IconSyringe size={22} />
             </div>
             <div className="hospital-stat-info">
@@ -324,7 +362,7 @@ export default function HospitalInventoryTab() {
           </div>
 
           <div className="hospital-stat-card">
-            <div className="hospital-stat-icon stat-icon-purple">
+            <div className="hospital-stat-icon stat-icon-amber">
               <IconClock size={22} />
             </div>
             <div className="hospital-stat-info">
@@ -382,6 +420,190 @@ export default function HospitalInventoryTab() {
           </div>
         </div>
 
+        <div className="inventory-toolbar">
+          <div className="inventory-search-group">
+            <span className="search-icon" aria-hidden="true">
+              <IconSearch size={16} />
+            </span>
+            <input type="text" className="inventory-search-input" placeholder="Search vaccine, lot, or vault..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+            {searchQuery && (
+              <button type="button" className="clear-search-btn" onClick={() => setSearchQuery('')} aria-label="Clear search">
+                <IconClose size={14} />
+              </button>
+            )}
+          </div>
+          <div className="inventory-filter-pills">
+            <select
+              className="inventory-category-select"
+              value={categoryFilter}
+              onChange={(event) => setCategoryFilter(event.target.value)}
+              aria-label="Filter by vaccine category"
+            >
+              <option value="all">All categories</option>
+              {inventoryCategories.map((category) => (
+                <option key={category} value={category}>{category}</option>
+              ))}
+            </select>
+            <div className="filter-pill-group" role="group" aria-label="Stock filters">
+              <button type="button" className={`filter-pill ${statusFilter === 'all' ? 'active' : ''}`} onClick={() => setStatusFilter('all')}>All ({inventory.length})</button>
+              <button type="button" className={`filter-pill ${statusFilter === 'low' ? 'active' : ''}`} onClick={() => setStatusFilter('low')}>Low stock ({lowStockCount})</button>
+              <button type="button" className={`filter-pill ${statusFilter === 'sufficient' ? 'active' : ''}`} onClick={() => setStatusFilter('sufficient')}>Healthy ({healthyCount})</button>
+              <button type="button" className={`filter-pill ${statusFilter === 'expiring' ? 'active' : ''}`} onClick={() => setStatusFilter('expiring')}>Expiring ({expiringCount})</button>
+              <button type="button" className={`filter-pill ${statusFilter === 'ultracold' ? 'active' : ''}`} onClick={() => setStatusFilter('ultracold')}>Ultra-cold ({ultracoldCount})</button>
+            </div>
+            <div className="view-mode-toggles">
+              <button type="button" className={`btn-view-toggle ${viewMode === 'table' ? 'active' : ''}`} onClick={() => setViewMode('table')}>Table</button>
+              <button type="button" className={`btn-view-toggle ${viewMode === 'cards' ? 'active' : ''}`} onClick={() => setViewMode('cards')}>Cards</button>
+            </div>
+          </div>
+        </div>
+
+        {inventory.length === 0 ? (
+          <div className="hospital-appointments-table-wrapper inventory-empty-state">
+            <h3>No inventory yet</h3>
+            <p>Log a restock shipment to add your first batch.</p>
+          </div>
+        ) : viewMode === 'table' ? (
+          <div className="hospital-appointments-table-wrapper">
+            <table className="inventory-custom-table">
+              <thead>
+                <tr>
+                  <th className="is-left">Vaccine &amp; lot</th>
+                  <th>Category</th>
+                  <th>Storage</th>
+                  <th>Stock</th>
+                  <th>Doses</th>
+                  <th>Expiry</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredInventory.length === 0 ? (
+                  <tr><td colSpan="8" className="empty-table-cell">No vaccines match the selected criteria.</td></tr>
+                ) : (
+                  filteredInventory.map((item) => {
+                    const received = Math.max(item.capacity || 0, item.available || 0);
+                    const pct = received > 0
+                      ? Math.min(100, Math.round((item.available / received) * 100))
+                      : 0;
+                    const doseCount = item.availableDoses ?? item.available * item.dosesPerVial;
+                    const isLow = item.available <= item.minThreshold;
+                    const isExpiring = item.expiryStatus === 'expiring_soon';
+                    return (
+                      <tr key={item.id} className={isLow ? 'row-highlight-low' : ''}>
+                        <td className="is-left">
+                          <div className="vaccine-title-cell">
+                            <strong className="vaccine-name-text">{item.name}</strong>
+                            <div className="vaccine-sub-meta">
+                              <span className="lot-badge">Lot: {item.lotNumber}</span>
+                              <span className="mfr-text">{item.manufacturer}</span>
+                            </div>
+                          </div>
+                        </td>
+                        <td><span className="category-tag">{item.category.toUpperCase()}</span></td>
+                        <td>
+                          <div className="storage-cell">
+                            <span className="vault-label">{item.storageUnit}</span>
+                            <span className="temp-badge">{item.temp}</span>
+                          </div>
+                        </td>
+                        <td style={{ minWidth: '180px' }}>
+                          <div className="stock-level-cell">
+                            <div className="stock-numbers">
+                              <strong>{item.available}</strong>
+                              <span className="cap-total"> available / {item.capacity} received</span>
+                              <span className="pct-text">({pct}%)</span>
+                            </div>
+                            <div className="stock-progress-track">
+                              <div className={`stock-progress-fill ${item.statusColor}`} style={{ width: `${pct}%` }} />
+                            </div>
+                            {isLow && <span className="low-stock-alert-tag">Below threshold ({item.minThreshold} min)</span>}
+                          </div>
+                        </td>
+                        <td>
+                          <div className="doses-cell">
+                            <strong>{doseCount.toLocaleString()}</strong>
+                            <small>{item.dosesPerVial} dose/vial</small>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="expiry-cell">
+                            <span className={`expiry-date ${isExpiring ? 'text-amber' : ''}`}>{item.expiry}</span>
+                            {isExpiring && <span className="exp-badge">Expiring Soon</span>}
+                          </div>
+                        </td>
+                        <td>
+                          {isLow ? <span className="stock-badge badge-reorder">Low Stock</span>
+                            : isExpiring ? <span className="stock-badge badge-expiring">Action Due</span>
+                            : <span className="stock-badge badge-healthy">In Stock</span>}
+                        </td>
+                        <td>
+                          <div className="inventory-row-actions">
+                            <button type="button" className="btn-quick-adjust btn-adjust-plus" onClick={() => handleQuickAdjust(item.id, 20)} title="Add +20 Vials">+20</button>
+                            <button type="button" className="btn-quick-adjust btn-adjust-minus" onClick={() => handleQuickAdjust(item.id, -20)} title="Deduct -20 Vials">-20</button>
+                            <button type="button" className="btn-table-audit" onClick={() => setSelectedAuditVaccine(item)} title="View batch audit">
+                              <IconClipboard size={14} />
+                              Audit
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="inventory-cards-grid">
+            {filteredInventory.map((item) => {
+              const received = Math.max(item.capacity || 0, item.available || 0);
+              const pct = received > 0
+                ? Math.min(100, Math.round((item.available / received) * 100))
+                : 0;
+              const doseCount = item.availableDoses ?? item.available * item.dosesPerVial;
+              const isLow = item.available <= item.minThreshold;
+              return (
+                <div key={item.id} className={`inventory-card-item ${isLow ? 'card-low-stock' : ''}`}>
+                  <div className="inv-card-top">
+                    <span className="category-tag">{item.category.toUpperCase()}</span>
+                    {isLow ? <span className="stock-badge badge-reorder">Low Stock</span> : <span className="stock-badge badge-healthy">Optimal</span>}
+                  </div>
+                  <h4 className="inv-card-name">{item.name}</h4>
+                  <div className="inv-card-meta">
+                    <span>Lot: <strong>{item.lotNumber}</strong></span>
+                    <span>Expiry: <strong>{item.expiry}</strong></span>
+                  </div>
+                  <div className="inv-card-storage-box">
+                    <div className="storage-row">
+                      <span>{item.storageUnit}</span>
+                      <span className="temp-badge">{item.temp}</span>
+                    </div>
+                  </div>
+                  <div className="inv-card-stock-block">
+                    <div className="stock-header-flex">
+                      <span>On hand / received:</span>
+                      <strong>{item.available} / {item.capacity} vials</strong>
+                    </div>
+                    <div className="stock-progress-track">
+                      <div className={`stock-progress-fill ${item.statusColor}`} style={{ width: `${pct}%` }} />
+                    </div>
+                    <div className="doses-sub-line">Provides &asymp; {doseCount.toLocaleString()} doses ({item.dosesPerVial}/vial)</div>
+                  </div>
+                  <div className="inv-card-actions">
+                    <button type="button" className="btn-card-audit" onClick={() => setSelectedAuditVaccine(item)}>Audit Ledger</button>
+                    <button type="button" className="btn-card-restock" onClick={() => handleQuickAdjust(item.id, 50)}>+ Quick 50</button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        </>
+        )}
+
+        {view === 'formulary' && (
         <div className="vaccine-formulary-card">
           <div className="formulary-card-header">
             <div className="formulary-header-main">
@@ -548,188 +770,69 @@ export default function HospitalInventoryTab() {
             </div>
           )}
         </div>
-
-        <div className="inventory-toolbar">
-          <div className="inventory-search-group">
-            <span className="search-icon" aria-hidden="true">
-              <IconSearch size={16} />
-            </span>
-            <input type="text" className="inventory-search-input" placeholder="Search vaccine, lot, or vault..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
-            {searchQuery && (
-              <button type="button" className="clear-search-btn" onClick={() => setSearchQuery('')} aria-label="Clear search">
-                <IconClose size={14} />
-              </button>
-            )}
-          </div>
-          <div className="inventory-filter-pills">
-            <select
-              className="inventory-category-select"
-              value={categoryFilter}
-              onChange={(event) => setCategoryFilter(event.target.value)}
-              aria-label="Filter by vaccine category"
-            >
-              <option value="all">All categories</option>
-              {inventoryCategories.map((category) => (
-                <option key={category} value={category}>{category}</option>
-              ))}
-            </select>
-            <div className="filter-pill-group" role="tablist" aria-label="Stock filters">
-              <button type="button" className={`filter-pill ${statusFilter === 'all' ? 'active' : ''}`} onClick={() => setStatusFilter('all')}>All ({inventory.length})</button>
-              <button type="button" className={`filter-pill ${statusFilter === 'low' ? 'active' : ''}`} onClick={() => setStatusFilter('low')}>Low stock ({lowStockCount})</button>
-              <button type="button" className={`filter-pill ${statusFilter === 'sufficient' ? 'active' : ''}`} onClick={() => setStatusFilter('sufficient')}>Healthy ({healthyCount})</button>
-              <button type="button" className={`filter-pill ${statusFilter === 'expiring' ? 'active' : ''}`} onClick={() => setStatusFilter('expiring')}>Expiring ({expiringCount})</button>
-              <button type="button" className={`filter-pill ${statusFilter === 'ultracold' ? 'active' : ''}`} onClick={() => setStatusFilter('ultracold')}>Ultra-cold ({ultracoldCount})</button>
-            </div>
-            <div className="view-mode-toggles">
-              <button type="button" className={`btn-view-toggle ${viewMode === 'table' ? 'active' : ''}`} onClick={() => setViewMode('table')}>Table</button>
-              <button type="button" className={`btn-view-toggle ${viewMode === 'cards' ? 'active' : ''}`} onClick={() => setViewMode('cards')}>Cards</button>
-            </div>
-          </div>
-        </div>
-
-        {inventory.length === 0 ? (
-          <div className="hospital-appointments-table-wrapper inventory-empty-state">
-            <h3>No inventory yet</h3>
-            <p>Log a restock shipment to add your first batch.</p>
-          </div>
-        ) : viewMode === 'table' ? (
-          <div className="hospital-appointments-table-wrapper">
-            <table className="inventory-custom-table">
-              <thead>
-                <tr>
-                  <th className="is-left">Vaccine &amp; lot</th>
-                  <th>Category</th>
-                  <th>Storage</th>
-                  <th>Stock</th>
-                  <th>Doses</th>
-                  <th>Expiry</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredInventory.length === 0 ? (
-                  <tr><td colSpan="8" className="empty-table-cell">No vaccines match the selected criteria.</td></tr>
-                ) : (
-                  filteredInventory.map((item) => {
-                    const received = Math.max(item.capacity || 0, item.available || 0);
-                    const pct = received > 0
-                      ? Math.min(100, Math.round((item.available / received) * 100))
-                      : 0;
-                    const doseCount = item.availableDoses ?? item.available * item.dosesPerVial;
-                    const isLow = item.available <= item.minThreshold;
-                    const isExpiring = item.expiryStatus === 'expiring_soon';
-                    return (
-                      <tr key={item.id} className={isLow ? 'row-highlight-low' : ''}>
-                        <td className="is-left">
-                          <div className="vaccine-title-cell">
-                            <strong className="vaccine-name-text">{item.name}</strong>
-                            <div className="vaccine-sub-meta">
-                              <span className="lot-badge">Lot: {item.lotNumber}</span>
-                              <span className="mfr-text">{item.manufacturer}</span>
-                            </div>
-                          </div>
-                        </td>
-                        <td><span className="category-tag">{item.category.toUpperCase()}</span></td>
-                        <td>
-                          <div className="storage-cell">
-                            <span className="vault-label">{item.storageUnit}</span>
-                            <span className="temp-badge">{item.temp}</span>
-                          </div>
-                        </td>
-                        <td style={{ minWidth: '180px' }}>
-                          <div className="stock-level-cell">
-                            <div className="stock-numbers">
-                              <strong>{item.available}</strong>
-                              <span className="cap-total"> available / {item.capacity} received</span>
-                              <span className="pct-text">({pct}%)</span>
-                            </div>
-                            <div className="stock-progress-track">
-                              <div className={`stock-progress-fill ${item.statusColor}`} style={{ width: `${pct}%` }} />
-                            </div>
-                            {isLow && <span className="low-stock-alert-tag">Below threshold ({item.minThreshold} min)</span>}
-                          </div>
-                        </td>
-                        <td>
-                          <div className="doses-cell">
-                            <strong>{doseCount.toLocaleString()}</strong>
-                            <small>{item.dosesPerVial} dose/vial</small>
-                          </div>
-                        </td>
-                        <td>
-                          <div className="expiry-cell">
-                            <span className={`expiry-date ${isExpiring ? 'text-amber' : ''}`}>{item.expiry}</span>
-                            {isExpiring && <span className="exp-badge">Expiring Soon</span>}
-                          </div>
-                        </td>
-                        <td>
-                          {isLow ? <span className="stock-badge badge-reorder">Low Stock</span>
-                            : isExpiring ? <span className="stock-badge badge-expiring">Action Due</span>
-                            : <span className="stock-badge badge-healthy">In Stock</span>}
-                        </td>
-                        <td>
-                          <div className="inventory-row-actions">
-                            <button type="button" className="btn-quick-adjust btn-adjust-plus" onClick={() => handleQuickAdjust(item.id, 20)} title="Add +20 Vials">+20</button>
-                            <button type="button" className="btn-quick-adjust btn-adjust-minus" onClick={() => handleQuickAdjust(item.id, -20)} title="Deduct -20 Vials">-20</button>
-                            <button type="button" className="btn-table-audit" onClick={() => setSelectedAuditVaccine(item)} title="View batch audit">
-                              <IconClipboard size={14} />
-                              Audit
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="inventory-cards-grid">
-            {filteredInventory.map((item) => {
-              const received = Math.max(item.capacity || 0, item.available || 0);
-              const pct = received > 0
-                ? Math.min(100, Math.round((item.available / received) * 100))
-                : 0;
-              const doseCount = item.availableDoses ?? item.available * item.dosesPerVial;
-              const isLow = item.available <= item.minThreshold;
-              return (
-                <div key={item.id} className={`inventory-card-item ${isLow ? 'card-low-stock' : ''}`}>
-                  <div className="inv-card-top">
-                    <span className="category-tag">{item.category.toUpperCase()}</span>
-                    {isLow ? <span className="stock-badge badge-reorder">Low Stock</span> : <span className="stock-badge badge-healthy">Optimal</span>}
-                  </div>
-                  <h4 className="inv-card-name">{item.name}</h4>
-                  <div className="inv-card-meta">
-                    <span>Lot: <strong>{item.lotNumber}</strong></span>
-                    <span>Expiry: <strong>{item.expiry}</strong></span>
-                  </div>
-                  <div className="inv-card-storage-box">
-                    <div className="storage-row">
-                      <span>{item.storageUnit}</span>
-                      <span className="temp-badge">{item.temp}</span>
-                    </div>
-                  </div>
-                  <div className="inv-card-stock-block">
-                    <div className="stock-header-flex">
-                      <span>On hand / received:</span>
-                      <strong>{item.available} / {item.capacity} vials</strong>
-                    </div>
-                    <div className="stock-progress-track">
-                      <div className={`stock-progress-fill ${item.statusColor}`} style={{ width: `${pct}%` }} />
-                    </div>
-                    <div className="doses-sub-line">Provides &asymp; {doseCount.toLocaleString()} doses ({item.dosesPerVial}/vial)</div>
-                  </div>
-                  <div className="inv-card-actions">
-                    <button type="button" className="btn-card-audit" onClick={() => setSelectedAuditVaccine(item)}>Audit Ledger</button>
-                    <button type="button" className="btn-card-restock" onClick={() => handleQuickAdjust(item.id, 50)}>+ Quick 50</button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
         )}
 
+        {view === 'vaults' && (
+          coldVaults.length > 0 ? (
+          <div className="cold-vaults-section">
+            <div className="cold-vaults-header">
+              <div className="formulary-header-main">
+                <div className="hospital-stat-icon stat-icon-teal" aria-hidden="true">
+                  <IconSnowflake size={20} />
+                </div>
+                <div className="formulary-header-copy">
+                  <div className="formulary-title-row">
+                    <h3 className="cold-vaults-title">Cold chain vaults</h3>
+                    <span className="formulary-count-badge">{coldVaults.length}</span>
+                  </div>
+                  <p className="cold-vaults-sub">Live temperature, humidity, and lot occupancy for each storage unit.</p>
+                </div>
+              </div>
+              <span className="cold-vaults-live-tag">
+                <span className="pulse-dot" />
+                Sensors synced
+              </span>
+            </div>
+            <div className="cold-vaults-grid">
+              {coldVaults.map((vault) => {
+                const ok = !vault.status || /optimal|ok|normal|safe|active/i.test(String(vault.status));
+                return (
+                  <article key={vault.id} className="cold-vault-card">
+                    <div className="cold-vault-card-header">
+                      <div className="hospital-stat-icon stat-icon-teal" aria-hidden="true">
+                        <IconThermometer size={18} />
+                      </div>
+                      <div className="cold-vault-copy">
+                        <h4 className="vault-name">{vault.name}</h4>
+                        <span className="vault-type">{vault.type}</span>
+                      </div>
+                      <span className={`vault-status-badge${ok ? ' is-ok' : ' is-warn'}`}>
+                        {vault.status || 'Monitored'}
+                      </span>
+                    </div>
+                    <div className="cold-vault-temp-display">
+                      <span className="temp-big">{vault.temp}</span>
+                      <span className="temp-target">Target {vault.target}</span>
+                    </div>
+                    <div className="cold-vault-footer">
+                      <span>Humidity <strong>{vault.humidity || 'N/A'}</strong></span>
+                      <span>Lots <strong>{vault.assignedLots ?? 0}</strong></span>
+                      <span className="sensor-tag">{vault.sensorStatus || 'Active'}</span>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </div>
+          ) : (
+            <div className="hospital-appointments-table-wrapper inventory-empty-state">
+              <h3>No cold vaults yet</h3>
+              <p>Vault telemetry will appear here once storage units are linked.</p>
+            </div>
+          )
+        )}
+
+        {view === 'stock' && (
         <div className="inventory-footer-notice">
           <div className="footer-notice-text">
             <IconShield size={16} />
@@ -739,6 +842,7 @@ export default function HospitalInventoryTab() {
             Sync registry
           </button>
         </div>
+        )}
       </div>
 
       {isRestockOpen && (
@@ -768,6 +872,7 @@ export default function HospitalInventoryTab() {
         onClose={() => setIsAIAgentOpen(false)}
         onApproved={loadAll}
       />
+      {confirmDialog}
     </div>
   );
 }

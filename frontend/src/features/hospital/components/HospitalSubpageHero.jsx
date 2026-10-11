@@ -1,11 +1,9 @@
+import PortalHero from '../../../components/PortalHero';
 
-
-export default function HospitalSubpageHero({ eyebrow, title, subtitle }) {
+export default function HospitalSubpageHero({ eyebrow, title, subtitle, children }) {
   return (
-    <section className="hospital-subpage-hero">
-      <p className="hospital-hero-eyebrow">{eyebrow}</p>
-      <h1>{title}</h1>
-      <p className="hospital-hero-sub">{subtitle}</p>
-    </section>
+    <PortalHero eyebrow={eyebrow} title={title} subtitle={subtitle}>
+      {children}
+    </PortalHero>
   );
 }

@@ -4,10 +4,12 @@ import logo from '../../../assets/images/logo.png';
 import { authService, getUser, subscribeAuthUser } from '../../auth';
 import DeleteAccountModal from '../../auth/components/DeleteAccountModal';
 import { IconClose, IconLogout, IconMenu, IconShield, IconTrash } from '../../../shared/icons/AppIcons';
+import useConfirmDialog from '../../../shared/hooks/useConfirmDialog';
 
 export default function AdminNavbar({ pendingApprovalsCount = 0 }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const [confirm, confirmDialog] = useConfirmDialog();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -43,6 +45,14 @@ export default function AdminNavbar({ pendingApprovalsCount = 0 }) {
   }, [showProfileMenu]);
 
   const handleLogout = async () => {
+    const ok = await confirm({
+      title: 'Log out?',
+      message: 'You will need to sign in again to access the admin panel.',
+      cancelLabel: 'Stay',
+      confirmLabel: 'Log out',
+      destructive: true,
+    });
+    if (!ok) return;
     await authService.logout();
     navigate('/login');
   };
@@ -127,7 +137,7 @@ export default function AdminNavbar({ pendingApprovalsCount = 0 }) {
                   style={{ borderColor: '#0ea5e9' }}
                 />
               ) : (
-                <div className="navbar-avatar-fallback" style={{ background: '#e0f2fe', color: '#0284c7', borderColor: '#0ea5e9' }}>
+                <div className="navbar-avatar-fallback" style={{ background: '#e0f2fe', color: '#0369a1', borderColor: '#0ea5e9' }}>
                   <IconShield size={20} />
                 </div>
               )}
@@ -138,7 +148,7 @@ export default function AdminNavbar({ pendingApprovalsCount = 0 }) {
                 <div className="doctor-dropdown-header">
                   <div className="doctor-dropdown-name">{user?.name || 'System Administrator'}</div>
                   <div className="doctor-dropdown-meta">National System Superadmin</div>
-                  <div className="doctor-dropdown-meta" style={{ color: '#0284c7', fontWeight: 600 }}>
+                  <div className="doctor-dropdown-meta" style={{ color: '#0369a1', fontWeight: 600 }}>
                     {user?.email || 'MOH IT Directorate'}
                   </div>
                 </div>
@@ -248,6 +258,7 @@ export default function AdminNavbar({ pendingApprovalsCount = 0 }) {
       )}
 
       {/* Delete Account Confirmation Modal */}
+      {confirmDialog}
       <DeleteAccountModal
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}
