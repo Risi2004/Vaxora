@@ -1,7 +1,7 @@
 import { deferEffectCallback } from '../../../shared/utils/deferEffectCallback.js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import staffService from '../../hospital/services/staffService';
-import { addHospitalDays, hospitalToday } from '../../hospital/utils/hospitalDate';
+import { addHospitalDays, hospitalMinutesNow, hospitalToday } from '../../hospital/utils/hospitalDate';
 import { IconCalendar, IconHospital, IconRepeat } from '../../../shared/icons/AppIcons';
 import PortalHero from '../../../components/PortalHero';
 import HeroTabs from '../../../components/HeroTabs';
@@ -165,16 +165,19 @@ function coverDateParts(request) {
   };
 }
 
+/** "HH:mm" at the hospital, so the rules match the API wherever the browser is. */
+function hospitalClockNow() {
+  const minutes = hospitalMinutesNow();
+  return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+}
+
 function isShiftFinished(shift, today) {
   const day = String(shift?.shiftDate || '').slice(0, 10);
   if (!day) return true;
   if (day < today) return true;
   if (day > today) return false;
   const end = String(shift?.endTime || '23:59').slice(0, 5);
-  const now = new Date();
-  const hh = String(now.getHours()).padStart(2, '0');
-  const mm = String(now.getMinutes()).padStart(2, '0');
-  return `${hh}:${mm}` >= end;
+  return hospitalClockNow() >= end;
 }
 
 /** Cover can only be requested before the shift starts (hospital-local time). */
@@ -184,10 +187,7 @@ function isShiftStarted(shift, today) {
   if (day < today) return true;
   if (day > today) return false;
   const start = String(shift?.startTime || '00:00').slice(0, 5);
-  const now = new Date();
-  const hh = String(now.getHours()).padStart(2, '0');
-  const mm = String(now.getMinutes()).padStart(2, '0');
-  return `${hh}:${mm}` >= start;
+  return hospitalClockNow() >= start;
 }
 
 function localQuotaFallback(shift, today) {
@@ -205,7 +205,7 @@ function localQuotaFallback(shift, today) {
       alreadyPending: false,
       isUrgent: false,
       blockReason: 'This shift has already started. Tell the hospital desk directly.',
-      summary: 'This shift has already finished.',
+      summary: 'This shift has already started.',
     };
   }
   const shiftDate = new Date(`${day}T00:00:00`);
