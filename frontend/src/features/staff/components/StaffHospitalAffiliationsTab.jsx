@@ -7,8 +7,9 @@ import PortalHero from '../../../components/PortalHero';
 import HeroTabs from '../../../components/HeroTabs';
 import useConfirmDialog from '../../../shared/hooks/useConfirmDialog';
 import useViewParam from '../../../shared/hooks/useViewParam';
+import { notifyInvitesChanged } from '../hooks/usePendingInviteCount';
 
-/** First key = default full page; second = focused alternate view (same pattern as hospital roster). */
+/** Each tab shows only its own section, like the hospital roster tabs. First key is the default. */
 const SHIFT_SECTIONS = ['week', 'cover'];
 const HOSPITAL_SECTIONS = ['hospitals', 'invitations'];
 
@@ -405,6 +406,7 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff', view
     try {
       await staffService.respondToInvitation(affiliationId, decision);
       showToast(decision === 'Accept' ? 'Invitation accepted.' : 'Invitation rejected.');
+      notifyInvitesChanged();
       await loadData();
     } catch (err) {
       setError(err.message || `Failed to ${decision.toLowerCase()} invitation.`);
@@ -680,8 +682,7 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff', view
             )}
           </div>
           </>
-          ) : null}
-
+          ) : (
           <div id="staff-cover-activity" className="doctor-card staff-cover-activity staff-page-section">
             <div className="staff-cover-activity-header">
               <h2 className="doctor-card-title" style={{ margin: 0 }}>
@@ -844,6 +845,7 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff', view
               </div>
             )}
           </div>
+          )}
         </>
       ) : (
         <>
@@ -863,6 +865,7 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff', view
             />
           </PortalHero>
 
+          {section === 'invitations' ? (
           <div id="staff-invitations" className="doctor-card staff-page-section" style={{ padding: '24px', marginBottom: '24px' }}>
             <h2 className="doctor-card-title" style={{ marginTop: 0, marginBottom: 18 }}>
               Pending Invitations ({invitations.length})
@@ -910,8 +913,7 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff', view
               </div>
             )}
           </div>
-
-          {section === 'hospitals' ? (
+          ) : (
           <div id="staff-affiliations" className="doctor-card staff-page-section" style={{ padding: '24px', marginBottom: '24px' }}>
             <h2 className="doctor-card-title" style={{ marginTop: 0, marginBottom: 18 }}>
               Active Affiliations ({affiliations.length})
@@ -921,7 +923,10 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff', view
               <p style={{ color: 'var(--color-text-muted)' }}>Loading affiliations...</p>
             ) : affiliations.length === 0 ? (
               <p style={{ color: 'var(--color-text-muted)' }}>
-                You are not affiliated with any hospital yet. Accept an invitation to join a roster.
+                You are not affiliated with any hospital yet.{' '}
+                {invitations.length > 0
+                  ? `You have ${invitations.length} pending invite${invitations.length === 1 ? '' : 's'}: open Pending invites to join a roster.`
+                  : 'A hospital must invite you by your Vaxora ID before you can join its roster.'}
               </p>
             ) : (
               <div style={{ display: 'grid', gap: '14px' }}>
@@ -953,7 +958,7 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff', view
               </div>
             )}
           </div>
-          ) : null}
+          )}
         </>
       )}
 
