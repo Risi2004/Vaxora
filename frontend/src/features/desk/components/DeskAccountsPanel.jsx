@@ -104,7 +104,7 @@ export default function DeskAccountsPanel() {
         <div className="section-title-group">
           <h2>Front desk accounts</h2>
           <p className="section-title-desc">
-            Separate logins for reception. They run the queue only: check-in, walk-ins, payments and no-shows.
+            Separate logins for reception. They handle appointments only: check-in, walk-ins, payments, no-shows and bookings.
           </p>
         </div>
         <div className="section-controls-group">
