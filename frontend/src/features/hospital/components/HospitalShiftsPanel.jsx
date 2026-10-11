@@ -667,7 +667,7 @@ export default function HospitalShiftsPanel() {
           {toast}
         </div>
       )}
-      {error && (
+      {error && !formOpen && (
         <div
           className="appointment-alert-pill"
           role="alert"
@@ -958,7 +958,7 @@ export default function HospitalShiftsPanel() {
               </select>
               {booths.length === 0 && (
                 <p style={{ margin: '6px 0 0', fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
-                  Add booths under Booths to assign stations here.
+                  Add booths under Sessions, Booths to assign stations here.
                 </p>
               )}
             </div>
@@ -1001,7 +1001,7 @@ export default function HospitalShiftsPanel() {
 
           {staffOptions.length === 0 && !loading && (
             <p style={{ color: 'var(--color-text-muted)', margin: 0 }}>
-              No active staff yet. Invite and accept affiliations in the Directory tab first.
+              No active staff yet. Invite doctors and nurses under Staff, then add shifts once they accept.
             </p>
           )}
         </form>
