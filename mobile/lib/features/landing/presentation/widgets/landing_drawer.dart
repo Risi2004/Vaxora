@@ -16,6 +16,15 @@ class LandingDrawer extends StatelessWidget {
     required this.onSignupPressed,
   });
 
+  static const _navItems = [
+    ('home', 'Home'),
+    ('about', 'About'),
+    ('features', 'Features'),
+    ('reviews', 'Reviews'),
+    ('faq', 'FAQ'),
+    ('contact', 'Contact us'),
+  ];
+
   @override
   Widget build(BuildContext context) {
     return Drawer(
@@ -32,7 +41,6 @@ class LandingDrawer extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Header with logo and close
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -50,38 +58,17 @@ class LandingDrawer extends StatelessWidget {
               const SizedBox(height: 24),
               const Divider(color: AppColors.borderLight, height: 1),
               const SizedBox(height: 20),
-
-              // Navigation Links
-              _buildNavLink(
-                title: 'Home',
-                section: 'home',
-                context: context,
-              ),
-              const SizedBox(height: 8),
-              _buildNavLink(
-                title: 'About',
-                section: 'about',
-                context: context,
-              ),
-              const SizedBox(height: 8),
-              _buildNavLink(
-                title: 'Contact us',
-                section: 'contact',
-                context: context,
-              ),
-              const SizedBox(height: 8),
-              _buildNavLink(
-                title: 'Reviews',
-                section: 'reviews',
-                context: context,
-              ),
-
+              for (final item in _navItems) ...[
+                _buildNavLink(
+                  title: item.$2,
+                  section: item.$1,
+                  context: context,
+                ),
+                const SizedBox(height: 8),
+              ],
               const Spacer(),
-
               const Divider(color: AppColors.borderLight, height: 1),
               const SizedBox(height: 16),
-
-              // Bottom Actions
               Row(
                 children: [
                   Expanded(
@@ -92,9 +79,12 @@ class LandingDrawer extends StatelessWidget {
                       },
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 12),
-                        side: const BorderSide(color: AppColors.borderPill, width: 1.5),
+                        side: const BorderSide(
+                          color: AppColors.borderPill,
+                          width: 1.5,
+                        ),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(999),
+                          borderRadius: BorderRadius.circular(12),
                         ),
                       ),
                       child: const Text(
@@ -119,7 +109,7 @@ class LandingDrawer extends StatelessWidget {
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(999),
+                          borderRadius: BorderRadius.circular(12),
                         ),
                       ),
                       child: const Text(
