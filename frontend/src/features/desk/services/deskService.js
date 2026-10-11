@@ -58,10 +58,10 @@ export const deskService = {
     return apiRequest('/desk/accounts');
   },
 
-  createDeskAccount({ email, password }) {
+  createDeskAccount({ fullName, phoneNumber, email, password }) {
     return apiRequest('/desk/accounts', {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ fullName, phoneNumber: phoneNumber || null, email, password }),
     });
   },
 

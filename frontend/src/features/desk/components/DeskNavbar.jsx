@@ -73,6 +73,8 @@ export default function DeskNavbar() {
   };
 
   const hospitalName = hospital?.hospitalName || 'Front Desk';
+  // Accounts created before names were collected come back as the generic "Front Desk".
+  const staffName = user?.name && user.name !== 'Front Desk' ? user.name : '';
 
   return (
     <header className="hospital-header">
@@ -93,7 +95,7 @@ export default function DeskNavbar() {
               style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
             >
               <span className="navbar-user-meta">
-                <span className="navbar-user-name">{hospitalName}</span>
+                <span className="navbar-user-name">{staffName || hospitalName}</span>
                 <span className="navbar-user-sub">Front desk</span>
               </span>
               {hospital?.hospitalLogoUrl ? (
@@ -113,7 +115,8 @@ export default function DeskNavbar() {
             {showProfileMenu && (
               <div className="hospital-profile-dropdown">
                 <div className="hospital-dropdown-header">
-                  <div className="hospital-dropdown-name">{hospitalName}</div>
+                  <div className="hospital-dropdown-name">{staffName || hospitalName}</div>
+                  {staffName && <div className="hospital-dropdown-meta">{hospitalName}</div>}
                   <div className="hospital-dropdown-meta">{user?.email || 'Front desk'}</div>
                   {user?.registrationNumber && (
                     <div className="hospital-dropdown-meta" style={{ color: 'var(--color-primary)', fontWeight: 600 }}>

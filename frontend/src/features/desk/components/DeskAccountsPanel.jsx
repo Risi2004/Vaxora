@@ -17,6 +17,8 @@ export default function DeskAccountsPanel() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [fullName, setFullName] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [formError, setFormError] = useState('');
@@ -44,6 +46,8 @@ export default function DeskAccountsPanel() {
   const closeModal = () => {
     if (isSubmitting) return;
     setIsModalOpen(false);
+    setFullName('');
+    setPhoneNumber('');
     setEmail('');
     setPassword('');
     setFormError('');
@@ -52,6 +56,16 @@ export default function DeskAccountsPanel() {
   const handleCreate = async (e) => {
     e.preventDefault();
 
+    const trimmedName = fullName.trim();
+    if (!trimmedName) {
+      setFormError('Enter the staff member\'s full name.');
+      return;
+    }
+    const trimmedPhone = phoneNumber.trim();
+    if (trimmedPhone && !/^\+?[0-9 ]{9,15}$/.test(trimmedPhone)) {
+      setFormError('Enter a valid phone number.');
+      return;
+    }
     const trimmedEmail = email.trim();
     if (!trimmedEmail) {
       setFormError('Enter the email the desk will sign in with.');
@@ -65,8 +79,15 @@ export default function DeskAccountsPanel() {
     setIsSubmitting(true);
     setFormError('');
     try {
-      await deskService.createDeskAccount({ email: trimmedEmail, password });
+      await deskService.createDeskAccount({
+        fullName: trimmedName,
+        phoneNumber: trimmedPhone,
+        email: trimmedEmail,
+        password,
+      });
       setIsModalOpen(false);
+      setFullName('');
+      setPhoneNumber('');
       setEmail('');
       setPassword('');
       await loadAccounts();
@@ -80,7 +101,7 @@ export default function DeskAccountsPanel() {
   const handleRemove = async (account) => {
     const ok = await confirm({
       title: 'Remove desk account?',
-      message: `Remove ${account.email}? They will be signed out and can no longer use the front desk.`,
+      message: `Remove ${account.fullName || account.email}? They will be signed out and can no longer use the front desk.`,
       confirmLabel: 'Remove',
       destructive: true,
     });
@@ -178,8 +199,18 @@ export default function DeskAccountsPanel() {
 
               <div className="staff-text-group" style={{ gap: '2px', marginTop: '12px', minWidth: 0 }}>
                 <span className="staff-name" style={{ fontSize: '1rem', overflowWrap: 'anywhere' }}>
-                  {account.email}
+                  {account.fullName || account.email}
                 </span>
+                {account.fullName && (
+                  <span style={{ fontSize: '0.8125rem', color: 'var(--color-text-secondary)', overflowWrap: 'anywhere' }}>
+                    {account.email}
+                  </span>
+                )}
+                {account.phoneNumber && (
+                  <span style={{ fontSize: '0.8125rem', color: 'var(--color-text-secondary)' }}>
+                    {account.phoneNumber}
+                  </span>
+                )}
                 <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
                   {formatLastLogin(account.lastLoginAt)}
                 </span>
@@ -225,6 +256,37 @@ export default function DeskAccountsPanel() {
             <form onSubmit={handleCreate}>
               <div className="modal-body">
                 <div className="modal-form-group">
+                  <label className="modal-label" htmlFor="desk-account-name">Full name *</label>
+                  <input
+                    id="desk-account-name"
+                    type="text"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    placeholder="e.g. Nimal Perera"
+                    className="modal-input"
+                    disabled={isSubmitting}
+                    maxLength={150}
+                    autoFocus
+                    autoComplete="off"
+                  />
+                </div>
+
+                <div className="modal-form-group">
+                  <label className="modal-label" htmlFor="desk-account-phone">Phone</label>
+                  <input
+                    id="desk-account-phone"
+                    type="tel"
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    placeholder="e.g. 0771234567"
+                    className="modal-input"
+                    disabled={isSubmitting}
+                    maxLength={20}
+                    autoComplete="off"
+                  />
+                </div>
+
+                <div className="modal-form-group">
                   <label className="modal-label" htmlFor="desk-account-email">Email *</label>
                   <input
                     id="desk-account-email"
@@ -234,7 +296,6 @@ export default function DeskAccountsPanel() {
                     placeholder="e.g. reception@hospital.lk"
                     className="modal-input"
                     disabled={isSubmitting}
-                    autoFocus
                     autoComplete="off"
                   />
                 </div>

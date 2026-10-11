@@ -250,7 +250,7 @@ public class DeskAuthorizationTests
             "/api/desk/accounts",
             hospital,
             "HOSPITAL",
-            new CreateDeskAccountDto { Email = "second-desk@example.com", Password = "desk-pass-2" });
+            new CreateDeskAccountDto { FullName = "Desk Two", Email = "second-desk@example.com", Password = "desk-pass-2" });
         var deskOnly = await host.SendAsync(HttpMethod.Get, "/api/desk/me", hospital, "HOSPITAL");
 
         Assert.Equal(HttpStatusCode.OK, list.StatusCode);
@@ -278,7 +278,7 @@ public class DeskAuthorizationTests
             "/api/desk/accounts",
             Guid.NewGuid(),
             role,
-            new CreateDeskAccountDto { Email = "x@example.com", Password = "desk-pass-1" });
+            new CreateDeskAccountDto { FullName = "Desk X", Email = "x@example.com", Password = "desk-pass-1" });
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
@@ -294,7 +294,7 @@ public class DeskAuthorizationTests
             "/api/desk/accounts",
             hospital.Id,
             "HOSPITAL",
-            new CreateDeskAccountDto { Email = "desk@example.com", Password = "desk-pass-1" });
+            new CreateDeskAccountDto { FullName = "Desk One", Email = "desk@example.com", Password = "desk-pass-1" });
         created.EnsureSuccessStatusCode();
         var account = await created.Content.ReadFromJsonAsync<DeskAccountDto>();
         return (hospital.Id, account!.UserId);

@@ -53,6 +53,11 @@ public class DeskAccessService : IDeskAccessService
         if (string.IsNullOrWhiteSpace(dto.Password) || dto.Password.Length < 6)
             throw new InvalidOperationException("Password must be at least 6 characters.");
 
+        var fullName = (dto.FullName ?? string.Empty).Trim();
+        if (fullName.Length == 0)
+            throw new InvalidOperationException("Full name is required.");
+        var phoneNumber = string.IsNullOrWhiteSpace(dto.PhoneNumber) ? null : dto.PhoneNumber.Trim();
+
         var deskUser = await _context.Users.FirstOrDefaultAsync(u => u.Email == email);
         if (deskUser != null)
         {
@@ -71,6 +76,8 @@ public class DeskAccessService : IDeskAccessService
                 throw new InvalidOperationException("An account with this email already exists.");
 
             deskUser.PasswordHash = _passwordHasher.HashPassword(dto.Password);
+            deskUser.FullName = fullName;
+            deskUser.PhoneNumber = phoneNumber;
             deskUser.Status = UserStatus.Active;
             deskUser.UpdatedAt = DateTime.UtcNow;
         }
@@ -79,6 +86,8 @@ public class DeskAccessService : IDeskAccessService
             deskUser = new User
             {
                 Email = email,
+                FullName = fullName,
+                PhoneNumber = phoneNumber,
                 PasswordHash = _passwordHasher.HashPassword(dto.Password),
                 Role = UserRole.FRONT_DESK,
                 Status = UserStatus.Active,
@@ -271,6 +280,8 @@ public class DeskAccessService : IDeskAccessService
         {
             AffiliationId = affiliation.Id,
             UserId = deskUser.Id,
+            FullName = deskUser.FullName ?? string.Empty,
+            PhoneNumber = deskUser.PhoneNumber,
             Email = deskUser.Email,
             RegistrationNumber = deskUser.RegistrationNumber ?? string.Empty,
             Status = affiliation.Status.ToString(),

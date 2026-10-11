@@ -113,14 +113,36 @@ describe('Front Desk - Desk Accounts Panel', () => {
     await screen.findByText('No front desk accounts yet.');
 
     fireEvent.click(screen.getByRole('button', { name: /Add Desk Account/i }));
+    fireEvent.change(screen.getByLabelText('Full name *'), { target: { value: ' Nimal Perera ' } });
+    fireEvent.change(screen.getByLabelText('Phone'), { target: { value: '0771234567' } });
     fireEvent.change(screen.getByLabelText('Email *'), { target: { value: ' desk@hospital.lk ' } });
     fireEvent.change(screen.getByLabelText('Password *'), { target: { value: 'secret12' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create Account' }));
 
     await waitFor(() =>
-      expect(deskService.createDeskAccount).toHaveBeenCalledWith({ email: 'desk@hospital.lk', password: 'secret12' })
+      expect(deskService.createDeskAccount).toHaveBeenCalledWith({
+        fullName: 'Nimal Perera',
+        phoneNumber: '0771234567',
+        email: 'desk@hospital.lk',
+        password: 'secret12',
+      })
     );
     await waitFor(() => expect(deskService.getDeskAccounts).toHaveBeenCalledTimes(2));
+  });
+
+  it('requires a full name before calling the API', async () => {
+    deskService.getDeskAccounts.mockResolvedValue([]);
+
+    render(<DeskAccountsPanel />);
+    await screen.findByText('No front desk accounts yet.');
+
+    fireEvent.click(screen.getByRole('button', { name: /Add Desk Account/i }));
+    fireEvent.change(screen.getByLabelText('Email *'), { target: { value: 'desk@hospital.lk' } });
+    fireEvent.change(screen.getByLabelText('Password *'), { target: { value: 'secret12' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create Account' }));
+
+    expect(await screen.findByText("Enter the staff member's full name.")).toBeInTheDocument();
+    expect(deskService.createDeskAccount).not.toHaveBeenCalled();
   });
 
   it('rejects a short password before calling the API', async () => {
@@ -130,6 +152,7 @@ describe('Front Desk - Desk Accounts Panel', () => {
     await screen.findByText('No front desk accounts yet.');
 
     fireEvent.click(screen.getByRole('button', { name: /Add Desk Account/i }));
+    fireEvent.change(screen.getByLabelText('Full name *'), { target: { value: 'Nimal Perera' } });
     fireEvent.change(screen.getByLabelText('Email *'), { target: { value: 'desk@hospital.lk' } });
     fireEvent.change(screen.getByLabelText('Password *'), { target: { value: '123' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create Account' }));
@@ -146,6 +169,7 @@ describe('Front Desk - Desk Accounts Panel', () => {
     await screen.findByText('No front desk accounts yet.');
 
     fireEvent.click(screen.getByRole('button', { name: /Add Desk Account/i }));
+    fireEvent.change(screen.getByLabelText('Full name *'), { target: { value: 'Nimal Perera' } });
     fireEvent.change(screen.getByLabelText('Email *'), { target: { value: 'taken@hospital.lk' } });
     fireEvent.change(screen.getByLabelText('Password *'), { target: { value: 'secret12' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create Account' }));

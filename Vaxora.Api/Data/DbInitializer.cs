@@ -12,6 +12,7 @@ public static class DbInitializer
     /// defaults must be written as '{{}}'.
     /// </summary>
     public const string SchemaSafetySql = @"
+                    ALTER TABLE ""Users"" ADD COLUMN IF NOT EXISTS ""FullName"" VARCHAR(150) NULL;
                     ALTER TABLE ""VaccineSchedules"" ADD COLUMN IF NOT EXISTS ""Price"" NUMERIC(18,2) NOT NULL DEFAULT 0.00;
                     ALTER TABLE ""Appointments"" ADD COLUMN IF NOT EXISTS ""Fee"" NUMERIC(18,2) NOT NULL DEFAULT 0.00;
                     ALTER TABLE ""Appointments"" ADD COLUMN IF NOT EXISTS ""PaymentMethod"" VARCHAR(50) NOT NULL DEFAULT 'Free';
