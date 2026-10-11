@@ -318,6 +318,8 @@ export default function HospitalAppointmentsTab({ view = 'sessions' }) {
           endDate: isWeekly ? scheduleForm.endDate : null,
           startTime: scheduleForm.startTime,
           endTime: scheduleForm.endTime,
+          // When editing, the session's own reserved doses must not count against it.
+          excludeScheduleId: editingScheduleId || null,
         });
         setStockHorizon(data);
 
@@ -351,6 +353,7 @@ export default function HospitalAppointmentsTab({ view = 'sessions' }) {
     scheduleForm.startTime,
     scheduleForm.endTime,
     vaccines,
+    editingScheduleId,
   ]);
 
   const handleScheduleChange = (e) => {
