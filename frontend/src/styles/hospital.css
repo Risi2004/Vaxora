@@ -2562,7 +2562,7 @@
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background-color: rgba(var(--rgb-primary-dark), 0.6);
+  background-color: var(--color-overlay);
   backdrop-filter: blur(4px);
   z-index: 200;
   display: flex;
@@ -5672,7 +5672,7 @@ select.schedule-input-field {
   position: fixed;
   inset: 0;
   z-index: 10000;
-  background: rgba(var(--rgb-primary-dark), 0.72);
+  background: var(--color-overlay);
   backdrop-filter: blur(6px);
   display: flex;
   align-items: stretch;

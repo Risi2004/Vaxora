@@ -1307,7 +1307,7 @@ export default function AppointmentsTab() {
               left: 0,
               right: 0,
               bottom: 0,
-              backgroundColor: 'rgba(var(--rgb-primary-dark), 0.65)',
+              backgroundColor: 'var(--color-overlay)',
               backdropFilter: 'blur(5px)',
               display: 'flex',
               alignItems: 'center',

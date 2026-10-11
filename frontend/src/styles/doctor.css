@@ -1881,7 +1881,7 @@
 .doctor-modal-overlay {
   position: fixed;
   inset: 0;
-  background-color: rgba(var(--rgb-primary-dark), 0.6);
+  background-color: var(--color-overlay);
   backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
