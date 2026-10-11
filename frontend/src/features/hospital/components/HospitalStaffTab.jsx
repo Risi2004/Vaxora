@@ -225,19 +225,28 @@ export default function HospitalStaffTab() {
       <PortalHero
         eyebrow="Staff management"
         title="Medical staff"
-        subtitle="Manage affiliated doctors and nurses, and invite verified practitioners by their Vaxora ID."
+        subtitle={
+          activeTab === 'desk'
+            ? 'Create and remove the logins your reception staff use at the front desk.'
+            : 'Manage affiliated doctors and nurses, and invite verified practitioners by their Vaxora ID.'
+        }
       >
         <HeroTabs
           label="Staff sections"
-          active={activeTab === 'pending' ? 'pending' : 'directory'}
-          onChange={(key) => setActiveTab(key === 'pending' ? 'pending' : 'all')}
+          active={activeTab === 'pending' || activeTab === 'desk' ? activeTab : 'directory'}
+          onChange={(key) => setActiveTab(key === 'directory' ? 'all' : key)}
           tabs={[
             { key: 'directory', label: 'Directory' },
             { key: 'pending', label: 'Pending invites', badge: pendingCount },
+            { key: 'desk', label: 'Front desk' },
           ]}
         />
       </PortalHero>
 
+      {activeTab === 'desk' ? (
+        <DeskAccountsPanel />
+      ) : (
+      <>
       <div className="hospital-staff-toolbar">
         <button
           type="button"
@@ -543,8 +552,9 @@ export default function HospitalStaffTab() {
           </button>
         </div>
       )}
+      </>
 
-      <DeskAccountsPanel />
+      )}
 
       <AddStaffRequestModal
         isOpen={isModalOpen}

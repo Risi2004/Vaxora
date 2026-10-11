@@ -99,7 +99,7 @@ export default function DeskAccountsPanel() {
   };
 
   return (
-    <div className="hospital-section-card" id="desk-accounts" style={{ marginTop: '24px' }}>
+    <div className="hospital-section-card" id="desk-accounts">
       <div className="section-card-header" style={{ flexWrap: 'wrap', gap: '12px' }}>
         <div className="section-title-group">
           <h2>Front desk accounts</h2>
