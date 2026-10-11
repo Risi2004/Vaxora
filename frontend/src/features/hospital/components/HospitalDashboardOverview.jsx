@@ -6,6 +6,7 @@ import scheduleService from '../services/scheduleService';
 import RestockVaccineModal from './RestockVaccineModal';
 import staffService from '../services/staffService';
 import { inventoryService } from '../services/inventoryService';
+import deskService from '../../desk/services/deskService';
 import { appointmentService } from '../../patient/services/appointmentService';
 import { authService } from '../../auth';
 import { hospitalMinutesNow, hospitalToday, toHospitalDateKey } from '../utils/hospitalDate';
@@ -329,11 +330,17 @@ export default function HospitalDashboardOverview({ view = 'home' }) {
     setInventoryLoading(true);
     setInventoryError('');
     try {
-      const [batchesRes, formularyRes, vaultsRes] = await Promise.allSettled([
-        inventoryService.getInventory(),
-        inventoryService.getFormulary(),
-        inventoryService.getColdVaults(),
-      ]);
+      // The front desk only needs the vaccine list for walk-ins; stock and vaults stay manager-only.
+      const isDeskUser = String(authService.getUser()?.role || '').toUpperCase() === 'FRONT_DESK';
+      const [batchesRes, formularyRes, vaultsRes] = await Promise.allSettled(
+        isDeskUser
+          ? [Promise.resolve([]), deskService.getFormulary(), Promise.resolve([])]
+          : [
+              inventoryService.getInventory(),
+              inventoryService.getFormulary(),
+              inventoryService.getColdVaults(),
+            ]
+      );
 
       const batches = batchesRes.status === 'fulfilled' && Array.isArray(batchesRes.value) ? batchesRes.value : [];
       const formulary = formularyRes.status === 'fulfilled' && Array.isArray(formularyRes.value) ? formularyRes.value : [];

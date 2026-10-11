@@ -58,6 +58,8 @@ export default function AuthPage({ onAuthSuccess }) {
         return '/nurse/dashboard';
       case 'HOSPITAL':
         return '/hospital/dashboard';
+      case 'FRONT_DESK':
+        return '/desk';
       case 'ADMIN':
         return '/admin/dashboard';
       default:
