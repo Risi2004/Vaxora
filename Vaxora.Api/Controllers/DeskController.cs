@@ -12,11 +12,16 @@ namespace Vaxora.Api.Controllers;
 public class DeskController : ControllerBase
 {
     private readonly IDeskAccessService _deskAccess;
+    private readonly IInventoryService _inventoryService;
     private readonly ILogger<DeskController> _logger;
 
-    public DeskController(IDeskAccessService deskAccess, ILogger<DeskController> logger)
+    public DeskController(
+        IDeskAccessService deskAccess,
+        IInventoryService inventoryService,
+        ILogger<DeskController> logger)
     {
         _deskAccess = deskAccess;
+        _inventoryService = inventoryService;
         _logger = logger;
     }
 
@@ -126,6 +131,34 @@ public class DeskController : ControllerBase
         {
             _logger.LogError(ex, "Error loading front-desk context");
             return StatusCode(500, new { message = "Failed to load front-desk details." });
+        }
+    }
+
+    /// <summary>
+    /// Vaccines the hospital offers, so the desk can register walk-ins. Read-only: the
+    /// inventory endpoints themselves stay closed to front-desk accounts.
+    /// </summary>
+    [HttpGet("formulary")]
+    [Authorize(Roles = "FRONT_DESK")]
+    public async Task<IActionResult> GetHospitalFormulary()
+    {
+        if (!TryGetUserId(out var deskUserId))
+            return Unauthorized(new { message = "Invalid identity claim." });
+
+        try
+        {
+            var hospitalUserId = await _deskAccess.ResolveHospitalUserIdAsync(deskUserId);
+            var result = await _inventoryService.GetFormularyAsync(hospitalUserId);
+            return Ok(result);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading formulary for the front desk");
+            return StatusCode(500, new { message = "Failed to fetch formulary." });
         }
     }
 
