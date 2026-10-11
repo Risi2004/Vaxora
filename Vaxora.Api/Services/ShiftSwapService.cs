@@ -385,7 +385,10 @@ public class ShiftSwapService : IShiftSwapService
         var pool = await _context.StaffAffiliations
             .Include(a => a.StaffUser).ThenInclude(u => u.DoctorProfile)
             .Include(a => a.StaffUser).ThenInclude(u => u.NurseProfile)
-            .Where(a => a.HospitalUserId == hospitalUserId && a.Status == AffiliationStatus.Active)
+            .Where(a =>
+                a.HospitalUserId == hospitalUserId &&
+                a.Status == AffiliationStatus.Active &&
+                a.StaffRole != UserRole.FRONT_DESK)
             .ToListAsync();
 
         var staffIds = pool.Select(a => a.StaffUserId).Distinct().ToList();

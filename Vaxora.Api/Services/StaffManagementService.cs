@@ -255,7 +255,8 @@ public class StaffManagementService : IStaffManagementService
             .Include(a => a.HospitalUser).ThenInclude(h => h.HospitalProfile)
             .Include(a => a.StaffUser).ThenInclude(s => s.DoctorProfile)
             .Include(a => a.StaffUser).ThenInclude(s => s.NurseProfile)
-            .Where(a => a.HospitalUserId == hospitalUserId)
+            // Front-desk accounts are managed separately and never join the clinical roster.
+            .Where(a => a.HospitalUserId == hospitalUserId && a.StaffRole != UserRole.FRONT_DESK)
             .AsQueryable();
 
         var statusFilter = string.IsNullOrWhiteSpace(status) ? AffiliationStatus.Active.ToString() : status.Trim();
@@ -645,6 +646,9 @@ public class StaffManagementService : IStaffManagementService
         if (affiliation.Status != AffiliationStatus.Active)
             throw new InvalidOperationException("Shifts can only be assigned to active staff.");
 
+        if (affiliation.StaffRole == UserRole.FRONT_DESK)
+            throw new InvalidOperationException("Shifts can only be assigned to doctors or nurses.");
+
         await EnsureNoShiftOverlapAsync(affiliation.StaffUserId, dto.ShiftDate, dto.StartTime, dto.EndTime);
 
         var (boothId, boothLabel) = await ResolveBoothAssignmentAsync(
@@ -708,7 +712,10 @@ public class StaffManagementService : IStaffManagementService
 
         var localAffiliations = await _context.StaffAffiliations
             .AsNoTracking()
-            .Where(a => a.HospitalUserId == hospitalUserId && a.Status == AffiliationStatus.Active)
+            .Where(a =>
+                a.HospitalUserId == hospitalUserId &&
+                a.Status == AffiliationStatus.Active &&
+                a.StaffRole != UserRole.FRONT_DESK)
             .Select(a => new { a.Id, a.StaffUserId })
             .ToListAsync();
 
@@ -761,7 +768,10 @@ public class StaffManagementService : IStaffManagementService
 
         var activeAffiliations = await _context.StaffAffiliations
             .AsNoTracking()
-            .Where(a => a.HospitalUserId == hospitalUserId && a.Status == AffiliationStatus.Active)
+            .Where(a =>
+                a.HospitalUserId == hospitalUserId &&
+                a.Status == AffiliationStatus.Active &&
+                a.StaffRole != UserRole.FRONT_DESK)
             .ToListAsync();
 
         var activeDoctors = activeAffiliations.Count(a => a.StaffRole == UserRole.DOCTOR);
@@ -965,7 +975,10 @@ public class StaffManagementService : IStaffManagementService
             .AsNoTracking()
             .Include(a => a.StaffUser).ThenInclude(u => u.DoctorProfile)
             .Include(a => a.StaffUser).ThenInclude(u => u.NurseProfile)
-            .Where(a => a.HospitalUserId == hospitalUserId && a.Status == AffiliationStatus.Active)
+            .Where(a =>
+                a.HospitalUserId == hospitalUserId &&
+                a.Status == AffiliationStatus.Active &&
+                a.StaffRole != UserRole.FRONT_DESK)
             .OrderBy(a => a.InvitedAt)
             .ToListAsync();
 

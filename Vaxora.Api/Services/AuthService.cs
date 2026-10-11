@@ -1240,6 +1240,7 @@ public class AuthService : IAuthService
             UserRole.NURSE => StaffNameFormatter.WithRolePrefix(user.NurseProfile?.FullName ?? "Nurse", "Nurse"),
             UserRole.HOSPITAL => user.HospitalProfile?.HospitalName ?? "Hospital",
             UserRole.ADMIN => "System Administrator",
+            UserRole.FRONT_DESK => "Front Desk",
             _ => "User"
         };
     }
