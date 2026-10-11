@@ -112,10 +112,17 @@ export default function AppointmentsTab() {
   const [selectedFee, setSelectedFee] = useState(0);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
-  const showToast = (msg) => {
+  const [notificationTone, setNotificationTone] = useState('success'); // success | error | info
+  const toastTimerRef = useRef(null);
+
+  const showToast = (msg, tone = 'success') => {
     setNotification(msg);
-    setTimeout(() => setNotification(''), 5000);
+    setNotificationTone(tone);
+    clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => setNotification(''), 5000);
   };
+
+  useEffect(() => () => clearTimeout(toastTimerRef.current), []);
 
   // 1. Fetch logged-in patient's saved appointments from database
   const loadMyAppointments = useCallback(async () => {
@@ -209,7 +216,8 @@ export default function AppointmentsTab() {
       showToast('Payment confirmed. Your appointment is booked and receipts have been emailed.');
     } else {
       showToast(
-        'PayHere checkout finished. Waiting for payment notification — refresh shortly, or ask the hospital desk to Mark paid if you paid at the counter.'
+        'PayHere checkout finished. Waiting for payment notification — refresh shortly, or ask the hospital desk to Mark paid if you paid at the counter.',
+        'info'
       );
     }
     setTimeout(() => {
@@ -244,7 +252,7 @@ export default function AppointmentsTab() {
       };
       handleReturnSuccess();
     } else if (paymentParam === 'cancelled') {
-      showToast('PayHere payment was cancelled. You can complete payment anytime from your appointments list.');
+      showToast('PayHere payment was cancelled. You can complete payment anytime from your appointments list.', 'info');
       window.history.replaceState({}, document.title, window.location.pathname);
       loadMyAppointments();
     }
@@ -488,13 +496,13 @@ export default function AppointmentsTab() {
   const handleBook = async (e) => {
     e.preventDefault();
     if (!formData.vaccine || !formData.hospitalUserId || !formData.date || !formData.time) {
-      alert('Please complete all steps (Vaccine, Hospital, Date, and Time).');
+      showToast('Please complete all steps (Vaccine, Hospital, Date, and Time).', 'error');
       return;
     }
 
     const todayLocal = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Colombo' });
     if (formData.date < todayLocal) {
-      alert('That appointment date is in the past. Please pick another date.');
+      showToast('That appointment date is in the past. Please pick another date.', 'error');
       return;
     }
     if (formData.date === todayLocal) {
@@ -509,7 +517,7 @@ export default function AppointmentsTab() {
       const parsed = Date.parse(`1970-01-01T${normalizeSlotTo24h(slotStart)}`);
       const nowParsed = Date.parse(`1970-01-01T${nowHm}:00`);
       if (!Number.isNaN(parsed) && !Number.isNaN(nowParsed) && parsed < nowParsed) {
-        alert('That time slot has already started. Please choose a later slot.');
+        showToast('That time slot has already started. Please choose a later slot.', 'error');
         return;
       }
     }
@@ -537,7 +545,7 @@ export default function AppointmentsTab() {
       const resStatus = String(res?.status ?? res?.Status ?? '').toLowerCase();
 
       if (resFee <= 0 || resStatus === 'confirmed') {
-        showToast('✓ Free appointment confirmed! Booking details sent to your email.');
+        showToast('Free appointment confirmed! Booking details sent to your email.');
         resetBookingForm();
         await loadMyAppointments();
         setTimeout(() => {
@@ -555,7 +563,7 @@ export default function AppointmentsTab() {
         launchPayHere(checkoutPayload, res.id || res.Id);
       }
     } catch (err) {
-      alert(`Booking failed: ${err.message}`);
+      showToast(`Booking failed: ${err.message}`, 'error');
     } finally {
       setSubmitting(false);
     }
@@ -581,7 +589,7 @@ export default function AppointmentsTab() {
   // Direct PayHere Official JavaScript SDK Popup Launcher
   const launchPayHere = (checkoutPayload, aptId) => {
     if (!window.payhere) {
-      alert('PayHere payment library is still loading or blocked by your browser. Please refresh and try again.');
+      showToast('PayHere payment library is still loading or blocked by your browser. Please refresh and try again.', 'error');
       return;
     }
 
@@ -592,17 +600,17 @@ export default function AppointmentsTab() {
           await syncPayHereConfirmation(aptId);
         } catch (err) {
           console.error('Failed to sync PayHere payment:', err);
-          showToast(err.message || 'Could not sync payment status. Please refresh.');
+          showToast(err.message || 'Could not sync payment status. Please refresh.', 'error');
           await loadMyAppointments();
         }
       },
       onDismissed: function onDismissed() {
-        showToast('PayHere checkout closed. You can complete payment anytime by clicking "Pay Now" on your appointment.');
+        showToast('PayHere checkout closed. You can complete payment anytime by clicking "Pay Now" on your appointment.', 'info');
         loadMyAppointments();
       },
       onError: function onError(error) {
         console.error('PayHere error:', error);
-        alert(`PayHere error: ${error}`);
+        showToast(`PayHere error: ${error}`, 'error');
         loadMyAppointments();
       },
     });
@@ -637,7 +645,7 @@ export default function AppointmentsTab() {
       const checkoutPayload = await appointmentService.initPayHere(apt.id || apt.Id);
       launchPayHere(checkoutPayload, apt.id || apt.Id);
     } catch (err) {
-      alert(`Failed to launch PayHere: ${err.message}`);
+      showToast(`Failed to launch PayHere: ${err.message}`, 'error');
     } finally {
       setIsProcessingPayment(false);
     }
@@ -687,7 +695,7 @@ export default function AppointmentsTab() {
   // 8. Handle Appointment Cancellation
   const handleCancel = async (apt) => {
     if (!isEligibleForCancellation(apt)) {
-      alert('Appointments can only be cancelled at least 24 hours before the scheduled start time. For same-day adjustments, please contact the hospital directly.');
+      showToast('Appointments can only be cancelled at least 24 hours before the scheduled start time. For same-day adjustments, please contact the hospital directly.', 'error');
       return;
     }
 
@@ -705,7 +713,7 @@ export default function AppointmentsTab() {
       showToast('Appointment cancelled successfully. A confirmation email has been dispatched and the slot is now free.');
       await loadMyAppointments();
     } catch (err) {
-      alert(`Failed to cancel appointment: ${err.message}`);
+      showToast(`Failed to cancel appointment: ${err.message}`, 'error');
     }
   };
 
@@ -772,8 +780,24 @@ export default function AppointmentsTab() {
       <div className="manage-appointments-card">
         {/* Notification Alert */}
         {notification && (
-          <div className="appointment-alert-pill" role="alert">
-            ✓ {notification}
+          <div
+            className="appointment-alert-pill"
+            role="alert"
+            style={{
+              // Stays in view below the navbar so messages are seen from the list too.
+              position: 'sticky',
+              top: '84px',
+              zIndex: 50,
+              ...(notificationTone === 'success'
+                ? {}
+                : {
+                    background: `var(--color-${notificationTone}-bg)`,
+                    borderColor: `var(--color-${notificationTone}-border)`,
+                    color: notificationTone === 'info' ? 'var(--color-primary)' : `var(--color-${notificationTone})`,
+                  }),
+            }}
+          >
+            {notificationTone === 'success' ? '✓ ' : ''}{notification}
           </div>
         )}
 
