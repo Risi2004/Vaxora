@@ -1,6 +1,7 @@
 import { deferEffectCallback } from '../../../shared/utils/deferEffectCallback.js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AddStaffRequestModal from './AddStaffRequestModal';
+import DeskAccountsPanel from '../../desk/components/DeskAccountsPanel';
 import staffService from '../services/staffService';
 import PortalHero from '../../../components/PortalHero';
 import HeroTabs from '../../../components/HeroTabs';
@@ -542,6 +543,8 @@ export default function HospitalStaffTab() {
           </button>
         </div>
       )}
+
+      <DeskAccountsPanel />
 
       <AddStaffRequestModal
         isOpen={isModalOpen}
