@@ -151,15 +151,6 @@
   background: var(--color-success);
 }
 
-.hospital-dashboard-container .cold-chain-vault-chip {
-  border-color: var(--color-blue-border);
-  background: linear-gradient(160deg, var(--color-blue-bg) 0%, var(--color-surface) 70%);
-}
-
-.hospital-dashboard-container .cold-chain-vault-chip-temp {
-  color: var(--color-blue);
-}
-
 .hospital-dashboard-container .cold-chain-monitor-bar {
   background: var(--color-surface-subtle);
   border-color: var(--color-border-light);
@@ -174,7 +165,7 @@
    5. Contrast: teal text on mint fills uses the deeper teal (AA)
    -------------------------------------------------------------------------- */
 .hospital-dashboard-container :is(.btn-queue-walkin, .cold-vaults-live-tag) {
-  color: var(--color-primary-hover);
+  color: var(--color-primary);
 }
 
 
@@ -208,14 +199,15 @@
       .hospital-appointments-mockup-table, .hospital-queue-table, .inventory-custom-table,
       .patient-mockup-table) thead tr th {
   padding: 13px 16px;
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--color-text-muted);
-  background: var(--color-surface-subtle);
+  /* Same light-cyan header as every other table (variables.css) */
+  color: var(--table-head-text);
+  background: var(--table-head-bg);
   border: none;
-  border-bottom: 1px solid var(--color-border-card);
+  border-bottom: 1px solid var(--table-head-border);
   border-radius: 0;
 }
 
@@ -302,7 +294,7 @@
   margin: 0 auto 12px;
   border-radius: 50%;
   background:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='rgb(90,110,118)' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 12h-6l-2 3h-4l-2-3H2'/%3E%3Cpath d='M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z'/%3E%3C/svg%3E")
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='rgb(91,102,128)' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 12h-6l-2 3h-4l-2-3H2'/%3E%3Cpath d='M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z'/%3E%3C/svg%3E")
       center / 22px no-repeat,
     var(--color-surface-subtle);
 }

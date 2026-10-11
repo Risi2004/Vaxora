@@ -10,3 +10,4 @@ export { default as RolesSection } from './RolesSection';
 export { default as StepsSection } from './StepsSection';
 export { default as FaqSection } from './FaqSection';
 export { default as CtaSection } from './CtaSection';
+export { default as ShowcaseSection } from './ShowcaseSection';

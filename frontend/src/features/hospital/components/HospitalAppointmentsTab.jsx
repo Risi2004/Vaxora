@@ -9,14 +9,33 @@ import { IconCalendar, IconRefresh } from '../../../shared/icons/AppIcons';
 import useConfirmDialog from '../../../shared/hooks/useConfirmDialog';
 
 const DAYS_OF_WEEK = [
-  { key: 'Monday', label: 'Mon' },
-  { key: 'Tuesday', label: 'Tue' },
-  { key: 'Wednesday', label: 'Wed' },
-  { key: 'Thursday', label: 'Thu' },
-  { key: 'Friday', label: 'Fri' },
-  { key: 'Saturday', label: 'Sat' },
-  { key: 'Sunday', label: 'Sun' },
+  { key: 'Monday', label: 'Mon', short: 'Mo' },
+  { key: 'Tuesday', label: 'Tue', short: 'Tu' },
+  { key: 'Wednesday', label: 'Wed', short: 'We' },
+  { key: 'Thursday', label: 'Thu', short: 'Th' },
+  { key: 'Friday', label: 'Fri', short: 'Fr' },
+  { key: 'Saturday', label: 'Sat', short: 'Sa' },
+  { key: 'Sunday', label: 'Sun', short: 'Su' },
 ];
+
+/** Calendar order Su→Sa with two-letter labels (e.g. Mo Tu We). */
+const WEEKDAY_SHORT_ORDER = [
+  { key: 'Sunday', short: 'Su' },
+  { key: 'Monday', short: 'Mo' },
+  { key: 'Tuesday', short: 'Tu' },
+  { key: 'Wednesday', short: 'We' },
+  { key: 'Thursday', short: 'Th' },
+  { key: 'Friday', short: 'Fr' },
+  { key: 'Saturday', short: 'Sa' },
+];
+
+function formatWeekdaysShort(days) {
+  if (!Array.isArray(days) || days.length === 0) return '—';
+  const selected = new Set(days);
+  return WEEKDAY_SHORT_ORDER.filter((d) => selected.has(d.key))
+    .map((d) => d.short)
+    .join(', ');
+}
 
 /** Hospital wall-clock date in Asia/Colombo (yyyy-MM-dd). */
 function hospitalTodayStr() {
@@ -112,6 +131,7 @@ export default function HospitalAppointmentsTab({ view = 'sessions' }) {
   const [notificationTone, setNotificationTone] = useState('success'); // success | error | warning | info
   const [stockHorizon, setStockHorizon] = useState(null);
   const [loadingHorizon, setLoadingHorizon] = useState(false);
+  const [editingScheduleId, setEditingScheduleId] = useState(null);
 
   const showToast = (msg, tone = 'success') => {
     setNotification(msg);
@@ -382,7 +402,50 @@ export default function HospitalAppointmentsTab({ view = 'sessions' }) {
     }));
   };
 
-  // Submit and save new schedule slot to database
+  const resetScheduleForm = () => {
+    const resetWindow = defaultWindowForDate(todayStr);
+    setEditingScheduleId(null);
+    setScheduleForm({
+      scheduleType: 'OneTime',
+      vaccineType: '',
+      boothId: '',
+      specificDate: todayStr,
+      daysOfWeek: ['Monday', 'Wednesday', 'Friday'],
+      startDate: todayStr,
+      endDate: defaultEndDateStr,
+      startTime: resetWindow.startTime,
+      endTime: resetWindow.endTime,
+      price: '0.00',
+    });
+  };
+
+  const handleEditSchedule = (item) => {
+    const isWeekly = String(item.scheduleType || '').toLowerCase() === 'weekly';
+    const days = Array.isArray(item.daysOfWeek)
+      ? item.daysOfWeek
+      : String(item.daysOfWeek || '')
+          .split(',')
+          .map((d) => d.trim())
+          .filter(Boolean);
+
+    setEditingScheduleId(item.id);
+    setScheduleForm({
+      scheduleType: isWeekly ? 'Weekly' : 'OneTime',
+      vaccineType: item.vaccineName || '',
+      boothId: item.boothId ? String(item.boothId) : '',
+      specificDate: item.specificDate || todayStr,
+      daysOfWeek: days.length ? days : ['Monday', 'Wednesday', 'Friday'],
+      startDate: item.startDate || todayStr,
+      endDate: item.endDate || defaultEndDateStr,
+      startTime: String(item.startTime || '09:00').slice(0, 5),
+      endTime: String(item.endTime || '11:00').slice(0, 5),
+      price: item.price != null ? Number(item.price).toFixed(2) : '0.00',
+    });
+
+    document.querySelector('.schedule-create-box')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  // Submit and save new or updated schedule slot to database
   const handleAddSchedule = async (e) => {
     e.preventDefault();
 
@@ -418,7 +481,7 @@ export default function HospitalAppointmentsTab({ view = 'sessions' }) {
         alert('Please select a Date for the one-time schedule.');
         return;
       }
-      if (scheduleForm.specificDate < todayStr) {
+      if (!editingScheduleId && scheduleForm.specificDate < todayStr) {
         alert('One-time schedule date cannot be in the past.');
         return;
       }
@@ -429,24 +492,27 @@ export default function HospitalAppointmentsTab({ view = 'sessions' }) {
       return;
     }
 
-    const sessionDate = isWeekly ? scheduleForm.startDate : scheduleForm.specificDate;
-    if (sessionDate === todayStr) {
-      const nowHm = new Date().toLocaleTimeString('en-GB', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-        timeZone: 'Asia/Colombo',
-      });
-      if (scheduleForm.startTime < nowHm) {
-        alert('Schedule start time cannot be in the past for today.');
+    if (!editingScheduleId) {
+      const sessionDate = isWeekly ? scheduleForm.startDate : scheduleForm.specificDate;
+      if (sessionDate === todayStr) {
+        const nowHm = new Date().toLocaleTimeString('en-GB', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+          timeZone: 'Asia/Colombo',
+        });
+        if (scheduleForm.startTime < nowHm) {
+          alert('Schedule start time cannot be in the past for today.');
+          return;
+        }
+      }
+
+      if (isWeekly && scheduleForm.startDate && scheduleForm.startDate < todayStr) {
+        alert('Weekly schedule start date cannot be in the past.');
         return;
       }
     }
 
-    if (isWeekly && scheduleForm.startDate && scheduleForm.startDate < todayStr) {
-      alert('Weekly schedule start date cannot be in the past.');
-      return;
-    }
     if (isWeekly && scheduleForm.endDate && scheduleForm.endDate < todayStr) {
       alert('Weekly schedule end date cannot be in the past.');
       return;
@@ -482,24 +548,15 @@ export default function HospitalAppointmentsTab({ view = 'sessions' }) {
 
     try {
       setSubmitting(true);
-      await scheduleService.createSchedule(payload);
-      showToast('Immunization schedule slot created and saved to database successfully!', 'success');
+      if (editingScheduleId) {
+        await scheduleService.updateSchedule(editingScheduleId, payload);
+        showToast('Session updated successfully.', 'success');
+      } else {
+        await scheduleService.createSchedule(payload);
+        showToast('Immunization schedule slot created and saved to database successfully!', 'success');
+      }
 
-      // Reset form — default window avoids past times for today
-      const resetWindow = defaultWindowForDate(todayStr);
-      setScheduleForm({
-        scheduleType: 'OneTime',
-        vaccineType: '',
-        boothId: '',
-        specificDate: todayStr,
-        daysOfWeek: ['Monday', 'Wednesday', 'Friday'],
-        startDate: todayStr,
-        endDate: defaultEndDateStr,
-        startTime: resetWindow.startTime,
-        endTime: resetWindow.endTime,
-        price: '0.00',
-      });
-
+      resetScheduleForm();
       await loadSchedules();
     } catch (err) {
       showToast(`Failed to save schedule: ${err.message}`, 'error');
@@ -603,17 +660,17 @@ export default function HospitalAppointmentsTab({ view = 'sessions' }) {
             {/* 1. Create a new schedule Card */}
             <div className="schedule-create-box">
               <h2 className="schedule-create-title">
-                Create a new session
+                {editingScheduleId ? 'Edit session' : 'Create a new session'}
               </h2>
 
               <form onSubmit={handleAddSchedule}>
                 {/* Recurrence Selector Bar */}
                 <div className="schedule-recurrence-bar">
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--color-text-title)' }}>
+                    <span style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--color-text-title)' }}>
                       Recurrence Frequency:
                     </span>
-                    <span style={{ fontSize: '0.8rem', color: 'var(--color-text-body)' }}>
+                    <span style={{ fontSize: '0.8125rem', color: 'var(--color-text-body)' }}>
                       (Choose single day or weekly repeating days)
                     </span>
                   </div>
@@ -738,7 +795,7 @@ export default function HospitalAppointmentsTab({ view = 'sessions' }) {
                       })}
                     </select>
                     {scheduleForm.vaccineType && !loadingOptions && matchingBooths.length === 0 ? (
-                      <p className="schedule-field-hint" style={{ margin: '6px 0 0', color: 'var(--color-warning)', fontSize: '0.82rem' }}>
+                      <p className="schedule-field-hint" style={{ margin: '6px 0 0', color: 'var(--color-warning)', fontSize: '0.8125rem' }}>
                         Add this vaccine to a booth under Sessions → Booths, then come back to post the schedule.
                       </p>
                     ) : null}
@@ -833,7 +890,7 @@ export default function HospitalAppointmentsTab({ view = 'sessions' }) {
                   <div className="schedule-input-group">
                     <label className="schedule-input-label">
                       Fee / person
-                      <span style={{ fontSize: '0.78rem', color: 'var(--color-text-body)', fontWeight: 'normal', marginLeft: '6px' }}>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--color-text-body)', fontWeight: 'normal', marginLeft: '6px' }}>
                         (from formulary)
                       </span>
                     </label>
@@ -888,10 +945,10 @@ export default function HospitalAppointmentsTab({ view = 'sessions' }) {
                         border: '1px solid rgba(var(--rgb-primary-dark), 0.06)',
                       }}
                     >
-                      <div style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--color-text-body)', letterSpacing: '0.02em', textTransform: 'uppercase' }}>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-body)', letterSpacing: '0.02em', textTransform: 'uppercase' }}>
                         {label}
                       </div>
-                      <div style={{ fontSize: '1.15rem', fontWeight: 750, color: 'var(--color-text-title)', marginTop: '2px' }}>
+                      <div style={{ fontSize: '1.125rem', fontWeight: 750, color: 'var(--color-text-title)', marginTop: '2px' }}>
                         {value}
                       </div>
                       {hint ? (
@@ -912,7 +969,7 @@ export default function HospitalAppointmentsTab({ view = 'sessions' }) {
                         ...tone,
                       }}
                     >
-                      <div style={{ fontSize: '0.92rem', fontWeight: 700, marginBottom: loadingHorizon ? 0 : '10px' }}>
+                      <div style={{ fontSize: '0.9375rem', fontWeight: 700, marginBottom: loadingHorizon ? 0 : '10px' }}>
                         {headline}
                       </div>
                       {!loadingHorizon && typeof free === 'number' && (
@@ -924,7 +981,7 @@ export default function HospitalAppointmentsTab({ view = 'sessions' }) {
                         </div>
                       )}
                       {!loadingHorizon && blocked && h.message ? (
-                        <p style={{ margin: '10px 0 0', fontSize: '0.82rem', fontWeight: 600, opacity: 0.9 }}>
+                        <p style={{ margin: '10px 0 0', fontSize: '0.8125rem', fontWeight: 600, opacity: 0.9 }}>
                           Tip: shorten the hours/date range, cancel overlapping schedules, or restock.
                         </p>
                       ) : null}
@@ -932,7 +989,17 @@ export default function HospitalAppointmentsTab({ view = 'sessions' }) {
                   );
                 })()}
 
-                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px' }}>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '6px', flexWrap: 'wrap' }}>
+                  {editingScheduleId ? (
+                    <button
+                      type="button"
+                      className="btn-cancel-schedule-edit"
+                      onClick={resetScheduleForm}
+                      disabled={submitting}
+                    >
+                      Cancel edit
+                    </button>
+                  ) : null}
                   <button
                     type="submit"
                     className="btn-add-schedule"
@@ -953,10 +1020,16 @@ export default function HospitalAppointmentsTab({ view = 'sessions' }) {
                         ? 'Please configure at least one active booth under Booths'
                         : scheduleForm.vaccineType && matchingBooths.length === 0
                         ? 'No booth offers this vaccine yet — assign it on a booth first'
-                        : 'Save schedule slot to database'
+                        : editingScheduleId
+                          ? 'Save changes to this session'
+                          : 'Save schedule slot to database'
                     }
                   >
-                    {submitting ? 'Saving...' : 'Add Session'}
+                    {submitting
+                      ? 'Saving...'
+                      : editingScheduleId
+                        ? 'Save changes'
+                        : 'Add Session'}
                   </button>
                 </div>
               </form>
@@ -988,7 +1061,7 @@ export default function HospitalAppointmentsTab({ view = 'sessions' }) {
                       <th style={{ width: '28%' }}>Schedule / Recurrence</th>
                       <th style={{ width: '14%' }}>Time Slot</th>
                       <th style={{ width: '12%' }}>Fee (Per Person)</th>
-                      <th style={{ width: '8%', borderRight: 'none' }}>Action</th>
+                      <th style={{ width: '12%', borderRight: 'none' }}>Action</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1009,13 +1082,15 @@ export default function HospitalAppointmentsTab({ view = 'sessions' }) {
                         <tr key={item.id}>
                           <td>{item.vaccineName}</td>
                           <td>{item.boothLabel || '—'}</td>
-                          <td style={{ fontSize: '0.92rem' }}>
+                          <td style={{ fontSize: '0.9375rem' }}>
                             {item.scheduleType === 'Weekly' ? (
                               <div>
                                 <span style={{ fontWeight: 700, color: 'var(--color-primary)' }}>Weekly: </span>
-                                <span>{item.daysOfWeek?.join(', ') || 'Weekly'}</span>
+                                <span className="schedule-weekdays-short">
+                                  {formatWeekdaysShort(item.daysOfWeek)}
+                                </span>
                                 {item.startDate && item.endDate && (
-                                  <div style={{ fontSize: '0.78rem', color: 'var(--color-text-body)', marginTop: '2px' }}>
+                                  <div style={{ fontSize: '0.75rem', color: 'var(--color-text-body)', marginTop: '2px' }}>
                                     ({item.startDate} to {item.endDate})
                                   </div>
                                 )}
@@ -1040,14 +1115,24 @@ export default function HospitalAppointmentsTab({ view = 'sessions' }) {
                             )}
                           </td>
                           <td style={{ borderRight: 'none' }}>
-                            <button
-                              type="button"
-                              className="btn-cancel-schedule"
-                              onClick={() => handleCancelSchedule(item.id)}
-                              title="Cancel and remove schedule slot"
-                            >
-                              Cancel
-                            </button>
+                            <div className="schedule-row-actions">
+                              <button
+                                type="button"
+                                className="btn-edit-schedule"
+                                onClick={() => handleEditSchedule(item)}
+                                title="Edit this active session"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                className="btn-cancel-schedule"
+                                onClick={() => handleCancelSchedule(item.id)}
+                                title="Cancel and remove schedule slot"
+                              >
+                                Cancel
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))
@@ -1140,7 +1225,7 @@ export default function HospitalAppointmentsTab({ view = 'sessions' }) {
                         <td>
                           <div style={{ fontWeight: 600, color: 'var(--color-text-title)' }}>{item.patientName || item.pName || 'Patient'}</div>
                           {item.patientPhone && (
-                            <div style={{ fontSize: '0.8rem', color: 'var(--color-text-body)', marginTop: '2px' }}>
+                            <div style={{ fontSize: '0.8125rem', color: 'var(--color-text-body)', marginTop: '2px' }}>
                               Tel: {item.patientPhone}
                             </div>
                           )}

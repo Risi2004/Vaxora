@@ -14,6 +14,7 @@
 @import './landing.css';
 @import './landing-motion.css';
 @import './landing-accents.css';
+@import './landing-layout.css';
 
 /* 4. Feature: Authentication (Login & Signup) */
 @import './auth.css';
@@ -121,7 +122,7 @@
 }
 
 .navbar-user-sub {
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 500;
   color: var(--color-text-muted);
   line-height: 1.2;
@@ -160,9 +161,10 @@
   box-shadow: 0 6px 16px rgba(var(--rgb-error), 0.3);
 }
 
-.danger-zone-card,
-.staff-workspace-page .danger-zone-card.doctor-profile-card,
-.danger-zone-card.hospital-staff-section {
+/* One look on every portal (patient, doctor, nurse, hospital). Keep this
+   card free of page card classes so nothing else restyles it. */
+.danger-zone-card {
+  width: 100%;
   margin-top: var(--space-2);
   padding: var(--space-6);
   background: var(--color-error-bg);
@@ -277,3 +279,26 @@ input[type="radio"]:focus-visible {
   transform: translateY(-1px);
   box-shadow: var(--shadow-card-hover);
 }
+
+/* Shared button typography: every button-like control uses the button font,
+   including the ones whose own rules never set it */
+.hospital-staff-hero-tab,
+.hospital-staff-filters .hospital-nav-btn,
+.role-tab-btn,
+.appointments-filter-pill,
+.btn-quick-adjust,
+.roster-week-step,
+.doctor-btn-duty,
+.queue-contact-reveal-btn,
+.btn-login,
+.btn-signup,
+.btn-back-home {
+  font-family: var(--btn-font);
+}
+
+/* Inactive staff filter pills share the muted pill text colour
+   (scoped: the hospital top nav reuses .hospital-nav-btn) */
+.hospital-staff-filters .hospital-nav-btn:not(.active) {
+  color: var(--pill-text);
+}
+

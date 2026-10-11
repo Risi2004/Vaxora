@@ -66,7 +66,7 @@
 
 .hospital-facility-name {
   font-family: var(--font-heading);
-  font-size: 0.95rem;
+  font-size: 0.9375rem;
   font-weight: 700;
   color: var(--color-primary-dark);
   line-height: 1.2;
@@ -87,7 +87,7 @@
   padding: 1px 6px;
   border-radius: 4px;
   font-weight: 600;
-  font-size: 0.7rem;
+  font-size: 0.75rem;
 }
 
 .hospital-nav-tabs {
@@ -109,7 +109,7 @@
   background: none;
   border: none;
   padding: 7px 16px;
-  font-size: 0.88rem;
+  font-size: 0.875rem;
   font-weight: 600;
   color: var(--color-primary-dark);
   cursor: pointer;
@@ -134,7 +134,7 @@
 .hospital-nav-badge {
   background: var(--color-error);
   color: var(--color-text-inverse);
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   font-weight: 700;
   padding: 1px 6px;
   border-radius: 999px;
@@ -191,7 +191,7 @@
   border: 1px solid var(--color-border-light);
   border-radius: 10px;
   padding: 10px 14px;
-  font-size: 0.92rem;
+  font-size: 0.9375rem;
   font-weight: 700;
   color: var(--color-text-title);
   text-align: left;
@@ -237,7 +237,7 @@
   border: 1px solid var(--color-success-border);
   padding: 5px 12px;
   border-radius: var(--radius-pill);
-  font-size: 0.8rem;
+  font-size: 0.8125rem;
   color: var(--color-success);
   font-weight: 600;
 }
@@ -288,7 +288,7 @@
   justify-content: center;
   color: var(--color-text-inverse);
   font-weight: 700;
-  font-size: 1.1rem;
+  font-size: 1.125rem;
   border: 2px solid var(--color-border-card);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
 }
@@ -327,12 +327,12 @@
 
 .hospital-dropdown-name {
   font-weight: 700;
-  font-size: 0.95rem;
+  font-size: 0.9375rem;
   color: var(--color-primary-dark);
 }
 
 .hospital-dropdown-meta {
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   color: var(--color-text-muted);
   margin-top: 2px;
 }
@@ -343,7 +343,7 @@
   border: 1px solid var(--color-border-card);
   border-radius: 8px;
   padding: 8px 14px;
-  font-size: 0.88rem;
+  font-size: 0.875rem;
   font-weight: 700;
   cursor: pointer;
   text-align: center;
@@ -366,7 +366,7 @@
   border: 1px solid var(--color-error-border);
   border-radius: 8px;
   padding: 8px 14px;
-  font-size: 0.88rem;
+  font-size: 0.875rem;
   font-weight: 700;
   cursor: pointer;
   text-align: center;
@@ -387,7 +387,7 @@
   border: 1px dashed var(--color-error-border);
   border-radius: 8px;
   padding: 8px 14px;
-  font-size: 0.86rem;
+  font-size: 0.875rem;
   font-weight: 700;
   cursor: pointer;
   text-align: center;
@@ -447,7 +447,7 @@
 
 .hospital-hero-eyebrow {
   margin: 0 0 8px;
-  font-size: 0.82rem;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: var(--color-primary);
   letter-spacing: 0.01em;
@@ -464,7 +464,7 @@
 }
 
 .hospital-hero-sub {
-  font-size: 0.95rem;
+  font-size: 0.9375rem;
   color: var(--color-text-body);
   max-width: 480px;
   margin: 0 0 18px;
@@ -486,7 +486,7 @@
   border: 1px solid var(--color-border-card);
   padding: 5px 12px;
   border-radius: 999px;
-  font-size: 0.8rem;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: var(--color-text-title);
 }
@@ -598,7 +598,7 @@
   border-radius: 999px;
   background: var(--color-surface);
   box-shadow: 0 2px 8px rgba(var(--rgb-primary-dark), 0.08);
-  font-size: 0.95rem;
+  font-size: 0.9375rem;
 }
 
 .hospital-staff-search:focus {
@@ -625,7 +625,7 @@
   gap: 6px;
   padding: 10px 18px;
   border-radius: 10px;
-  font-size: 0.92rem;
+  font-size: 0.9375rem;
   font-weight: 600;
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
@@ -684,7 +684,7 @@
   color: var(--color-text-title);
   padding: 7px 14px;
   border-radius: 999px;
-  font-size: 0.84rem;
+  font-size: 0.8125rem;
   font-weight: 600;
   cursor: pointer;
 }
@@ -711,7 +711,7 @@
   border-radius: 999px;
   background: var(--color-primary);
   color: var(--color-text-inverse);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 700;
   line-height: 1;
 }
@@ -727,14 +727,14 @@
 
 .hospital-cover-toolbar-copy h2 {
   margin: 0;
-  font-size: 1.15rem;
+  font-size: 1.125rem;
   font-weight: 700;
   color: var(--color-text-title);
 }
 
 .hospital-cover-toolbar-copy p {
   margin: 4px 0 0;
-  font-size: 0.88rem;
+  font-size: 0.875rem;
   color: var(--color-text-body);
 }
 
@@ -757,7 +757,7 @@
   background: var(--color-error-bg);
   border: 1px solid var(--color-error-border);
   color: var(--color-error);
-  font-size: 0.9rem;
+  font-size: 0.875rem;
 }
 
 .hospital-cover-error button {
@@ -775,7 +775,7 @@
   background: var(--color-surface);
   border: 1px dashed var(--color-border-card);
   border-radius: 14px;
-  font-size: 0.95rem;
+  font-size: 0.9375rem;
 }
 
 .hospital-cover-list {
@@ -819,7 +819,7 @@
   height: 100%;
   display: grid;
   place-items: center;
-  font-size: 0.82rem;
+  font-size: 0.8125rem;
   font-weight: 700;
   color: var(--color-primary);
 }
@@ -837,7 +837,7 @@
 
 .hospital-cover-card-title-row h3 {
   margin: 0;
-  font-size: 0.98rem;
+  font-size: 1rem;
   font-weight: 700;
   color: var(--color-text-title);
   overflow: hidden;
@@ -850,7 +850,7 @@
   flex: 0 0 auto;
   padding: 3px 9px;
   border-radius: 999px;
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 700;
 }
 
@@ -898,7 +898,7 @@
   background: var(--color-success-bg);
   color: var(--color-success);
   border: 1px solid var(--color-success-border);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 700;
 }
 
@@ -916,7 +916,7 @@
 
 .hospital-cover-role {
   margin: 3px 0 0;
-  font-size: 0.84rem;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: var(--color-primary);
 }
@@ -924,13 +924,13 @@
 .hospital-cover-shift,
 .hospital-cover-replacement {
   margin: 2px 0 0;
-  font-size: 0.8rem;
+  font-size: 0.8125rem;
   color: var(--color-text-body);
 }
 
 .hospital-cover-note {
   margin: 12px 0 0;
-  font-size: 0.88rem;
+  font-size: 0.875rem;
   line-height: 1.45;
   color: var(--color-text-title);
 }
@@ -945,7 +945,7 @@
   background: var(--color-bg);
   border: 1px solid var(--color-border-light);
   color: var(--color-text-title);
-  font-size: 0.82rem;
+  font-size: 0.8125rem;
   font-weight: 600;
   line-height: 1.35;
 }
@@ -1019,18 +1019,18 @@
 }
 
 .hospital-cover-suggestion-copy strong {
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   color: var(--color-text-title);
 }
 
 .hospital-cover-suggestion-copy span {
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   color: var(--color-text-body);
 }
 
 .hospital-cover-suggestion-copy em {
   font-style: normal;
-  font-size: 0.76rem;
+  font-size: 0.75rem;
   color: var(--color-primary);
 }
 
@@ -1044,7 +1044,7 @@
 .hospital-cover-btn {
   min-height: 42px;
   border-radius: 10px;
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   font-weight: 700;
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
@@ -1102,7 +1102,7 @@
   color: var(--color-text-inverse);
   font-family: var(--btn-font);
   font-weight: var(--btn-weight);
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   padding: 10px 18px;
   border: none;
   border-radius: var(--btn-radius);
@@ -1131,7 +1131,7 @@
   color: var(--btn-secondary-text);
   font-family: var(--btn-font);
   font-weight: var(--btn-weight);
-  font-size: 0.88rem;
+  font-size: 0.875rem;
   padding: 10px 18px;
   border: 1px solid var(--btn-secondary-border);
   border-radius: var(--btn-radius);
@@ -1233,7 +1233,7 @@
 }
 
 .hospital-stat-label {
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -1242,7 +1242,7 @@
 }
 
 .hospital-stat-value {
-  font-family: var(--font-body);
+  font-family: var(--font-heading);
   font-size: 1.5rem;
   font-weight: 700;
   color: var(--color-text-title);
@@ -1383,7 +1383,7 @@
 
 .inventory-section-title-row h2 {
   font-family: var(--font-heading);
-  font-size: 1.15rem;
+  font-size: 1.125rem;
   font-weight: 700;
   color: var(--color-primary-dark);
   margin: 0;
@@ -1413,6 +1413,7 @@
   cursor: pointer;
   border-radius: var(--btn-radius);
   font-family: var(--btn-font);
+  font-size: var(--btn-size-sm);
   font-weight: var(--btn-weight);
   background: var(--btn-secondary-bg);
   color: var(--btn-secondary-text);
@@ -1436,7 +1437,7 @@
   align-items: center;
   justify-content: center;
   padding: 8px 16px;
-  font-size: 0.86rem;
+  font-size: 0.875rem;
   cursor: pointer;
   border-radius: var(--btn-radius);
   font-family: var(--btn-font);
@@ -1465,7 +1466,7 @@
 
 .section-title-group h2 {
   font-family: var(--font-heading);
-  font-size: 1.15rem;
+  font-size: 1.125rem;
   font-weight: 700;
   color: var(--color-primary-dark);
   margin: 0;
@@ -1475,7 +1476,7 @@
 }
 
 .section-title-desc {
-  font-size: 0.82rem;
+  font-size: 0.8125rem;
   color: var(--color-text-muted);
   margin: 2px 0 0;
 }
@@ -1582,7 +1583,7 @@
   align-items: center;
   justify-content: center;
   padding: 8px 16px;
-  font-size: 0.86rem;
+  font-size: 0.875rem;
   cursor: pointer;
   flex-shrink: 0;
   margin-left: auto;
@@ -1604,7 +1605,7 @@
   padding: 6px 12px;
   border: 1px solid var(--color-border-card);
   border-radius: var(--radius-sm);
-  font-size: 0.84rem;
+  font-size: 0.8125rem;
   color: var(--color-text-body);
   background: var(--color-bg);
   outline: none;
@@ -1620,11 +1621,16 @@
   padding: 6px 10px;
   border: 1px solid var(--color-border-card);
   border-radius: var(--radius-sm);
-  font-size: 0.82rem;
+  font-size: 0.8125rem;
   font-weight: 500;
   background: var(--color-surface);
   color: var(--color-text-body);
   cursor: pointer;
+  max-width: 12rem;
+}
+
+.queue-filter-select--session {
+  max-width: 16rem;
 }
 
 /* ==========================================================================
@@ -1750,7 +1756,7 @@
   height: var(--queue-row-height);
   padding: 10px;
   border-bottom: 1px solid var(--color-border-light);
-  font-size: 0.86rem;
+  font-size: 0.875rem;
   vertical-align: middle;
   overflow: hidden;
   box-sizing: border-box;
@@ -1771,7 +1777,7 @@
 .queue-token-pill {
   font-family: var(--font-heading);
   font-weight: 700;
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   background: var(--color-info-bg);
   color: var(--color-primary);
   border: 1px solid var(--color-info-border);
@@ -1798,7 +1804,7 @@
 .queue-patient-meta {
   display: block;
   margin-top: 2px;
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   color: var(--color-text-body);
   line-height: 1.35;
   white-space: nowrap;
@@ -1811,7 +1817,7 @@
 }
 
 .queue-vaccine-badge {
-  font-size: 0.84rem;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: var(--color-text-title);
   line-height: 1.3;
@@ -1822,7 +1828,7 @@
 }
 
 .queue-dose-meta {
-  font-size: 0.74rem;
+  font-size: 0.75rem;
   color: var(--color-text-body);
   margin-top: 2px;
   white-space: nowrap;
@@ -1837,7 +1843,7 @@
   background: var(--color-surface-subtle);
   padding: 4px 8px;
   border-radius: 6px;
-  font-size: 0.74rem;
+  font-size: 0.75rem;
   font-weight: 600;
   color: var(--color-text-body);
   border: 1px solid var(--color-border-light);
@@ -1859,7 +1865,7 @@
   max-width: 6.25rem;
   padding: 2px 8px;
   border-radius: 999px;
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   font-weight: 600;
   line-height: 1.3;
   white-space: nowrap;
@@ -1897,7 +1903,7 @@
   border: 1px solid var(--color-info-border);
   padding: 6px 10px;
   border-radius: 6px;
-  font-size: 0.74rem;
+  font-size: 0.75rem;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
@@ -1957,7 +1963,7 @@
   border: 1px solid var(--color-success-border);
   padding: 6px 10px;
   border-radius: 6px;
-  font-size: 0.74rem;
+  font-size: 0.75rem;
   font-weight: 600;
   white-space: nowrap;
 }
@@ -1973,13 +1979,13 @@
   border: 1px solid var(--color-blue-border);
   padding: 6px 10px;
   border-radius: 6px;
-  font-size: 0.74rem;
+  font-size: 0.75rem;
   font-weight: 600;
   white-space: nowrap;
 }
 
 .queue-action-empty {
-  font-size: 0.8rem;
+  font-size: 0.8125rem;
   color: var(--color-text-muted);
 }
 
@@ -1989,7 +1995,7 @@
   border: 1px solid var(--color-border-card);
   padding: 5px 10px;
   border-radius: 6px;
-  font-size: 0.76rem;
+  font-size: 0.75rem;
   font-weight: 600;
   cursor: pointer;
 }
@@ -2059,37 +2065,50 @@
   display: grid;
   gap: 2px;
   min-width: 0;
-  padding: 8px 10px;
+  padding: 10px 12px;
   border-radius: 10px;
   background: var(--color-surface);
-  border: 1px solid var(--color-success-border);
+  border: 1px solid var(--color-border-light);
 }
 
+/* Neutral card: navy reading, muted name, colour only on the status dot */
 .cold-chain-vault-chip-temp {
   font-family: var(--font-heading);
-  font-size: 1.05rem;
+  font-size: 1.125rem;
   font-weight: 700;
-  color: var(--color-success);
+  color: var(--color-text-title);
   line-height: 1.2;
 }
 
 .cold-chain-vault-chip-name {
-  font-size: 0.72rem;
-  font-weight: 650;
-  color: var(--color-success);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .cold-chain-vault-chip-status {
-  font-size: 0.68rem;
-  font-weight: 700;
-  color: var(--color-warning);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-body);
 }
 
-.cold-chain-vault-chip-status.is-ok {
-  color: var(--color-success);
+.cold-chain-vault-chip-status::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-warning);
+}
+
+.cold-chain-vault-chip-status.is-ok::before {
+  background: var(--color-success);
 }
 
 @media (max-width: 720px) {
@@ -2166,7 +2185,7 @@
 
 .inventory-name {
   font-weight: 600;
-  font-size: 0.86rem;
+  font-size: 0.875rem;
   color: var(--color-text-body);
   white-space: nowrap;
   overflow: hidden;
@@ -2177,7 +2196,7 @@
 .inventory-count {
   font-family: var(--font-heading);
   font-weight: 700;
-  font-size: 0.84rem;
+  font-size: 0.8125rem;
   color: var(--color-primary);
   flex-shrink: 0;
 }
@@ -2187,7 +2206,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   color: var(--color-text-body);
   margin-bottom: 6px;
   min-width: 0;
@@ -2269,7 +2288,7 @@
   gap: 6px;
   padding: 5px 12px;
   border-radius: 999px;
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   font-weight: 600;
   border: 1px solid transparent;
   white-space: nowrap;
@@ -2342,7 +2361,7 @@
   background: var(--color-success-bg);
   color: var(--color-primary);
   font-weight: 600;
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   letter-spacing: 0.02em;
   padding: 4px 8px;
   border-radius: 6px;
@@ -2352,7 +2371,7 @@
 
 .booth-title {
   font-weight: 600;
-  font-size: 0.95rem;
+  font-size: 0.9375rem;
   color: var(--color-text-body);
 }
 
@@ -2372,7 +2391,7 @@
 }
 
 .booth-vaccine-chip {
-  font-size: 0.74rem;
+  font-size: 0.75rem;
   font-weight: 500;
   color: var(--color-primary);
   background: var(--color-soft-panel);
@@ -2395,7 +2414,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 0.76rem;
+  font-size: 0.75rem;
   font-weight: 600;
   color: var(--color-text-body);
 }
@@ -2485,8 +2504,8 @@
 
 .staff-name {
   font-weight: 700;
-  font-size: 0.86rem;
-  color: var(--color-primary-hover);
+  font-size: 0.875rem;
+  color: var(--color-primary);
 }
 
 .staff-role-desc {
@@ -2498,7 +2517,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 0.8rem;
+  font-size: 0.8125rem;
   color: var(--color-text-body);
   border-top: 1px solid var(--color-border-card);
   padding-top: 8px;
@@ -2511,7 +2530,7 @@
 
 .booth-roster-line {
   margin: 8px 0 0;
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   color: var(--color-text-body);
   line-height: 1.35;
 }
@@ -2576,7 +2595,7 @@
 
 .modal-header h3 {
   font-family: var(--font-heading);
-  font-size: 1.15rem;
+  font-size: 1.125rem;
   font-weight: 700;
   color: var(--color-primary-dark);
   margin: 0;
@@ -2585,7 +2604,7 @@
 .modal-close-btn {
   background: none;
   border: none;
-  font-size: 1.4rem;
+  font-size: 1.5rem;
   color: var(--color-text-body);
   cursor: pointer;
   line-height: 1;
@@ -2614,7 +2633,7 @@
 }
 
 .modal-label {
-  font-size: 0.82rem;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: var(--color-text-body);
 }
@@ -2624,7 +2643,7 @@
   padding: 10px 14px;
   border: 1px solid var(--color-border-card);
   border-radius: var(--radius-sm);
-  font-size: 0.88rem;
+  font-size: 0.875rem;
   font-family: inherit;
   color: var(--color-text-body);
   background: var(--color-surface);
@@ -2663,7 +2682,7 @@ input.modal-input,
   border: 1px solid var(--color-border-card);
   padding: 8px 16px;
   border-radius: var(--radius-sm);
-  font-size: 0.88rem;
+  font-size: 0.875rem;
   font-weight: 600;
   color: var(--color-text-body);
   cursor: pointer;
@@ -2711,7 +2730,7 @@ input.modal-input,
 
 .hospital-staff-heading {
   font-family: var(--font-heading);
-  font-size: 1.35rem;
+  font-size: 1.25rem;
   font-weight: 700;
   color: var(--color-text-title);
   margin: 0 0 20px;
@@ -2751,7 +2770,7 @@ input.modal-input,
 
 .hospital-staff-name {
   font-family: var(--font-heading);
-  font-size: 0.95rem;
+  font-size: 0.9375rem;
   font-weight: 600;
   color: var(--color-text-title);
   text-align: center;
@@ -2809,7 +2828,7 @@ input.modal-input,
 
 .hospital-manage-title {
   font-family: var(--font-heading);
-  font-size: 2.2rem;
+  font-size: 2.25rem;
   font-weight: 700;
   color: var(--color-text-title);
   text-align: center;
@@ -2829,7 +2848,7 @@ input.modal-input,
 
 .hospital-inner-facility-name {
   font-family: var(--font-heading);
-  font-size: 1.45rem;
+  font-size: 1.5rem;
   font-weight: 700;
   color: var(--color-text-title);
   text-align: center;
@@ -2859,7 +2878,7 @@ input.modal-input,
 
 .hospital-filter-label {
   font-family: var(--font-heading);
-  font-size: 0.95rem;
+  font-size: 0.9375rem;
   font-weight: 700;
   color: var(--color-text-title);
   display: flex;
@@ -2871,7 +2890,7 @@ input.modal-input,
   padding: 7px 12px;
   border-radius: 8px;
   border: 1.5px solid var(--color-border-card);
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   font-family: inherit;
   color: var(--color-text-title);
   background: var(--color-surface);
@@ -2917,7 +2936,7 @@ input.modal-input,
   background: var(--color-surface);
   color: var(--color-primary);
   font-family: var(--font-heading);
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   font-weight: 700;
   cursor: pointer;
   transition: all 0.2s;
@@ -2964,7 +2983,7 @@ input.modal-input,
   background-color: var(--color-surface-subtle);
   color: var(--color-text-title);
   font-family: var(--font-body);
-  font-size: 1.05rem;
+  font-size: 1rem;
   font-weight: 600;
   padding: 14px 16px;
   border-right: 3px solid var(--color-surface);
@@ -2978,6 +2997,11 @@ input.modal-input,
 
 .hospital-appointments-mockup-table tbody tr:hover td {
   background-color: var(--color-surface-subtle);
+}
+
+.schedule-weekdays-short {
+  font-weight: 700;
+  letter-spacing: normal;
 }
 
 /* Action Check & Reject Buttons */
@@ -2998,7 +3022,7 @@ input.modal-input,
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.15rem;
+  font-size: 1.125rem;
   font-weight: 800;
   cursor: pointer;
   box-shadow: 0 2px 5px rgba(var(--rgb-success), 0.4);
@@ -3020,7 +3044,7 @@ input.modal-input,
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.05rem;
+  font-size: 1rem;
   font-weight: 800;
   cursor: pointer;
   box-shadow: 0 2px 5px rgba(var(--rgb-error), 0.4);
@@ -3043,7 +3067,7 @@ input.modal-input,
 
 .mockup-status-badge {
   font-family: inherit;
-  font-size: 0.82rem;
+  font-size: 0.8125rem;
   font-weight: 700;
   padding: 5px 10px;
   border-radius: 6px;
@@ -3086,7 +3110,7 @@ input.modal-input,
   border: none;
   padding: 5px 12px;
   border-radius: 6px;
-  font-size: 0.82rem;
+  font-size: 0.8125rem;
   font-weight: 700;
   cursor: pointer;
   display: inline-flex;
@@ -3108,7 +3132,7 @@ input.modal-input,
 
 .btn-hospital-cancel-action {
   padding: 5px 12px;
-  font-size: 0.82rem;
+  font-size: 0.8125rem;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -3139,7 +3163,7 @@ input.modal-input,
   border: none;
   color: var(--color-text-title);
   cursor: pointer;
-  font-size: 0.8rem;
+  font-size: 0.8125rem;
   text-decoration: underline;
   margin-left: 6px;
 }
@@ -3172,7 +3196,7 @@ input.modal-input,
 
 .schedule-create-title {
   font-family: var(--font-heading);
-  font-size: 1.35rem;
+  font-size: 1.25rem;
   font-weight: 700;
   color: var(--color-text-title);
   text-align: center;
@@ -3187,7 +3211,7 @@ input.modal-input,
   flex-wrap: wrap;
   gap: 12px;
   background: rgba(255, 255, 255, 0.6);
-  border: 1px solid rgba(203, 213, 225, 0.8);
+  border: 1px solid var(--color-border-card);
   border-radius: 14px;
   padding: 10px 16px;
   margin-bottom: 20px;
@@ -3265,7 +3289,7 @@ input.modal-input,
   border: 1.5px solid var(--color-border-card);
   background: var(--color-bg);
   color: var(--color-text-body);
-  font-size: 0.82rem;
+  font-size: 0.8125rem;
   font-weight: 700;
   cursor: pointer;
   transition: all var(--transition-fast);
@@ -3287,7 +3311,7 @@ input.modal-input,
   background: none;
   border: none;
   color: var(--color-primary);
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   font-weight: 700;
   cursor: pointer;
   text-decoration: underline;
@@ -3330,7 +3354,7 @@ input.modal-input,
 
 .schedule-input-label {
   font-family: var(--font-body);
-  font-size: 0.95rem;
+  font-size: 0.9375rem;
   font-weight: 600;
   color: var(--color-text-title);
 }
@@ -3340,7 +3364,7 @@ input.modal-input,
   border: 1px solid var(--color-border-card);
   border-radius: 12px;
   padding: 10px 14px;
-  font-size: 0.92rem;
+  font-size: 0.9375rem;
   font-family: inherit;
   color: var(--color-text-title);
   outline: none;
@@ -3389,29 +3413,70 @@ select.schedule-input-field {
 
 .schedule-section-heading {
   font-family: var(--font-heading);
-  font-size: 1.4rem;
+  font-size: 1.5rem;
   font-weight: 700;
   color: var(--color-text-title);
   margin: 0 0 16px;
 }
 
-.btn-cancel-schedule {
-  background-color: var(--color-error);
-  color: var(--color-text-inverse);
-  font-family: var(--font-body);
-  font-size: 0.95rem;
+.schedule-row-actions {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.btn-edit-schedule,
+.btn-cancel-schedule-edit {
+  font-family: var(--btn-font);
+  font-size: 0.8125rem;
   font-weight: 600;
-  padding: 5px 22px;
-  border: none;
-  border-radius: 14px;
+  padding: 5px 14px;
+  border-radius: var(--btn-radius);
   cursor: pointer;
-  box-shadow: 0 2px 6px rgba(var(--rgb-error), 0.3);
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.btn-edit-schedule {
+  color: var(--color-primary);
+  background: var(--color-surface);
+  border: 1px solid var(--color-info-border);
+}
+
+.btn-edit-schedule:hover {
+  background: var(--color-soft-panel);
+  border-color: var(--color-primary);
+}
+
+.btn-cancel-schedule-edit {
+  color: var(--color-text-body);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-card);
+}
+
+.btn-cancel-schedule-edit:hover {
+  background: var(--color-soft-panel);
+  color: var(--color-text-title);
+}
+
+.btn-cancel-schedule {
+  background-color: var(--color-error-bg);
+  color: var(--color-error);
+  font-family: var(--btn-font);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  padding: 5px 14px;
+  border: 1px solid var(--color-error-border);
+  border-radius: var(--btn-radius);
+  cursor: pointer;
   transition: all var(--transition-fast);
 }
 
 .btn-cancel-schedule:hover {
-  background-color: var(--color-error);
-  transform: translateY(-1px);
+  background-color: var(--color-error-bg);
+  border-color: var(--color-error);
+  filter: brightness(0.97);
 }
 
 /* ==========================================================================
@@ -3429,7 +3494,7 @@ select.schedule-input-field {
   border-radius: 12px;
   margin-bottom: 20px;
   box-shadow: 0 4px 14px rgba(var(--rgb-primary), 0.25);
-  font-size: 0.92rem;
+  font-size: 0.9375rem;
   font-weight: 600;
   animation: slideDown 0.3s ease-out;
 }
@@ -3438,7 +3503,7 @@ select.schedule-input-field {
   background: transparent;
   border: none;
   color: var(--color-text-inverse);
-  font-size: 1.4rem;
+  font-size: 1.5rem;
   cursor: pointer;
   line-height: 1;
   padding: 0 4px;
@@ -3464,8 +3529,8 @@ select.schedule-input-field {
 
 .inventory-moh-tag {
   background: var(--color-info-bg);
-  color: var(--color-primary-hover);
-  font-size: 0.76rem;
+  color: var(--color-primary);
+  font-size: 0.75rem;
   font-weight: 700;
   padding: 4px 10px;
   border-radius: 9999px;
@@ -3477,7 +3542,7 @@ select.schedule-input-field {
 .inventory-facility-tag {
   background: var(--color-surface-subtle);
   color: var(--color-text-body);
-  font-size: 0.76rem;
+  font-size: 0.75rem;
   font-weight: 600;
   padding: 4px 10px;
   border-radius: 9999px;
@@ -3485,7 +3550,7 @@ select.schedule-input-field {
 
 .inventory-subtitle {
   color: var(--color-text-body);
-  font-size: 0.95rem;
+  font-size: 0.9375rem;
   margin: 0;
   max-width: 680px;
   line-height: 1.5;
@@ -3528,7 +3593,7 @@ select.schedule-input-field {
 
 .formulary-title {
   font-family: var(--font-heading);
-  font-size: 1.05rem;
+  font-size: 1rem;
   font-weight: 700;
   color: var(--color-text-title);
   margin: 0;
@@ -3551,7 +3616,7 @@ select.schedule-input-field {
 }
 
 .formulary-sub {
-  font-size: 0.86rem;
+  font-size: 0.875rem;
   color: var(--color-text-body);
   margin: 4px 0 0;
   line-height: 1.45;
@@ -3560,7 +3625,7 @@ select.schedule-input-field {
 
 .btn-toggle-registry {
   flex-shrink: 0;
-  font-size: 0.8rem;
+  font-size: 0.8125rem;
   padding: 8px 12px;
   cursor: pointer;
   transition: all var(--transition-fast);
@@ -3619,7 +3684,7 @@ select.schedule-input-field {
 }
 
 .pill-meta-text {
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.01em;
   white-space: nowrap;
@@ -3633,7 +3698,7 @@ select.schedule-input-field {
 }
 
 .formulary-label {
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 600;
   color: var(--color-text-body);
   text-transform: uppercase;
@@ -3649,7 +3714,7 @@ select.schedule-input-field {
   padding: 10px 14px;
   border: 1px solid var(--color-border-card);
   border-radius: 12px;
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   font-family: inherit;
   color: var(--color-text-title);
   outline: none;
@@ -3702,7 +3767,7 @@ select.schedule-input-field {
 }
 
 .registered-pills-label {
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 600;
   color: var(--color-text-body);
   text-transform: uppercase;
@@ -3733,7 +3798,7 @@ select.schedule-input-field {
   border-radius: 9999px;
   padding: 6px 8px 6px 10px;
   box-shadow: none;
-  font-size: 0.84rem;
+  font-size: 0.8125rem;
   color: var(--color-text-title);
   transition: border-color var(--transition-fast), background var(--transition-fast);
   max-width: 100%;
@@ -3815,7 +3880,7 @@ select.schedule-input-field {
   gap: 8px;
   min-height: 44px;
   padding: 10px 18px;
-  font-size: 0.88rem;
+  font-size: 0.875rem;
   cursor: pointer;
   transition: background var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast);
   border-radius: var(--btn-radius);
@@ -3869,7 +3934,7 @@ select.schedule-input-field {
 .hospital-inventory-content .btn-inventory-action {
   min-height: 44px;
   padding: 10px 18px;
-  font-size: 0.88rem;
+  font-size: 0.875rem;
   border-radius: var(--btn-radius);
   font-family: var(--btn-font);
   font-weight: var(--btn-weight);
@@ -3919,7 +3984,7 @@ select.schedule-input-field {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.4rem;
+  font-size: 1.5rem;
   flex-shrink: 0;
 }
 
@@ -3949,7 +4014,7 @@ select.schedule-input-field {
 }
 
 .inventory-stat-label {
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -3958,14 +4023,14 @@ select.schedule-input-field {
 }
 
 .inventory-stat-value {
-  font-size: 1.6rem;
+  font-size: 1.5rem;
   font-weight: 800;
   color: var(--color-text-title);
   line-height: 1.15;
 }
 
 .inventory-stat-sub {
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   color: var(--color-text-body);
   margin-top: 4px;
 }
@@ -3990,7 +4055,7 @@ select.schedule-input-field {
 
 .cold-vaults-title {
   font-family: var(--font-heading);
-  font-size: 1.05rem;
+  font-size: 1rem;
   font-weight: 700;
   color: var(--color-text-title);
   margin: 0;
@@ -3998,7 +4063,7 @@ select.schedule-input-field {
 }
 
 .cold-vaults-sub {
-  font-size: 0.86rem;
+  font-size: 0.875rem;
   color: var(--color-text-body);
   margin: 4px 0 0;
   line-height: 1.45;
@@ -4014,7 +4079,7 @@ select.schedule-input-field {
   border: 1px solid var(--color-border-card);
   padding: 6px 10px;
   border-radius: 9999px;
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 700;
   color: var(--color-primary);
 }
@@ -4085,7 +4150,7 @@ select.schedule-input-field {
 .vault-name {
   margin: 0;
   font-family: var(--font-heading);
-  font-size: 0.95rem;
+  font-size: 0.9375rem;
   font-weight: 700;
   color: var(--color-text-title);
   letter-spacing: -0.01em;
@@ -4104,7 +4169,7 @@ select.schedule-input-field {
   flex-shrink: 0;
   background: var(--color-success-bg);
   color: var(--color-success);
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   font-weight: 700;
   padding: 4px 8px;
   border-radius: 999px;
@@ -4126,7 +4191,7 @@ select.schedule-input-field {
 
 .temp-big {
   font-family: var(--font-heading);
-  font-size: 1.55rem;
+  font-size: 1.5rem;
   font-weight: 700;
   color: var(--color-primary);
   letter-spacing: -0.03em;
@@ -4134,7 +4199,7 @@ select.schedule-input-field {
 }
 
 .temp-target {
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   font-weight: 600;
   color: var(--color-text-body);
 }
@@ -4198,7 +4263,7 @@ select.schedule-input-field {
   padding: 10px 36px 10px 40px;
   border: 1.5px solid var(--color-border-card);
   border-radius: 12px;
-  font-size: 0.88rem;
+  font-size: 0.875rem;
   font-family: inherit;
   color: var(--color-text-title);
   outline: none;
@@ -4218,7 +4283,7 @@ select.schedule-input-field {
   padding: 0 36px 0 14px;
   border: 1.5px solid var(--color-border-card);
   border-radius: 12px;
-  font-size: 0.88rem;
+  font-size: 0.875rem;
   font-weight: 600;
   font-family: inherit;
   color: var(--color-text-title);
@@ -4376,7 +4441,7 @@ select.schedule-input-field {
 .inventory-custom-table tbody tr td {
   background-color: var(--color-surface);
   color: var(--color-text-body);
-  font-size: 0.86rem;
+  font-size: 0.875rem;
   padding: 14px 14px;
   border-right: none;
   border-top: 1px solid var(--color-border-light);
@@ -4387,11 +4452,11 @@ select.schedule-input-field {
   background-color: var(--color-bg);
 }
 
-.inventory-custom-table tbody tr.row-highlight-low td {
+.inventory-custom-table:not(.inv-clean) tbody tr.row-highlight-low td {
   background-color: var(--color-warning-bg) !important;
 }
 
-.inventory-custom-table tbody tr.row-highlight-low:hover td {
+.inventory-custom-table:not(.inv-clean) tbody tr.row-highlight-low:hover td {
   background-color: var(--color-warning-bg) !important;
 }
 
@@ -4403,7 +4468,7 @@ select.schedule-input-field {
 
 .vaccine-name-text {
   font-family: var(--font-heading);
-  font-size: 0.95rem;
+  font-size: 0.9375rem;
   color: var(--color-text-title);
   font-weight: 700;
 }
@@ -4420,7 +4485,7 @@ select.schedule-input-field {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 0.76rem;
+  font-size: 0.75rem;
 }
 
 .mfr-text {
@@ -4431,7 +4496,7 @@ select.schedule-input-field {
   background: var(--color-surface);
   border: 1px solid var(--color-border-card);
   color: var(--color-text-body);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 700;
   padding: 2px 8px;
   border-radius: 9999px;
@@ -4446,12 +4511,12 @@ select.schedule-input-field {
 
 .vault-label {
   font-weight: 600;
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   color: var(--color-text-title);
 }
 
 .temp-badge {
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   color: var(--color-accent);
   font-weight: 600;
 }
@@ -4467,16 +4532,16 @@ select.schedule-input-field {
   align-items: baseline;
   justify-content: center;
   gap: 4px;
-  font-size: 0.9rem;
+  font-size: 0.875rem;
 }
 
 .cap-total {
-  font-size: 0.76rem;
+  font-size: 0.75rem;
   color: var(--color-text-body);
 }
 
 .pct-text {
-  font-size: 0.76rem;
+  font-size: 0.75rem;
   color: var(--color-text-body);
   font-weight: 600;
 }
@@ -4512,7 +4577,7 @@ select.schedule-input-field {
 }
 
 .low-stock-alert-tag {
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   font-weight: 700;
   color: var(--color-error);
 }
@@ -4521,11 +4586,11 @@ select.schedule-input-field {
   display: flex;
   flex-direction: column;
   align-items: center;
-  font-size: 0.92rem;
+  font-size: 0.9375rem;
 }
 
 .doses-cell small {
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   color: var(--color-text-body);
 }
 
@@ -4538,7 +4603,7 @@ select.schedule-input-field {
 
 .expiry-date {
   font-weight: 600;
-  font-size: 0.88rem;
+  font-size: 0.875rem;
 }
 
 .expiry-date.text-amber {
@@ -4548,7 +4613,7 @@ select.schedule-input-field {
 .exp-badge {
   background: var(--color-warning-bg);
   color: var(--color-warning);
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   font-weight: 700;
   padding: 1px 6px;
   border-radius: 4px;
@@ -4590,7 +4655,7 @@ select.schedule-input-field {
 
 .btn-quick-adjust {
   padding: 6px 10px;
-  font-size: 0.74rem;
+  font-size: 0.75rem;
   font-weight: 700;
   border-radius: 9px;
   cursor: pointer;
@@ -4689,7 +4754,7 @@ select.schedule-input-field {
 
 .inv-card-name {
   font-family: var(--font-heading);
-  font-size: 1.15rem;
+  font-size: 1.125rem;
   font-weight: 700;
   color: var(--color-text-title);
   margin: 0 0 6px;
@@ -4700,7 +4765,7 @@ select.schedule-input-field {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 0.8rem;
+  font-size: 0.8125rem;
   color: var(--color-text-body);
   margin-bottom: 12px;
 }
@@ -4711,7 +4776,7 @@ select.schedule-input-field {
   border-radius: 8px;
   padding: 8px 12px;
   margin-bottom: 12px;
-  font-size: 0.8rem;
+  font-size: 0.8125rem;
 }
 
 .storage-row {
@@ -4729,7 +4794,7 @@ select.schedule-input-field {
 .stock-header-flex {
   display: flex;
   justify-content: space-between;
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   color: var(--color-text-title);
   margin-bottom: 6px;
 }
@@ -4755,7 +4820,7 @@ select.schedule-input-field {
   color: var(--color-text-title);
   padding: 8px;
   border-radius: 8px;
-  font-size: 0.8rem;
+  font-size: 0.8125rem;
   font-weight: 700;
   cursor: pointer;
 }
@@ -4801,7 +4866,7 @@ select.schedule-input-field {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 0.86rem;
+  font-size: 0.875rem;
   color: var(--color-text-body);
   max-width: 800px;
 }
@@ -4813,7 +4878,7 @@ select.schedule-input-field {
 
 .btn-sync-registry {
   padding: 8px 16px;
-  font-size: 0.84rem;
+  font-size: 0.8125rem;
   cursor: pointer;
   transition: all var(--transition-fast);
   border-radius: var(--btn-radius);
@@ -4887,7 +4952,7 @@ select.schedule-input-field {
 
   .hospital-nav-btn {
     padding: 5px 12px;
-    font-size: 0.82rem;
+    font-size: 0.8125rem;
     white-space: nowrap;
     flex-shrink: 0;
   }
@@ -5005,7 +5070,7 @@ select.schedule-input-field {
   }
 
   .hospital-manage-title {
-    font-size: 1.6rem;
+    font-size: 1.5rem;
     margin-bottom: 18px;
   }
 
@@ -5055,7 +5120,7 @@ select.schedule-input-field {
 
   .hospital-appointments-mockup-table tbody tr td,
   .inventory-custom-table tbody tr td {
-    font-size: 0.88rem;
+    font-size: 0.875rem;
     padding: 10px 8px;
   }
 
@@ -5168,11 +5233,11 @@ select.schedule-input-field {
 .shift-week-calendar-corner-label {
   font-weight: 800;
   color: var(--color-text-title);
-  font-size: 0.9rem;
+  font-size: 0.875rem;
 }
 
 .shift-week-calendar-corner-sub {
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   color: var(--color-text-body);
 }
 
@@ -5198,16 +5263,16 @@ select.schedule-input-field {
 .shift-week-calendar-weekday {
   font-weight: 800;
   color: var(--color-text-title);
-  font-size: 0.88rem;
+  font-size: 0.875rem;
 }
 
 .shift-week-calendar-date {
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   color: var(--color-text-body);
 }
 
 .shift-week-calendar-today-pill {
-  font-size: 0.62rem;
+  font-size: 0.75rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -5220,7 +5285,7 @@ select.schedule-input-field {
 .shift-week-calendar-total-head {
   font-weight: 800;
   color: var(--color-text-body);
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   text-align: center;
 }
 
@@ -5251,7 +5316,7 @@ select.schedule-input-field {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 800;
   flex-shrink: 0;
   overflow: hidden;
@@ -5279,13 +5344,13 @@ select.schedule-input-field {
 .shift-week-calendar-staff-name {
   font-weight: 700;
   color: var(--color-text-title);
-  font-size: 0.82rem;
+  font-size: 0.8125rem;
   line-height: 1.25;
   word-break: break-word;
 }
 
 .shift-week-calendar-staff-role {
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 700;
 }
 
@@ -5301,7 +5366,7 @@ select.schedule-input-field {
 
 .shift-week-calendar-empty {
   color: var(--color-border-card);
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -5330,18 +5395,18 @@ select.schedule-input-field {
 .shift-week-card-time {
   font-weight: 800;
   color: var(--color-text-title);
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   line-height: 1.2;
 }
 
 .shift-week-card-role {
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   font-weight: 700;
   margin-top: 2px;
 }
 
 .shift-week-card-booth {
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   color: var(--color-text-body);
   margin-top: 4px;
   line-height: 1.35;
@@ -5358,7 +5423,7 @@ select.schedule-input-field {
   background: none;
   border: none;
   padding: 0;
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   font-weight: 700;
   cursor: pointer;
 }
@@ -5404,7 +5469,7 @@ select.schedule-input-field {
   color: var(--btn-secondary-text);
   font-family: var(--btn-font);
   font-weight: var(--btn-weight);
-  font-size: 0.88rem;
+  font-size: 0.875rem;
   cursor: pointer;
   transition: all var(--transition-smooth);
 }
@@ -5456,7 +5521,7 @@ select.schedule-input-field {
 .roster-ai-tag {
   padding: 1px 7px;
   border-radius: 999px;
-  font-size: 0.66rem;
+  font-size: 0.75rem;
   font-weight: 800;
   /* Brand teal soft tint — matches the portal, not blue/purple */
   color: var(--color-primary);
@@ -5495,7 +5560,7 @@ select.schedule-input-field {
   border: 1px solid var(--btn-secondary-border);
   background: var(--btn-secondary-bg);
   color: var(--btn-secondary-text);
-  font-size: 1.1rem;
+  font-size: 1.125rem;
   font-weight: 700;
   line-height: 1;
   cursor: pointer;
@@ -5517,7 +5582,7 @@ select.schedule-input-field {
   border-radius: var(--btn-radius);
   background: var(--color-surface);
   font-weight: 700;
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   color: var(--color-text-title);
   cursor: pointer;
 }
@@ -5601,7 +5666,7 @@ select.schedule-input-field {
 
 .suggest-week-modal-header p {
   margin: 4px 0 0;
-  font-size: 0.88rem;
+  font-size: 0.875rem;
   opacity: 0.92;
 }
 
@@ -5642,7 +5707,7 @@ select.schedule-input-field {
 }
 
 .suggest-week-modal-count {
-  font-size: 0.88rem;
+  font-size: 0.875rem;
   font-weight: 700;
   color: var(--color-text-title);
 }
@@ -5658,7 +5723,7 @@ select.schedule-input-field {
   color: var(--color-text-body);
   border-radius: 999px;
   padding: 5px 12px;
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   font-weight: 700;
   cursor: pointer;
 }
@@ -5678,7 +5743,7 @@ select.schedule-input-field {
 .suggest-week-btn {
   border-radius: 8px;
   padding: 8px 14px;
-  font-size: 0.82rem;
+  font-size: 0.8125rem;
   font-weight: 700;
   cursor: pointer;
 }
@@ -5741,13 +5806,13 @@ select.schedule-input-field {
 .suggest-week-modal-waiting h3 {
   margin: 0 0 8px;
   color: var(--color-primary);
-  font-size: 1.15rem;
+  font-size: 1.125rem;
   font-weight: 800;
 }
 
 .suggest-week-modal-waiting p {
   color: var(--color-text-body);
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   margin: 0 0 20px;
 }
 
@@ -5784,8 +5849,8 @@ select.schedule-input-field {
   padding: 28px 24px;
   text-align: center;
   color: var(--color-error);
-  font-weight: 650;
-  font-size: 0.95rem;
+  font-weight: 600;
+  font-size: 0.9375rem;
   line-height: 1.5;
   background: var(--color-error-bg);
   border-radius: 12px;
@@ -5824,7 +5889,7 @@ select.schedule-input-field {
 .suggest-week-calendar-corner-label {
   font-weight: 800;
   color: var(--color-text-title);
-  font-size: 0.85rem;
+  font-size: 0.875rem;
 }
 
 .suggest-week-calendar-day-head {
@@ -5838,7 +5903,7 @@ select.schedule-input-field {
 }
 
 .suggest-week-calendar-weekday {
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -5846,7 +5911,7 @@ select.schedule-input-field {
 }
 
 .suggest-week-calendar-date {
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   font-weight: 800;
   color: var(--color-text-title);
 }
@@ -5900,7 +5965,7 @@ select.schedule-input-field {
 }
 
 .suggest-week-calendar-staff-name {
-  font-size: 0.84rem;
+  font-size: 0.8125rem;
   font-weight: 700;
   color: var(--color-text-title);
   white-space: nowrap;
@@ -5909,7 +5974,7 @@ select.schedule-input-field {
 }
 
 .suggest-week-calendar-staff-role {
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 700;
 }
 
@@ -5926,7 +5991,7 @@ select.schedule-input-field {
 
 .suggest-week-calendar-empty {
   color: var(--color-border-card);
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   text-align: center;
   margin: auto;
 }
@@ -5962,7 +6027,7 @@ select.schedule-input-field {
   border: 1.5px solid var(--color-border-card);
   background: var(--color-surface);
   color: var(--color-accent);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
   line-height: 14px;
   text-align: center;
@@ -5975,13 +6040,13 @@ select.schedule-input-field {
 }
 
 .suggest-week-card-time {
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   font-weight: 800;
   color: var(--color-text-title);
 }
 
 .suggest-week-card-meta {
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   color: var(--color-text-body);
   margin-top: 2px;
   line-height: 1.3;
@@ -5993,7 +6058,7 @@ select.schedule-input-field {
 
 .suggest-week-card-decline {
   padding: 3px 8px;
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   cursor: pointer;
   border-radius: var(--btn-radius);
   font-family: var(--btn-font);
@@ -6033,7 +6098,7 @@ select.schedule-input-field {
   background: var(--color-bg);
   font-weight: 800;
   color: var(--color-text-body);
-  font-size: 0.82rem;
+  font-size: 0.8125rem;
 }
 
 .shift-week-calendar-legend {
@@ -6124,7 +6189,7 @@ select.schedule-input-field {
 }
 
 .hospital-manage-title {
-  font-size: 1.55rem;
+  font-size: 1.5rem;
   text-align: left;
   margin: 0 0 20px;
 }
@@ -6147,7 +6212,7 @@ select.schedule-input-field {
 }
 
 .hospital-appointments-mockup-table tbody tr td {
-  font-size: 0.86rem;
+  font-size: 0.875rem;
   font-weight: 600;
 }
 
@@ -6160,12 +6225,15 @@ select.schedule-input-field {
 .hospital-profile-wrapper .profile-top-card,
 .hospital-profile-wrapper .profile-bottom-card {
   width: 100%;
+  /* Drop the 960px cap from the shared card so it lines up with the
+     banner and the sections below instead of hugging the left */
+  max-width: none;
 }
 
 .hospital-staff-heading {
   font-family: var(--font-heading);
   color: var(--color-text-title);
-  font-size: 1.15rem;
+  font-size: 1.125rem;
 }
 
 .hospital-profile-wrapper .profile-info-card {
@@ -6175,7 +6243,6 @@ select.schedule-input-field {
 
 .hospital-profile-wrapper .profile-field-label,
 .hospital-profile-wrapper .profile-field-value,
-.hospital-profile-wrapper .profile-info-title,
 .hospital-profile-wrapper .profile-field-input {
   font-family: var(--font-body);
 }
@@ -6231,13 +6298,13 @@ select.schedule-input-field {
 .hospital-inventory-content .inventory-subtitle {
   margin-top: 8px;
   color: var(--color-text-muted);
-  font-size: 0.9rem;
+  font-size: 0.875rem;
 }
 
 .hospital-inventory-content .btn-inventory-action {
   min-height: 40px;
   padding: 9px 14px;
-  font-size: 0.84rem;
+  font-size: 0.8125rem;
   border-radius: var(--btn-radius);
   font-family: var(--btn-font);
   font-weight: var(--btn-weight);
@@ -6335,20 +6402,13 @@ select.schedule-input-field {
   background: var(--color-surface);
   color: var(--color-text-body);
   border-color: var(--color-border-light);
-  font-size: 0.84rem;
+  font-size: 0.8125rem;
 }
 
 .hospital-inventory-content .inventory-custom-table tbody tr:hover td {
   background: var(--color-bg);
 }
 
-.hospital-inventory-content .inventory-custom-table tbody tr.row-highlight-low td {
-  background: var(--color-warning-bg) !important;
-}
-
-.hospital-inventory-content .inventory-custom-table tbody tr.row-highlight-low:hover td {
-  background: var(--color-warning-bg) !important;
-}
 
 .hospital-inventory-content .inventory-card-item {
   border-color: var(--color-border-card);
@@ -6371,7 +6431,7 @@ select.schedule-input-field {
   }
 
   .hospital-manage-title {
-    font-size: 1.35rem;
+    font-size: 1.25rem;
   }
 
   .hospital-inventory-content .inventory-header-row {
@@ -6397,13 +6457,15 @@ select.schedule-input-field {
   .hospital-inventory-content .inventory-search-group {
     min-width: 100%;
   }
-}
 
-/* ==========================================================================
+
+  /* ==========================================================================
    14. Inventory Layout Refinements
    Visual hierarchy & flow for the hospital inventory tab.
+   Append-only overrides — existing colors preserved.
    ========================================================================== */
 
+/* --- Action bar: give the button cluster a proper container --- */
 .hospital-inventory-content .inventory-header-row {
   display: flex;
   justify-content: flex-end;
@@ -6423,11 +6485,14 @@ select.schedule-input-field {
   flex-wrap: wrap;
 }
 
-/* Tier 1 — PRIMARY (Log restock) */
+/* ============================================
+   Tier 1 — PRIMARY  (Log restock)
+   Filled, largest, boldest.
+   ============================================ */
 .hospital-inventory-content .btn-inventory-action.btn-restock-primary {
   min-height: 46px;
   padding: 12px 22px;
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   letter-spacing: 0.01em;
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.16) inset,
@@ -6444,12 +6509,15 @@ select.schedule-input-field {
     0 14px 26px -12px rgba(var(--rgb-primary), 0.65);
 }
 
-/* Tier 2 — FEATURED (Inventory assistant) */
+/* ============================================
+   Tier 2 — FEATURED  (Inventory assistant)
+   Outlined teal, brand-colored, with an accent dot.
+   ============================================ */
 .hospital-inventory-content .btn-inventory-action.btn-inventory-ai {
   position: relative;
   min-height: 40px;
   padding: 10px 18px 10px 28px;
-  font-size: 0.84rem;
+  font-size: 0.8125rem;
   border-radius: var(--btn-radius);
   font-family: var(--btn-font);
   font-weight: var(--btn-weight);
@@ -6480,11 +6548,14 @@ select.schedule-input-field {
   border-color: var(--color-primary);
 }
 
-/* Tier 3 — SECONDARY (Record wastage) */
+/* ============================================
+   Tier 3 — SECONDARY  (Record wastage)
+   Muted slate outline — clearly "not primary".
+   ============================================ */
 .hospital-inventory-content .btn-inventory-action.btn-wastage-secondary {
   min-height: 40px;
   padding: 10px 16px;
-  font-size: 0.84rem;
+  font-size: 0.8125rem;
   border-radius: var(--btn-radius);
   font-family: var(--btn-font);
   font-weight: var(--btn-weight);
@@ -6506,11 +6577,14 @@ select.schedule-input-field {
   opacity: 0.5;
 }
 
-/* Tier 4 — GHOST (Export report) */
+/* ============================================
+   Tier 4 — GHOST  (Export report)
+   Quietest of all. Text-with-icon, no chrome.
+   ============================================ */
 .hospital-inventory-content .btn-inventory-action.btn-export-neutral {
   min-height: 40px;
   padding: 10px 12px;
-  font-size: 0.84rem;
+  font-size: 0.8125rem;
   border-radius: var(--btn-radius);
   font-family: var(--btn-font);
   font-weight: var(--btn-weight);
@@ -6526,7 +6600,9 @@ select.schedule-input-field {
   border-color: var(--color-primary);
 }
 
-/* Section rhythm */
+/* ============================================
+   Section rhythm — more breathing room between blocks
+   ============================================ */
 .hospital-inventory-content {
   gap: 22px;
 }
@@ -6541,15 +6617,17 @@ select.schedule-input-field {
 }
 
 .hospital-inventory-content .inventory-stat-value {
-  font-size: 1.7rem;
+  font-size: 1.75rem;
 }
 
 .hospital-inventory-content .inventory-stat-label {
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   letter-spacing: 0.05em;
 }
 
-/* Card section headers */
+/* ============================================
+   Card section headers get a subtle separator
+   ============================================ */
 .hospital-inventory-content .formulary-card-header,
 .hospital-inventory-content .cold-vaults-header {
   padding-bottom: 14px;
@@ -6561,7 +6639,9 @@ select.schedule-input-field {
   margin-bottom: 16px;
 }
 
-/* Toolbar */
+/* ============================================
+   Toolbar — tighter, more organized
+   ============================================ */
 .hospital-inventory-content .inventory-toolbar {
   padding: 12px 14px;
   gap: 12px;
@@ -6573,7 +6653,7 @@ select.schedule-input-field {
 
 .hospital-inventory-content .inventory-category-select {
   height: 40px;
-  font-size: 0.8rem;
+  font-size: 0.8125rem;
   font-weight: 600;
 }
 
@@ -6592,7 +6672,9 @@ select.schedule-input-field {
   font-size: var(--pill-size);
 }
 
-/* Table */
+/* ============================================
+   Table — better row rhythm and header weight
+   ============================================ */
 .hospital-inventory-content .inventory-custom-table thead tr th {
   padding: 14px;
   background: var(--table-head-bg);
@@ -6611,16 +6693,20 @@ select.schedule-input-field {
 }
 
 .hospital-inventory-content .vaccine-name-text {
-  font-size: 0.92rem;
+  font-size: 0.9375rem;
 }
 
-/* Footer notice */
+/* ============================================
+   Footer notice — compact
+   ============================================ */
 .hospital-inventory-content .inventory-footer-notice {
   padding: 14px 18px;
   border-radius: 12px;
 }
 
-/* Mobile */
+/* ============================================
+   Mobile — stack cleanly, primary stays on top
+   ============================================ */
 @media (max-width: 700px) {
   .hospital-inventory-content .inventory-header-row {
     justify-content: stretch;
@@ -6655,4 +6741,241 @@ select.schedule-input-field {
   .hospital-inventory-content .btn-inventory-action.btn-inventory-ai::before {
     display: none;
   }
+}
+
+
+}
+
+
+
+/* Front-desk queue: Status badge + separate Action column */
+.hospital-queue-table.has-desk-actions th:nth-child(5),
+.hospital-queue-table.has-desk-actions td:nth-child(5),
+.hospital-queue-table.has-desk-actions col.col-status {
+  width: 7.5rem;
+  text-align: center;
+}
+
+.hospital-queue-table.has-desk-actions th:nth-child(6),
+.hospital-queue-table.has-desk-actions td:nth-child(6),
+.hospital-queue-table.has-desk-actions col.col-actions {
+  width: 1%;
+  min-width: 12.5rem;
+  white-space: nowrap;
+  text-align: right;
+  overflow: visible;
+}
+
+.queue-actions-cell {
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.queue-actions-empty {
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+
+.queue-desk-actions {
+  display: inline-flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.queue-desk-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 76px;
+  height: 30px;
+  padding: 0 12px;
+  font-family: var(--btn-font);
+  font-size: 0.8125rem;
+  font-weight: var(--btn-weight);
+  line-height: 1.2;
+  white-space: nowrap;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.queue-desk-btn.is-primary {
+  color: var(--color-text-inverse);
+  background: var(--color-primary);
+  border: 1px solid var(--color-primary);
+}
+
+.queue-desk-btn.is-primary:hover {
+  background: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
+}
+
+.queue-desk-btn.is-danger {
+  color: var(--color-error);
+  background: var(--color-error-bg);
+  border: 1px solid var(--color-error-border);
+}
+
+.queue-desk-btn.is-danger:hover {
+  color: var(--color-error);
+  background: var(--color-error-bg);
+  border-color: var(--color-error);
+  filter: brightness(0.97);
+}
+
+
+/* ==========================================================================
+   Inventory table, clean layout: one dark main line and one muted line per
+   cell, left aligned; colour only on the stock bar, status and alerts
+   ========================================================================== */
+.hospital-inventory-content .inventory-custom-table.inv-clean th,
+.hospital-inventory-content .inventory-custom-table.inv-clean td {
+  text-align: left;
+  vertical-align: middle;
+}
+
+.hospital-inventory-content .inventory-custom-table.inv-clean th:last-child,
+.hospital-inventory-content .inventory-custom-table.inv-clean td:last-child {
+  text-align: right;
+}
+
+.hospital-inventory-content .inventory-custom-table.inv-clean tbody tr td {
+  padding: 14px 16px;
+}
+
+.inv-clean .inv-name {
+  font-family: var(--font-heading);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--color-text-title);
+  line-height: 1.3;
+}
+
+.inv-clean .inv-main {
+  font-size: 0.875rem;
+  color: var(--color-text-title);
+  line-height: 1.35;
+}
+
+.inv-clean .inv-main strong {
+  font-weight: 700;
+}
+
+.inv-clean .inv-sub {
+  margin-top: 2px;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  line-height: 1.35;
+}
+
+.inv-clean .inv-nowrap {
+  white-space: nowrap;
+}
+
+.inv-clean .is-warning {
+  color: var(--color-warning);
+}
+
+.inv-clean .inv-category {
+  font-size: 0.8125rem;
+  color: var(--color-text-body);
+}
+
+.inv-clean .inv-stock-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.inv-clean .inv-bar {
+  height: 4px;
+  margin-top: 6px;
+  min-width: 120px;
+  background: var(--color-surface-subtle);
+}
+
+.inv-clean .inv-alert {
+  margin-top: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-error);
+}
+
+/* Status: dot + label, same shape for every state */
+.inv-clean .inv-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-text-title);
+  white-space: nowrap;
+}
+
+.inv-clean .inv-status::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-success);
+}
+
+.inv-clean .inv-status.is-low::before {
+  background: var(--color-error);
+}
+
+.inv-clean .inv-status.is-due::before {
+  background: var(--color-warning);
+}
+
+/* Actions: three matching quiet buttons */
+.inv-clean .inv-actions {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.inv-clean .inv-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 30px;
+  padding: 0 10px;
+  font-family: var(--btn-font);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-text-body);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-card);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: border-color var(--transition-fast), color var(--transition-fast), background var(--transition-fast);
+}
+
+.inv-clean .inv-action:hover {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.inv-clean .inv-action.is-primary {
+  color: var(--color-primary);
+}
+
+.inv-clean .inv-action.is-primary:hover {
+  background: var(--btn-secondary-bg-hover);
+}
+
+/* Low-stock rows: no tinted band; a thin red edge on the left marks them */
+.hospital-inventory-content .inventory-custom-table.inv-clean tbody tr.row-highlight-low td:first-child {
+  box-shadow: inset 3px 0 0 var(--color-error);
+}
+
+/* Read-only queues (home, doctor, nurse): centre the status pill */
+.hospital-queue-table:not(.has-desk-actions) th:nth-child(5),
+.hospital-queue-table:not(.has-desk-actions) td:nth-child(5) {
+  text-align: center;
 }

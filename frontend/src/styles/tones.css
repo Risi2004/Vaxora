@@ -60,7 +60,8 @@
 .tone-slate,
 .icon-shade-slate,
 .stat-icon-slate {
-  --tone: var(--color-primary-dark);
+  /* Real slate, so it never reads as a second navy next to Royal Blue */
+  --tone: var(--color-text-body);
   --tone-bg: var(--color-surface-subtle);
   --tone-border: var(--color-border-card);
 }

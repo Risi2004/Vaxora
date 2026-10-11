@@ -83,13 +83,41 @@ class HospitalSchedulesPanelState extends State<HospitalSchedulesPanel> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
       ),
-      builder: (ctx) => _CreateScheduleSheet(
+      builder: (ctx) => _ScheduleFormSheet(
         booths: _booths,
         formulary: _formulary,
       ),
     );
     if (ok == true) {
       _toast('Schedule created.');
+      await _load();
+    }
+  }
+
+  Future<void> _edit(HospitalScheduleModel s) async {
+    if (_booths.isEmpty || _formulary.isEmpty) {
+      _toast(
+        _booths.isEmpty
+            ? 'Create an active booth before editing schedules.'
+            : 'Add formulary vaccines under Inventory first.',
+      );
+      return;
+    }
+    final ok = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: StaffSurfaces.cardBg,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (ctx) => _ScheduleFormSheet(
+        booths: _booths,
+        formulary: _formulary,
+        existing: s,
+      ),
+    );
+    if (ok == true) {
+      _toast('Schedule updated.');
       await _load();
     }
   }
@@ -200,15 +228,24 @@ class HospitalSchedulesPanelState extends State<HospitalSchedulesPanel> {
                           color: StaffSurfaces.brandSoft,
                         ),
                       ),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: TextButton(
-                          onPressed: () => _cancel(s),
-                          style: TextButton.styleFrom(
-                            foregroundColor: AppColors.error,
+                      Row(
+                        children: [
+                          TextButton(
+                            onPressed: () => _edit(s),
+                            style: TextButton.styleFrom(
+                              foregroundColor: AppColors.accent,
+                            ),
+                            child: const Text('Edit'),
                           ),
-                          child: const Text('Cancel slot'),
-                        ),
+                          const Spacer(),
+                          TextButton(
+                            onPressed: () => _cancel(s),
+                            style: TextButton.styleFrom(
+                              foregroundColor: AppColors.error,
+                            ),
+                            child: const Text('Cancel slot'),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -221,39 +258,94 @@ class HospitalSchedulesPanelState extends State<HospitalSchedulesPanel> {
   }
 }
 
-class _CreateScheduleSheet extends StatefulWidget {
+String _hhmm(String? raw, String fallback) {
+  final m = RegExp(r'^(\d{1,2}):(\d{2})').firstMatch(raw?.trim() ?? '');
+  if (m == null) return fallback;
+  return '${twoDigits(int.parse(m.group(1)!))}:${m.group(2)}';
+}
+
+class _ScheduleFormSheet extends StatefulWidget {
   final List<HospitalBoothModel> booths;
   final List<FormularyEntryModel> formulary;
+  final HospitalScheduleModel? existing;
 
-  const _CreateScheduleSheet({
+  const _ScheduleFormSheet({
     required this.booths,
     required this.formulary,
+    this.existing,
   });
 
   @override
-  State<_CreateScheduleSheet> createState() => _CreateScheduleSheetState();
+  State<_ScheduleFormSheet> createState() => _ScheduleFormSheetState();
 }
 
-class _CreateScheduleSheetState extends State<_CreateScheduleSheet> {
+class _ScheduleFormSheetState extends State<_ScheduleFormSheet> {
   late String _vaccineName;
   String? _vaccineId;
   String? _boothId;
-  String _type = 'OneTime';
+  late String _type;
   late String _date;
-  String _start = '09:00';
-  String _end = '12:00';
-  final _price = TextEditingController(text: '0');
+  late String _endDate;
+  late String _start;
+  late String _end;
+  late List<String> _daysOfWeek;
+  late final TextEditingController _price;
   String? _error;
   bool _saving = false;
+
+  bool get _isEdit => widget.existing != null;
 
   @override
   void initState() {
     super.initState();
-    _date = todayIsoDate();
-    final first = widget.formulary.first;
-    _vaccineName = first.vaccineName;
-    _vaccineId = first.vaccineId;
-    _boothId = widget.booths.isNotEmpty ? widget.booths.first.boothId : null;
+    final existing = widget.existing;
+    if (existing != null) {
+      _type = existing.scheduleType.toLowerCase() == 'weekly' ? 'Weekly' : 'OneTime';
+      _vaccineName = existing.vaccineName;
+      _vaccineId = existing.vaccineId;
+      _boothId = existing.boothId;
+      _date = _type == 'Weekly'
+          ? (existing.startDate?.isNotEmpty == true
+              ? existing.startDate!.substring(0, 10)
+              : todayIsoDate())
+          : (existing.specificDate?.isNotEmpty == true
+              ? existing.specificDate!.substring(0, 10)
+              : todayIsoDate());
+      _endDate = existing.endDate?.isNotEmpty == true
+          ? existing.endDate!.substring(0, 10)
+          : formatDateOnly(hospitalNow().add(const Duration(days: 28)));
+      _start = _hhmm(existing.startTime, '09:00');
+      _end = _hhmm(existing.endTime, '12:00');
+      _daysOfWeek = existing.daysOfWeek.isNotEmpty
+          ? List<String>.from(existing.daysOfWeek)
+          : const ['Monday', 'Wednesday', 'Friday'];
+      _price = TextEditingController(
+        text: existing.price <= 0 ? '0' : existing.price.toStringAsFixed(0),
+      );
+      for (final f in widget.formulary) {
+        final sameName = f.vaccineName.trim().toLowerCase() ==
+            _vaccineName.trim().toLowerCase();
+        final sameId =
+            existing.vaccineId != null && f.vaccineId == existing.vaccineId;
+        if (sameName || sameId) {
+          _vaccineName = f.vaccineName;
+          _vaccineId = f.vaccineId;
+          break;
+        }
+      }
+    } else {
+      _type = 'OneTime';
+      _date = todayIsoDate();
+      _endDate = formatDateOnly(hospitalNow().add(const Duration(days: 28)));
+      _start = '09:00';
+      _end = '12:00';
+      _daysOfWeek = const ['Monday', 'Wednesday', 'Friday'];
+      final first = widget.formulary.first;
+      _vaccineName = first.vaccineName;
+      _vaccineId = first.vaccineId;
+      _boothId = widget.booths.isNotEmpty ? widget.booths.first.boothId : null;
+      _price = TextEditingController(text: '0');
+    }
   }
 
   @override
@@ -293,23 +385,40 @@ class _CreateScheduleSheetState extends State<_CreateScheduleSheet> {
       _error = null;
     });
     try {
-      await HospitalScheduleRepository.create(
-        boothId: _boothId!,
-        vaccineName: _vaccineName,
-        vaccineId: _vaccineId,
-        scheduleType: _type,
-        specificDate: _type == 'OneTime' ? _date : null,
-        daysOfWeek: _type == 'Weekly'
-            ? const ['Monday', 'Wednesday', 'Friday']
-            : const [],
-        startDate: _type == 'Weekly' ? _date : null,
-        endDate: _type == 'Weekly'
-            ? formatDateOnly(hospitalNow().add(const Duration(days: 28)))
-            : null,
-        startTime: _start,
-        endTime: _end,
-        price: price,
-      );
+      if (_isEdit) {
+        await HospitalScheduleRepository.update(
+          scheduleId: widget.existing!.id,
+          boothId: _boothId!,
+          vaccineName: _vaccineName,
+          vaccineId: _vaccineId,
+          scheduleType: _type,
+          specificDate: _type == 'OneTime' ? _date : null,
+          daysOfWeek: _type == 'Weekly' ? _daysOfWeek : const [],
+          startDate: _type == 'Weekly' ? _date : null,
+          endDate: _type == 'Weekly' ? _endDate : null,
+          startTime: _start,
+          endTime: _end,
+          price: price,
+        );
+      } else {
+        await HospitalScheduleRepository.create(
+          boothId: _boothId!,
+          vaccineName: _vaccineName,
+          vaccineId: _vaccineId,
+          scheduleType: _type,
+          specificDate: _type == 'OneTime' ? _date : null,
+          daysOfWeek: _type == 'Weekly'
+              ? const ['Monday', 'Wednesday', 'Friday']
+              : const [],
+          startDate: _type == 'Weekly' ? _date : null,
+          endDate: _type == 'Weekly'
+              ? formatDateOnly(hospitalNow().add(const Duration(days: 28)))
+              : null,
+          startTime: _start,
+          endTime: _end,
+          price: price,
+        );
+      }
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       setState(() {
@@ -326,6 +435,16 @@ class _CreateScheduleSheetState extends State<_CreateScheduleSheet> {
     if (_boothId != null && !booths.any((b) => b.boothId == _boothId)) {
       _boothId = booths.isNotEmpty ? booths.first.boothId : null;
     }
+    final startItems = {
+      ..._times,
+      if (!_times.contains(_start)) _start,
+    }.toList()
+      ..sort();
+    final endItems = {
+      ..._times,
+      if (!_times.contains(_end)) _end,
+    }.toList()
+      ..sort();
 
     return Padding(
       padding: EdgeInsets.fromLTRB(20, 12, 20, 20 + bottom),
@@ -333,14 +452,25 @@ class _CreateScheduleSheetState extends State<_CreateScheduleSheet> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text(
-              'New schedule',
-              style: TextStyle(
+            Text(
+              _isEdit ? 'Edit schedule' : 'New schedule',
+              style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w800,
                 color: StaffSurfaces.textPrimary,
               ),
             ),
+            if (_isEdit)
+              const Padding(
+                padding: EdgeInsets.only(top: 6),
+                child: Text(
+                  'Booth or vaccine changes are blocked while upcoming appointments remain on this session.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: StaffSurfaces.textSecondary,
+                  ),
+                ),
+              ),
             if (_error != null) ...[
               const SizedBox(height: 10),
               Text(_error!, style: const TextStyle(color: AppColors.error)),
@@ -356,7 +486,9 @@ class _CreateScheduleSheetState extends State<_CreateScheduleSheet> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              initialValue: _vaccineName,
+              initialValue: widget.formulary.any((f) => f.vaccineName == _vaccineName)
+                  ? _vaccineName
+                  : widget.formulary.first.vaccineName,
               decoration: const InputDecoration(labelText: 'Vaccine'),
               items: widget.formulary
                   .map(
@@ -398,8 +530,8 @@ class _CreateScheduleSheetState extends State<_CreateScheduleSheet> {
               onTap: () async {
                 final picked = await showDatePicker(
                   context: context,
-                  initialDate: hospitalNow(),
-                  firstDate: hospitalNow(),
+                  initialDate: DateTime.tryParse(_date) ?? hospitalNow(),
+                  firstDate: hospitalNow().subtract(const Duration(days: 1)),
                   lastDate: hospitalNow().add(const Duration(days: 365)),
                 );
                 if (picked != null) {
@@ -407,13 +539,31 @@ class _CreateScheduleSheetState extends State<_CreateScheduleSheet> {
                 }
               },
             ),
+            if (_type == 'Weekly')
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('End date'),
+                subtitle: Text(_endDate),
+                trailing: const Icon(Icons.event_outlined),
+                onTap: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: DateTime.tryParse(_endDate) ?? hospitalNow(),
+                    firstDate: DateTime.tryParse(_date) ?? hospitalNow(),
+                    lastDate: hospitalNow().add(const Duration(days: 400)),
+                  );
+                  if (picked != null) {
+                    setState(() => _endDate = formatDateOnly(picked));
+                  }
+                },
+              ),
             Row(
               children: [
                 Expanded(
                   child: DropdownButtonFormField<String>(
                     initialValue: _start,
                     decoration: const InputDecoration(labelText: 'Start'),
-                    items: _times
+                    items: startItems
                         .map((t) => DropdownMenuItem(value: t, child: Text(t)))
                         .toList(),
                     onChanged: (v) {
@@ -426,7 +576,7 @@ class _CreateScheduleSheetState extends State<_CreateScheduleSheet> {
                   child: DropdownButtonFormField<String>(
                     initialValue: _end,
                     decoration: const InputDecoration(labelText: 'End'),
-                    items: _times
+                    items: endItems
                         .map((t) => DropdownMenuItem(value: t, child: Text(t)))
                         .toList(),
                     onChanged: (v) {
@@ -444,7 +594,7 @@ class _CreateScheduleSheetState extends State<_CreateScheduleSheet> {
                 labelText: 'Price (0 = free)',
               ),
             ),
-            if (_type == 'Weekly')
+            if (_type == 'Weekly' && !_isEdit)
               const Padding(
                 padding: EdgeInsets.only(top: 8),
                 child: Text(
@@ -459,7 +609,11 @@ class _CreateScheduleSheetState extends State<_CreateScheduleSheet> {
             FilledButton(
               onPressed: _saving ? null : _submit,
               style: FilledButton.styleFrom(backgroundColor: StaffSurfaces.cta),
-              child: Text(_saving ? 'Saving…' : 'Create schedule'),
+              child: Text(
+                _saving
+                    ? 'Saving…'
+                    : (_isEdit ? 'Save changes' : 'Create schedule'),
+              ),
             ),
           ],
         ),

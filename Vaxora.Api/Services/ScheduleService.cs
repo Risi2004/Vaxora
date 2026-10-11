@@ -9,6 +9,7 @@ namespace Vaxora.Api.Services;
 public interface IScheduleService
 {
     Task<VaccineScheduleDto> CreateScheduleAsync(Guid hospitalUserId, CreateVaccineScheduleDto dto);
+    Task<VaccineScheduleDto> UpdateScheduleAsync(Guid hospitalUserId, Guid scheduleId, CreateVaccineScheduleDto dto);
     Task<List<VaccineScheduleDto>> GetHospitalSchedulesAsync(Guid hospitalUserId);
     Task<bool> CancelScheduleAsync(Guid hospitalUserId, Guid scheduleId);
     Task<List<VaccineScheduleDto>> GetAvailableSchedulesAsync(Guid? hospitalUserId = null, string? vaccineName = null);
@@ -115,62 +116,20 @@ public class ScheduleService : IScheduleService
             }
         }
 
-        await EnsureNoBoothSessionOverlapAsync(booth, dto, isWeekly);
+        await EnsureNoBoothSessionOverlapAsync(booth, dto, isWeekly, excludeScheduleId: null);
+
+        var (formularyPrice, pricedVaccineId) = await ResolveFormularyPriceAsync(
+            hospital, resolvedVaccineId, vaccineName);
+        resolvedVaccineId ??= pricedVaccineId;
 
         var horizon = await BuildStockHorizonAsync(
             hospitalUserId,
             hospital.HospitalProfile?.Id,
-            new ScheduleStockHorizonRequestDto
-            {
-                VaccineId = resolvedVaccineId,
-                VaccineName = vaccineName,
-                ScheduleType = isWeekly ? "Weekly" : "OneTime",
-                SpecificDate = isWeekly ? null : dto.SpecificDate,
-                DaysOfWeek = isWeekly ? dto.DaysOfWeek : new List<string>(),
-                StartDate = isWeekly ? dto.StartDate : null,
-                EndDate = isWeekly ? dto.EndDate : null,
-                StartTime = dto.StartTime,
-                EndTime = dto.EndTime
-            });
+            ToHorizonRequest(dto, isWeekly, resolvedVaccineId, vaccineName));
 
         if (!horizon.CanCreate)
         {
             throw new ArgumentException(horizon.Message);
-        }
-
-        // Fee comes from hospital formulary (one Free/Paid tag per vaccine) — not per schedule.
-        var formularyPrice = 0.00m;
-        if (hospital.HospitalProfile != null && resolvedVaccineId.HasValue)
-        {
-            var formulary = await _context.HospitalFormularies.AsNoTracking()
-                .FirstOrDefaultAsync(f =>
-                    f.HospitalProfileId == hospital.HospitalProfile.Id &&
-                    f.VaccineId == resolvedVaccineId.Value);
-            if (formulary == null)
-            {
-                throw new ArgumentException(
-                    "This vaccine is not on your formulary with a Free/Paid fee. " +
-                    "Open Inventory → Formulary, set the fee (0 = Free), then post the schedule.");
-            }
-            formularyPrice = Math.Max(0.00m, formulary.Price);
-        }
-        else if (!string.IsNullOrWhiteSpace(vaccineName) && hospital.HospitalProfile != null)
-        {
-            var formulary = await _context.HospitalFormularies.AsNoTracking()
-                .Include(f => f.Vaccine)
-                .Where(f => f.HospitalProfileId == hospital.HospitalProfile.Id)
-                .ToListAsync();
-            var match = formulary.FirstOrDefault(f =>
-                f.Vaccine != null &&
-                string.Equals(f.Vaccine.Name.Trim(), vaccineName, StringComparison.OrdinalIgnoreCase));
-            if (match == null)
-            {
-                throw new ArgumentException(
-                    "This vaccine is not on your formulary with a Free/Paid fee. " +
-                    "Open Inventory → Formulary, set the fee (0 = Free), then post the schedule.");
-            }
-            formularyPrice = Math.Max(0.00m, match.Price);
-            resolvedVaccineId ??= match.VaccineId;
         }
 
         var schedule = new VaccineSchedule
@@ -200,6 +159,145 @@ public class ScheduleService : IScheduleService
         await _context.SaveChangesAsync();
 
         _logger.LogInformation("Created {Type} schedule {ScheduleId} for hospital {HospitalName}", schedule.ScheduleType, schedule.Id, hospital.HospitalProfile?.HospitalName ?? hospital.Email);
+
+        return MapToDto(schedule, hospital.HospitalProfile?.HospitalName ?? "Hospital");
+    }
+
+    public async Task<VaccineScheduleDto> UpdateScheduleAsync(
+        Guid hospitalUserId,
+        Guid scheduleId,
+        CreateVaccineScheduleDto dto)
+    {
+        var hospital = await _context.Users
+            .Include(u => u.HospitalProfile)
+            .FirstOrDefaultAsync(u => u.Id == hospitalUserId && u.Role == UserRole.HOSPITAL)
+            ?? throw new UnauthorizedAccessException("Hospital account not found.");
+
+        var schedule = await _context.VaccineSchedules
+            .FirstOrDefaultAsync(s =>
+                s.Id == scheduleId &&
+                s.HospitalUserId == hospitalUserId &&
+                s.Status == "Active")
+            ?? throw new KeyNotFoundException("Active schedule slot not found.");
+
+        var isWeekly = string.Equals(dto.ScheduleType, "Weekly", StringComparison.OrdinalIgnoreCase);
+
+        if (isWeekly)
+        {
+            if (dto.DaysOfWeek == null || dto.DaysOfWeek.Count == 0)
+                throw new ArgumentException("Please select at least one day of the week for recurring schedules.");
+            if (!dto.StartDate.HasValue || !dto.EndDate.HasValue)
+                throw new ArgumentException("Start date and End date are required for weekly recurring schedules.");
+            if (dto.EndDate < dto.StartDate)
+                throw new ArgumentException("End date cannot be earlier than start date.");
+        }
+        else if (!dto.SpecificDate.HasValue)
+        {
+            throw new ArgumentException("Please specify a date for one-time schedules.");
+        }
+
+        EnsureScheduleNotInPastForUpdate(schedule, dto, isWeekly);
+
+        var booth = await _context.HospitalBooths
+            .AsNoTracking()
+            .Include(b => b.Vaccines)
+                .ThenInclude(v => v.Vaccine)
+            .FirstOrDefaultAsync(b =>
+                b.Id == dto.BoothId &&
+                b.HospitalUserId == hospitalUserId &&
+                b.IsActive)
+            ?? throw new ArgumentException("Select an active booth that belongs to this hospital.");
+
+        if (booth.Vaccines.Count == 0)
+        {
+            throw new ArgumentException(
+                $"Booth {booth.DisplayLabel} has no vaccines listed. Add the vaccines this booth offers in Booths first.");
+        }
+
+        var resolvedVaccineId = dto.VaccineId;
+        var vaccineName = (dto.VaccineName ?? string.Empty).Trim();
+        var idMatch = resolvedVaccineId.HasValue
+            && booth.Vaccines.Any(v => v.VaccineId == resolvedVaccineId.Value);
+
+        if (!idMatch)
+        {
+            var nameMatch = booth.Vaccines.FirstOrDefault(v =>
+                !string.IsNullOrWhiteSpace(v.Vaccine?.Name) &&
+                string.Equals(v.Vaccine!.Name.Trim(), vaccineName, StringComparison.OrdinalIgnoreCase));
+
+            if (nameMatch != null)
+                resolvedVaccineId = nameMatch.VaccineId;
+            else
+            {
+                throw new ArgumentException(
+                    $"Booth {booth.DisplayLabel} does not offer this vaccine. " +
+                    "Open Booths and add the vaccine to that booth, or pick a booth that already lists it.");
+            }
+        }
+
+        var today = StaffDutyHelper.HospitalToday();
+        var blockingStatuses = new[] { "Cancelled", "Rejected" };
+        var openAppointments = await _context.Appointments
+            .AsNoTracking()
+            .CountAsync(a =>
+                a.VaccineScheduleId == scheduleId &&
+                a.AppointmentDate >= today &&
+                !blockingStatuses.Contains(a.Status));
+
+        var boothChanged = schedule.BoothId != booth.Id;
+        var vaccineChanged =
+            schedule.VaccineId != resolvedVaccineId ||
+            !string.Equals(schedule.VaccineName.Trim(), vaccineName, StringComparison.OrdinalIgnoreCase);
+
+        if (openAppointments > 0 && (boothChanged || vaccineChanged))
+        {
+            throw new InvalidOperationException(
+                $"Cannot change booth or vaccine: {openAppointments} upcoming appointment" +
+                $"{(openAppointments == 1 ? "" : "s")} still linked to this session. " +
+                "Cancel or complete those appointments first, or only update times and dates.");
+        }
+
+        await EnsureNoBoothSessionOverlapAsync(booth, dto, isWeekly, excludeScheduleId: scheduleId);
+
+        var (formularyPrice, pricedVaccineId) = await ResolveFormularyPriceAsync(
+            hospital, resolvedVaccineId, vaccineName);
+        resolvedVaccineId ??= pricedVaccineId;
+
+        // Expanding the window still needs stock headroom; shrinking is always fine.
+        var horizon = await BuildStockHorizonAsync(
+            hospitalUserId,
+            hospital.HospitalProfile?.Id,
+            ToHorizonRequest(dto, isWeekly, resolvedVaccineId, vaccineName));
+
+        if (!horizon.CanCreate)
+        {
+            throw new ArgumentException(horizon.Message);
+        }
+
+        var daysOfWeekJoined = (dto.DaysOfWeek != null && dto.DaysOfWeek.Count > 0)
+            ? string.Join(",", dto.DaysOfWeek.Select(d => d.Trim()))
+            : null;
+
+        schedule.BoothId = booth.Id;
+        schedule.BoothLabel = booth.DisplayLabel;
+        schedule.VaccineId = resolvedVaccineId;
+        schedule.VaccineName = string.IsNullOrWhiteSpace(vaccineName)
+            ? (dto.VaccineName ?? string.Empty).Trim()
+            : vaccineName;
+        schedule.ScheduleType = isWeekly ? "Weekly" : "OneTime";
+        schedule.SpecificDate = isWeekly ? null : dto.SpecificDate;
+        schedule.DaysOfWeek = isWeekly ? daysOfWeekJoined : null;
+        schedule.StartDate = isWeekly ? dto.StartDate : null;
+        schedule.EndDate = isWeekly ? dto.EndDate : null;
+        schedule.StartTime = dto.StartTime.Trim();
+        schedule.EndTime = dto.EndTime.Trim();
+        schedule.Price = formularyPrice;
+
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation(
+            "Updated {Type} schedule {ScheduleId} for hospital {HospitalUserId}",
+            schedule.ScheduleType, schedule.Id, hospitalUserId);
 
         return MapToDto(schedule, hospital.HospitalProfile?.HospitalName ?? "Hospital");
     }
@@ -631,7 +729,70 @@ public class ScheduleService : IScheduleService
     /// <summary>
     /// One booth runs one session at a time; otherwise its per-slot capacity silently doubles.
     /// </summary>
-    private async Task EnsureNoBoothSessionOverlapAsync(HospitalBooth booth, CreateVaccineScheduleDto dto, bool isWeekly)
+    private static ScheduleStockHorizonRequestDto ToHorizonRequest(
+        CreateVaccineScheduleDto dto,
+        bool isWeekly,
+        Guid? vaccineId,
+        string vaccineName) =>
+        new()
+        {
+            VaccineId = vaccineId,
+            VaccineName = vaccineName,
+            ScheduleType = isWeekly ? "Weekly" : "OneTime",
+            SpecificDate = isWeekly ? null : dto.SpecificDate,
+            DaysOfWeek = isWeekly ? dto.DaysOfWeek : new List<string>(),
+            StartDate = isWeekly ? dto.StartDate : null,
+            EndDate = isWeekly ? dto.EndDate : null,
+            StartTime = dto.StartTime,
+            EndTime = dto.EndTime
+        };
+
+    private async Task<(decimal Price, Guid? VaccineId)> ResolveFormularyPriceAsync(
+        User hospital,
+        Guid? resolvedVaccineId,
+        string vaccineName)
+    {
+        if (hospital.HospitalProfile != null && resolvedVaccineId.HasValue)
+        {
+            var formulary = await _context.HospitalFormularies.AsNoTracking()
+                .FirstOrDefaultAsync(f =>
+                    f.HospitalProfileId == hospital.HospitalProfile.Id &&
+                    f.VaccineId == resolvedVaccineId.Value);
+            if (formulary == null)
+            {
+                throw new ArgumentException(
+                    "This vaccine is not on your formulary with a Free/Paid fee. " +
+                    "Open Inventory → Formulary, set the fee (0 = Free), then post the schedule.");
+            }
+            return (Math.Max(0.00m, formulary.Price), resolvedVaccineId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(vaccineName) && hospital.HospitalProfile != null)
+        {
+            var formulary = await _context.HospitalFormularies.AsNoTracking()
+                .Include(f => f.Vaccine)
+                .Where(f => f.HospitalProfileId == hospital.HospitalProfile.Id)
+                .ToListAsync();
+            var match = formulary.FirstOrDefault(f =>
+                f.Vaccine != null &&
+                string.Equals(f.Vaccine.Name.Trim(), vaccineName, StringComparison.OrdinalIgnoreCase));
+            if (match == null)
+            {
+                throw new ArgumentException(
+                    "This vaccine is not on your formulary with a Free/Paid fee. " +
+                    "Open Inventory → Formulary, set the fee (0 = Free), then post the schedule.");
+            }
+            return (Math.Max(0.00m, match.Price), match.VaccineId);
+        }
+
+        return (0.00m, resolvedVaccineId);
+    }
+
+    private async Task EnsureNoBoothSessionOverlapAsync(
+        HospitalBooth booth,
+        CreateVaccineScheduleDto dto,
+        bool isWeekly,
+        Guid? excludeScheduleId)
     {
         if (!TimeOnly.TryParse(dto.StartTime, out var newStart) || !TimeOnly.TryParse(dto.EndTime, out var newEnd))
             return;
@@ -644,7 +805,10 @@ public class ScheduleService : IScheduleService
 
         var existing = await _context.VaccineSchedules
             .AsNoTracking()
-            .Where(s => s.BoothId == booth.Id && s.Status == "Active")
+            .Where(s =>
+                s.BoothId == booth.Id &&
+                s.Status == "Active" &&
+                (!excludeScheduleId.HasValue || s.Id != excludeScheduleId.Value))
             .ToListAsync();
 
         foreach (var other in existing)
@@ -731,6 +895,70 @@ public class ScheduleService : IScheduleService
             if (date == today && startTime < now)
             {
                 throw new ArgumentException("Schedule start time cannot be in the past for today.");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Editing an already-running weekly session may keep a past start date; the end must stay open.
+    /// </summary>
+    private static void EnsureScheduleNotInPastForUpdate(
+        VaccineSchedule existing,
+        CreateVaccineScheduleDto dto,
+        bool isWeekly)
+    {
+        var today = StaffDutyHelper.HospitalToday();
+        var now = TimeOnly.FromDateTime(StaffDutyHelper.HospitalNow());
+
+        if (!TryParseScheduleTime(dto.StartTime, out var startTime) ||
+            !TryParseScheduleTime(dto.EndTime, out var endTime))
+        {
+            throw new ArgumentException("Start time and end time must be valid times.");
+        }
+
+        if (endTime <= startTime)
+        {
+            throw new ArgumentException("End time must be after start time.");
+        }
+
+        if (isWeekly)
+        {
+            if (dto.EndDate.HasValue && dto.EndDate.Value < today)
+            {
+                throw new ArgumentException("Weekly schedule end date cannot be in the past.");
+            }
+
+            var startUnchanged = existing.StartDate.HasValue
+                && dto.StartDate.HasValue
+                && existing.StartDate.Value == dto.StartDate.Value;
+
+            if (dto.StartDate.HasValue && dto.StartDate.Value < today && !startUnchanged)
+            {
+                throw new ArgumentException("Weekly schedule start date cannot be moved into the past.");
+            }
+
+            if (dto.StartDate.HasValue
+                && dto.StartDate.Value == today
+                && startTime < now
+                && !string.Equals(existing.StartTime.Trim(), dto.StartTime.Trim(), StringComparison.Ordinal))
+            {
+                throw new ArgumentException("Schedule start time cannot be moved into the past for today.");
+            }
+        }
+        else
+        {
+            var date = dto.SpecificDate!.Value;
+            var dateUnchanged = existing.SpecificDate.HasValue && existing.SpecificDate.Value == date;
+            if (date < today && !dateUnchanged)
+            {
+                throw new ArgumentException("One-time schedule date cannot be moved into the past.");
+            }
+
+            if (date == today
+                && startTime < now
+                && !string.Equals(existing.StartTime.Trim(), dto.StartTime.Trim(), StringComparison.Ordinal))
+            {
+                throw new ArgumentException("Schedule start time cannot be moved into the past for today.");
             }
         }
     }

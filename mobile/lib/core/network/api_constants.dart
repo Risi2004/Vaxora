@@ -129,6 +129,7 @@ static const String inventoryDamageReport = '/inventory/damage-report';
 
   static const String hospitalSchedules = '/schedule/hospital';
   static const String createSchedule = '/schedule';
+  static String updateSchedule(String id) => '/schedule/$id';
   static String cancelSchedule(String id) => '/schedule/$id';
 
   static const String clinicalPatientsSearch = '/clinical/patients/search';

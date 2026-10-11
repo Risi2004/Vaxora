@@ -77,7 +77,7 @@ export default function ForgotPasswordForm({ onSwitchToLogin, onSuccess }) {
     <>
       {step === 1 && (
         <form onSubmit={handleSendEmail} className="auth-form">
-          <p style={{ fontSize: '0.92rem', color: 'var(--color-text-body)', textAlign: 'center', marginBottom: '8px' }}>
+          <p style={{ fontSize: '0.9375rem', color: 'var(--color-text-body)', textAlign: 'center', marginBottom: '8px' }}>
             Enter your registered email address and we will send you a verification code to reset your password.
           </p>
 
@@ -87,7 +87,7 @@ export default function ForgotPasswordForm({ onSwitchToLogin, onSuccess }) {
               color: 'var(--color-error)', 
               padding: '10px 14px', 
               borderRadius: '8px', 
-              fontSize: '0.85rem', 
+              fontSize: '0.875rem', 
               fontWeight: 600,
               border: '1px solid rgba(var(--rgb-error), 0.2)' 
             }}>
@@ -127,7 +127,7 @@ export default function ForgotPasswordForm({ onSwitchToLogin, onSuccess }) {
 
       {step === 2 && (
         <form onSubmit={handleResetPassword} className="auth-form">
-          <div style={{ background: 'var(--color-info-bg)', border: '1px solid var(--color-info-border)', borderRadius: '10px', padding: '12px', fontSize: '0.86rem', color: 'var(--color-primary)', textAlign: 'center' }}>
+          <div style={{ background: 'var(--color-info-bg)', border: '1px solid var(--color-info-border)', borderRadius: '10px', padding: '12px', fontSize: '0.875rem', color: 'var(--color-primary)', textAlign: 'center' }}>
             Password reset verification token for <strong>{email}</strong>
           </div>
 
@@ -137,7 +137,7 @@ export default function ForgotPasswordForm({ onSwitchToLogin, onSuccess }) {
               color: 'var(--color-error)', 
               padding: '10px 14px', 
               borderRadius: '8px', 
-              fontSize: '0.85rem', 
+              fontSize: '0.875rem', 
               fontWeight: 600,
               border: '1px solid rgba(var(--rgb-error), 0.2)' 
             }}>
@@ -237,7 +237,7 @@ export default function ForgotPasswordForm({ onSwitchToLogin, onSuccess }) {
               type="button"
               className="btn-auth-switch"
               onClick={() => { setStep(1); setError(''); }}
-              style={{ fontSize: '0.85rem' }}
+              style={{ fontSize: '0.875rem' }}
               disabled={loading}
             >
               Change email
@@ -246,7 +246,7 @@ export default function ForgotPasswordForm({ onSwitchToLogin, onSuccess }) {
               type="button"
               className="btn-auth-switch"
               onClick={onSwitchToLogin}
-              style={{ fontSize: '0.85rem' }}
+              style={{ fontSize: '0.875rem' }}
               disabled={loading}
             >
               Back to Log in

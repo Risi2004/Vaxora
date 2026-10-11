@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { authService, getUser, subscribeAuthUser } from "../../auth";
 import { patientVaccinationService } from "../services/patientVaccinationService";
-import { IconClose, IconShield } from "../../../shared/icons/AppIcons";
+import { IconClock, IconClose, IconShield, IconSyringe } from "../../../shared/icons/AppIcons";
 import PatientSubpageHeader from './PatientSubpageHeader';
 
 export default function VaccinationHistoryTab() {
@@ -159,31 +159,36 @@ export default function VaccinationHistoryTab() {
           </div>
 
           {/* Summary strip */}
-          <div
-            style={{
-              display: "flex",
-              gap: "16px",
-              margin: "20px 0",
-              flexWrap: "wrap",
-            }}
-          >
-            <div style={statBoxStyle}>
-              <span style={statValueStyle}>{timeline?.totalDoses ?? 0}</span>
-              <span style={statLabelStyle}>Total Doses</span>
+          {/* Same stat cards as the patient home */}
+          <div className="hospital-metrics-grid hospital-metrics-grid--3" style={{ margin: "20px 0" }}>
+            <div className="hospital-stat-card">
+              <div className="hospital-stat-icon stat-icon-green">
+                <IconSyringe size={22} />
+              </div>
+              <div className="hospital-stat-info">
+                <span className="hospital-stat-label">Total Doses</span>
+                <span className="hospital-stat-value">{timeline?.totalDoses ?? 0}</span>
+              </div>
             </div>
-            <div style={statBoxStyle}>
-              <span style={statValueStyle}>
-                {timeline?.distinctVaccines ?? 0}
-              </span>
-              <span style={statLabelStyle}>Distinct Vaccines</span>
+            <div className="hospital-stat-card">
+              <div className="hospital-stat-icon stat-icon-teal">
+                <IconShield size={22} />
+              </div>
+              <div className="hospital-stat-info">
+                <span className="hospital-stat-label">Distinct Vaccines</span>
+                <span className="hospital-stat-value">{timeline?.distinctVaccines ?? 0}</span>
+              </div>
             </div>
-            <div style={statBoxStyle}>
-              <span style={statValueStyle}>
-                {timeline?.lastVaccinatedAt
-                  ? formatDate(timeline.lastVaccinatedAt)
-                  : "—"}
-              </span>
-              <span style={statLabelStyle}>Last Vaccination</span>
+            <div className="hospital-stat-card">
+              <div className="hospital-stat-icon stat-icon-slate">
+                <IconClock size={22} />
+              </div>
+              <div className="hospital-stat-info">
+                <span className="hospital-stat-label">Last Vaccination</span>
+                <span className="hospital-stat-value">
+                  {timeline?.lastVaccinatedAt ? formatDate(timeline.lastVaccinatedAt) : "—"}
+                </span>
+              </div>
             </div>
           </div>
 
@@ -210,18 +215,15 @@ export default function VaccinationHistoryTab() {
                         <td>{formatDate(item.administeredAt)}</td>
                         <td>{item.administeredByName}</td>
                         <td>
-                          <span
-                            style={{
-                              cursor: "pointer",
-                              textDecoration: "underline",
-                              color: "var(--color-text-title)",
-                              fontWeight: 700,
-                            }}
-                            title="Click to view digital certificate"
+                          <button
+                            type="button"
+                            className="mockup-status-badge accepted"
+                            style={{ cursor: "pointer" }}
+                            title="View digital certificate"
                             onClick={() => setSelectedCertificate(item)}
                           >
-                            Completed 📜
-                          </span>
+                            Completed · Certificate
+                          </button>
                         </td>
                       </tr>
                     ))
@@ -293,7 +295,7 @@ export default function VaccinationHistoryTab() {
               <p
                 style={{
                   margin: "0 0 6px",
-                  fontSize: "0.9rem",
+                  fontSize: "0.875rem",
                   color: "var(--color-text-body)",
                 }}
               >
@@ -302,7 +304,7 @@ export default function VaccinationHistoryTab() {
               <p
                 style={{
                   margin: "0 0 6px",
-                  fontSize: "0.9rem",
+                  fontSize: "0.875rem",
                   color: "var(--color-text-body)",
                 }}
               >
@@ -315,7 +317,7 @@ export default function VaccinationHistoryTab() {
               <p
                 style={{
                   margin: "0 0 6px",
-                  fontSize: "0.9rem",
+                  fontSize: "0.875rem",
                   color: "var(--color-text-body)",
                 }}
               >
@@ -325,7 +327,7 @@ export default function VaccinationHistoryTab() {
               <p
                 style={{
                   margin: "0 0 6px",
-                  fontSize: "0.9rem",
+                  fontSize: "0.875rem",
                   color: "var(--color-text-body)",
                 }}
               >
@@ -335,7 +337,7 @@ export default function VaccinationHistoryTab() {
                 <p
                   style={{
                     margin: "0 0 6px",
-                    fontSize: "0.9rem",
+                    fontSize: "0.875rem",
                     color: "var(--color-text-body)",
                   }}
                 >
@@ -345,7 +347,7 @@ export default function VaccinationHistoryTab() {
               <p
                 style={{
                   margin: "0",
-                  fontSize: "0.85rem",
+                  fontSize: "0.875rem",
                   color: "var(--color-success)",
                   fontWeight: 700,
                 }}
@@ -377,23 +379,3 @@ export default function VaccinationHistoryTab() {
   );
 }
 
-const statBoxStyle = {
-  flex: "1 1 200px",
-  background: "var(--color-bg)",
-  border: "1px solid var(--color-border-light)",
-  borderRadius: "10px",
-  padding: "14px 18px",
-  display: "flex",
-  flexDirection: "column",
-  gap: "4px",
-};
-const statValueStyle = {
-  fontSize: "1.4rem",
-  fontWeight: 800,
-  color: "var(--color-text-title)",
-};
-const statLabelStyle = {
-  fontSize: "0.8rem",
-  color: "var(--color-text-muted)",
-  letterSpacing: "0.5px",
-};

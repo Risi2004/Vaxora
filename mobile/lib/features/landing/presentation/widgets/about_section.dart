@@ -8,9 +8,10 @@ class AboutSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: AppColors.surfaceSubtle,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 32),
+      color: Colors.white,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
       child: Container(
+        width: double.infinity,
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
           color: Colors.white,
@@ -27,24 +28,8 @@ class AboutSection extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Container(
-                  width: 4,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    color: AppColors.brandBlue,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                const Text(
-                  'About the Portal',
-                  style: AppTextStyles.h2,
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
+            const Text('About the Portal', style: AppTextStyles.h2),
+            const SizedBox(height: 14),
             const Text(
               'The Web-Based Vaccination Portal, crafted by SLIIT students, revolutionizes vaccination management in Sri Lanka. It provides secure, role-based access for patients, doctors, nurses, hospital administrators, and public health authorities. With features like online booking, record management, and real-time alerts, it ensures efficient coordination, data security, and timely healthcare delivery, supporting national immunization goals and enhancing accessibility for all citizens.',
               style: TextStyle(

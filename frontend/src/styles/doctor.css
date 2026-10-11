@@ -72,7 +72,7 @@
 
 .doctor-facility-name {
   font-family: var(--font-heading);
-  font-size: 0.95rem;
+  font-size: 0.9375rem;
   font-weight: 700;
   color: var(--color-primary-dark);
   line-height: 1.2;
@@ -93,7 +93,7 @@
   padding: 1px 6px;
   border-radius: 4px;
   font-weight: 600;
-  font-size: 0.7rem;
+  font-size: 0.75rem;
 }
 
 /* Center Pill Navigation matching Hospital & Patient */
@@ -115,7 +115,7 @@
   background: none;
   border: none;
   padding: 7px 18px;
-  font-size: 0.88rem;
+  font-size: 0.875rem;
   font-weight: 600;
   color: var(--color-primary-dark);
   cursor: pointer;
@@ -135,7 +135,7 @@
   border-radius: 999px;
   background: var(--color-warning);
   color: var(--color-text-inverse);
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   font-weight: 700;
   line-height: 1;
   vertical-align: middle;
@@ -202,7 +202,7 @@
   border: 1px solid var(--color-border-light);
   border-radius: 10px;
   padding: 10px 14px;
-  font-size: 0.92rem;
+  font-size: 0.9375rem;
   font-weight: 700;
   color: var(--color-text-title);
   text-align: left;
@@ -278,13 +278,13 @@
 }
 
 .doctor-dropdown-name {
-  font-size: 0.92rem;
+  font-size: 0.9375rem;
   font-weight: 800;
   color: var(--color-primary-dark);
 }
 
 .doctor-dropdown-meta {
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   color: var(--color-text-muted);
   margin-top: 2px;
 }
@@ -295,7 +295,7 @@
   border: 1px solid var(--color-border-card);
   border-radius: 8px;
   padding: 8px 14px;
-  font-size: 0.88rem;
+  font-size: 0.875rem;
   font-weight: 700;
   cursor: pointer;
   text-align: center;
@@ -318,7 +318,7 @@
   border: 1px solid var(--color-error-border);
   border-radius: 8px;
   padding: 8px 14px;
-  font-size: 0.88rem;
+  font-size: 0.875rem;
   font-weight: 700;
   cursor: pointer;
   text-align: center;
@@ -339,7 +339,7 @@
   border: 1px dashed var(--color-error-border);
   border-radius: 8px;
   padding: 8px 14px;
-  font-size: 0.86rem;
+  font-size: 0.875rem;
   font-weight: 700;
   cursor: pointer;
   text-align: center;
@@ -447,7 +447,7 @@
 }
 
 .doctor-hero-title {
-  font-size: 1.85rem;
+  font-size: 1.75rem;
   font-weight: 800;
   color: var(--color-text-inverse) !important;
   margin: 0 0 8px 0;
@@ -455,7 +455,7 @@
 }
 
 .doctor-hero-subtitle {
-  font-size: 0.98rem;
+  font-size: 1rem;
   color: rgba(255, 255, 255, 0.88);
   line-height: 1.5;
   margin: 0 0 16px 0;
@@ -472,7 +472,7 @@
   border: 1px solid var(--color-border-card);
   padding: 6px 14px;
   border-radius: 9999px;
-  font-size: 0.82rem;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: var(--color-text-title);
   margin-bottom: 16px;
@@ -490,7 +490,7 @@
   gap: 12px;
   cursor: pointer;
   font: inherit;
-  font-size: 0.82rem;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: inherit;
   transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
@@ -516,7 +516,7 @@
 
 .doctor-hero-session-pill-chevron {
   flex-shrink: 0;
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   line-height: 1;
   opacity: 0.7;
   transition: transform 0.15s ease;
@@ -555,7 +555,7 @@
   background: transparent;
   color: var(--color-text-title);
   font: inherit;
-  font-size: 0.84rem;
+  font-size: 0.8125rem;
   font-weight: 600;
   text-align: left;
   cursor: pointer;
@@ -567,7 +567,7 @@
 
 .doctor-hero-session-menu-item.is-selected {
   background: var(--color-info-bg);
-  color: var(--color-primary-hover);
+  color: var(--color-primary);
 }
 
 .doctor-hero-session-menu-name {
@@ -603,7 +603,7 @@
 }
 
 .doctor-btn-call-next {
-  font-size: 0.88rem;
+  font-size: 0.875rem;
   padding: 10px 16px;
   display: inline-flex;
   align-items: center;
@@ -643,7 +643,7 @@
 }
 
 .doctor-btn-report-aefi {
-  font-size: 0.88rem;
+  font-size: 0.875rem;
   padding: 10px 16px;
   display: inline-flex;
   align-items: center;
@@ -693,7 +693,7 @@
   color: var(--color-text-body);
   border: 1.5px solid var(--color-border-card);
   font-weight: 600;
-  font-size: 0.88rem;
+  font-size: 0.875rem;
   padding: 10px 16px;
   border-radius: 10px;
   display: inline-flex;
@@ -756,21 +756,21 @@
 }
 
 .doctor-stat-label {
-  font-size: 0.84rem;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: var(--color-text-muted);
   margin-bottom: 6px;
 }
 
 .doctor-stat-value {
-  font-size: 1.85rem;
+  font-size: 1.75rem;
   font-weight: 800;
   color: var(--color-text-title);
   line-height: 1.2;
 }
 
 .doctor-stat-meta {
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   color: var(--color-text-placeholder);
   margin-top: 6px;
   display: flex;
@@ -785,7 +785,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.4rem;
+  font-size: 1.5rem;
   flex-shrink: 0;
 }
 
@@ -838,7 +838,7 @@
   gap: 8px;
   background-color: var(--color-info-bg);
   color: var(--color-primary);
-  font-size: 0.8rem;
+  font-size: 0.8125rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -857,7 +857,7 @@
 }
 
 .doctor-spotlight-token {
-  font-size: 1.45rem;
+  font-size: 1.5rem;
   font-weight: 800;
   color: var(--color-text-title);
 }
@@ -882,7 +882,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.8rem;
+  font-size: 1.75rem;
   border: 1px solid var(--color-border-light);
   flex-shrink: 0;
   overflow: hidden;
@@ -902,14 +902,14 @@
 }
 
 .doctor-patient-name {
-  font-size: 1.15rem;
+  font-size: 1.125rem;
   font-weight: 700;
   color: var(--color-text-title);
   margin-bottom: 4px;
 }
 
 .doctor-patient-meta-text {
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   color: var(--color-text-muted);
   line-height: 1.4;
 }
@@ -930,14 +930,14 @@
 }
 
 .doctor-vital-label {
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 600;
   color: var(--color-text-muted);
   text-transform: uppercase;
 }
 
 .doctor-vital-value {
-  font-size: 0.95rem;
+  font-size: 0.9375rem;
   font-weight: 700;
   color: var(--color-text-title);
 }
@@ -953,7 +953,7 @@
 }
 
 .doctor-vaccine-assign-title {
-  font-size: 0.8rem;
+  font-size: 0.8125rem;
   font-weight: 700;
   color: var(--color-success);
   text-transform: uppercase;
@@ -961,13 +961,13 @@
 }
 
 .doctor-vaccine-name {
-  font-size: 1.05rem;
+  font-size: 1rem;
   font-weight: 800;
   color: var(--color-success);
 }
 
 .doctor-vaccine-lot {
-  font-size: 0.82rem;
+  font-size: 0.8125rem;
   color: var(--color-success);
   margin-top: 2px;
 }
@@ -982,7 +982,7 @@
   align-items: center;
   justify-content: space-between;
   margin-bottom: 20px;
-  font-size: 0.88rem;
+  font-size: 0.875rem;
 }
 
 .doctor-checklist-items {
@@ -996,7 +996,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 0.82rem;
+  font-size: 0.8125rem;
   color: var(--color-text-title);
   font-weight: 500;
 }
@@ -1007,7 +1007,7 @@
 }
 
 .doctor-checklist-heading {
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   font-weight: 700;
   color: var(--color-text-body);
   text-transform: uppercase;
@@ -1035,7 +1035,7 @@
 }
 
 .doctor-obs-item-state {
-  font-size: 0.74rem;
+  font-size: 0.75rem;
   font-weight: 600;
   color: var(--color-text-muted);
   margin-top: 2px;
@@ -1046,7 +1046,7 @@
 }
 
 .doctor-row-note {
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   font-weight: 600;
   color: var(--color-success);
 }
@@ -1063,7 +1063,7 @@
   border-radius: 12px;
   padding: 12px 16px;
   margin-bottom: 18px;
-  font-size: 0.88rem;
+  font-size: 0.875rem;
   font-weight: 500;
 }
 
@@ -1074,7 +1074,7 @@
   color: var(--color-error);
   border-radius: 8px;
   padding: 6px 14px;
-  font-size: 0.82rem;
+  font-size: 0.8125rem;
   font-weight: 600;
   cursor: pointer;
   transition: background-color 0.15s ease;
@@ -1095,7 +1095,7 @@
   background: var(--color-info-bg);
   color: var(--color-primary);
   border: 1px solid var(--color-info-border);
-  font-size: 0.95rem;
+  font-size: 0.9375rem;
   font-weight: 700;
   padding: 12px 24px;
   border-radius: 12px;
@@ -1119,7 +1119,7 @@
   background-color: var(--color-warning-bg);
   color: var(--color-warning);
   border: 1.5px solid var(--color-warning-border);
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   font-weight: 700;
   padding: 11px 18px;
   border-radius: 12px;
@@ -1138,7 +1138,7 @@
   background-color: var(--color-surface);
   color: var(--color-text-muted);
   border: 1.5px solid var(--color-border-card);
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   font-weight: 600;
   padding: 11px 16px;
   border-radius: 12px;
@@ -1193,7 +1193,7 @@
 }
 
 .doctor-queue-card .section-title-group h2 {
-  font-size: 1.15rem;
+  font-size: 1.125rem;
   color: var(--color-text-title);
 }
 
@@ -1243,7 +1243,7 @@
   padding: 10px 14px 10px 38px;
   border-radius: 10px;
   border: 1.5px solid var(--color-border-light);
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   background-color: var(--color-bg);
   outline: none;
   transition: border-color 0.2s ease;
@@ -1260,7 +1260,7 @@
   top: 50%;
   transform: translateY(-50%);
   color: var(--color-text-placeholder);
-  font-size: 0.95rem;
+  font-size: 0.9375rem;
 }
 
 /* Patient Queue Table — reuse hospital-queue-table classes from hospital.css */
@@ -1309,7 +1309,7 @@
   width: 100%;
   border-collapse: collapse;
   text-align: left;
-  font-size: 0.9rem;
+  font-size: 0.875rem;
 }
 
 .doctor-table th {
@@ -1336,7 +1336,7 @@
 }
 
 .doctor-token-pill {
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   font-weight: 800;
   color: var(--color-primary);
   background-color: var(--color-info-bg);
@@ -1363,7 +1363,7 @@
 }
 
 .doctor-patient-sub {
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   color: var(--color-text-muted);
 }
 
@@ -1374,7 +1374,7 @@
 }
 
 .doctor-dose-sub {
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   color: var(--color-primary);
 }
 
@@ -1407,7 +1407,7 @@
   white-space: nowrap;
   padding: 4px 12px;
   border-radius: 9999px;
-  font-size: 0.76rem;
+  font-size: 0.75rem;
   font-weight: 700;
   line-height: 1.2;
 }
@@ -1426,7 +1426,7 @@
 
 .status-consulting {
   background-color: var(--color-info-bg);
-  color: var(--color-primary-hover);
+  color: var(--color-primary);
   border: 1px solid var(--color-info-border);
 }
 
@@ -1451,9 +1451,9 @@
 .doctor-table-btn {
   border: none;
   background-color: var(--color-info-bg);
-  color: var(--color-primary-hover);
+  color: var(--color-primary);
   font-weight: 700;
-  font-size: 0.8rem;
+  font-size: 0.8125rem;
   padding: 6px 12px;
   border-radius: 8px;
   cursor: pointer;
@@ -1491,7 +1491,7 @@
 }
 
 .doctor-obs-title {
-  font-size: 1.05rem;
+  font-size: 1rem;
   font-weight: 700;
   color: var(--color-text-title);
   display: flex;
@@ -1513,7 +1513,7 @@
   text-align: center;
   padding: 24px 12px;
   color: var(--color-text-muted);
-  font-size: 0.88rem;
+  font-size: 0.875rem;
   background: var(--color-warning-bg);
   border: 1px dashed var(--color-warning-border);
   border-radius: 12px;
@@ -1548,12 +1548,12 @@
 
 .doctor-obs-item-name {
   font-weight: 700;
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   color: var(--color-text-title);
 }
 
 .doctor-obs-item-meta {
-  font-size: 0.76rem;
+  font-size: 0.75rem;
   color: var(--color-text-muted);
   margin-top: 2px;
 }
@@ -1569,7 +1569,7 @@
   background-color: var(--color-warning-bg);
   color: var(--color-warning);
   font-weight: 700;
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   padding: 3px 8px;
   border-radius: 6px;
   border: 1px solid var(--color-warning-border);
@@ -1579,7 +1579,7 @@
   border: none;
   background: transparent;
   color: var(--color-warning);
-  font-size: 0.76rem;
+  font-size: 0.75rem;
   font-weight: 700;
   cursor: pointer;
   padding: 2px 6px;
@@ -1623,7 +1623,7 @@
 }
 
 .doctor-coldbox-title {
-  font-size: 1.05rem;
+  font-size: 1rem;
   font-weight: 700;
   color: var(--color-text-title);
   display: flex;
@@ -1633,8 +1633,8 @@
 
 .doctor-coldbox-temp {
   background-color: var(--color-info-bg);
-  color: var(--color-primary-hover);
-  font-size: 0.78rem;
+  color: var(--color-primary);
+  font-size: 0.75rem;
   font-weight: 700;
   padding: 2px 8px;
   border-radius: 6px;
@@ -1661,13 +1661,13 @@
 }
 
 .doctor-coldbox-name {
-  font-size: 0.88rem;
+  font-size: 0.875rem;
   font-weight: 600;
   color: var(--color-text-title);
 }
 
 .doctor-coldbox-lot {
-  font-size: 0.74rem;
+  font-size: 0.75rem;
   color: var(--color-text-muted);
 }
 
@@ -1676,13 +1676,13 @@
 }
 
 .doctor-coldbox-number {
-  font-size: 0.95rem;
+  font-size: 0.9375rem;
   font-weight: 800;
   color: var(--color-text-title);
 }
 
 .doctor-coldbox-unit {
-  font-size: 0.74rem;
+  font-size: 0.75rem;
   color: var(--color-text-muted);
   margin-left: 2px;
 }
@@ -1693,7 +1693,7 @@
   align-items: center;
   gap: 10px;
   margin-bottom: 14px;
-  font-size: 1.05rem;
+  font-size: 1rem;
   font-weight: 800;
   color: var(--color-text-title);
 }
@@ -1729,14 +1729,14 @@
 }
 
 .staff-appt-summary-day {
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   font-weight: 700;
   color: var(--color-text-title);
 }
 
 .staff-appt-summary-value {
   margin-left: auto;
-  font-size: 0.84rem;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: var(--color-text-body);
   white-space: nowrap;
@@ -1776,7 +1776,7 @@
   padding-top: 8px;
   padding-bottom: 8px;
   background: var(--color-surface-subtle);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -1784,7 +1784,7 @@
 }
 
 .staff-appt-time {
-  font-size: 0.84rem;
+  font-size: 0.8125rem;
   font-weight: 700;
   color: var(--color-text-title);
   white-space: nowrap;
@@ -1805,25 +1805,25 @@
 }
 
 .staff-appt-name {
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   font-weight: 700;
   color: var(--color-text-title);
 }
 
 .staff-appt-vaccine {
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   color: var(--color-text-muted);
 }
 
 .staff-appt-booth {
-  font-size: 0.82rem;
+  font-size: 0.8125rem;
   color: var(--color-text-body);
 }
 
 .staff-appt-status {
   justify-self: start;
   padding: 3px 8px;
-  font-size: 0.74rem;
+  font-size: 0.75rem;
   font-weight: 700;
   white-space: nowrap;
   color: var(--tone);
@@ -1869,7 +1869,7 @@
   }
 
   .staff-appt-booth {
-    font-size: 0.76rem;
+    font-size: 0.75rem;
     color: var(--color-text-muted);
   }
 }
@@ -1915,7 +1915,7 @@
 }
 
 .doctor-modal-title {
-  font-size: 1.2rem;
+  font-size: 1.25rem;
   font-weight: 700;
   color: var(--color-text-inverse);
   margin: 0;
@@ -1925,7 +1925,7 @@
   background: transparent;
   border: none;
   color: rgba(255, 255, 255, 0.8);
-  font-size: 1.4rem;
+  font-size: 1.5rem;
   cursor: pointer;
   padding: 0;
   display: flex;
@@ -1958,7 +1958,7 @@
 }
 
 .doctor-form-label {
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   font-weight: 700;
   color: var(--color-text-body);
 }
@@ -1971,7 +1971,7 @@
   border-radius: 10px;
   border: 1.5px solid var(--color-border-card);
   background-color: var(--color-bg);
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   font-family: inherit;
   outline: none;
   transition: border-color 0.2s ease;
@@ -2044,7 +2044,7 @@
   align-items: center;
   gap: 10px;
   font-weight: 600;
-  font-size: 0.92rem;
+  font-size: 0.9375rem;
   z-index: 1000;
   animation: slideUpToast 0.2s ease-out;
 }
@@ -2186,7 +2186,7 @@
 
 .doctor-profile-info-title {
   font-family: var(--font-heading);
-  font-size: 1.45rem;
+  font-size: 1.5rem;
   font-weight: 700;
   color: var(--color-text-title);
   margin: 0;
@@ -2251,7 +2251,7 @@
 
 .doctor-profile-field-label {
   font-family: var(--font-heading);
-  font-size: 0.98rem;
+  font-size: 1rem;
   font-weight: 700;
   color: var(--color-text-title);
   letter-spacing: 0.02em;
@@ -2266,7 +2266,7 @@
 
 .doctor-profile-field-value {
   font-family: var(--font-body);
-  font-size: 0.98rem;
+  font-size: 1rem;
   color: var(--color-text-title);
   font-weight: 500;
 }
@@ -2277,7 +2277,7 @@
   border: 1.5px solid var(--color-primary);
   border-radius: 8px;
   font-family: var(--font-body);
-  font-size: 0.95rem;
+  font-size: 0.9375rem;
   color: var(--color-text-title);
   outline: none;
   background: var(--color-bg);
@@ -2297,7 +2297,7 @@
 
 .doctor-prof-details-title {
   font-family: var(--font-heading);
-  font-size: 1.55rem;
+  font-size: 1.5rem;
   font-weight: 700;
   color: var(--color-text-title);
   text-align: center;
@@ -2323,7 +2323,7 @@
 
 .doctor-prof-row {
   font-family: var(--font-body);
-  font-size: 1.05rem;
+  font-size: 1rem;
   color: var(--color-text-title);
   line-height: 1.6;
 }
@@ -2351,7 +2351,7 @@
 
 .doctor-prof-input-label {
   font-family: var(--font-heading);
-  font-size: 0.95rem;
+  font-size: 0.9375rem;
   font-weight: 700;
   color: var(--color-text-title);
 }
@@ -2362,7 +2362,7 @@
   border: 1.5px solid var(--color-primary);
   border-radius: 8px;
   font-family: var(--font-body);
-  font-size: 0.95rem;
+  font-size: 0.9375rem;
   color: var(--color-text-title);
   background: var(--color-bg);
 }
@@ -2392,7 +2392,7 @@
 .patient-history-lead {
   margin: 0 0 16px;
   text-align: center;
-  font-size: 0.95rem;
+  font-size: 0.9375rem;
   line-height: 1.45;
   color: var(--color-text-muted);
 }
@@ -2410,7 +2410,7 @@
   border: 1.8px solid var(--color-text-title);
   padding: 0 48px 0 24px;
   font-family: var(--font-body);
-  font-size: 1.05rem;
+  font-size: 1rem;
   color: var(--color-text-title);
   outline: none;
   background: var(--color-surface);
@@ -2487,12 +2487,12 @@
   font-family: var(--font-heading);
   font-weight: 700;
   color: var(--color-text-title);
-  font-size: 0.95rem;
+  font-size: 0.9375rem;
 }
 
 .patient-dropdown-id {
   font-family: monospace;
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   font-weight: 600;
   color: var(--color-primary);
   background: var(--color-info-bg);
@@ -2515,7 +2515,7 @@
 
 .patient-recent-title {
   font-family: var(--font-heading);
-  font-size: 0.95rem;
+  font-size: 0.9375rem;
   color: var(--color-text-body);
   font-weight: 600;
   font-style: normal;
@@ -2525,7 +2525,7 @@
 
 .patient-recent-see-more {
   font-family: var(--font-body);
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   color: var(--color-text-muted);
   text-decoration: none;
   cursor: pointer;
@@ -2581,7 +2581,7 @@
 
 .patient-recent-name {
   font-family: var(--font-heading);
-  font-size: 1.05rem;
+  font-size: 1rem;
   font-weight: 700;
   color: var(--color-text-title);
   line-height: 1.3;
@@ -2590,7 +2590,7 @@
 }
 
 .patient-recent-meta {
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   color: var(--color-text-muted);
   line-height: 1.35;
   white-space: nowrap;
@@ -2601,14 +2601,14 @@
 .patient-recent-empty {
   padding: 16px 2px;
   border-bottom: 1.5px solid var(--color-border-light);
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   color: var(--color-text-placeholder);
   line-height: 1.45;
 }
 
 .patient-recent-id {
   font-family: var(--font-heading);
-  font-size: 1.12rem;
+  font-size: 1.125rem;
   font-weight: 700;
   color: var(--color-text-title);
   letter-spacing: 0.02em;
@@ -2617,7 +2617,7 @@
 
 .patient-recent-time {
   font-family: var(--font-body);
-  font-size: 0.98rem;
+  font-size: 1rem;
   color: var(--color-text-body);
   font-style: normal;
 }
@@ -2644,7 +2644,7 @@
   color: var(--color-text-inverse);
   border: none;
   border-radius: 6px;
-  font-size: 1.1rem;
+  font-size: 1.125rem;
   font-weight: 800;
   cursor: pointer;
   display: flex;
@@ -2738,7 +2738,7 @@
 
 .patient-info-heading {
   font-family: var(--font-heading);
-  font-size: 1.45rem;
+  font-size: 1.5rem;
   font-weight: 700;
   color: var(--color-text-title);
   margin: 0 0 16px;
@@ -2755,13 +2755,13 @@
   grid-template-columns: 140px 20px 1fr;
   align-items: center;
   font-family: var(--font-body);
-  font-size: 0.95rem;
+  font-size: 0.9375rem;
 }
 
 @media (max-width: 480px) {
   .patient-info-row {
     grid-template-columns: 110px 16px 1fr;
-    font-size: 0.88rem;
+    font-size: 0.875rem;
   }
 }
 
@@ -2786,7 +2786,7 @@
 /* Section Headings */
 .patient-section-heading {
   font-family: var(--font-heading);
-  font-size: 1.35rem;
+  font-size: 1.25rem;
   font-weight: 700;
   color: var(--color-text-title);
   margin: 24px 0 12px;
@@ -2874,7 +2874,7 @@
   border: 1.5px solid var(--color-primary);
   border-radius: 4px;
   font-family: inherit;
-  font-size: 0.95rem;
+  font-size: 0.9375rem;
   font-weight: 700;
   text-align: center;
   color: var(--color-text-title);
@@ -2905,7 +2905,7 @@
 
 .doctor-manage-title {
   font-family: var(--font-heading);
-  font-size: 2.2rem;
+  font-size: 2.25rem;
   font-weight: 700;
   color: var(--color-text-title);
   text-align: center;
@@ -2924,7 +2924,7 @@
 
 .doctor-inner-facility-name {
   font-family: var(--font-heading);
-  font-size: 1.45rem;
+  font-size: 1.5rem;
   font-weight: 700;
   color: var(--color-text-title);
   text-align: center;
@@ -2953,7 +2953,7 @@
 
 .doctor-filter-label {
   font-family: var(--font-heading);
-  font-size: 0.95rem;
+  font-size: 0.9375rem;
   font-weight: 700;
   color: var(--color-text-title);
   display: flex;
@@ -2965,7 +2965,7 @@
   padding: 7px 12px;
   border-radius: 8px;
   border: 1.5px solid var(--color-border-card);
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   font-family: inherit;
   color: var(--color-text-title);
   background: var(--color-surface);
@@ -3039,7 +3039,7 @@
   background-color: var(--color-surface-subtle);
   color: var(--color-text-title);
   font-family: var(--font-body);
-  font-size: 1.05rem;
+  font-size: 1rem;
   font-weight: 600;
   padding: 14px 16px;
   border-right: 3px solid var(--color-surface);
@@ -3098,7 +3098,7 @@
 
   .doctor-nav-btn {
     padding: 5px 12px;
-    font-size: 0.82rem;
+    font-size: 0.8125rem;
     white-space: nowrap;
     flex-shrink: 0;
   }
@@ -3132,7 +3132,7 @@
   }
 
   .doctor-manage-title {
-    font-size: 1.6rem;
+    font-size: 1.5rem;
     margin-bottom: 18px;
   }
 
@@ -3165,7 +3165,7 @@
   }
 
   .doctor-appointments-mockup-table tbody tr td {
-    font-size: 0.88rem;
+    font-size: 0.875rem;
     padding: 10px 8px;
   }
 
@@ -3209,7 +3209,7 @@
   }
 
   .stat-card-value {
-    font-size: 1.35rem;
+    font-size: 1.25rem;
   }
 
   .patient-search-card-wrapper {
@@ -3218,13 +3218,13 @@
 
   .patient-info-row {
     grid-template-columns: 110px 14px 1fr;
-    font-size: 0.84rem;
+    font-size: 0.8125rem;
   }
 
   .btn-administer-trigger,
   .btn-aefi-trigger {
     padding: 6px 10px;
-    font-size: 0.78rem;
+    font-size: 0.75rem;
   }
 }
 
@@ -3233,8 +3233,8 @@
   border: 1px solid var(--color-error-border);
   background-color: var(--color-surface);
   color: var(--color-error);
-  font-weight: 650;
-  font-size: 0.8rem;
+  font-weight: 600;
+  font-size: 0.8125rem;
   padding: 7px 14px;
   border-radius: 8px;
   cursor: pointer;
@@ -3255,9 +3255,9 @@
 .staff-affil-accept-btn {
   border: 1px solid var(--color-info-border);
   background-color: var(--color-surface);
-  color: var(--color-primary-hover);
-  font-weight: 650;
-  font-size: 0.8rem;
+  color: var(--color-primary);
+  font-weight: 600;
+  font-size: 0.8125rem;
   padding: 7px 14px;
   border-radius: 8px;
   cursor: pointer;
@@ -3294,7 +3294,7 @@
   border: 1px solid var(--color-border-card);
   background: var(--color-bg);
   color: var(--color-text-muted);
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   font-weight: 700;
 }
 
@@ -3320,7 +3320,7 @@
   justify-content: center;
   background: var(--color-info-bg);
   color: var(--color-primary);
-  font-size: 0.8rem;
+  font-size: 0.8125rem;
   font-weight: 700;
   border-color: var(--color-info-border);
 }
@@ -3370,7 +3370,7 @@
   background: rgba(255, 255, 255, 0.92);
   border: 1px solid var(--color-border-card);
   color: var(--color-text-title);
-  font-size: 0.8rem;
+  font-size: 0.8125rem;
   font-weight: 600;
 }
 
@@ -3417,7 +3417,7 @@
 
 .staff-cover-hint {
   margin: 6px 0 0;
-  font-size: 0.88rem;
+  font-size: 0.875rem;
   color: var(--color-text-muted);
   line-height: 1.45;
 }
@@ -3433,7 +3433,7 @@
   background: var(--btn-secondary-bg);
   color: var(--btn-secondary-text);
   font-family: var(--btn-font);
-  font-size: 0.84rem;
+  font-size: 0.8125rem;
   font-weight: 600;
   border-radius: var(--btn-radius);
   padding: 7px 14px;
@@ -3491,7 +3491,7 @@
 }
 
 .staff-shift-week-weekday {
-  font-size: 0.88rem;
+  font-size: 0.875rem;
   font-weight: 800;
   color: var(--color-text-title);
 }
@@ -3499,12 +3499,12 @@
 .staff-shift-week-date {
   display: block;
   margin-top: 2px;
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   color: var(--color-text-body);
 }
 
 .staff-shift-week-today-pill {
-  font-size: 0.62rem;
+  font-size: 0.75rem;
   font-weight: 700;
   line-height: 16px;
   padding: 0 6px;
@@ -3570,7 +3570,7 @@
 }
 
 .staff-shift-card-time {
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   font-weight: 800;
   color: var(--color-text-title);
 }
@@ -3585,13 +3585,13 @@
 }
 
 .staff-shift-card-booth {
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   font-weight: 600;
   color: var(--color-text-body);
 }
 
 .staff-shift-card-line {
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   color: var(--color-text-muted);
 }
 
@@ -3615,7 +3615,7 @@
   padding-top: 7px;
   width: 100%;
   border-top: 1px dashed var(--color-border-card);
-  font-size: 0.74rem;
+  font-size: 0.75rem;
   font-weight: 700;
   color: var(--color-primary);
 }
@@ -3635,7 +3635,7 @@
   padding: 2px 8px;
   border-radius: 999px;
   border: 1px solid transparent;
-  font-size: 0.66rem;
+  font-size: 0.75rem;
   font-weight: 700;
   white-space: nowrap;
 }
@@ -3715,7 +3715,7 @@
   background: transparent;
   padding: 5px 12px;
   font-family: var(--btn-font);
-  font-size: 0.8rem;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: var(--color-text-muted);
   cursor: pointer;
@@ -3736,7 +3736,7 @@
   min-width: 18px;
   padding: 0 5px;
   border-radius: 999px;
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   text-align: center;
   background: var(--color-border-light);
   color: var(--color-text-body);
@@ -3753,7 +3753,7 @@
   background: var(--color-surface);
   padding: 6px 12px;
   font-family: var(--btn-font);
-  font-size: 0.8rem;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: var(--color-text-body);
   max-width: 100%;
@@ -3807,7 +3807,7 @@
   gap: 8px;
   margin: 0;
   font-family: var(--font-heading);
-  font-size: 0.98rem;
+  font-size: 1rem;
   font-weight: 700;
   color: var(--color-text-title);
 }
@@ -3828,7 +3828,7 @@
   padding: 1px 8px;
   border-radius: 999px;
   text-align: center;
-  font-size: 0.76rem;
+  font-size: 0.75rem;
   font-weight: 700;
   color: var(--lane);
   background: var(--lane-bg);
@@ -3842,7 +3842,7 @@
   display: flex;
   align-items: center;
   padding: 10px 4px;
-  font-size: 0.86rem;
+  font-size: 0.875rem;
   color: var(--color-text-muted);
 }
 
@@ -3867,7 +3867,7 @@
   align-items: center;
   gap: 8px;
   margin-top: 4px;
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -3914,7 +3914,7 @@
 
 .staff-cover-date-wd,
 .staff-cover-date-mon {
-  font-size: 0.66rem;
+  font-size: 0.75rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -3922,7 +3922,7 @@
 
 .staff-cover-date-day {
   font-family: var(--font-heading);
-  font-size: 1.2rem;
+  font-size: 1.25rem;
   font-weight: 700;
 }
 
@@ -3939,19 +3939,19 @@
 }
 
 .staff-cover-item-when {
-  font-size: 0.92rem;
+  font-size: 0.9375rem;
   font-weight: 700;
   color: var(--color-text-title);
 }
 
 .staff-cover-item-where {
-  font-size: 0.8rem;
+  font-size: 0.8125rem;
   color: var(--color-text-body);
   overflow-wrap: anywhere;
 }
 
 .staff-cover-item-note {
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   color: var(--color-text-muted);
   overflow-wrap: anywhere;
 }
@@ -3959,13 +3959,6 @@
 .staff-cover-item .staff-shift-chip {
   margin-top: 0;
   align-self: flex-start;
-}
-
-/* Approved follows the lane accent; pending, declined and cancelled keep their status colours */
-.staff-cover-item .staff-shift-chip.is-green {
-  color: var(--lane);
-  background: var(--lane-bg);
-  border-color: var(--lane-border);
 }
 
 .staff-cover-more {
@@ -3977,7 +3970,7 @@
   border-radius: 10px;
   background: transparent;
   font-family: var(--btn-font);
-  font-size: 0.82rem;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: var(--color-primary);
   cursor: pointer;
@@ -4000,7 +3993,7 @@
 
 .staff-cover-quota {
   margin: 0 0 12px;
-  font-size: 0.84rem;
+  font-size: 0.8125rem;
   color: var(--color-text-body);
 }
 
@@ -4017,7 +4010,7 @@
   display: grid;
   gap: 4px;
   color: var(--color-text-body);
-  font-size: 0.88rem;
+  font-size: 0.875rem;
 }
 
 .staff-cover-blocked {
@@ -4027,14 +4020,14 @@
   background: var(--color-error-bg);
   border: 1px solid var(--color-error-border);
   color: var(--color-error);
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   font-weight: 600;
   line-height: 1.45;
 }
 
 .staff-cover-hint-inline {
   margin: 8px 0 0;
-  font-size: 0.82rem;
+  font-size: 0.8125rem;
   font-weight: 500;
   color: var(--color-text-muted);
   line-height: 1.4;
@@ -4043,7 +4036,7 @@
 .staff-cover-loading {
   margin: 0 0 14px;
   color: var(--color-text-muted);
-  font-size: 0.88rem;
+  font-size: 0.875rem;
   font-weight: 600;
 }
 
@@ -4078,7 +4071,7 @@
 
 .ph-page-title {
   margin: 0;
-  font-size: 1.35rem;
+  font-size: 1.25rem;
   font-weight: 700;
   color: var(--color-text-title);
   display: flex;
@@ -4094,7 +4087,7 @@
   margin-bottom: 16px;
   padding: 12px 16px;
   border-radius: 10px;
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   font-weight: 600;
 }
 
@@ -4129,7 +4122,7 @@
 .ph-search-label {
   display: block;
   margin-bottom: 8px;
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -4157,7 +4150,7 @@
   border: 1px solid var(--color-border-card);
   border-radius: 10px;
   background: var(--color-surface);
-  font-size: 0.95rem;
+  font-size: 0.9375rem;
   color: var(--color-text-title);
   outline: none;
 }
@@ -4228,7 +4221,7 @@
 .ph-search-option-meta,
 .ph-search-empty,
 .ph-muted {
-  font-size: 0.82rem;
+  font-size: 0.8125rem;
   color: var(--color-text-muted);
 }
 
@@ -4260,7 +4253,7 @@
 
 .ph-card-title {
   margin: 0;
-  font-size: 1.05rem;
+  font-size: 1rem;
   font-weight: 700;
   color: var(--color-text-title);
   display: inline-flex;
@@ -4275,7 +4268,7 @@
   border-radius: 999px;
   background: var(--color-info-bg);
   color: var(--color-primary);
-  font-size: 0.8rem;
+  font-size: 0.8125rem;
   font-weight: 700;
   display: inline-flex;
   align-items: center;
@@ -4344,7 +4337,7 @@
 }
 
 .ph-recent-meta {
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   color: var(--color-text-muted);
   white-space: nowrap;
   overflow: hidden;
@@ -4352,7 +4345,7 @@
 }
 
 .ph-recent-time {
-  font-size: 0.8rem;
+  font-size: 0.8125rem;
   color: var(--color-text-muted);
   flex-shrink: 0;
 }
@@ -4370,7 +4363,7 @@
   background: var(--color-surface);
   color: var(--color-text-body);
   font-weight: 600;
-  font-size: 0.86rem;
+  font-size: 0.875rem;
   padding: 8px 12px;
   border-radius: 10px;
   cursor: pointer;
@@ -4415,7 +4408,7 @@
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
-  font-size: 0.84rem;
+  font-size: 0.8125rem;
   color: var(--color-text-muted);
 }
 
@@ -4438,7 +4431,7 @@
 }
 
 .ph-info-label {
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -4446,7 +4439,7 @@
 }
 
 .ph-info-value {
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   font-weight: 600;
   color: var(--color-text-title);
   word-break: break-word;
@@ -4499,7 +4492,7 @@
 .ph-dosage-save,
 .ph-dosage-cancel {
   border-radius: 8px;
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   font-weight: 700;
   padding: 4px 10px;
   cursor: pointer;
@@ -4553,7 +4546,7 @@
 
 .ph-appointments-section-label {
   font-family: var(--font-heading);
-  font-size: 1.15rem;
+  font-size: 1.125rem;
   font-weight: 700;
   color: var(--color-text-title);
   margin: 8px 0 14px;
@@ -4585,7 +4578,7 @@
   color: var(--color-text-body);
   border-radius: 999px;
   padding: 6px 12px;
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   font-weight: 700;
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
@@ -4597,8 +4590,8 @@
 }
 
 .ph-record-filter-btn.is-active {
-  background: var(--color-primary-dark);
-  border-color: var(--color-text-title);
+  background: var(--pill-active-bg);
+  border-color: var(--pill-active-bg);
   color: var(--color-text-inverse);
 }
 
@@ -4645,13 +4638,13 @@
 
 .ph-appointments-search-option strong {
   color: var(--color-text-title);
-  font-size: 0.95rem;
+  font-size: 0.9375rem;
 }
 
 .ph-appointments-search-option span,
 .ph-appointments-search-empty {
   color: var(--color-text-muted);
-  font-size: 0.82rem;
+  font-size: 0.8125rem;
 }
 
 .ph-appointments-search-empty {
@@ -4742,7 +4735,7 @@
 
 .ph-status-pill.is-confirmed {
   background: var(--color-info-bg);
-  color: var(--color-primary-hover);
+  color: var(--color-primary);
   border-color: var(--color-info-border);
 }
 
@@ -4826,7 +4819,7 @@
 .staff-subpage-hero .hospital-hero-sub {
   margin: 0;
   color: var(--color-text-muted);
-  font-size: 0.92rem;
+  font-size: 0.9375rem;
 }
 
 .staff-workspace-page h1,
@@ -4898,7 +4891,7 @@
   color: var(--color-text-body);
   border-color: var(--color-border-light);
   font-family: var(--font-body);
-  font-size: 0.86rem;
+  font-size: 0.875rem;
 }
 
 .staff-workspace-page .doctor-appointments-mockup-table tbody tr:hover td {

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Navbar,
   HeroSection,
+  ShowcaseSection,
   AboutSection,
   StatsSection,
   FeaturesSection,
@@ -79,6 +80,8 @@ export default function LandingPage() {
       '.section-head',
       '.about-title',
       '.about-description',
+      '.showcase-copy',
+      '.showcase-media',
       '.stat-card',
       '.feature-card',
       '.role-card',
@@ -135,13 +138,16 @@ export default function LandingPage() {
 
       <main>
         {/* 2. Hero Section */}
-        <HeroSection />
+        <HeroSection onSeeHow={() => scrollToSection('how-it-works')} />
 
-        {/* 3. About the Portal */}
+        {/* 3. Portal Statistics & Impact Badges */}
+        <StatsSection />
+
+        {/* 4. About the Portal */}
         <AboutSection />
 
-        {/* 4. Portal Statistics & Impact Badges */}
-        <StatsSection />
+        {/* 4b. Photo rows: clinic day, privacy, records */}
+        <ShowcaseSection />
 
         {/* 5. Feature Highlights */}
         <FeaturesSection />

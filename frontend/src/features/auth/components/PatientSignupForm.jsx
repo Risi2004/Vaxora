@@ -88,7 +88,7 @@ export default function PatientSignupForm({ onSuccess }) {
           color: 'var(--color-error)', 
           padding: '10px 14px', 
           borderRadius: '8px', 
-          fontSize: '0.85rem', 
+          fontSize: '0.875rem', 
           fontWeight: 600,
           border: '1px solid rgba(var(--rgb-error), 0.2)' 
         }}>
@@ -153,7 +153,7 @@ export default function PatientSignupForm({ onSuccess }) {
 
       {/* Date of Birth Field */}
       <div className="auth-input-group">
-        <label htmlFor="signup-dateOfBirth" className="auth-label" style={{ fontSize: '0.82rem', color: 'var(--color-text-body)', fontWeight: 600, marginBottom: '4px', display: 'block' }}>
+        <label htmlFor="signup-dateOfBirth" className="auth-label" style={{ fontSize: '0.8125rem', color: 'var(--color-text-body)', fontWeight: 600, marginBottom: '4px', display: 'block' }}>
           Date of Birth *
         </label>
         <input

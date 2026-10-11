@@ -288,7 +288,7 @@ export default function AdminAuditLogsTab() {
           <button
             type="button"
             className="doctor-hero-session-pill"
-            style={{ cursor: 'pointer', background: '#0369a1', color: '#ffffff', border: '1px solid #38bdf8', fontWeight: 700 }}
+            style={{ cursor: 'pointer', background: '#0077b6', color: '#ffffff', border: '1px solid #00b4d8', fontWeight: 700 }}
             onClick={handleExportCsv}
           >
             📥 Export Audit Report (.CSV)
@@ -299,25 +299,25 @@ export default function AdminAuditLogsTab() {
       {/* KPI Metrics Ribbon */}
       <div className="doctor-stats-grid" style={{ marginBottom: '28px' }}>
         <div className="doctor-stat-card">
-          <div className="doctor-stat-icon-wrapper" style={{ background: 'rgba(2, 132, 199, 0.15)', color: '#38bdf8' }}>
+          <div className="doctor-stat-icon-wrapper" style={{ background: 'rgba(0, 119, 182, 0.15)', color: '#00b4d8' }}>
             <IconClipboard size={22} />
           </div>
           <div className="doctor-stat-content">
             <span className="doctor-stat-label">Total Logged Events</span>
             <div className="doctor-stat-value">{stats.total}</div>
-            <span className="doctor-stat-meta" style={{ color: '#38bdf8' }}>
+            <span className="doctor-stat-meta" style={{ color: '#00b4d8' }}>
               All administrative operations
             </span>
           </div>
         </div>
 
         <div className="doctor-stat-card">
-          <div className="doctor-stat-icon-wrapper" style={{ background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8' }}>
+          <div className="doctor-stat-icon-wrapper" style={{ background: 'rgba(0, 180, 216, 0.15)', color: '#00b4d8' }}>
             🔐
           </div>
           <div className="doctor-stat-content">
             <span className="doctor-stat-label">Security &amp; Auth</span>
-            <div className="doctor-stat-value" style={{ color: '#38bdf8' }}>{stats.security}</div>
+            <div className="doctor-stat-value" style={{ color: '#00b4d8' }}>{stats.security}</div>
             <span className="doctor-stat-meta" style={{ color: '#94a3b8' }}>
               Logins / Password resets
             </span>
@@ -454,7 +454,7 @@ export default function AdminAuditLogsTab() {
                   <tr key={log.id}>
                     {/* Log ID */}
                     <td>
-                      <span className="admin-id-pill" style={{ color: '#38bdf8' }}>
+                      <span className="admin-id-pill" style={{ color: '#00b4d8' }}>
                         {log.id}
                       </span>
                     </td>
@@ -469,7 +469,7 @@ export default function AdminAuditLogsTab() {
                       <div style={{ fontWeight: 700, color: '#ffffff', fontSize: '0.88rem' }}>
                         {log.actor}
                       </div>
-                      <div style={{ fontSize: '0.74rem', color: '#38bdf8', marginTop: '2px' }}>
+                      <div style={{ fontSize: '0.74rem', color: '#00b4d8', marginTop: '2px' }}>
                         {log.actorRole}
                       </div>
                     </td>
@@ -487,7 +487,7 @@ export default function AdminAuditLogsTab() {
                         {log.description}
                       </div>
                       <div style={{ fontSize: '0.76rem', color: '#94a3b8' }}>
-                        Action: <span style={{ color: '#38bdf8', fontWeight: 600 }}>{log.action}</span>
+                        Action: <span style={{ color: '#00b4d8', fontWeight: 600 }}>{log.action}</span>
                       </div>
                     </td>
 
@@ -501,7 +501,7 @@ export default function AdminAuditLogsTab() {
                       <button
                         type="button"
                         className="doctor-table-btn"
-                        style={{ background: '#0369a1', color: '#ffffff', borderColor: '#38bdf8' }}
+                        style={{ background: '#0077b6', color: '#ffffff', borderColor: '#00b4d8' }}
                         onClick={() => setSelectedLog(log)}
                         title="View Full Audit Payload"
                       >
@@ -520,7 +520,7 @@ export default function AdminAuditLogsTab() {
       {selectedLog && (
         <div className="doctor-modal-overlay" onClick={() => setSelectedLog(null)}>
           <div className="doctor-modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '640px' }}>
-            <div className="doctor-modal-header" style={{ background: 'linear-gradient(135deg, #0369a1 0%, #0369a1 100%)' }}>
+            <div className="doctor-modal-header" style={{ background: '#0077b6' }}>
               <div>
                 <h3 className="doctor-modal-title">Audit Record: {selectedLog.id}</h3>
                 <p style={{ margin: '4px 0 0 0', fontSize: '0.82rem', color: 'rgba(255,255,255,0.85)' }}>
@@ -536,7 +536,7 @@ export default function AdminAuditLogsTab() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '0.88rem' }}>
                 <div className="admin-detail-item">
                   <span className="admin-detail-label">Event Action</span>
-                  <span className="admin-detail-val" style={{ color: '#38bdf8', fontWeight: 700 }}>{selectedLog.action}</span>
+                  <span className="admin-detail-val" style={{ color: '#00b4d8', fontWeight: 700 }}>{selectedLog.action}</span>
                 </div>
                 <div className="admin-detail-item">
                   <span className="admin-detail-label">Actor / Account</span>

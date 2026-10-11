@@ -262,7 +262,7 @@ export default function AdminApprovalsTab() {
                                 height: '40px',
                                 borderRadius: req.type === 'hospital' ? '8px' : '50%',
                                 objectFit: 'cover',
-                                border: '1.5px solid rgba(56, 189, 248, 0.45)',
+                                border: '1.5px solid rgba(0, 180, 216, 0.45)',
                                 boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
                                 cursor: 'pointer',
                               }}
@@ -320,7 +320,7 @@ export default function AdminApprovalsTab() {
                       )}
                     </td>
                     <td style={{ whiteSpace: 'nowrap' }}>
-                      <span className="admin-id-pill" style={{ color: '#38bdf8', borderColor: 'rgba(56, 189, 248, 0.3)', fontSize: '0.78rem' }}>
+                      <span className="admin-id-pill" style={{ color: '#00b4d8', borderColor: 'rgba(0, 180, 216, 0.3)', fontSize: '0.78rem' }}>
                         {req.licenseId}
                       </span>
                     </td>
@@ -454,7 +454,7 @@ export default function AdminApprovalsTab() {
       {isInspectModalOpen && selectedRequest && (
         <div className="doctor-modal-overlay" onClick={() => setIsInspectModalOpen(false)}>
           <div className="doctor-modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '680px' }}>
-            <div className="doctor-modal-header" style={{ background: 'linear-gradient(135deg, #0369a1 0%, #0369a1 100%)' }}>
+            <div className="doctor-modal-header" style={{ background: '#0077b6' }}>
               <div>
                 <h3 className="doctor-modal-title">Verification Review: {selectedRequest.name}</h3>
                 <p style={{ margin: '4px 0 0 0', fontSize: '0.82rem', color: 'rgba(255,255,255,0.85)' }}>
@@ -474,7 +474,7 @@ export default function AdminApprovalsTab() {
                 </div>
                 <div className="admin-detail-item">
                   <span className="admin-detail-label">Role Type</span>
-                  <span className="admin-detail-val" style={{ textTransform: 'capitalize', fontWeight: 700, color: '#38bdf8' }}>
+                  <span className="admin-detail-val" style={{ textTransform: 'capitalize', fontWeight: 700, color: '#00b4d8' }}>
                     {selectedRequest.type}
                   </span>
                 </div>
@@ -486,7 +486,7 @@ export default function AdminApprovalsTab() {
                 </div>
                 <div className="admin-detail-item">
                   <span className="admin-detail-label">Licensing Code (SLMC / SLNC / MOH)</span>
-                  <span className="admin-detail-val" style={{ fontWeight: 800, color: '#38bdf8' }}>{selectedRequest.licenseId}</span>
+                  <span className="admin-detail-val" style={{ fontWeight: 800, color: '#00b4d8' }}>{selectedRequest.licenseId}</span>
                 </div>
                 <div className="admin-detail-item">
                   <span className="admin-detail-label">Email Address</span>
@@ -503,7 +503,7 @@ export default function AdminApprovalsTab() {
               </div>
 
               {/* Uploaded Documents Box */}
-              <div style={{ marginTop: '16px', padding: '16px', background: '#0b1120', border: '1px solid rgba(56, 189, 248, 0.2)', borderRadius: '12px' }}>
+              <div style={{ marginTop: '16px', padding: '16px', background: '#0b1120', border: '1px solid rgba(0, 180, 216, 0.2)', borderRadius: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div>
                     <span style={{ fontSize: '0.78rem', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
@@ -518,7 +518,7 @@ export default function AdminApprovalsTab() {
                       href={selectedRequest.primaryDocUrl}
                       target="_blank"
                       rel="noreferrer"
-                      style={{ background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', border: '1px solid rgba(56, 189, 248, 0.3)', fontWeight: 700, fontSize: '0.78rem', padding: '6px 12px', borderRadius: '6px', textDecoration: 'none' }}
+                      style={{ background: 'rgba(0, 180, 216, 0.15)', color: '#00b4d8', border: '1px solid rgba(0, 180, 216, 0.3)', fontWeight: 700, fontSize: '0.78rem', padding: '6px 12px', borderRadius: '6px', textDecoration: 'none' }}
                     >
                       View Document ↗
                     </a>
@@ -535,7 +535,7 @@ export default function AdminApprovalsTab() {
                       href={selectedRequest.supportingDocUrl}
                       target="_blank"
                       rel="noreferrer"
-                      style={{ color: '#38bdf8', fontSize: '0.82rem', textDecoration: 'underline' }}
+                      style={{ color: '#00b4d8', fontSize: '0.82rem', textDecoration: 'underline' }}
                     >
                       View Supporting File ↗
                     </a>

@@ -8,6 +8,7 @@ class StaffAppointmentModel {
   final String? patientEmail;
   final String hospitalUserId;
   final String hospitalName;
+  final String? vaccineScheduleId;
   final String vaccineName;
   final String? doctorName;
   final String? nurseName;
@@ -40,6 +41,7 @@ class StaffAppointmentModel {
     this.patientEmail,
     required this.hospitalUserId,
     required this.hospitalName,
+    this.vaccineScheduleId,
     required this.vaccineName,
     this.doctorName,
     this.nurseName,
@@ -122,6 +124,7 @@ class StaffAppointmentModel {
       patientEmail: json['patientEmail']?.toString(),
       hospitalUserId: json['hospitalUserId']?.toString() ?? '',
       hospitalName: json['hospitalName']?.toString() ?? 'Hospital',
+      vaccineScheduleId: json['vaccineScheduleId']?.toString(),
       vaccineName: json['vaccineName']?.toString() ?? 'Vaccine',
       doctorName: json['doctorName']?.toString(),
       nurseName: json['nurseName']?.toString(),

@@ -241,7 +241,7 @@ export default function NurseProfileTab() {
                 </h2>
                 <span
                   style={{
-                    fontSize: '0.8rem',
+                    fontSize: '0.8125rem',
                     fontWeight: 700,
                     color: personalInfo.verificationStatus === 'Approved' || personalInfo.verificationStatus === '1' ? 'var(--color-success)' : 'var(--color-warning)',
                   }}
@@ -454,12 +454,12 @@ export default function NurseProfileTab() {
                       target="_blank"
                       rel="noopener noreferrer"
                       className="admin-action-btn view"
-                      style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem' }}
+                      style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.875rem' }}
                     >
                       <IconFile size={14} /> View SLNC Certificate
                     </a>
                   ) : (
-                    <span style={{ color: 'var(--color-text-placeholder)', fontSize: '0.85rem' }}>SLNC Document Uploaded on File</span>
+                    <span style={{ color: 'var(--color-text-placeholder)', fontSize: '0.875rem' }}>SLNC Document Uploaded on File</span>
                   )}
 
                   {personalInfo.supportingDocKey && (
@@ -468,7 +468,7 @@ export default function NurseProfileTab() {
                       target="_blank"
                       rel="noopener noreferrer"
                       className="admin-action-btn view"
-                      style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem' }}
+                      style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.875rem' }}
                     >
                       <IconFile size={14} /> View Supporting Credentials
                     </a>
@@ -481,7 +481,7 @@ export default function NurseProfileTab() {
 
         {/* Danger Zone Card */}
         <div
-          className="danger-zone-card doctor-profile-card"
+          className="danger-zone-card"
         >
           <div className="danger-zone-row"
           >

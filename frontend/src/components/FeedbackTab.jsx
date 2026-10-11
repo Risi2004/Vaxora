@@ -38,7 +38,7 @@ const statusColor = (status) => {
 
 const renderStars = (rating) => {
   return (
-    <span style={{ color: "var(--color-rating)", fontSize: "0.9rem", letterSpacing: 1 }}>
+    <span style={{ color: "var(--color-rating)", fontSize: "0.875rem", letterSpacing: 1 }}>
       {"★".repeat(rating)}
       <span style={{ color: "var(--color-border-card)" }}>{"★".repeat(5 - rating)}</span>
     </span>
@@ -267,7 +267,7 @@ export default function FeedbackTab() {
                       borderRadius: 8,
                       padding: "10px 14px",
                       marginBottom: 12,
-                      fontSize: "0.85rem",
+                      fontSize: "0.875rem",
                     }}
                   >
                     ⚠ {error}
@@ -427,7 +427,7 @@ export default function FeedbackTab() {
                             background: "rgba(var(--rgb-success), 0.08)",
                             borderLeft: "3px solid var(--color-success-border)",
                             borderRadius: 4,
-                            fontSize: "0.78rem",
+                            fontSize: "0.75rem",
                             color: "var(--color-success)",
                           }}
                         >
@@ -441,7 +441,7 @@ export default function FeedbackTab() {
                         style={{
                           color: statusColor(fb.status),
                           fontWeight: 600,
-                          fontSize: "0.85rem",
+                          fontSize: "0.875rem",
                         }}
                       >
                         ● {statusLabel(fb.status)}
@@ -449,14 +449,14 @@ export default function FeedbackTab() {
                     </td>
                     <td style={{ textAlign: "right", borderRight: "none" }}>
                       {fb.status?.toLowerCase() === "resolved" ? (
-                        <span style={{ fontSize: "0.78rem", color: "var(--color-text-placeholder)" }}>
+                        <span style={{ fontSize: "0.75rem", color: "var(--color-text-placeholder)" }}>
                           Locked
                         </span>
                       ) : (
                         <button
                           type="button"
                           className="btn-profile-edit"
-                          style={{ padding: "6px 14px", fontSize: "0.8rem" }}
+                          style={{ padding: "6px 14px", fontSize: "0.8125rem" }}
                           onClick={() => handleOpenEdit(fb)}
                         >
                           Edit
@@ -487,7 +487,7 @@ export default function FeedbackTab() {
             <div className="modal-header-row">
               <h3
                 style={{
-                  fontSize: "1.15rem",
+                  fontSize: "1.125rem",
                   fontWeight: 800,
                   color: "var(--color-text-title)",
                   margin: 0,
@@ -543,7 +543,7 @@ export default function FeedbackTab() {
                 <div
                   style={{
                     color: "var(--color-error)",
-                    fontSize: "0.85rem",
+                    fontSize: "0.875rem",
                     marginBottom: 10,
                   }}
                 >

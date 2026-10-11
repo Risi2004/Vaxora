@@ -120,7 +120,7 @@ export default function AddMedicalHistoryModal({
             <p
               style={{
                 margin: '4px 0 0 0',
-                fontSize: '0.82rem',
+                fontSize: '0.8125rem',
                 color: 'rgba(255,255,255,0.85)',
               }}
             >
@@ -161,7 +161,7 @@ export default function AddMedicalHistoryModal({
                   style={{
                     fontWeight: 800,
                     color: 'var(--color-text-title)',
-                    fontSize: '1.05rem',
+                    fontSize: '1rem',
                     marginLeft: '10px',
                   }}
                 >
@@ -169,7 +169,7 @@ export default function AddMedicalHistoryModal({
                 </span>
                 <div
                   style={{
-                    fontSize: '0.8rem',
+                    fontSize: '0.8125rem',
                     color: 'var(--color-text-muted)',
                     marginTop: '3px',
                   }}
@@ -189,7 +189,7 @@ export default function AddMedicalHistoryModal({
                   borderRadius: '10px',
                   padding: '10px 14px',
                   marginBottom: '14px',
-                  fontSize: '0.85rem',
+                  fontSize: '0.875rem',
                 }}
               >
                 {error}

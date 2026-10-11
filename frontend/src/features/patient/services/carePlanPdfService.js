@@ -72,7 +72,7 @@ export function downloadCarePlanPdf(result, patientContext = {}) {
 
   // Running header drawer for subsequent pages
   const drawRunningHeader = () => {
-    doc.setFillColor(25, 70, 157); // Vaxora Brand Blue
+    doc.setFillColor(0, 119, 182); // Vaxora Brand Blue
     doc.rect(0, 0, pageWidth, 4, "F");
 
     doc.setFont("helvetica", "bold");
@@ -106,12 +106,12 @@ export function downloadCarePlanPdf(result, patientContext = {}) {
     doc.setFillColor(241, 245, 249);
     doc.roundedRect(marginLeft, currentY, contentWidth, 7, 1.5, 1.5, "F");
 
-    doc.setFillColor(25, 70, 157); // Blue accent tag
+    doc.setFillColor(0, 119, 182); // Blue accent tag
     doc.rect(marginLeft, currentY, 2.5, 7, "F");
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(8.5);
-    doc.setTextColor(30, 27, 75);
+    doc.setTextColor(3, 4, 94);
     doc.text(`${icon ? icon + " " : ""}${title.toUpperCase()}`, marginLeft + 5, currentY + 4.8);
 
     currentY += 10;
@@ -119,7 +119,7 @@ export function downloadCarePlanPdf(result, patientContext = {}) {
 
   // ---------------- PAGE 1 HEADER ----------------
   // Top Banner
-  doc.setFillColor(25, 70, 157); // #19469d
+  doc.setFillColor(0, 119, 182); // #0077b6
   doc.roundedRect(marginLeft, currentY, contentWidth, 24, 2, 2, "F");
 
   // Logo / Title
@@ -130,11 +130,11 @@ export function downloadCarePlanPdf(result, patientContext = {}) {
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8.5);
-  doc.setTextColor(219, 234, 254);
+  doc.setTextColor(202, 240, 248);
   doc.text("Personalized AI Care Plan & Immunization Advisory", marginLeft + 7, currentY + 14.5);
 
   doc.setFontSize(7);
-  doc.setTextColor(191, 219, 254);
+  doc.setTextColor(144, 224, 239);
   doc.text("Cryptographically Verified Clinical Decision Support", marginLeft + 7, currentY + 19);
 
   // Metadata block (right aligned inside banner)
@@ -145,7 +145,7 @@ export function downloadCarePlanPdf(result, patientContext = {}) {
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7.5);
-  doc.setTextColor(219, 234, 254);
+  doc.setTextColor(202, 240, 248);
   doc.text(`Issued: ${generatedDateStr}, ${generatedTimeStr}`, pageWidth - marginRight - 7, currentY + 14.5, {
     align: "right",
   });
@@ -164,12 +164,12 @@ export function downloadCarePlanPdf(result, patientContext = {}) {
   // Left column: Patient Name & Details
   doc.setFont("helvetica", "bold");
   doc.setFontSize(7.5);
-  doc.setTextColor(3, 105, 161); // #0369a1
+  doc.setTextColor(0, 119, 182); // #0077b6
   doc.text("PATIENT INFORMATION", marginLeft + 5, currentY + 5);
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10.5);
-  doc.setTextColor(15, 23, 42); // #0f172a
+  doc.setTextColor(3, 4, 94); // #03045e
   doc.text(patientName, marginLeft + 5, currentY + 10.5);
 
   doc.setFont("helvetica", "normal");
@@ -183,7 +183,7 @@ export function downloadCarePlanPdf(result, patientContext = {}) {
   doc.setTextColor(100, 116, 139);
   doc.text("Registration / Patient ID:", pageWidth - marginRight - 65, currentY + 6);
   doc.setFont("helvetica", "bold");
-  doc.setTextColor(15, 23, 42);
+  doc.setTextColor(3, 4, 94);
   doc.text(registrationNo, pageWidth - marginRight - 65, currentY + 10.5);
 
   doc.setFont("helvetica", "normal");
@@ -203,8 +203,8 @@ export function downloadCarePlanPdf(result, patientContext = {}) {
     const boxHeight = summaryLines.length * 4.2 + 8;
 
     checkSpace(boxHeight);
-    doc.setFillColor(240, 249, 255); // #f0f9ff
-    doc.setDrawColor(186, 230, 253); // #bae6fd
+    doc.setFillColor(238, 249, 252); // #eef9fc
+    doc.setDrawColor(202, 240, 248); // #caf0f8
     doc.setLineWidth(0.3);
     doc.roundedRect(marginLeft, currentY, contentWidth, boxHeight, 1.5, 1.5, "FD");
 
@@ -220,10 +220,10 @@ export function downloadCarePlanPdf(result, patientContext = {}) {
 
     plan.warnings.forEach((w) => {
       const severity = String(w.severity || "Info").toUpperCase();
-      let bgColor = [239, 246, 255]; // Info light blue
-      let borderColor = [59, 130, 246];
-      let textColor = [30, 64, 175];
-      let badgeBg = [191, 219, 254];
+      let bgColor = [238, 249, 252]; // Info light cyan
+      let borderColor = [0, 180, 216];
+      let textColor = [3, 4, 94];
+      let badgeBg = [202, 240, 248];
 
       if (severity === "CRITICAL") {
         bgColor = [254, 242, 242]; // Red
@@ -278,8 +278,8 @@ export function downloadCarePlanPdf(result, patientContext = {}) {
 
     plan.immediate_actions.forEach((a) => {
       const priority = String(a.priority || "Low").toUpperCase();
-      let priorityColor = [7, 89, 133];
-      let priorityBg = [224, 242, 254];
+      let priorityColor = [0, 119, 182];
+      let priorityBg = [202, 240, 248];
 
       if (priority === "HIGH") {
         priorityColor = [153, 27, 27];
@@ -318,7 +318,7 @@ export function downloadCarePlanPdf(result, patientContext = {}) {
       // Action Title
       doc.setFont("helvetica", "bold");
       doc.setFontSize(8.5);
-      doc.setTextColor(15, 23, 42);
+      doc.setTextColor(3, 4, 94);
       doc.text(actionLines, marginLeft + 25, currentY + 6.2);
 
       // Action Reason
@@ -355,25 +355,25 @@ export function downloadCarePlanPdf(result, patientContext = {}) {
 
       checkSpace(cardHeight + 2);
 
-      doc.setFillColor(239, 246, 255); // #eff6ff
-      doc.setDrawColor(191, 219, 254); // #bfdbfe
+      doc.setFillColor(232, 238, 248); // #e8eef8
+      doc.setDrawColor(144, 224, 239); // #90e0ef
       doc.setLineWidth(0.3);
       doc.roundedRect(marginLeft, currentY, contentWidth, cardHeight, 1.5, 1.5, "FD");
 
       // Left blue tag
-      doc.setFillColor(30, 58, 138); // #1e3a8a
+      doc.setFillColor(2, 62, 138); // #023e8a
       doc.rect(marginLeft, currentY, 2, cardHeight, "F");
 
       // Vaccine Name
       doc.setFont("helvetica", "bold");
       doc.setFontSize(8.5);
-      doc.setTextColor(30, 58, 138);
+      doc.setTextColor(2, 62, 138);
       doc.text(`💉 ${vaccineTitle}`, marginLeft + 5, currentY + 5.5);
 
       // Due badge
       doc.setFont("helvetica", "bold");
       doc.setFontSize(7.5);
-      doc.setTextColor(29, 78, 216);
+      doc.setTextColor(0, 119, 182);
       doc.text(dueDaysText, pageWidth - marginRight - 5, currentY + 5.5, { align: "right" });
 
       // Reason
@@ -401,7 +401,7 @@ export function downloadCarePlanPdf(result, patientContext = {}) {
       checkSpace(10);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(8);
-      doc.setTextColor(3, 105, 161);
+      doc.setTextColor(0, 119, 182);
       doc.text("CLINICAL SCREENINGS & TESTS", marginLeft + 2, currentY + 2);
       currentY += 5;
 
@@ -412,7 +412,7 @@ export function downloadCarePlanPdf(result, patientContext = {}) {
         const itemH = lines.length * 3.8 + 2;
         checkSpace(itemH);
 
-        doc.setFillColor(3, 105, 161);
+        doc.setFillColor(0, 119, 182);
         doc.circle(marginLeft + 4, currentY + 1.8, 1, "F");
         doc.setTextColor(51, 65, 85);
         doc.text(lines, marginLeft + 8, currentY + 2.5);

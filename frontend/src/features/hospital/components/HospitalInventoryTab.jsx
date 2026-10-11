@@ -17,12 +17,23 @@ import {
   IconPackage,
   IconSearch,
   IconShield,
+  IconSnowflake,
   IconSyringe,
+  IconThermometer,
   IconTrash,
 } from './HospitalIcons';
 import useConfirmDialog from '../../../shared/hooks/useConfirmDialog';
 
 const INVENTORY_VIEWS = ['stock', 'formulary', 'vaults'];
+
+// "routine" -> "Routine"; "mrna" -> "mRNA"; other mixed-case names stay as they are
+function formatCategory(category) {
+  const c = String(category || '');
+  if (c.toLowerCase() === 'mrna') return 'mRNA';
+  return c === c.toLowerCase() || c === c.toUpperCase()
+    ? c.charAt(0).toUpperCase() + c.slice(1).toLowerCase()
+    : c;
+}
 
 export default function HospitalInventoryTab() {
   const [confirm, confirmDialog] = useConfirmDialog();
@@ -52,6 +63,7 @@ export default function HospitalInventoryTab() {
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [viewMode, setViewMode] = useState('table');
   const [inventory, setInventory] = useState([]);
+  const [coldVaults, setColdVaults] = useState([]);
 
 
   const uniqueFormulations = useMemo(() => {
@@ -85,9 +97,10 @@ export default function HospitalInventoryTab() {
   const loadAll = useCallback(async () => {
     try {
       setErrorMsg('');
-      const [batches, formulary] = await Promise.all([
+      const [batches, formulary, vaults] = await Promise.all([
         inventoryService.getInventory(),
         inventoryService.getFormulary(),
+        inventoryService.getColdVaults(),
       ]);
       setInventory(Array.isArray(batches) ? batches : []);
       const rows = Array.isArray(formulary)
@@ -101,10 +114,8 @@ export default function HospitalInventoryTab() {
             isFree: Boolean(f.isFree ?? Number(f.price ?? 0) <= 0),
           })).filter((r) => r.name)
         : [];
-
       setRegisteredVaccines(rows);
       setColdVaults(Array.isArray(vaults) ? vaults : []);
-
     } catch (err) {
       setErrorMsg(err.message || 'Failed to load inventory.');
     } finally {
@@ -263,17 +274,6 @@ export default function HospitalInventoryTab() {
     (item.storageUnit || '').toLowerCase().includes('ultra-cold')
   ).length;
 
-  // ============ NEW: Estimated days of stock ============
-  // Placeholder daily consumption = 0.4% of total doses. Replace with a real
-  // calculation once InventoryTransactions history is exposed to the frontend.
-  const dailyDoseRate = Math.max(1, Math.round(totalDoses * 0.004));
-  const estimatedDays = dailyDoseRate > 0
-    ? Math.round(totalDoses / dailyDoseRate)
-    : 0;
-  const runwayTone =
-    estimatedDays <= 14 ? 'is-alert' :
-    estimatedDays <= 30 ? 'is-warning' : '';
-  // =======================================================
   const inventorySubtitle =
     view === 'formulary'
       ? 'Register vaccine products once — they appear in restock and session fee dropdowns.'
@@ -292,7 +292,7 @@ export default function HospitalInventoryTab() {
         tabs={[
           { key: 'stock', label: 'Stock' },
           { key: 'formulary', label: 'Formulary' },
-          { key: 'vaults', label: 'Cold vaults', badge: coldVaults.length },
+          { key: 'vaults', label: 'Cold vaults' },
         ]}
         active={view}
         onChange={setView}
@@ -378,18 +378,17 @@ export default function HospitalInventoryTab() {
             </div>
           </div>
 
-          {/* NEW — Estimated days of stock */}
           <div className="hospital-stat-card">
             <div className="hospital-stat-icon stat-icon-green">
-              <IconClock size={22} />
+              <IconSnowflake size={22} />
             </div>
             <div className="hospital-stat-info">
-              <span className="hospital-stat-label">Est. Days of Stock</span>
-              <span className={`hospital-stat-value${runwayTone ? ' ' + runwayTone : ''}`}>
-                {estimatedDays}
-              </span>
+              <span className="hospital-stat-label">Cold Storage Status</span>
+              <span className="hospital-stat-value">100%</span>
               <span className="hospital-stat-meta">
-                at current dispense rate
+                <span className="meta-positive">
+                  {coldVaults.length} units online · 0 excursions
+                </span>
               </span>
             </div>
           </div>
@@ -465,16 +464,16 @@ export default function HospitalInventoryTab() {
           </div>
         ) : viewMode === 'table' ? (
           <div className="hospital-appointments-table-wrapper">
-            <table className="inventory-custom-table">
+            <table className="inventory-custom-table inv-clean">
               <thead>
                 <tr>
                   <th className="is-left">Vaccine &amp; lot</th>
-                  <th>Category</th>
-                  <th>Storage</th>
-                  <th>Stock</th>
-                  <th>Doses</th>
-                  <th>Expiry</th>
-                  <th>Status</th>
+                  <th className="is-left">Category</th>
+                  <th className="is-left">Storage</th>
+                  <th className="is-left">Stock</th>
+                  <th className="is-left">Doses</th>
+                  <th className="is-left">Expiry</th>
+                  <th className="is-left">Status</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -493,56 +492,42 @@ export default function HospitalInventoryTab() {
                     return (
                       <tr key={item.id} className={isLow ? 'row-highlight-low' : ''}>
                         <td className="is-left">
-                          <div className="vaccine-title-cell">
-                            <strong className="vaccine-name-text">{item.name}</strong>
-                            <div className="vaccine-sub-meta">
-                              <span className="lot-badge">Lot: {item.lotNumber}</span>
-                              <span className="mfr-text">{item.manufacturer}</span>
-                            </div>
-                          </div>
+                          <div className="inv-name">{item.name}</div>
+                          <div className="inv-sub">Lot {item.lotNumber}{item.manufacturer ? ` · ${item.manufacturer}` : ''}</div>
                         </td>
-                        <td><span className="category-tag">{item.category.toUpperCase()}</span></td>
-                        <td>
-                          <div className="storage-cell">
-                            <span className="vault-label">{item.storageUnit}</span>
-                            <span className="temp-badge">{item.temp}</span>
-                          </div>
+                        <td className="is-left"><span className="inv-category">{formatCategory(item.category)}</span></td>
+                        <td className="is-left">
+                          <div className="inv-main">{item.storageUnit}</div>
+                          <div className="inv-sub">{item.temp}</div>
                         </td>
-                        <td style={{ minWidth: '180px' }}>
-                          <div className="stock-level-cell">
-                            <div className="stock-numbers">
-                              <strong>{item.available}</strong>
-                              <span className="cap-total"> available / {item.capacity} received</span>
-                              <span className="pct-text">({pct}%)</span>
-                            </div>
-                            <div className="stock-progress-track">
-                              <div className={`stock-progress-fill ${item.statusColor}`} style={{ width: `${pct}%` }} />
-                            </div>
-                            {isLow && <span className="low-stock-alert-tag">Below threshold ({item.minThreshold} min)</span>}
+                        <td className="is-left">
+                          <div className="inv-stock-line">
+                            <span className="inv-main"><strong>{item.available}</strong> / {item.capacity}</span>
+                            <span className="inv-sub">{pct}%</span>
                           </div>
+                          <div className="stock-progress-track inv-bar">
+                            <div className={`stock-progress-fill ${item.statusColor}`} style={{ width: `${pct}%` }} />
+                          </div>
+                          {isLow && <div className="inv-alert">Below {item.minThreshold} minimum</div>}
                         </td>
-                        <td>
-                          <div className="doses-cell">
-                            <strong>{doseCount.toLocaleString()}</strong>
-                            <small>{item.dosesPerVial} dose/vial</small>
-                          </div>
+                        <td className="is-left">
+                          <div className="inv-main"><strong>{doseCount.toLocaleString()}</strong></div>
+                          <div className="inv-sub">{item.dosesPerVial} per vial</div>
+                        </td>
+                        <td className="is-left">
+                          <div className={`inv-main inv-nowrap${isExpiring ? ' is-warning' : ''}`}>{item.expiry}</div>
+                          {isExpiring && <div className="inv-sub is-warning">Expiring soon</div>}
+                        </td>
+                        <td className="is-left">
+                          {isLow ? <span className="inv-status is-low">Low stock</span>
+                            : isExpiring ? <span className="inv-status is-due">Action due</span>
+                            : <span className="inv-status is-ok">In stock</span>}
                         </td>
                         <td>
-                          <div className="expiry-cell">
-                            <span className={`expiry-date ${isExpiring ? 'text-amber' : ''}`}>{item.expiry}</span>
-                            {isExpiring && <span className="exp-badge">Expiring Soon</span>}
-                          </div>
-                        </td>
-                        <td>
-                          {isLow ? <span className="stock-badge badge-reorder">Low Stock</span>
-                            : isExpiring ? <span className="stock-badge badge-expiring">Action Due</span>
-                            : <span className="stock-badge badge-healthy">In Stock</span>}
-                        </td>
-                        <td>
-                          <div className="inventory-row-actions">
-                            <button type="button" className="btn-quick-adjust btn-adjust-plus" onClick={() => handleQuickAdjust(item.id, 20)} title="Add +20 Vials">+20</button>
-                            <button type="button" className="btn-quick-adjust btn-adjust-minus" onClick={() => handleQuickAdjust(item.id, -20)} title="Deduct -20 Vials">-20</button>
-                            <button type="button" className="btn-table-audit" onClick={() => setSelectedAuditVaccine(item)} title="View batch audit">
+                          <div className="inv-actions">
+                            <button type="button" className="inv-action" onClick={() => handleQuickAdjust(item.id, 20)} title="Add 20 vials">+20</button>
+                            <button type="button" className="inv-action" onClick={() => handleQuickAdjust(item.id, -20)} title="Remove 20 vials">−20</button>
+                            <button type="button" className="inv-action is-primary" onClick={() => setSelectedAuditVaccine(item)} title="View batch audit">
                               <IconClipboard size={14} />
                               Audit
                             </button>

@@ -134,10 +134,10 @@ export default function AdminNavbar({ pendingApprovalsCount = 0 }) {
                   src={user.profilePhotoUrl}
                   alt={user.name || 'Admin'}
                   className="navbar-avatar-img"
-                  style={{ borderColor: '#0ea5e9' }}
+                  style={{ borderColor: '#00b4d8' }}
                 />
               ) : (
-                <div className="navbar-avatar-fallback" style={{ background: '#e0f2fe', color: '#0369a1', borderColor: '#0ea5e9' }}>
+                <div className="navbar-avatar-fallback" style={{ background: '#caf0f8', color: '#0077b6', borderColor: '#00b4d8' }}>
                   <IconShield size={20} />
                 </div>
               )}
@@ -148,7 +148,7 @@ export default function AdminNavbar({ pendingApprovalsCount = 0 }) {
                 <div className="doctor-dropdown-header">
                   <div className="doctor-dropdown-name">{user?.name || 'System Administrator'}</div>
                   <div className="doctor-dropdown-meta">National System Superadmin</div>
-                  <div className="doctor-dropdown-meta" style={{ color: '#0369a1', fontWeight: 600 }}>
+                  <div className="doctor-dropdown-meta" style={{ color: '#0077b6', fontWeight: 600 }}>
                     {user?.email || 'MOH IT Directorate'}
                   </div>
                 </div>

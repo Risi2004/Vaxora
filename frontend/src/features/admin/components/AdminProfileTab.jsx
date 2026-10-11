@@ -115,7 +115,7 @@ export default function AdminProfileTab() {
   const getStrengthLabel = (s) => {
     if (s <= 25) return { label: 'Weak', color: '#f87171' };
     if (s <= 50) return { label: 'Fair', color: '#fbbf24' };
-    if (s <= 75) return { label: 'Good', color: '#60a5fa' };
+    if (s <= 75) return { label: 'Good', color: '#90e0ef' };
     return { label: 'Strong', color: '#34d399' };
   };
 
@@ -161,7 +161,7 @@ export default function AdminProfileTab() {
         <div
           className="doctor-toast"
           style={{
-            borderColor: notificationType === 'error' ? '#ef4444' : '#0369a1',
+            borderColor: notificationType === 'error' ? '#ef4444' : '#0077b6',
             background: '#0c1b33',
           }}
         >
@@ -182,10 +182,10 @@ export default function AdminProfileTab() {
               xmlns="http://www.w3.org/2000/svg"
             >
               <circle cx="100" cy="100" r="100" fill="#0f172a" />
-              <circle cx="100" cy="80" r="38" fill="#0ea5e9" />
+              <circle cx="100" cy="80" r="38" fill="#00b4d8" />
               <path
                 d="M40 174C40 140.863 66.863 118 100 118C133.137 118 160 140.863 160 174"
-                fill="#0ea5e9"
+                fill="#00b4d8"
               />
             </svg>
           </div>
@@ -205,7 +205,7 @@ export default function AdminProfileTab() {
               <button
                 type="button"
                 className="doctor-btn-edit-pill"
-                style={{ background: '#0369a1', color: '#ffffff', borderColor: '#38bdf8' }}
+                style={{ background: '#0077b6', color: '#ffffff', borderColor: '#00b4d8' }}
                 disabled={loading || saving}
                 onClick={() => {
                   if (isEditing) handleSave();
@@ -220,7 +220,7 @@ export default function AdminProfileTab() {
               <div className="doctor-profile-field-row">
                 <span className="doctor-profile-field-label">VAXORA CODE</span>
                 <span className="doctor-profile-field-colon">:</span>
-                <span className="doctor-profile-field-value" style={{ color: '#38bdf8', fontWeight: 800, letterSpacing: '1px' }}>
+                <span className="doctor-profile-field-value" style={{ color: '#00b4d8', fontWeight: 800, letterSpacing: '1px' }}>
                   {personalInfo.registrationNumber || personalInfo.id}
                 </span>
               </div>
@@ -314,9 +314,9 @@ export default function AdminProfileTab() {
             className="doctor-hero-session-pill"
             style={{
               cursor: 'pointer',
-              background: '#0369a1',
+              background: '#0077b6',
               color: '#ffffff',
-              border: '1px solid #38bdf8',
+              border: '1px solid #00b4d8',
               fontWeight: 700,
               padding: '8px 18px',
               fontSize: '0.85rem',
@@ -376,7 +376,7 @@ export default function AdminProfileTab() {
               maxWidth: '520px',
               width: '92%',
               background: '#0a1020',
-              border: '1px solid rgba(56, 189, 248, 0.22)',
+              border: '1px solid rgba(0, 180, 216, 0.22)',
               boxShadow: '0 24px 70px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(255, 255, 255, 0.06)',
               borderRadius: '18px',
               overflow: 'hidden',
@@ -391,7 +391,7 @@ export default function AdminProfileTab() {
                 alignItems: 'flex-start',
                 padding: '24px 28px 18px',
                 borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-                background: 'linear-gradient(180deg, rgba(2, 132, 199, 0.12) 0%, rgba(10, 16, 32, 0) 100%)',
+                background: 'linear-gradient(180deg, rgba(0, 119, 182, 0.12) 0%, rgba(10, 16, 32, 0) 100%)',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
@@ -400,13 +400,13 @@ export default function AdminProfileTab() {
                     width: '42px',
                     height: '42px',
                     borderRadius: '12px',
-                    background: 'linear-gradient(135deg, rgba(2, 132, 199, 0.3) 0%, rgba(14, 165, 233, 0.15) 100%)',
-                    border: '1px solid rgba(56, 189, 248, 0.35)',
+                    background: 'linear-gradient(135deg, rgba(0, 119, 182, 0.3) 0%, rgba(0, 180, 216, 0.15) 100%)',
+                    border: '1px solid rgba(0, 180, 216, 0.35)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    color: '#38bdf8',
-                    boxShadow: '0 4px 12px rgba(2, 132, 199, 0.2)',
+                    color: '#00b4d8',
+                    boxShadow: '0 4px 12px rgba(0, 119, 182, 0.2)',
                   }}
                 >
                   <IconKey size={22} />
@@ -480,7 +480,7 @@ export default function AdminProfileTab() {
                 <div style={{ marginBottom: '18px' }}>
                   <label style={{ display: 'flex', justifyContent: 'space-between', color: '#e2e8f0', fontWeight: 600, fontSize: '0.86rem', marginBottom: '8px' }}>
                     <span>Last / Current Master Password</span>
-                    <span style={{ fontSize: '0.74rem', color: '#38bdf8' }}>Verified against DB</span>
+                    <span style={{ fontSize: '0.74rem', color: '#00b4d8' }}>Verified against DB</span>
                   </label>
                   <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                     <input
@@ -493,7 +493,7 @@ export default function AdminProfileTab() {
                         height: '46px',
                         padding: '0 46px 0 14px',
                         background: '#0d1527',
-                        border: '1px solid rgba(56, 189, 248, 0.22)',
+                        border: '1px solid rgba(0, 180, 216, 0.22)',
                         borderRadius: '10px',
                         color: '#ffffff',
                         fontSize: '0.92rem',
@@ -523,7 +523,7 @@ export default function AdminProfileTab() {
                         transition: 'all 0.15s ease',
                       }}
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.color = '#38bdf8';
+                        e.currentTarget.style.color = '#00b4d8';
                         e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)';
                       }}
                       onMouseLeave={(e) => {
@@ -553,7 +553,7 @@ export default function AdminProfileTab() {
                         height: '46px',
                         padding: '0 46px 0 14px',
                         background: '#0d1527',
-                        border: '1px solid rgba(56, 189, 248, 0.22)',
+                        border: '1px solid rgba(0, 180, 216, 0.22)',
                         borderRadius: '10px',
                         color: '#ffffff',
                         fontSize: '0.92rem',
@@ -583,7 +583,7 @@ export default function AdminProfileTab() {
                         transition: 'all 0.15s ease',
                       }}
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.color = '#38bdf8';
+                        e.currentTarget.style.color = '#00b4d8';
                         e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)';
                       }}
                       onMouseLeave={(e) => {
@@ -637,7 +637,7 @@ export default function AdminProfileTab() {
                         height: '46px',
                         padding: '0 46px 0 14px',
                         background: '#0d1527',
-                        border: '1px solid rgba(56, 189, 248, 0.22)',
+                        border: '1px solid rgba(0, 180, 216, 0.22)',
                         borderRadius: '10px',
                         color: '#ffffff',
                         fontSize: '0.92rem',
@@ -667,7 +667,7 @@ export default function AdminProfileTab() {
                         transition: 'all 0.15s ease',
                       }}
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.color = '#38bdf8';
+                        e.currentTarget.style.color = '#00b4d8';
                         e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)';
                       }}
                       onMouseLeave={(e) => {
@@ -684,12 +684,12 @@ export default function AdminProfileTab() {
                 <div
                   style={{
                     background: 'rgba(15, 23, 42, 0.75)',
-                    border: '1px solid rgba(56, 189, 248, 0.15)',
+                    border: '1px solid rgba(0, 180, 216, 0.15)',
                     borderRadius: '12px',
                     padding: '14px 16px',
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, fontSize: '0.8rem', color: '#38bdf8', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, fontSize: '0.8rem', color: '#00b4d8', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                     <IconShield size={14} /> Password Security Policy
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', fontSize: '0.78rem' }}>
@@ -755,14 +755,14 @@ export default function AdminProfileTab() {
                   style={{
                     padding: '10px 24px',
                     borderRadius: '10px',
-                    background: 'linear-gradient(135deg, #0369a1 0%, #0369a1 100%)',
-                    border: '1px solid #38bdf8',
+                    background: '#0077b6',
+                    border: '1px solid #00b4d8',
                     color: '#ffffff',
                     fontSize: '0.88rem',
                     fontWeight: 700,
                     cursor: changingPassword ? 'not-allowed' : 'pointer',
                     opacity: changingPassword ? 0.7 : 1,
-                    boxShadow: '0 4px 14px rgba(2, 132, 199, 0.35)',
+                    boxShadow: '0 4px 14px rgba(0, 119, 182, 0.35)',
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: '8px',
@@ -771,12 +771,12 @@ export default function AdminProfileTab() {
                   onMouseEnter={(e) => {
                     if (!changingPassword) {
                       e.currentTarget.style.transform = 'translateY(-1px)';
-                      e.currentTarget.style.boxShadow = '0 6px 18px rgba(2, 132, 199, 0.5)';
+                      e.currentTarget.style.boxShadow = '0 6px 18px rgba(0, 119, 182, 0.5)';
                     }
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.transform = 'none';
-                    e.currentTarget.style.boxShadow = '0 4px 14px rgba(2, 132, 199, 0.35)';
+                    e.currentTarget.style.boxShadow = '0 4px 14px rgba(0, 119, 182, 0.35)';
                   }}
                 >
                   {changingPassword ? 'Updating...' : 'Update Password'}

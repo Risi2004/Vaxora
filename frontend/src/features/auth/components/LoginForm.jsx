@@ -45,7 +45,7 @@ export default function LoginForm({ onSwitchToSignup, onForgotPassword, onSucces
           color: 'var(--color-error)', 
           padding: '10px 14px', 
           borderRadius: '8px', 
-          fontSize: '0.85rem', 
+          fontSize: '0.875rem', 
           fontWeight: 600,
           border: '1px solid rgba(var(--rgb-error), 0.2)' 
         }}>
@@ -59,7 +59,7 @@ export default function LoginForm({ onSwitchToSignup, onForgotPassword, onSucces
           color: 'var(--color-accent)', 
           padding: '10px 14px', 
           borderRadius: '8px', 
-          fontSize: '0.85rem', 
+          fontSize: '0.875rem', 
           fontWeight: 600,
           border: '1px solid rgba(var(--rgb-info), 0.2)' 
         }}>

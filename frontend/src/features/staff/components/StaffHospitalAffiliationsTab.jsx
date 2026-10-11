@@ -882,7 +882,7 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff', view
                         <div style={{ fontWeight: 700, color: 'var(--color-text-title)', lineHeight: 1.4 }}>
                           {item.hospitalName || 'Hospital invitation'}
                         </div>
-                        <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginTop: 8 }}>
+                        <div style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)', marginTop: 8 }}>
                           Invited: {item.invitedAt ? new Date(item.invitedAt).toLocaleString() : '—'}
                         </div>
                       </div>
@@ -933,7 +933,7 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff', view
                         <div style={{ fontWeight: 700, color: 'var(--color-text-title)', lineHeight: 1.4 }}>
                           {item.hospitalName || 'Hospital'}
                         </div>
-                        <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginTop: 8 }}>
+                        <div style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)', marginTop: 8 }}>
                           Joined: {item.respondedAt ? new Date(item.respondedAt).toLocaleDateString() : '—'}
                         </div>
                       </div>
@@ -963,7 +963,7 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff', view
             <div className="doctor-modal-header">
               <div>
                 <h3 className="doctor-modal-title">Request cover</h3>
-                <p style={{ margin: '4px 0 0', fontSize: '0.82rem', color: 'rgba(255,255,255,0.85)' }}>
+                <p style={{ margin: '4px 0 0', fontSize: '0.8125rem', color: 'rgba(255,255,255,0.85)' }}>
                   The hospital assigns a replacement for you.
                 </p>
               </div>

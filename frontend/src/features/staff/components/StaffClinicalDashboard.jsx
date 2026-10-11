@@ -915,7 +915,7 @@ export default function StaffClinicalDashboard({
                 {spotlightBadge}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span className="doctor-token-pill" style={{ fontSize: '1.05rem', padding: '4px 12px' }}>
+                <span className="doctor-token-pill" style={{ fontSize: '1rem', padding: '4px 12px' }}>
                   {activePatient.token}
                 </span>
                 <span className="doctor-spotlight-token">{activePatient.name}</span>
@@ -923,11 +923,11 @@ export default function StaffClinicalDashboard({
             </div>
 
             <div style={{ textAlign: 'right' }}>
-              <span style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)' }}>Scheduled Slot</span>
+              <span style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)' }}>Scheduled Slot</span>
               <div style={{ fontWeight: 700, color: 'var(--color-text-title)', fontSize: '1rem' }}>
                 {activePatient.time}
               </div>
-              <div style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', marginTop: 4 }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: 4 }}>
                 {activePatient.appointmentStatus || '—'}
               </div>
             </div>
@@ -1064,11 +1064,11 @@ export default function StaffClinicalDashboard({
             </button>
           </div>
           {activePatient.status !== 'consulting' ? (
-            <p className="doctor-off-duty-hint" style={{ marginTop: '10px', color: 'var(--color-text-muted)', fontSize: '0.85rem', fontWeight: 600 }}>
+            <p className="doctor-off-duty-hint" style={{ marginTop: '10px', color: 'var(--color-text-muted)', fontSize: '0.875rem', fontWeight: 600 }}>
               Spotlight actions apply only while this patient is in active consultation.
             </p>
           ) : !activePaymentSettled ? (
-            <p className="doctor-off-duty-hint" style={{ marginTop: '10px', color: 'var(--color-warning)', fontSize: '0.85rem', fontWeight: 600 }}>
+            <p className="doctor-off-duty-hint" style={{ marginTop: '10px', color: 'var(--color-warning)', fontSize: '0.875rem', fontWeight: 600 }}>
               Payment not settled — hospital desk must Mark paid at the counter before administration.
             </p>
           ) : null}

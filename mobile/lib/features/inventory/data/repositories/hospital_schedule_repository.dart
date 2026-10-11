@@ -49,6 +49,43 @@ class HospitalScheduleRepository {
     await ApiClient.post(ApiConstants.createSchedule, body: body);
   }
 
+  static Future<void> update({
+    required String scheduleId,
+    required String boothId,
+    required String vaccineName,
+    String? vaccineId,
+    required String scheduleType,
+    String? specificDate,
+    List<String> daysOfWeek = const [],
+    String? startDate,
+    String? endDate,
+    required String startTime,
+    required String endTime,
+    required double price,
+  }) async {
+    final body = <String, dynamic>{
+      'boothId': boothId,
+      'vaccineName': vaccineName,
+      if (vaccineId != null && vaccineId.isNotEmpty) 'vaccineId': vaccineId,
+      'scheduleType': scheduleType,
+      'startTime': startTime,
+      'endTime': endTime,
+      'price': price,
+    };
+    if (scheduleType.toLowerCase() == 'weekly') {
+      body['daysOfWeek'] = daysOfWeek;
+      body['startDate'] = startDate;
+      body['endDate'] = endDate;
+      body['specificDate'] = null;
+    } else {
+      body['specificDate'] = specificDate;
+      body['daysOfWeek'] = <String>[];
+      body['startDate'] = null;
+      body['endDate'] = null;
+    }
+    await ApiClient.put(ApiConstants.updateSchedule(scheduleId), body: body);
+  }
+
   static Future<void> cancel(String scheduleId) async {
     await ApiClient.delete(ApiConstants.cancelSchedule(scheduleId));
   }
