@@ -18,7 +18,6 @@ public interface IShiftSwapService
     Task<ShiftSwapRequestDto> RankWithAgentAsync(Guid hospitalUserId, Guid requestId, string? bearerToken);
     Task<ShiftSwapRequestDto> DecideAsync(Guid hospitalUserId, Guid requestId, ShiftSwapDecisionDto decision);
     Task<List<ShiftSwapRequestDto>> ListForStaffAsync(Guid staffUserId, int limit = 40);
-    Task TryRecordFromAgentAsync(Guid staffUserId, string? agentJson);
 }
 
 /// <summary>
@@ -268,60 +267,6 @@ public class ShiftSwapService : IShiftSwapService
 
         await _context.SaveChangesAsync();
         return await GetMappedAsync(row.Id);
-    }
-
-    public async Task TryRecordFromAgentAsync(Guid staffUserId, string? agentJson)
-    {
-        if (string.IsNullOrWhiteSpace(agentJson)) return;
-
-        try
-        {
-            using var document = JsonDocument.Parse(agentJson);
-            var root = document.RootElement;
-
-            if (!root.TryGetProperty("proposals", out var proposals) ||
-                proposals.ValueKind != JsonValueKind.Array)
-            {
-                return;
-            }
-
-            foreach (var proposal in proposals.EnumerateArray())
-            {
-                if (proposal.ValueKind != JsonValueKind.Object) continue;
-
-                var kind = proposal.TryGetProperty("kind", out var kindEl) && kindEl.ValueKind == JsonValueKind.String
-                    ? kindEl.GetString()
-                    : null;
-                if (!string.IsNullOrWhiteSpace(kind) &&
-                    !string.Equals(kind, "ShiftSwapRequest", StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
-
-                if (!proposal.TryGetProperty("shiftId", out var shiftEl)) continue;
-                var shiftRaw = shiftEl.ValueKind == JsonValueKind.String ? shiftEl.GetString() : shiftEl.ToString();
-                if (!Guid.TryParse(shiftRaw, out var shiftId) || shiftId == Guid.Empty) continue;
-
-                var snippet = proposal.TryGetProperty("conversationSnippet", out var snEl) && snEl.ValueKind == JsonValueKind.String
-                    ? snEl.GetString()
-                    : null;
-                var reason = proposal.TryGetProperty("reason", out var reasonEl) && reasonEl.ValueKind == JsonValueKind.String
-                    ? reasonEl.GetString()
-                    : null;
-
-                await CreateAsync(staffUserId, new CreateShiftSwapRequestDto
-                {
-                    ShiftId = shiftId,
-                    Reason = reason,
-                    ConversationSnippet = snippet
-                });
-                return;
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Could not persist shift-swap request from agent payload for {StaffUserId}", staffUserId);
-        }
     }
 
     private async Task<ShiftSwapRequestDto> GetMappedAsync(Guid id)
