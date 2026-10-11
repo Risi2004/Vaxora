@@ -19,7 +19,6 @@ function emptyForm() {
     quantity: '',
     expiryDate: '',
     storageUnit: '',
-    supplier: '',
   };
 }
 
@@ -97,7 +96,6 @@ export default function RestockVaccineModal({
         quantity: parseInt(formData.quantity, 10),
         storageUnit: formData.storageUnit,
         expiryDate: formData.expiryDate || undefined,
-        supplier: formData.supplier.trim(),
         ...(isCustomMode ? { category: formData.category || 'routine' } : {}),
       });
       setIsCustomMode(false);
@@ -298,20 +296,6 @@ export default function RestockVaccineModal({
                   <option value="Mobile Chiller C">Mobile Deployment Chiller C</option>
                 </select>
               </div>
-            </div>
-
-            <div className="modal-form-group">
-              <label className="modal-label">Authorized supplier / batch dispatch</label>
-              <input
-                type="text"
-                name="supplier"
-                value={formData.supplier}
-                onChange={handleChange}
-                placeholder="e.g. State Pharmaceuticals Corporation (SPC) / MOH"
-                className="modal-input"
-                disabled={submitting}
-                autoComplete="off"
-              />
             </div>
 
             {error && (

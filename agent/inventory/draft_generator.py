@@ -20,6 +20,10 @@ CATEGORY_UNIT_PRICES_LKR = {
 }
 
 
+# Matches the API's fallback for products with no supplier saved on the formulary
+DEFAULT_SUPPLIER = "State Pharmaceuticals Corporation"
+
+
 def _now():
     return datetime.now(timezone.utc)
 
@@ -53,7 +57,7 @@ def generate_purchase_order_draft(
             Each has: vaccine_id, vaccine_name, current_stock, recommended_quantity, reason, urgency
         hospital_name: buyer hospital display name
         hospital_registration: MOH registration number if available
-        formulary_pricing: vaccine_id -> {"supplier_cost", "category"} from the hospital formulary
+        formulary_pricing: vaccine_id -> {"supplier_cost", "category", "supplier_name"} from the hospital formulary
 
     Returns:
         Draft PO document, or None if no valid proposals.
@@ -83,6 +87,7 @@ def generate_purchase_order_draft(
             "vaccine_id": p.get("vaccine_id", ""),
             "vaccine_name": p.get("vaccine_name", "Unknown"),
             "category": category,
+            "supplier": priced.get("supplier_name") or DEFAULT_SUPPLIER,
             "quantity": qty,
             "unit_price_lkr": unit,
             "total_lkr": line_total,
@@ -91,6 +96,7 @@ def generate_purchase_order_draft(
             "justification": p.get("reason", "Agent-recommended reorder"),
         })
 
+    suppliers = list(dict.fromkeys(li["supplier"] for li in line_items))
     doc_number = _gen_doc_number("PO")
     delivery_days = 14
     delivery_date = _now().replace(microsecond=0)
@@ -113,7 +119,8 @@ def generate_purchase_order_draft(
             "name": hospital_name,
             "registration": hospital_registration or "MOH-PENDING",
         },
-        "supplier": "State Pharmaceuticals Corporation",
+        # Each supplier is emailed only its own lines when the order is approved
+        "supplier": suppliers[0] if len(suppliers) == 1 else f"{len(suppliers)} suppliers: {', '.join(suppliers)}",
         "order_date": _now().strftime("%Y-%m-%d"),
         "delivery_date": delivery_date,
         "delivery_lead_days": delivery_days,

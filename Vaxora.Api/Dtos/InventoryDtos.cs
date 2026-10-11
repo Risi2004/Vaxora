@@ -50,6 +50,9 @@ public class FormularyEntryDto
     public string FormattedPrice => Price <= 0 ? "Free" : $"LKR {Price:N2}";
     /// <summary>Supplier cost per vial in LKR (0 = not set).</summary>
     public decimal SupplierCost { get; set; }
+    public string? SupplierName { get; set; }
+    /// <summary>Where purchase orders for this vaccine are emailed.</summary>
+    public string? SupplierEmail { get; set; }
     public DateTime RegisteredAt { get; set; }
 }
 
@@ -146,6 +149,13 @@ public class RegisterFormularyDto
     /// <summary>Supplier cost per vial in LKR. Omit to leave an existing cost unchanged.</summary>
     [Range(0, 1000000)]
     public decimal? SupplierCost { get; set; }
+
+    /// <summary>Supplier contact. Omit to leave unchanged; send an empty string to clear.</summary>
+    [MaxLength(200)]
+    public string? SupplierName { get; set; }
+
+    [MaxLength(200)]
+    public string? SupplierEmail { get; set; }
 }
 
 public class UpdateFormularyPriceDto
@@ -156,6 +166,13 @@ public class UpdateFormularyPriceDto
     /// <summary>Supplier cost per vial in LKR. Omit to leave it unchanged.</summary>
     [Range(0, 1000000)]
     public decimal? SupplierCost { get; set; }
+
+    /// <summary>Supplier contact. Omit to leave unchanged; send an empty string to clear.</summary>
+    [MaxLength(200)]
+    public string? SupplierName { get; set; }
+
+    [MaxLength(200)]
+    public string? SupplierEmail { get; set; }
 
     /// <summary>Optional catalog category update: routine | mrna | seasonal | pediatric.</summary>
     [MaxLength(40)]

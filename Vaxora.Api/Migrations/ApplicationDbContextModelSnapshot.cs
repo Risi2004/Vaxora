@@ -639,6 +639,14 @@ namespace Vaxora.Api.Migrations
                     b.Property<decimal>("SupplierCost")
                         .HasColumnType("numeric");
 
+                    b.Property<string>("SupplierEmail")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("SupplierName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
                     b.Property<Guid>("VaccineId")
                         .HasColumnType("uuid");
 

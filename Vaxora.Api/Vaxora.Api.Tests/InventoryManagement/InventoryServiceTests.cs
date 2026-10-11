@@ -201,6 +201,72 @@ public class InventoryServiceTests
         Assert.Equal(900m, both.SupplierCost);
     }
 
+    // ==================== Formulary supplier contact ====================
+
+    [Fact]
+    public async Task RegisterFormulary_StoresSupplierContact_AndRejectsBadEmail()
+    {
+        await using var ctx = TestDb.CreateContext();
+        var (user, _) = AddHospital(ctx);
+        await ctx.SaveChangesAsync();
+        var service = CreateService(ctx);
+
+        var created = await service.RegisterFormularyAsync(user.Id, new RegisterFormularyDto
+        {
+            VaccineName = "BCG", SupplierName = " Serum Institute ", SupplierEmail = "orders@serum.example"
+        });
+        Assert.Equal("Serum Institute", created.SupplierName);
+        Assert.Equal("orders@serum.example", created.SupplierEmail);
+
+        // Fee-only update leaves the contact alone; an empty string clears it
+        var feeOnly = await service.UpdateFormularyPriceAsync(user.Id, created.Id, new UpdateFormularyPriceDto { Price = 10m });
+        Assert.Equal("orders@serum.example", feeOnly.SupplierEmail);
+        var cleared = await service.UpdateFormularyPriceAsync(user.Id, created.Id, new UpdateFormularyPriceDto { Price = 10m, SupplierEmail = "" });
+        Assert.Null(cleared.SupplierEmail);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.UpdateFormularyPriceAsync(user.Id, created.Id, new UpdateFormularyPriceDto { Price = 10m, SupplierEmail = "not-an-email" }));
+    }
+
+    [Fact]
+    public async Task ApprovingPurchaseOrder_EmailsEachLineToItsOwnSupplier()
+    {
+        await using var ctx = TestDb.CreateContext();
+        var (user, hospital) = AddHospital(ctx);
+        var withSupplier = AddVaccine(ctx);
+        var withoutSupplier = new Vaccine
+        {
+            Name = "MMR", Manufacturer = "GSK", Category = VaccineCategory.Routine,
+            DosesPerVial = 1, DefaultMinThreshold = 50, RequiredTemp = "2-8C"
+        };
+        ctx.Vaccines.Add(withoutSupplier);
+        ctx.HospitalFormularies.Add(new HospitalFormulary
+        {
+            HospitalProfileId = hospital.Id, VaccineId = withSupplier.Id,
+            SupplierName = "Pfizer Lanka", SupplierEmail = "orders@pfizer.example"
+        });
+        await ctx.SaveChangesAsync();
+        var email = new FakeEmailService();
+        var service = new InventoryService(ctx, NullLogger<InventoryService>.Instance, email);
+
+        var lineItems = System.Text.Json.JsonSerializer.SerializeToElement(new[]
+        {
+            new { vaccine_id = withSupplier.Id.ToString(), vaccine_name = "Pfizer", quantity = 100, unit_price_lkr = 100, total_lkr = 10000 },
+            new { vaccine_id = withoutSupplier.Id.ToString(), vaccine_name = "MMR", quantity = 50, unit_price_lkr = 100, total_lkr = 5000 }
+        });
+        await service.ExecuteAgentDraftAsync(user.Id, new ExecuteDraftDto
+        {
+            WorkflowId = "wf-1",
+            DraftType = "purchase_order",
+            Payload = new Dictionary<string, object> { ["po_number"] = "AI-PO-TEST-2", ["line_items"] = lineItems }
+        });
+
+        Assert.Equal(2, email.PurchaseOrdersSent.Count);
+        Assert.Contains(email.PurchaseOrdersSent, m => m.ToEmail == "orders@pfizer.example" && m.SupplierName == "Pfizer Lanka" && m.LineCount == 1);
+        // No supplier saved on the product: falls back to the default supplier
+        Assert.Contains(email.PurchaseOrdersSent, m => m.SupplierName == "State Pharmaceuticals Corporation" && m.LineCount == 1);
+    }
+
     // ==================== Purchase orders: on order, then received ====================
 
     private static ExecuteDraftDto PurchaseOrder(Guid vaccineId, int quantity, string poNumber = "AI-PO-TEST-1")

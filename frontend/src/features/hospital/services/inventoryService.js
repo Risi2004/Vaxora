@@ -54,7 +54,8 @@ export const inventoryService = {
     return await apiRequest('/inventory/formulary', { method: 'GET' });
   },
 
-  async registerFormulary(vaccineName, manufacturer = '', price = 0, category = 'routine', supplierCost = 0) {
+  // supplier = { name, email }: who purchase orders for this product are emailed to
+  async registerFormulary(vaccineName, manufacturer = '', price = 0, category = 'routine', supplierCost = 0, supplier = {}) {
     return await apiRequest('/inventory/formulary', {
       method: 'POST',
       body: JSON.stringify({
@@ -63,15 +64,21 @@ export const inventoryService = {
         price: Number(price) || 0,
         category: category || 'routine',
         supplierCost: Number(supplierCost) || 0,
+        supplierName: supplier.name ?? '',
+        supplierEmail: supplier.email ?? '',
       }),
     });
   },
 
-  // supplierCost is left unchanged on the server when it is not passed
-  async updateFormularyPrice(formularyId, price, category, supplierCost) {
+  // supplierCost and the supplier contact are left unchanged on the server when not passed
+  async updateFormularyPrice(formularyId, price, category, supplierCost, supplier) {
     const body = { price: Number(price) || 0 };
     if (category) body.category = category;
     if (supplierCost !== undefined && supplierCost !== null) body.supplierCost = Number(supplierCost) || 0;
+    if (supplier) {
+      body.supplierName = supplier.name ?? '';
+      body.supplierEmail = supplier.email ?? '';
+    }
     return await apiRequest(`/inventory/formulary/${formularyId}/price`, {
       method: 'PATCH',
       body: JSON.stringify(body),

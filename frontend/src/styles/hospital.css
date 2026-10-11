@@ -3674,11 +3674,22 @@ select.schedule-input-field {
   gap: 18px;
 }
 
+.formulary-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
 .formulary-input-row {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.9fr) minmax(120px, 0.55fr) minmax(110px, 0.5fr) minmax(110px, 0.5fr) auto;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.9fr) minmax(120px, 0.55fr) minmax(110px, 0.5fr) minmax(110px, 0.5fr);
   gap: 12px;
   align-items: end;
+}
+
+/* Second row: supplier contact, then the submit button */
+.formulary-input-row--supplier {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
 }
 
 .formulary-input-group--fee .formulary-text-input {

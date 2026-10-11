@@ -332,6 +332,7 @@ public class InventoryService : IInventoryService
             existing.Price = price;
             if (dto.SupplierCost.HasValue)
                 existing.SupplierCost = Math.Max(0.00m, dto.SupplierCost.Value);
+            ApplySupplierContact(existing, dto.SupplierName, dto.SupplierEmail);
             await SyncActiveSchedulePricesAsync(hospital.UserId, hospital.Id, vaccine.Id, price);
             await _context.SaveChangesAsync();
             return MapFormularyDto(existing, vaccine);
@@ -344,6 +345,7 @@ public class InventoryService : IInventoryService
             Price = price,
             SupplierCost = Math.Max(0.00m, dto.SupplierCost ?? 0.00m)
         };
+        ApplySupplierContact(entry, dto.SupplierName, dto.SupplierEmail);
         _context.HospitalFormularies.Add(entry);
 
         _context.AuditLogs.Add(new AuditLog
@@ -375,6 +377,7 @@ public class InventoryService : IInventoryService
         entry.Price = price;
         if (dto.SupplierCost.HasValue)
             entry.SupplierCost = Math.Max(0.00m, dto.SupplierCost.Value);
+        ApplySupplierContact(entry, dto.SupplierName, dto.SupplierEmail);
         if (!string.IsNullOrWhiteSpace(dto.Category) && entry.Vaccine != null)
             entry.Vaccine.Category = ParseCategory(dto.Category);
         await SyncActiveSchedulePricesAsync(hospital.UserId, hospital.Id, entry.VaccineId, price);
@@ -400,6 +403,30 @@ public class InventoryService : IInventoryService
             schedule.Price = price;
     }
 
+    // Used for vaccines whose formulary entry has no supplier contact saved
+    private const string DefaultSupplierName = "State Pharmaceuticals Corporation";
+
+    private static string DefaultSupplierEmail =>
+        Environment.GetEnvironmentVariable("Supplier__Email") ?? "supplier@spc.gov.lk";
+
+    private static string? CleanOptional(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    /// <summary>Applies supplier contact fields that were sent (null = leave as is, empty = clear).</summary>
+    private static void ApplySupplierContact(HospitalFormulary entry, string? supplierName, string? supplierEmail)
+    {
+        if (supplierName != null)
+            entry.SupplierName = CleanOptional(supplierName);
+
+        if (supplierEmail != null)
+        {
+            var email = CleanOptional(supplierEmail);
+            if (email != null && !new System.ComponentModel.DataAnnotations.EmailAddressAttribute().IsValid(email))
+                throw new InvalidOperationException("Enter a valid supplier email address.");
+            entry.SupplierEmail = email;
+        }
+    }
+
     private static FormularyEntryDto MapFormularyDto(HospitalFormulary entry, Vaccine vaccine) => new()
     {
         Id = entry.Id,
@@ -409,6 +436,8 @@ public class InventoryService : IInventoryService
         Category = ComputeCategory(vaccine.Category),
         Price = entry.Price,
         SupplierCost = entry.SupplierCost,
+        SupplierName = entry.SupplierName,
+        SupplierEmail = entry.SupplierEmail,
         RegisteredAt = entry.RegisteredAt
     };
 
@@ -486,9 +515,9 @@ public class InventoryService : IInventoryService
             await _context.SaveChangesAsync();
         }
 
-        var inFormulary = await _context.HospitalFormularies
-            .AnyAsync(f => f.HospitalProfileId == hospital.Id && f.VaccineId == vaccine.Id);
-        if (!inFormulary)
+        var formularyEntry = await _context.HospitalFormularies
+            .FirstOrDefaultAsync(f => f.HospitalProfileId == hospital.Id && f.VaccineId == vaccine.Id);
+        if (formularyEntry == null)
         {
             _context.HospitalFormularies.Add(new HospitalFormulary
             {
@@ -510,7 +539,7 @@ public class InventoryService : IInventoryService
             QuantityReceived = dto.Quantity,
             QuantityAvailable = dto.Quantity,
             StorageUnit = dto.StorageUnit,
-            Supplier = dto.Supplier,
+            Supplier = CleanOptional(dto.Supplier) ?? formularyEntry?.SupplierName,
             Status = BatchStatus.Active,
             LastRestockedAt = DateTime.UtcNow
         };
@@ -647,14 +676,17 @@ public class InventoryService : IInventoryService
         await _context.SaveChangesAsync();
 
         bool emailSent = false;
-        string supplierEmail = Environment.GetEnvironmentVariable("Supplier__Email")
-            ?? "supplier@spc.gov.lk";
+        var damagedProduct = batch == null
+            ? null
+            : await _context.HospitalFormularies.FirstOrDefaultAsync(f =>
+                f.HospitalProfileId == hospital.Id && f.VaccineId == batch.VaccineId);
+        string supplierEmail = CleanOptional(damagedProduct?.SupplierEmail) ?? DefaultSupplierEmail;
 
         try
         {
             emailSent = await _emailService.SendDamageReportToSupplierAsync(
                 toEmail: supplierEmail,
-                supplierName: "State Pharmaceuticals Corporation",
+                supplierName: CleanOptional(damagedProduct?.SupplierName) ?? DefaultSupplierName,
                 hospitalName: hospital.HospitalName,
                 vaccineName: dto.VaccineName,
                 lotNumber: dto.LotNumber,
@@ -1070,6 +1102,13 @@ public class InventoryService : IInventoryService
                 b.HospitalProfileId == hospital.Id && b.BatchNumber.StartsWith(poNumber)))
             throw new InvalidOperationException($"Purchase order {poNumber} has already been sent.");
 
+        var orderLines = new List<(string SupplierEmail, string SupplierName, string VaccineName, int Quantity, decimal UnitPrice, decimal LineTotal)>();
+
+        static decimal ReadAmount(System.Text.Json.JsonElement item, string name) =>
+            item.TryGetProperty(name, out var value) && value.ValueKind == System.Text.Json.JsonValueKind.Number
+                ? value.GetDecimal()
+                : 0m;
+
         foreach (var item in lineItems.EnumerateArray())
         {
             var vaccineIdStr = item.TryGetProperty("vaccine_id", out var vIdProp) ? vIdProp.GetString() : null;
@@ -1080,9 +1119,9 @@ public class InventoryService : IInventoryService
             var vaccine = await _context.Vaccines.FindAsync(vaccineId);
             if (vaccine == null) continue;
 
-            var inFormulary = await _context.HospitalFormularies
-                .AnyAsync(f => f.HospitalProfileId == hospital.Id && f.VaccineId == vaccineId);
-            if (!inFormulary)
+            var formularyEntry = await _context.HospitalFormularies
+                .FirstOrDefaultAsync(f => f.HospitalProfileId == hospital.Id && f.VaccineId == vaccineId);
+            if (formularyEntry == null)
             {
                 _context.HospitalFormularies.Add(new HospitalFormulary
                 {
@@ -1090,6 +1129,10 @@ public class InventoryService : IInventoryService
                     VaccineId = vaccineId
                 });
             }
+
+            // Each line goes to the supplier saved on the product; products without one use the default.
+            var supplierEmail = CleanOptional(formularyEntry?.SupplierEmail) ?? DefaultSupplierEmail;
+            var supplierName = CleanOptional(formularyEntry?.SupplierName) ?? DefaultSupplierName;
 
             // Approving a purchase order only places the order. The row holds no usable
             // stock until the delivery is received with its real lot number and expiry;
@@ -1105,7 +1148,7 @@ public class InventoryService : IInventoryService
                 ExpiryDate = DateTime.UtcNow.AddYears(2),
                 QuantityReceived = quantity,
                 QuantityAvailable = 0,
-                Supplier = "State Pharmaceuticals Corporation",
+                Supplier = supplierName,
                 Status = BatchStatus.Ordered
             };
             _context.Batches.Add(batch);
@@ -1116,13 +1159,18 @@ public class InventoryService : IInventoryService
                 BatchId = batch.Id,
                 Type = TransactionType.Order,
                 Quantity = quantity,
-                Reason = $"Purchase order {poNumber} sent to supplier",
+                Reason = $"Purchase order {poNumber} sent to {supplierName}",
                 PerformedByUserId = userId,
                 PerformedByName = $"{userName} (AI Agent)"
             });
 
             createdBatches.Add(new { batchId = batch.Id, lotNumber, vaccineName = vaccine.Name, quantity });
+            orderLines.Add((supplierEmail, supplierName, vaccine.Name, quantity,
+                ReadAmount(item, "unit_price_lkr"), ReadAmount(item, "total_lkr")));
         }
+
+        if (createdBatches.Count == 0)
+            throw new InvalidOperationException("This purchase order has no valid lines to send.");
 
         _context.AuditLogs.Add(new AuditLog
         {
@@ -1136,51 +1184,49 @@ public class InventoryService : IInventoryService
 
         await _context.SaveChangesAsync();
 
-        // ========== SEND EMAIL TO SUPPLIER ==========
-        bool emailSent = false;
-        string supplierEmail = Environment.GetEnvironmentVariable("Supplier__Email") ?? "supplier@spc.gov.lk";
+        // ========== EMAIL EACH SUPPLIER THEIR OWN LINES ==========
+        var sentTo = new List<string>();
+        var failedTo = new List<string>();
 
-        try
+        foreach (var supplierLines in orderLines.GroupBy(l => l.SupplierEmail, StringComparer.OrdinalIgnoreCase))
         {
-            List<(string VaccineName, int Quantity, decimal UnitPrice, decimal LineTotal)> poLines =
-                (dto.Payload.TryGetValue("line_items", out var rawLines) && rawLines is System.Text.Json.JsonElement linesElem)
-                ? linesElem.EnumerateArray().Select(li => (
-                    VaccineName: li.TryGetProperty("vaccine_name", out var v) ? v.GetString() ?? "" : "",
-                    Quantity: li.TryGetProperty("quantity", out var q) ? q.GetInt32() : 0,
-                    UnitPrice: li.TryGetProperty("unit_price_lkr", out var u) ? u.GetDecimal() : 0m,
-                    LineTotal: li.TryGetProperty("total_lkr", out var t) ? t.GetDecimal() : 0m
-                  )).ToList()
-                : new List<(string VaccineName, int Quantity, decimal UnitPrice, decimal LineTotal)>();
+            var sent = false;
+            try
+            {
+                var poLines = supplierLines
+                    .Select(l => (l.VaccineName, l.Quantity, l.UnitPrice, l.LineTotal))
+                    .ToList();
 
-            var totalLkr = dto.Payload.TryGetValue("total_lkr", out var tot) && tot is System.Text.Json.JsonElement tEl
-                ? tEl.GetDecimal()
-                : poLines.Sum(l => l.LineTotal);
+                sent = await _emailService.SendPurchaseOrderToSupplierAsync(
+                    toEmail: supplierLines.Key,
+                    supplierName: supplierLines.First().SupplierName,
+                    poNumber: poNumber,
+                    hospitalName: hospital.HospitalName,
+                    orderDate: DateTime.UtcNow.ToString("yyyy-MM-dd"),
+                    deliveryDate: DateTime.UtcNow.AddDays(14).ToString("yyyy-MM-dd"),
+                    lineItems: poLines,
+                    totalLkr: poLines.Sum(l => l.LineTotal),
+                    approvalNotes: $"Approved by {userName} via Vaxora AI Agent"
+                );
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to send supplier email for PO {PoNumber} to {Supplier}", poNumber, supplierLines.Key);
+            }
 
-            emailSent = await _emailService.SendPurchaseOrderToSupplierAsync(
-                toEmail: supplierEmail,
-                supplierName: "State Pharmaceuticals Corporation",
-                poNumber: poNumber,
-                hospitalName: hospital.HospitalName,
-                orderDate: DateTime.UtcNow.ToString("yyyy-MM-dd"),
-                deliveryDate: DateTime.UtcNow.AddDays(14).ToString("yyyy-MM-dd"),
-                lineItems: poLines,
-                totalLkr: totalLkr,
-                approvalNotes: $"Approved by {userName} via Vaxora AI Agent"
-            );
+            (sent ? sentTo : failedTo).Add(supplierLines.Key);
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to send supplier email for PO {PoNumber}", poNumber);
-        }
+
+        var emailSent = failedTo.Count == 0;
 
         return new
         {
             success = true,
             message = emailSent
-                ? $"Purchase order {poNumber} sent to {supplierEmail}. {createdBatches.Count} line(s) on order: receive them in Inventory when the delivery arrives."
-                : $"Purchase order {poNumber} recorded with {createdBatches.Count} line(s) on order, but the supplier email failed (check logs).",
+                ? $"Purchase order {poNumber} sent to {string.Join(", ", sentTo)}. {createdBatches.Count} line(s) on order: receive them in Inventory when the delivery arrives."
+                : $"Purchase order {poNumber} recorded with {createdBatches.Count} line(s) on order, but the email to {string.Join(", ", failedTo)} failed (check logs).",
             emailSent = emailSent,
-            supplierEmail = supplierEmail,
+            supplierEmail = string.Join(", ", sentTo.Concat(failedTo)),
             batches = createdBatches
         };
     }

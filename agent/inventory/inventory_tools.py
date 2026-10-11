@@ -105,7 +105,7 @@ async def tool_get_vaccines(token: Optional[str] = None) -> Dict[str, Any]:
 
 async def get_formulary_pricing(token: Optional[str] = None) -> Dict[str, Dict[str, Any]]:
     """
-    vaccine_id -> {"supplier_cost", "category"} from the hospital's formulary.
+    vaccine_id -> {"supplier_cost", "category", "supplier_name"} from the hospital's formulary.
     Returns {} on any failure so the PO falls back to category estimates.
     """
     try:
@@ -123,6 +123,7 @@ async def get_formulary_pricing(token: Optional[str] = None) -> Dict[str, Dict[s
         pricing[str(vaccine_id).lower()] = {
             "supplier_cost": cost,
             "category": e.get("category"),
+            "supplier_name": e.get("supplierName"),
         }
     return pricing
 

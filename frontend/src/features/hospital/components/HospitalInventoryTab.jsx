@@ -69,6 +69,8 @@ export default function HospitalInventoryTab() {
   const [newVaccineCategoryInput, setNewVaccineCategoryInput] = useState('routine');
   const [newVaccinePriceInput, setNewVaccinePriceInput] = useState('0');
   const [newVaccineCostInput, setNewVaccineCostInput] = useState('0');
+  const [newSupplierNameInput, setNewSupplierNameInput] = useState('');
+  const [newSupplierEmailInput, setNewSupplierEmailInput] = useState('');
   const [editingFormularyId, setEditingFormularyId] = useState(null);
   const [showRegistryBox, setShowRegistryBox] = useState(() => view === 'formulary');
   // Opening the formulary view expands the registry box (adjusted during render, not in an effect).
@@ -135,6 +137,8 @@ export default function HospitalInventoryTab() {
             category: String(f.category || 'routine').toLowerCase(),
             price: Number(f.price ?? f.Price ?? 0),
             supplierCost: Number(f.supplierCost ?? 0),
+            supplierName: f.supplierName || '',
+            supplierEmail: f.supplierEmail || '',
             isFree: Boolean(f.isFree ?? Number(f.price ?? 0) <= 0),
           })).filter((r) => r.name)
         : [];
@@ -156,9 +160,11 @@ export default function HospitalInventoryTab() {
     setNewVaccineCategoryInput('routine');
     setNewVaccinePriceInput('0');
     setNewVaccineCostInput('0');
+    setNewSupplierNameInput('');
+    setNewSupplierEmailInput('');
   };
 
-  // Load a registered product into the form so its category, fee and cost can be changed
+  // Load a registered product into the form so its category, fee, cost and supplier can be changed
   const handleEditFormulation = (row) => {
     setEditingFormularyId(row.id);
     setNewVaccineInput(row.name);
@@ -166,19 +172,21 @@ export default function HospitalInventoryTab() {
     setNewVaccineCategoryInput(row.category || 'routine');
     setNewVaccinePriceInput(String(row.price ?? 0));
     setNewVaccineCostInput(String(row.supplierCost ?? 0));
+    setNewSupplierNameInput(row.supplierName || '');
+    setNewSupplierEmailInput(row.supplierEmail || '');
   };
 
-  const handleRegisterNewVaccine = async (vaccineName, mfr = '', price = 0, category = 'routine', supplierCost = 0) => {
+  const handleRegisterNewVaccine = async (vaccineName, mfr = '', price = 0, category = 'routine', supplierCost = 0, supplier = {}) => {
     const trimmed = vaccineName.trim();
     if (!trimmed) return;
     if (registeredVaccines.some((v) => String(v.name || '').toLowerCase() === trimmed.toLowerCase())) {
-      // Already registered — treat as fee / cost / category update
+      // Already registered — treat as fee / cost / category / supplier update
       const existing = registeredVaccines.find(
         (v) => String(v.name || '').toLowerCase() === trimmed.toLowerCase()
       );
       if (existing?.id) {
         try {
-          await inventoryService.updateFormularyPrice(existing.id, price, category, supplierCost);
+          await inventoryService.updateFormularyPrice(existing.id, price, category, supplierCost, supplier);
           await loadAll();
           showToast(`Updated "${trimmed}" (${category}${Number(price) <= 0 ? ', Free' : `, LKR ${Number(price).toFixed(2)}`}).`);
         } catch (err) {
@@ -188,7 +196,7 @@ export default function HospitalInventoryTab() {
       return;
     }
     try {
-      await inventoryService.registerFormulary(trimmed, mfr, price, category, supplierCost);
+      await inventoryService.registerFormulary(trimmed, mfr, price, category, supplierCost, supplier);
       await loadAll();
       showToast(`Registered "${trimmed}" as ${category}${Number(price) <= 0 ? ' · Free' : ` · LKR ${Number(price).toFixed(2)}`}.`);
     } catch (err) {
@@ -204,7 +212,8 @@ export default function HospitalInventoryTab() {
       newVaccineMfrInput,
       parseFloat(newVaccinePriceInput || 0),
       newVaccineCategoryInput,
-      parseFloat(newVaccineCostInput || 0)
+      parseFloat(newVaccineCostInput || 0),
+      { name: newSupplierNameInput.trim(), email: newSupplierEmailInput.trim() }
     );
     resetFormularyForm();
   };
@@ -787,97 +796,130 @@ export default function HospitalInventoryTab() {
 
           {showRegistryBox && (
             <div className="formulary-card-body">
-              <form onSubmit={handleRegisterFormSubmit} className="formulary-input-row">
-                <div className="formulary-input-group formulary-input-group--name">
-                  <label className="formulary-label" htmlFor="formulary-vaccine-name">
-                    Vaccine product name *
-                  </label>
-                  <input
-                    id="formulary-vaccine-name"
-                    type="text"
-                    className="formulary-text-input"
-                    placeholder="e.g. Hepatitis B Recombinant"
-                    value={newVaccineInput}
-                    onChange={(e) => setNewVaccineInput(e.target.value)}
-                    disabled={Boolean(editingFormularyId)}
-                    required
-                  />
+              <form onSubmit={handleRegisterFormSubmit} className="formulary-form">
+                <div className="formulary-input-row">
+                  <div className="formulary-input-group formulary-input-group--name">
+                    <label className="formulary-label" htmlFor="formulary-vaccine-name">
+                      Vaccine product name *
+                    </label>
+                    <input
+                      id="formulary-vaccine-name"
+                      type="text"
+                      className="formulary-text-input"
+                      placeholder="e.g. Hepatitis B Recombinant"
+                      value={newVaccineInput}
+                      onChange={(e) => setNewVaccineInput(e.target.value)}
+                      disabled={Boolean(editingFormularyId)}
+                      required
+                    />
+                  </div>
+                  <div className="formulary-input-group formulary-input-group--mfr">
+                    <label className="formulary-label" htmlFor="formulary-vaccine-mfr">
+                      Manufacturer
+                    </label>
+                    <input
+                      id="formulary-vaccine-mfr"
+                      type="text"
+                      className="formulary-text-input"
+                      placeholder="e.g. Serum Institute"
+                      value={newVaccineMfrInput}
+                      onChange={(e) => setNewVaccineMfrInput(e.target.value)}
+                      disabled={Boolean(editingFormularyId)}
+                    />
+                  </div>
+                  <div className="formulary-input-group formulary-input-group--category">
+                    <label className="formulary-label" htmlFor="formulary-vaccine-category">
+                      Category
+                    </label>
+                    <select
+                      id="formulary-vaccine-category"
+                      className="formulary-text-input"
+                      value={newVaccineCategoryInput}
+                      onChange={(e) => setNewVaccineCategoryInput(e.target.value)}
+                    >
+                      <option value="routine">Routine</option>
+                      <option value="mrna">mRNA</option>
+                      <option value="seasonal">Seasonal</option>
+                      <option value="pediatric">Pediatric</option>
+                    </select>
+                  </div>
+                  <div className="formulary-input-group formulary-input-group--fee">
+                    <label className="formulary-label" htmlFor="formulary-vaccine-cost">
+                      Cost / vial (LKR)
+                    </label>
+                    <input
+                      id="formulary-vaccine-cost"
+                      type="number"
+                      min="0"
+                      step="1"
+                      className="formulary-text-input"
+                      placeholder="Supplier cost"
+                      value={newVaccineCostInput}
+                      onChange={(e) => setNewVaccineCostInput(e.target.value)}
+                      title="What the supplier charges per vial. Used on purchase orders."
+                    />
+                  </div>
+                  <div className="formulary-input-group formulary-input-group--fee">
+                    <label className="formulary-label" htmlFor="formulary-vaccine-price">
+                      Fee / person (LKR)
+                    </label>
+                    <input
+                      id="formulary-vaccine-price"
+                      type="number"
+                      min="0"
+                      step="1"
+                      className="formulary-text-input"
+                      placeholder="0 = Free"
+                      value={newVaccinePriceInput}
+                      onChange={(e) => setNewVaccinePriceInput(e.target.value)}
+                      title="Enter 0 for Free / MOH-subsidized vaccines"
+                    />
+                  </div>
                 </div>
-                <div className="formulary-input-group formulary-input-group--mfr">
-                  <label className="formulary-label" htmlFor="formulary-vaccine-mfr">
-                    Manufacturer / supplier
-                  </label>
-                  <input
-                    id="formulary-vaccine-mfr"
-                    type="text"
-                    className="formulary-text-input"
-                    placeholder="e.g. Serum Institute"
-                    value={newVaccineMfrInput}
-                    onChange={(e) => setNewVaccineMfrInput(e.target.value)}
-                    disabled={Boolean(editingFormularyId)}
-                  />
-                </div>
-                <div className="formulary-input-group formulary-input-group--category">
-                  <label className="formulary-label" htmlFor="formulary-vaccine-category">
-                    Category
-                  </label>
-                  <select
-                    id="formulary-vaccine-category"
-                    className="formulary-text-input"
-                    value={newVaccineCategoryInput}
-                    onChange={(e) => setNewVaccineCategoryInput(e.target.value)}
-                  >
-                    <option value="routine">Routine</option>
-                    <option value="mrna">mRNA</option>
-                    <option value="seasonal">Seasonal</option>
-                    <option value="pediatric">Pediatric</option>
-                  </select>
-                </div>
-                <div className="formulary-input-group formulary-input-group--fee">
-                  <label className="formulary-label" htmlFor="formulary-vaccine-cost">
-                    Cost / vial (LKR)
-                  </label>
-                  <input
-                    id="formulary-vaccine-cost"
-                    type="number"
-                    min="0"
-                    step="1"
-                    className="formulary-text-input"
-                    placeholder="Supplier cost"
-                    value={newVaccineCostInput}
-                    onChange={(e) => setNewVaccineCostInput(e.target.value)}
-                    title="What the supplier charges per vial. Used on purchase orders."
-                  />
-                </div>
-                <div className="formulary-input-group formulary-input-group--fee">
-                  <label className="formulary-label" htmlFor="formulary-vaccine-price">
-                    Fee / person (LKR)
-                  </label>
-                  <input
-                    id="formulary-vaccine-price"
-                    type="number"
-                    min="0"
-                    step="1"
-                    className="formulary-text-input"
-                    placeholder="0 = Free"
-                    value={newVaccinePriceInput}
-                    onChange={(e) => setNewVaccinePriceInput(e.target.value)}
-                    title="Enter 0 for Free / MOH-subsidized vaccines"
-                  />
-                </div>
-                <div className="formulary-input-group formulary-input-group--action">
-                  <span className="formulary-label formulary-label--spacer" aria-hidden="true">
-                    &nbsp;
-                  </span>
-                  <div className="formulary-action-row">
-                    <button type="submit" className="btn-register-vaccine">
-                      {editingFormularyId ? 'Save changes' : 'Register product'}
-                    </button>
-                    {editingFormularyId && (
-                      <button type="button" className="btn-toggle-registry" onClick={resetFormularyForm}>
-                        Cancel
+                <div className="formulary-input-row formulary-input-row--supplier">
+                  <div className="formulary-input-group">
+                    <label className="formulary-label" htmlFor="formulary-supplier-name">
+                      Supplier
+                    </label>
+                    <input
+                      id="formulary-supplier-name"
+                      type="text"
+                      className="formulary-text-input"
+                      placeholder="e.g. State Pharmaceuticals Corporation"
+                      value={newSupplierNameInput}
+                      onChange={(e) => setNewSupplierNameInput(e.target.value)}
+                      maxLength={200}
+                    />
+                  </div>
+                  <div className="formulary-input-group">
+                    <label className="formulary-label" htmlFor="formulary-supplier-email">
+                      Supplier email
+                    </label>
+                    <input
+                      id="formulary-supplier-email"
+                      type="email"
+                      className="formulary-text-input"
+                      placeholder="orders@supplier.lk"
+                      value={newSupplierEmailInput}
+                      onChange={(e) => setNewSupplierEmailInput(e.target.value)}
+                      maxLength={200}
+                      title="Purchase orders for this product are emailed here"
+                    />
+                  </div>
+                  <div className="formulary-input-group formulary-input-group--action">
+                    <span className="formulary-label formulary-label--spacer" aria-hidden="true">
+                      &nbsp;
+                    </span>
+                    <div className="formulary-action-row">
+                      <button type="submit" className="btn-register-vaccine">
+                        {editingFormularyId ? 'Save changes' : 'Register product'}
                       </button>
-                    )}
+                      {editingFormularyId && (
+                        <button type="button" className="btn-toggle-registry" onClick={resetFormularyForm}>
+                          Cancel
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               </form>
@@ -935,6 +977,14 @@ export default function HospitalInventoryTab() {
                         {Number(row?.supplierCost) > 0 && (
                           <span className="pill-meta" title="Supplier cost per vial, used on purchase orders">
                             <span className="pill-meta-text">Cost LKR {Number(row.supplierCost).toLocaleString()}</span>
+                          </span>
+                        )}
+                        {row?.supplierName && (
+                          <span
+                            className="pill-meta"
+                            title={row.supplierEmail ? `Orders go to ${row.supplierEmail}` : 'No supplier email saved'}
+                          >
+                            <span className="pill-meta-text">{row.supplierName}</span>
                           </span>
                         )}
                         {row?.id && (

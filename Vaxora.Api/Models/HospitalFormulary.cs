@@ -25,6 +25,13 @@ public class HospitalFormulary
     [Range(0, 1000000)]
     public decimal SupplierCost { get; set; } = 0.00m;
 
+    /// <summary>Who this hospital buys the vaccine from. Purchase orders and damage reports are emailed here.</summary>
+    [MaxLength(200)]
+    public string? SupplierName { get; set; }
+
+    [MaxLength(200)]
+    public string? SupplierEmail { get; set; }
+
     // Navigation
     [ForeignKey(nameof(HospitalProfileId))]
     public virtual HospitalProfile HospitalProfile { get; set; } = null!;
