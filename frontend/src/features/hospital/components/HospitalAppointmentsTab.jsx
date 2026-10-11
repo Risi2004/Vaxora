@@ -659,7 +659,6 @@ export default function HospitalAppointmentsTab({ view = 'sessions' }) {
             position: 'sticky',
             top: '84px',
             zIndex: 50,
-            maxWidth: '1060px',
             width: '100%',
             marginBottom: '20px',
             ...(toastStyles[notificationTone] || toastStyles.success),
