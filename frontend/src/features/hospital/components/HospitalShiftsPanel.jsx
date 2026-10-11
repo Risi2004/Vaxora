@@ -297,11 +297,28 @@ export default function HospitalShiftsPanel() {
     const list = Array.isArray(proposals) ? proposals.filter(Boolean) : [];
     if (list.length === 0) return;
     setSuggestModalError('');
-    setPendingProposals(list.map((p) => ({ ...p, _status: undefined, _selected: true })));
+    // The review window shows one week. If nothing falls in the week on screen, jump to the
+    // week the suggestions are for; anything outside the shown week stays unselected so a
+    // shift the manager cannot see is never approved.
+    const proposalDay = (p) => String(p.shiftDate).slice(0, 10);
+    const days = list.map(proposalDay).sort();
+    let shownStart = weekStart;
+    if (!days.some((day) => day >= weekStart && day <= weekEnd)) {
+      shownStart = startOfWeek(days[0]);
+      setWeekStart(shownStart);
+    }
+    const shownEnd = addDays(shownStart, 6);
+    setPendingProposals(
+      list.map((p) => ({
+        ...p,
+        _status: undefined,
+        _selected: proposalDay(p) >= shownStart && proposalDay(p) <= shownEnd,
+      }))
+    );
     setProposalWorkflowId(meta.workflowId || null);
     setShowSuggestModal(true);
     showToast(`${list.length} suggested shift${list.length === 1 ? '' : 's'} — select which to keep in the calendar window.`);
-  }, []);
+  }, [weekStart, weekEnd]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -532,11 +549,12 @@ export default function HospitalShiftsPanel() {
 
   const handleSelectAllProposals = () => {
     setPendingProposals((prev) =>
-      prev.map((p) =>
-        p._status === 'approved' || p._status === 'declined'
+      prev.map((p) => {
+        const day = String(p.shiftDate).slice(0, 10);
+        return p._status === 'approved' || p._status === 'declined' || day < weekStart || day > weekEnd
           ? p
-          : { ...p, _selected: true }
-      )
+          : { ...p, _selected: true };
+      })
     );
   };
 
