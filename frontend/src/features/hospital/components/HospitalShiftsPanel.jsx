@@ -1190,14 +1190,17 @@ export default function HospitalShiftsPanel() {
                                       {editingShiftId === shift.shiftId ? 'Editing' : 'Edit'}
                                     </button>
                                   )}
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDelete(shift.shiftId)}
-                                    disabled={actionId === shift.shiftId}
-                                    className="shift-week-card-action shift-week-card-action-delete"
-                                  >
-                                    {actionId === shift.shiftId ? 'Deleting...' : 'Delete'}
-                                  </button>
+                                  {/* Past shifts are history: the API refuses to delete them. */}
+                                  {String(shift.shiftDate).slice(0, 10) >= today && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDelete(shift.shiftId)}
+                                      disabled={actionId === shift.shiftId}
+                                      className="shift-week-card-action shift-week-card-action-delete"
+                                    >
+                                      {actionId === shift.shiftId ? 'Deleting...' : 'Delete'}
+                                    </button>
+                                  )}
                                 </div>
                               </div>
                             ))

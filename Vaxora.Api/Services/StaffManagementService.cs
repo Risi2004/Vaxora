@@ -1514,7 +1514,7 @@ public class StaffManagementService : IStaffManagementService
         var more = sessions.Count > 3 ? $" and {sessions.Count - 3} more" : string.Empty;
         return $"{booth.DisplayLabel} still has {sessions.Count} active session" +
                $"{(sessions.Count == 1 ? "" : "s")}: {string.Join(", ", shown)}{more}. " +
-               "Cancel them in Schedules first.";
+               "Cancel them under Sessions first.";
     }
 
     private static string NormalizeBoothCode(string? code)
