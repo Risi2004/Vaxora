@@ -44,7 +44,9 @@ async function apiRequest(endpoint, options = {}) {
     } else if (response.status === 403) {
       errorMessage = 'You do not have permission for this action.';
     }
-    throw new Error(errorMessage);
+    const error = new Error(errorMessage);
+    error.status = response.status;
+    throw error;
   }
 
   return data;

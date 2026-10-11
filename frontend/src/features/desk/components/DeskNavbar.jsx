@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import logo from '../../../assets/images/logo.png';
 
-import { authService } from '../../auth';
+import { authService, clearAuth } from '../../auth';
 import { IconHospital } from '../../hospital/components/HospitalIcons';
 import useConfirmDialog from '../../../shared/hooks/useConfirmDialog';
 import deskService from '../services/deskService';
@@ -17,18 +17,29 @@ export default function DeskNavbar() {
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    const loadHospital = async () => {
       try {
         const data = await deskService.getMyHospital();
         if (!cancelled) setHospital(data);
-      } catch {
-        /* keep the generic label */
+      } catch (err) {
+        // A 403 means the hospital removed this desk account: end the session.
+        if (!cancelled && err?.status === 403) {
+          clearAuth();
+          navigate('/login', {
+            replace: true,
+            state: { message: 'This front desk account has been removed by the hospital.' },
+          });
+        }
+        /* otherwise keep the generic label */
       }
-    })();
+    };
+    loadHospital();
+    const id = window.setInterval(loadHospital, 30_000);
     return () => {
       cancelled = true;
+      window.clearInterval(id);
     };
-  }, []);
+  }, [navigate]);
 
   useEffect(() => {
     function handleClickOutside(event) {
