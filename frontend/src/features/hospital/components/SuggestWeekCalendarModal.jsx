@@ -49,6 +49,7 @@ export default function SuggestWeekCalendarModal({
   actionId,
   loading,
   error,
+  notice,
   onToggleSelect,
   onSelectAll,
   onClearSelection,
@@ -216,6 +217,11 @@ export default function SuggestWeekCalendarModal({
             <div className="suggest-week-modal-empty">No suggestions match this filter.</div>
           ) : (
             <>
+            {notice && (
+              <p className="suggest-week-modal-notice" role="status">
+                {notice}
+              </p>
+            )}
             {outsideWeekCount > 0 && (
               <p className="suggest-week-modal-empty" role="status" style={{ marginBottom: '12px' }}>
                 {outsideWeekCount} more suggestion{outsideWeekCount === 1 ? ' is' : 's are'} for days outside this week

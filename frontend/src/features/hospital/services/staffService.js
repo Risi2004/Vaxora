@@ -139,6 +139,21 @@ export const staffService = {
     });
   },
 
+  getRosterSessions({ from, to }) {
+    return apiRequest(`/staff/sessions${buildQuery({ from, to })}`);
+  },
+
+  getSessionCandidates(scheduleId, date) {
+    return apiRequest(`/staff/sessions/candidates${buildQuery({ scheduleId, date })}`);
+  },
+
+  assignSessionStaff(payload) {
+    return apiRequest('/staff/sessions/assign', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
   getCoverage({ from, to }) {
     return apiRequest(`/staff/coverage${buildQuery({ from, to })}`);
   },
