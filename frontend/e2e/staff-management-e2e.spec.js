@@ -127,7 +127,7 @@ test.describe('Staff Management E2E', () => {
         contentType: 'application/json',
         body: JSON.stringify({
           online: true,
-          agents: ['StaffSchedulingAgent', 'ShiftSwapAgent'],
+          agents: ['StaffSchedulingAgent'],
         }),
       });
     });

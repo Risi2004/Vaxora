@@ -273,6 +273,7 @@ class StaffSchedulingAgent:
         briefing: Optional[Dict[str, Any]] = None,
         fairness_summary: Optional[Dict[str, Any]] = None,
         validation: Optional[Dict[str, Any]] = None,
+        model_unavailable: bool = False,
     ) -> Dict[str, Any]:
         return {
             "agent": self.name,
@@ -283,6 +284,8 @@ class StaffSchedulingAgent:
             "validation": validation,
             "proposals": proposals or None,
             "suggestedFollowUps": _build_follow_ups(messages, proposals),
+            # Lets the client fall back to the rules-based roster suggestions.
+            "modelUnavailable": model_unavailable,
         }
 
     async def _rank_cover_replacements(
@@ -522,13 +525,15 @@ class StaffSchedulingAgent:
                                 )
                         return self._reply(
                             messages,
-                            "The staffing plan is too large for the model context window. "
-                            "Try a shorter date range, or raise --max-model-len on the pod.",
+                            "That date range is too large to plan in one go. "
+                            "Try a shorter range, such as a single week.",
+                            model_unavailable=True,
                         )
                 else:
                     return self._reply(
                         messages,
-                        "The model could not be reached, so no shifts were suggested.",
+                        "The scheduling assistant could not be reached, so no shifts were suggested.",
+                        model_unavailable=True,
                     )
 
             tool_calls = msg.get("tool_calls") or []

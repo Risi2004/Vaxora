@@ -91,7 +91,7 @@ export default function BookingAgentChat({ onAppointmentCreated, launchPayHere, 
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
-      content: 'Hello! 👋 I am your **Vaxora AI Booking Concierge** powered by Qwen 14B.\n\nI can help you:\n- 🔍 Find which hospitals have your required vaccine in stock\n- 📅 Discover clinic schedule dates & available 20-minute slots\n- 💉 Reserve your appointment with instant user confirmation\n- 💳 Handle PayHere checkout for private vaccines\n\nHow can I help you today?'
+      content: 'Hello! 👋 I am your **Vaxora AI Booking Concierge**.\n\nI can help you:\n- 🔍 Find which hospitals have your required vaccine in stock\n- 📅 Discover clinic schedule dates & available 20-minute slots\n- 💉 Reserve your appointment with instant user confirmation\n- 💳 Handle PayHere checkout for private vaccines\n\nHow can I help you today?'
     }
   ]);
   const [inputMessage, setInputMessage] = useState('');
@@ -229,7 +229,7 @@ export default function BookingAgentChat({ onAppointmentCreated, launchPayHere, 
           <div>
             <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>Vaxora AI Booking Concierge</h3>
             <p style={{ margin: '2px 0 0', fontSize: '12px', opacity: 0.9 }}>
-              Multi-Step Reasoning Agent • Powered by Qwen 14B
+              Finds vaccines, dates and slots for you
             </p>
           </div>
         </div>
@@ -299,6 +299,8 @@ export default function BookingAgentChat({ onAppointmentCreated, launchPayHere, 
       }}>
         {messages.map((msg, index) => {
           const isUser = msg.role === 'user';
+          // Only the newest proposal can be answered, so an old card cannot book twice.
+          const isLatest = index === messages.length - 1;
           return (
             <div
               key={index}
@@ -370,8 +372,9 @@ export default function BookingAgentChat({ onAppointmentCreated, launchPayHere, 
                   <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
                     <button
                       onClick={handleDeclineProposal}
-                      disabled={isLoading}
+                      disabled={isLoading || !isLatest}
                       style={{
+                        opacity: isLatest ? 1 : 0.5,
                         padding: '8px 14px',
                         borderRadius: '6px',
                         border: '1px solid var(--color-border-card)',
@@ -386,8 +389,10 @@ export default function BookingAgentChat({ onAppointmentCreated, launchPayHere, 
                     </button>
                     <button
                       onClick={() => handleApproveProposal(msg.proposal)}
-                      disabled={isLoading}
+                      disabled={isLoading || !isLatest}
+                      title={isLatest ? undefined : 'This proposal has already been answered'}
                       style={{
+                        opacity: isLatest ? 1 : 0.5,
                         padding: '8px 18px',
                         borderRadius: '6px',
                         border: 'none',

@@ -1430,10 +1430,11 @@
   border: 1px solid var(--color-info-border);
 }
 
+/* Deep navy on light cyan: the step after "in session" blue. Purple is kept for AI. */
 .status-observation {
-  background-color: var(--color-ai-bg);
-  color: var(--color-ai);
-  border: 1px solid var(--color-ai-border);
+  background-color: var(--color-soft-panel-deep);
+  color: var(--color-primary-dark);
+  border: 1px solid var(--color-accent-frost);
 }
 
 .status-completed {
@@ -1880,7 +1881,7 @@
 .doctor-modal-overlay {
   position: fixed;
   inset: 0;
-  background-color: rgba(var(--rgb-primary-dark), 0.6);
+  background-color: var(--color-overlay);
   backdrop-filter: blur(4px);
   display: flex;
   align-items: center;

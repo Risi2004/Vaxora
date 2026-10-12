@@ -13,11 +13,37 @@ public class StaffManagementController : ControllerBase
 {
     private readonly IStaffManagementService _staffService;
     private readonly ILogger<StaffManagementController> _logger;
+    private readonly IDeskAccessService? _deskAccess;
 
-    public StaffManagementController(IStaffManagementService staffService, ILogger<StaffManagementController> logger)
+    public StaffManagementController(
+        IStaffManagementService staffService,
+        ILogger<StaffManagementController> logger,
+        IDeskAccessService? deskAccess = null)
     {
         _staffService = staffService;
         _logger = logger;
+        _deskAccess = deskAccess;
+    }
+
+    /// <summary>
+    /// Read-only desk views run against the hospital a front-desk account is attached to.
+    /// Returns a 403 result when a desk account has no active hospital.
+    /// </summary>
+    private async Task<(Guid HospitalUserId, IActionResult? Denied)> ResolveHospitalForReadAsync(Guid userId)
+    {
+        if (!User.IsInRole("FRONT_DESK"))
+            return (userId, null);
+
+        try
+        {
+            if (_deskAccess == null)
+                throw new UnauthorizedAccessException("Front-desk access is not available.");
+            return (await _deskAccess.ResolveHospitalUserIdAsync(userId), null);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return (Guid.Empty, StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message }));
+        }
     }
 
     [HttpPost("invite")]
@@ -110,15 +136,18 @@ public class StaffManagementController : ControllerBase
     }
 
     [HttpGet("hospital")]
-    [Authorize(Roles = "HOSPITAL")]
+    [Authorize(Roles = "HOSPITAL,FRONT_DESK")]
     public async Task<IActionResult> GetHospitalStaff(
         [FromQuery] string? role,
         [FromQuery] string? dutyStatus,
         [FromQuery] string? search,
         [FromQuery] string? status)
     {
-        if (!TryGetUserId(out var hospitalUserId))
+        if (!TryGetUserId(out var callerUserId))
             return Unauthorized(new { message = "Invalid identity claim." });
+
+        var (hospitalUserId, denied) = await ResolveHospitalForReadAsync(callerUserId);
+        if (denied != null) return denied;
 
         try
         {
@@ -264,11 +293,14 @@ public class StaffManagementController : ControllerBase
     }
 
     [HttpGet("shifts/hospital")]
-    [Authorize(Roles = "HOSPITAL")]
+    [Authorize(Roles = "HOSPITAL,FRONT_DESK")]
     public async Task<IActionResult> GetHospitalShifts([FromQuery] DateOnly? from, [FromQuery] DateOnly? to)
     {
-        if (!TryGetUserId(out var hospitalUserId))
+        if (!TryGetUserId(out var callerUserId))
             return Unauthorized(new { message = "Invalid identity claim." });
+
+        var (hospitalUserId, denied) = await ResolveHospitalForReadAsync(callerUserId);
+        if (denied != null) return denied;
 
         try
         {
@@ -436,11 +468,14 @@ public class StaffManagementController : ControllerBase
     }
 
     [HttpGet("booths")]
-    [Authorize(Roles = "HOSPITAL")]
+    [Authorize(Roles = "HOSPITAL,FRONT_DESK")]
     public async Task<IActionResult> GetHospitalBooths([FromQuery] bool activeOnly = false)
     {
-        if (!TryGetUserId(out var hospitalUserId))
+        if (!TryGetUserId(out var callerUserId))
             return Unauthorized(new { message = "Invalid identity claim." });
+
+        var (hospitalUserId, denied) = await ResolveHospitalForReadAsync(callerUserId);
+        if (denied != null) return denied;
 
         try
         {

@@ -297,11 +297,28 @@ export default function HospitalShiftsPanel() {
     const list = Array.isArray(proposals) ? proposals.filter(Boolean) : [];
     if (list.length === 0) return;
     setSuggestModalError('');
-    setPendingProposals(list.map((p) => ({ ...p, _status: undefined, _selected: true })));
+    // The review window shows one week. If nothing falls in the week on screen, jump to the
+    // week the suggestions are for; anything outside the shown week stays unselected so a
+    // shift the manager cannot see is never approved.
+    const proposalDay = (p) => String(p.shiftDate).slice(0, 10);
+    const days = list.map(proposalDay).sort();
+    let shownStart = weekStart;
+    if (!days.some((day) => day >= weekStart && day <= weekEnd)) {
+      shownStart = startOfWeek(days[0]);
+      setWeekStart(shownStart);
+    }
+    const shownEnd = addDays(shownStart, 6);
+    setPendingProposals(
+      list.map((p) => ({
+        ...p,
+        _status: undefined,
+        _selected: proposalDay(p) >= shownStart && proposalDay(p) <= shownEnd,
+      }))
+    );
     setProposalWorkflowId(meta.workflowId || null);
     setShowSuggestModal(true);
     showToast(`${list.length} suggested shift${list.length === 1 ? '' : 's'} — select which to keep in the calendar window.`);
-  }, []);
+  }, [weekStart, weekEnd]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -435,6 +452,10 @@ export default function HospitalShiftsPanel() {
         : res.proposal
           ? [res.proposal]
           : [];
+      // The agent answered but its model was down: use the rules-based suggestions below.
+      if (proposals.length === 0 && res.modelUnavailable) {
+        throw new Error(res.content || 'The scheduling assistant is unavailable.');
+      }
       if (proposals.length === 0) {
         setSuggestModalError(
           res.content ||
@@ -528,11 +549,12 @@ export default function HospitalShiftsPanel() {
 
   const handleSelectAllProposals = () => {
     setPendingProposals((prev) =>
-      prev.map((p) =>
-        p._status === 'approved' || p._status === 'declined'
+      prev.map((p) => {
+        const day = String(p.shiftDate).slice(0, 10);
+        return p._status === 'approved' || p._status === 'declined' || day < weekStart || day > weekEnd
           ? p
-          : { ...p, _selected: true }
-      )
+          : { ...p, _selected: true };
+      })
     );
   };
 
@@ -667,7 +689,7 @@ export default function HospitalShiftsPanel() {
           {toast}
         </div>
       )}
-      {error && (
+      {error && !formOpen && (
         <div
           className="appointment-alert-pill"
           role="alert"
@@ -958,7 +980,7 @@ export default function HospitalShiftsPanel() {
               </select>
               {booths.length === 0 && (
                 <p style={{ margin: '6px 0 0', fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
-                  Add booths under Booths to assign stations here.
+                  Add booths under Sessions, Booths to assign stations here.
                 </p>
               )}
             </div>
@@ -1001,7 +1023,7 @@ export default function HospitalShiftsPanel() {
 
           {staffOptions.length === 0 && !loading && (
             <p style={{ color: 'var(--color-text-muted)', margin: 0 }}>
-              No active staff yet. Invite and accept affiliations in the Directory tab first.
+              No active staff yet. Invite doctors and nurses under Staff, then add shifts once they accept.
             </p>
           )}
         </form>
@@ -1017,7 +1039,7 @@ export default function HospitalShiftsPanel() {
             left: 0,
             right: 0,
             bottom: 0,
-            backgroundColor: 'rgba(var(--rgb-primary-dark), 0.65)',
+            backgroundColor: 'var(--color-overlay)',
             backdropFilter: 'blur(5px)',
             display: 'flex',
             alignItems: 'center',
@@ -1190,14 +1212,17 @@ export default function HospitalShiftsPanel() {
                                       {editingShiftId === shift.shiftId ? 'Editing' : 'Edit'}
                                     </button>
                                   )}
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDelete(shift.shiftId)}
-                                    disabled={actionId === shift.shiftId}
-                                    className="shift-week-card-action shift-week-card-action-delete"
-                                  >
-                                    {actionId === shift.shiftId ? 'Deleting...' : 'Delete'}
-                                  </button>
+                                  {/* Past shifts are history: the API refuses to delete them. */}
+                                  {String(shift.shiftDate).slice(0, 10) >= today && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDelete(shift.shiftId)}
+                                      disabled={actionId === shift.shiftId}
+                                      className="shift-week-card-action shift-week-card-action-delete"
+                                    >
+                                      {actionId === shift.shiftId ? 'Deleting...' : 'Delete'}
+                                    </button>
+                                  )}
                                 </div>
                               </div>
                             ))

@@ -407,6 +407,15 @@ export default function StaffClinicalDashboard({
   const activePatientPhotoUrl =
     activePatient?.photoUrl || activePatientContact?.patientProfilePhotoUrl || null;
 
+  // The queue list hides contact details until revealed, so the NIC comes from the contact lookup.
+  const administerPatient = useMemo(
+    () =>
+      activePatient
+        ? { ...activePatient, nic: activePatientContact?.patientNic || '' }
+        : null,
+    [activePatient, activePatientContact]
+  );
+
   const activePaymentSettled = activePatient ? isPaymentSettled(activePatient) : true;
 
   useEffect(() => {
@@ -1524,7 +1533,7 @@ export default function StaffClinicalDashboard({
       <AdministerModal
         isOpen={isAdministerModalOpen}
         onClose={() => setIsAdministerModalOpen(false)}
-        patient={activePatient}
+        patient={administerPatient}
         onCertify={handleCertifyAdministration}
         lotOptions={inventoryLots}
         isDoctor={isDoctor}
