@@ -94,6 +94,45 @@ public class VaccinationBookingTests
     }
 
     [Fact]
+    public async Task BookAppointmentAsync_holds_a_paid_booking_for_desk_payment_when_patient_pays_on_the_day()
+    {
+        await using var context = TestDb.CreateContext();
+        var hospital = TestDb.AddHospital(context);
+        var patient = AddPatient(context, "patient-desk@example.com", "VAX-P-4012");
+        var scheduleDate = StaffDutyHelper.HospitalToday().AddDays(4);
+
+        var schedule = new VaccineSchedule
+        {
+            HospitalUserId = hospital.Id,
+            VaccineName = "Sinopharm",
+            ScheduleType = "OneTime",
+            SpecificDate = scheduleDate,
+            StartTime = "09:00",
+            EndTime = "11:00",
+            Status = "Active",
+            Price = 2500.00m
+        };
+        context.VaccineSchedules.Add(schedule);
+        await context.SaveChangesAsync();
+
+        var service = CreateService(context);
+        var result = await service.BookAppointmentAsync(patient.Id, new BookAppointmentRequestDto
+        {
+            HospitalUserId = hospital.Id,
+            VaccineName = "Sinopharm",
+            VaccineScheduleId = schedule.Id,
+            AppointmentDate = scheduleDate,
+            TimeSlot = "09:20 AM - 09:40 AM",
+            PaymentMethod = "Hospital"
+        });
+
+        Assert.Equal("PendingPayment", result.Status);
+        Assert.Equal("Hospital", result.PaymentMethod);
+        Assert.Equal("Pending", result.PaymentStatus);
+        Assert.Equal(2500.00m, result.Fee);
+    }
+
+    [Fact]
     public async Task BookAppointmentAsync_allows_up_to_three_patients_per_20min_slot_then_rejects()
     {
         await using var context = TestDb.CreateContext();

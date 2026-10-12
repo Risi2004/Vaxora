@@ -471,6 +471,13 @@ public class AppointmentService : IAppointmentService
             paymentMethod = "Free";
             paymentStatus = "Paid";
         }
+        else if (string.Equals(dto.PaymentMethod, "Hospital", StringComparison.OrdinalIgnoreCase))
+        {
+            // Patient pays at the hospital desk on the day; the desk marks the booking paid.
+            appointmentStatus = "PendingPayment";
+            paymentMethod = "Hospital";
+            paymentStatus = "Pending";
+        }
         else
         {
             // Paid appointments require portal card payment (PayHere)
@@ -511,7 +518,9 @@ public class AppointmentService : IAppointmentService
 
         // Send booking confirmation email immediately ONLY if appointment is Confirmed (Free)
         // If PayHere, confirmation email is sent ONLY upon successful payment!
-        if (appointment.Status == "Confirmed" && !string.IsNullOrWhiteSpace(patient.Email))
+        // Pay-at-desk bookings hold the slot now, so the patient gets the details straight away.
+        if ((appointment.Status == "Confirmed" || appointment.PaymentMethod == "Hospital") &&
+            !string.IsNullOrWhiteSpace(patient.Email))
         {
             _ = Task.Run(async () =>
             {
