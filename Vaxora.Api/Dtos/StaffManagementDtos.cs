@@ -102,6 +102,9 @@ public class CreateStaffShiftDto
 
     [MaxLength(500)]
     public string? Notes { get; set; }
+
+    /// <summary>Hospital confirmed a one-off shift outside the doctor's offered hours.</summary>
+    public bool OverrideAvailability { get; set; }
 }
 
 public class UpdateStaffShiftDto
@@ -122,6 +125,9 @@ public class UpdateStaffShiftDto
 
     [MaxLength(500)]
     public string? Notes { get; set; }
+
+    /// <summary>Hospital confirmed a one-off shift outside the doctor's offered hours.</summary>
+    public bool OverrideAvailability { get; set; }
 }
 
 public class StaffAffiliationDto
@@ -151,6 +157,33 @@ public class StaffAffiliationDto
     public bool IsClockedIn { get; set; }
     public DateTime InvitedAt { get; set; }
     public DateTime? RespondedAt { get; set; }
+    /// <summary>The doctor's main hospital, which rosters them without an hours limit.</summary>
+    public bool IsPrimary { get; set; }
+    /// <summary>Weekly hours the doctor offers this hospital. Empty means no limit set.</summary>
+    public List<AvailabilityWindowDto> AvailabilityWindows { get; set; } = new();
+    public List<DateOnly> UnavailableDates { get; set; } = new();
+}
+
+public class AvailabilityWindowDto
+{
+    /// <summary>0 = Sunday through 6 = Saturday.</summary>
+    [Range(0, 6)]
+    public int DayOfWeek { get; set; }
+
+    [Required]
+    public TimeOnly StartTime { get; set; }
+
+    [Required]
+    public TimeOnly EndTime { get; set; }
+}
+
+public class UpdateStaffAvailabilityDto
+{
+    public bool IsPrimary { get; set; }
+
+    public List<AvailabilityWindowDto> Windows { get; set; } = new();
+
+    public List<DateOnly> UnavailableDates { get; set; } = new();
 }
 
 public class StaffShiftDto
@@ -187,6 +220,8 @@ public class StaffBusyBlockDto
     public TimeOnly StartTime { get; set; }
     public TimeOnly EndTime { get; set; }
     public bool IsExternal { get; set; }
+    /// <summary>Not a shift: a day off or hours the doctor does not offer this hospital.</summary>
+    public bool IsUnavailable { get; set; }
 }
 
 public class StaffDayCoverageDto

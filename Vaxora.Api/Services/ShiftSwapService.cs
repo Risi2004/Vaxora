@@ -348,6 +348,8 @@ public class ShiftSwapService : IShiftSwapService
                     dates.Contains(s.ShiftDate))
                 .ToListAsync();
 
+        var availability = await StaffAvailabilityHelper.LoadAsync(_context, pool.Select(a => a.Id).ToList());
+
         foreach (var dto in pending)
         {
             if (!shiftById.TryGetValue(dto.ShiftId, out var shift))
@@ -379,6 +381,22 @@ public class ShiftSwapService : IShiftSwapService
                 var overlaps = theirs.Any(s =>
                     shift.StartTime < s.EndTime && shift.EndTime > s.StartTime);
                 if (overlaps) continue;
+
+                // Working at another hospital too close to this window, or outside the
+                // hours this doctor offers here.
+                var tooCloseElsewhere = theirs.Any(s =>
+                    s.Affiliation.HospitalUserId != hospitalUserId &&
+                    StaffAvailabilityHelper.WithinTravelGap(shift.StartTime, shift.EndTime, s.StartTime, s.EndTime));
+                if (tooCloseElsewhere) continue;
+
+                if (!StaffAvailabilityHelper.IsAvailable(
+                        availability.GetValueOrDefault(affiliation.Id),
+                        shift.ShiftDate,
+                        shift.StartTime,
+                        shift.EndTime))
+                {
+                    continue;
+                }
 
                 var specMatch = SpecializationFits(
                     affiliation.StaffUser.DoctorProfile?.Specialization,
@@ -608,6 +626,21 @@ public class ShiftSwapService : IShiftSwapService
 
         if (overlapping.Any(s => shift.StartTime < s.EndTime && shift.EndTime > s.StartTime))
             throw new InvalidOperationException("That person is already booked in this window.");
+
+        if (overlapping.Any(s =>
+                s.Affiliation.HospitalUserId != hospitalUserId &&
+                StaffAvailabilityHelper.WithinTravelGap(shift.StartTime, shift.EndTime, s.StartTime, s.EndTime)))
+        {
+            throw new InvalidOperationException(
+                "That person has a shift at another hospital too close to this window.");
+        }
+
+        var replacementRules = (await StaffAvailabilityHelper.LoadAsync(_context, new[] { replacement.Id }))
+            .GetValueOrDefault(replacement.Id);
+        var unavailableReason = StaffAvailabilityHelper.Explain(
+            replacementRules, shift.ShiftDate, shift.StartTime, shift.EndTime);
+        if (unavailableReason != null)
+            throw new InvalidOperationException($"That person is {unavailableReason} at this hospital.");
 
         var fromName = GetStaffName(shift.Affiliation.StaffUser);
         var toName = GetStaffName(replacement.StaffUser);

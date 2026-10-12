@@ -1169,6 +1169,9 @@ namespace Vaxora.Api.Migrations
                     b.Property<Guid>("InvitedByUserId")
                         .HasColumnType("uuid");
 
+                    b.Property<bool>("IsPrimary")
+                        .HasColumnType("boolean");
+
                     b.Property<DateTime?>("RespondedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -1190,6 +1193,50 @@ namespace Vaxora.Api.Migrations
                     b.HasIndex("HospitalUserId", "StaffUserId");
 
                     b.ToTable("StaffAffiliations");
+                });
+
+            modelBuilder.Entity("Vaxora.Api.Models.StaffAvailabilityWindow", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AffiliationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("DayOfWeek")
+                        .HasColumnType("integer");
+
+                    b.Property<TimeOnly>("EndTime")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<TimeOnly>("StartTime")
+                        .HasColumnType("time without time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AffiliationId", "DayOfWeek");
+
+                    b.ToTable("StaffAvailabilityWindows");
+                });
+
+            modelBuilder.Entity("Vaxora.Api.Models.StaffUnavailableDate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AffiliationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AffiliationId", "Date");
+
+                    b.ToTable("StaffUnavailableDates");
                 });
 
             modelBuilder.Entity("Vaxora.Api.Models.StaffShift", b =>
@@ -1789,6 +1836,28 @@ namespace Vaxora.Api.Migrations
                     b.Navigation("HospitalUser");
 
                     b.Navigation("StaffUser");
+                });
+
+            modelBuilder.Entity("Vaxora.Api.Models.StaffAvailabilityWindow", b =>
+                {
+                    b.HasOne("Vaxora.Api.Models.StaffAffiliation", "Affiliation")
+                        .WithMany()
+                        .HasForeignKey("AffiliationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Affiliation");
+                });
+
+            modelBuilder.Entity("Vaxora.Api.Models.StaffUnavailableDate", b =>
+                {
+                    b.HasOne("Vaxora.Api.Models.StaffAffiliation", "Affiliation")
+                        .WithMany()
+                        .HasForeignKey("AffiliationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Affiliation");
                 });
 
             modelBuilder.Entity("Vaxora.Api.Models.StaffShift", b =>

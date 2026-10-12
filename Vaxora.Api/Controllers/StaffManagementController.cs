@@ -265,6 +265,37 @@ public class StaffManagementController : ControllerBase
         }
     }
 
+    [HttpPut("affiliations/{affiliationId:guid}/availability")]
+    [Authorize(Roles = "DOCTOR")]
+    public async Task<IActionResult> UpdateMyAvailability(Guid affiliationId, [FromBody] UpdateStaffAvailabilityDto dto)
+    {
+        if (!TryGetUserId(out var staffUserId))
+            return Unauthorized(new { message = "Invalid identity claim." });
+
+        try
+        {
+            var result = await _staffService.UpdateMyAvailabilityAsync(staffUserId, affiliationId, dto);
+            return Ok(result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating availability for {AffiliationId}", affiliationId);
+            return StatusCode(500, new { message = "Failed to update availability." });
+        }
+    }
+
     [HttpPost("shifts")]
     [Authorize(Roles = "HOSPITAL")]
     public async Task<IActionResult> CreateShift([FromBody] CreateStaffShiftDto dto)

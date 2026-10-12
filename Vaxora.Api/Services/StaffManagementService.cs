@@ -16,6 +16,8 @@ public interface IStaffManagementService
     /// <summary>Removes staff from the roster and returns how many upcoming shifts were freed.</summary>
     Task<int> RemoveAffiliationAsync(Guid hospitalUserId, Guid affiliationId);
     Task<StaffAffiliationDto> UpdateDutyStatusAsync(Guid actorUserId, Guid affiliationId, UpdateDutyStatusDto dto);
+    /// <summary>A doctor sets which hospital is primary and the hours offered to this one.</summary>
+    Task<StaffAffiliationDto> UpdateMyAvailabilityAsync(Guid staffUserId, Guid affiliationId, UpdateStaffAvailabilityDto dto);
     Task<List<HospitalBoothDto>> GetHospitalBoothsAsync(Guid hospitalUserId, bool activeOnly = false);
     Task<HospitalBoothDto> CreateHospitalBoothAsync(Guid hospitalUserId, CreateHospitalBoothDto dto);
     Task<HospitalBoothDto> UpdateHospitalBoothAsync(Guid hospitalUserId, Guid boothId, UpdateHospitalBoothDto dto);
@@ -300,6 +302,7 @@ public class StaffManagementService : IStaffManagementService
 
         var dtos = list.Select(a => MapAffiliation(a, a.HospitalUser, a.StaffUser)).ToList();
         await AttachLiveDutyAsync(dtos);
+        await AttachAvailabilityAsync(dtos);
 
         if (!string.IsNullOrWhiteSpace(dutyStatus) &&
             Enum.TryParse<DutyStatus>(dutyStatus.Trim(), true, out var liveDutyFilter))
@@ -344,6 +347,7 @@ public class StaffManagementService : IStaffManagementService
 
         var dtos = list.Select(a => MapAffiliation(a, a.HospitalUser, a.StaffUser)).ToList();
         await AttachLiveDutyAsync(dtos);
+        await AttachAvailabilityAsync(dtos);
         return dtos;
     }
 
@@ -452,6 +456,9 @@ public class StaffManagementService : IStaffManagementService
         if (!Enum.TryParse<DutyStatus>(dto.DutyStatus.Trim(), true, out var newDuty))
             throw new InvalidOperationException("DutyStatus must be Off, OnDuty, or OnBreak.");
 
+        if (newDuty == DutyStatus.OnDuty)
+            await EnsureCanClockInAsync(affiliation, checkOfferedHours: isStaff);
+
         affiliation.DutyStatus = newDuty;
         affiliation.DutyUpdatedAt = DateTime.UtcNow;
         affiliation.DutyUpdatedByUserId = actorUserId;
@@ -474,7 +481,236 @@ public class StaffManagementService : IStaffManagementService
         await _context.SaveChangesAsync();
         var result = MapAffiliation(affiliation, affiliation.HospitalUser, affiliation.StaffUser);
         await AttachLiveDutyAsync(new List<StaffAffiliationDto> { result });
+        await AttachAvailabilityAsync(new List<StaffAffiliationDto> { result });
         return result;
+    }
+
+    /// <summary>
+    /// A doctor cannot be present at two hospitals at once, and outside the primary
+    /// hospital may only clock in around the hours they offered. The hospital desk can
+    /// still clock someone in for a one-off (checkOfferedHours = false).
+    /// </summary>
+    private async Task EnsureCanClockInAsync(StaffAffiliation affiliation, bool checkOfferedHours)
+    {
+        var otherAffiliationIds = await _context.StaffAffiliations
+            .AsNoTracking()
+            .Where(a =>
+                a.StaffUserId == affiliation.StaffUserId &&
+                a.Id != affiliation.Id &&
+                a.Status == AffiliationStatus.Active)
+            .Select(a => a.Id)
+            .ToListAsync();
+
+        var onDutyElsewhere = await StaffDutyHelper.GetOnDutyAffiliationIdsAsync(_context, otherAffiliationIds);
+        if (onDutyElsewhere.Count > 0)
+            throw new InvalidOperationException(
+                "Already on duty at another hospital. Clock out there before clocking in here.");
+
+        if (!checkOfferedHours) return;
+
+        var rules = (await StaffAvailabilityHelper.LoadAsync(_context, new[] { affiliation.Id }))
+            .GetValueOrDefault(affiliation.Id);
+        if (rules == null) return;
+
+        var today = HospitalToday();
+        if (rules.UnavailableDates.Contains(today))
+            throw new InvalidOperationException(
+                "You marked today as unavailable at this hospital. Update your availability to clock in.");
+
+        if (!rules.HasWeeklyLimit) return;
+
+        var now = HospitalNow().TimeOfDay;
+        var grace = StaffAvailabilityHelper.ClockInGrace;
+        var insideOfferedHours = rules.Windows.Any(w =>
+            w.Day == today.DayOfWeek &&
+            now >= w.Start.ToTimeSpan() - grace &&
+            now <= w.End.ToTimeSpan() + grace);
+
+        // A rostered shift (for example a hospital-approved one-off) also allows clock-in.
+        var hasShiftToday = await _context.StaffShifts
+            .AsNoTracking()
+            .AnyAsync(s => s.AffiliationId == affiliation.Id && s.ShiftDate == today);
+
+        if (!insideOfferedHours && !hasShiftToday)
+            throw new InvalidOperationException(
+                "This is outside the hours you offer this hospital. Update your availability to clock in.");
+    }
+
+    public async Task<StaffAffiliationDto> UpdateMyAvailabilityAsync(
+        Guid staffUserId,
+        Guid affiliationId,
+        UpdateStaffAvailabilityDto dto)
+    {
+        await EnsureActiveStaffAsync(staffUserId);
+
+        var affiliation = await _context.StaffAffiliations
+            .Include(a => a.HospitalUser).ThenInclude(h => h.HospitalProfile)
+            .Include(a => a.StaffUser).ThenInclude(s => s.DoctorProfile)
+            .Include(a => a.StaffUser).ThenInclude(s => s.NurseProfile)
+            .FirstOrDefaultAsync(a => a.Id == affiliationId);
+
+        if (affiliation == null)
+            throw new KeyNotFoundException("Affiliation not found.");
+
+        if (affiliation.StaffUserId != staffUserId)
+            throw new UnauthorizedAccessException("You can only set your own availability.");
+
+        if (affiliation.Status != AffiliationStatus.Active)
+            throw new InvalidOperationException("Availability can only be set for hospitals you have joined.");
+
+        // Nurses belong to a single hospital, so there is nothing to split.
+        if (affiliation.StaffRole != UserRole.DOCTOR)
+            throw new InvalidOperationException("Availability applies to doctors only.");
+
+        var requested = dto.Windows ?? new List<AvailabilityWindowDto>();
+        if (requested.Any(w => w.DayOfWeek < 0 || w.DayOfWeek > 6))
+            throw new InvalidOperationException("Day of week must be between Sunday and Saturday.");
+
+        var windows = requested
+            .Select(w => new StaffAvailabilityHelper.Window((DayOfWeek)w.DayOfWeek, w.StartTime, w.EndTime))
+            .OrderBy(w => w.Day)
+            .ThenBy(w => w.Start)
+            .ToList();
+
+        foreach (var window in windows)
+        {
+            if (window.End <= window.Start)
+                throw new InvalidOperationException($"{window.Day}: end time must be after start time.");
+        }
+
+        for (var i = 1; i < windows.Count; i++)
+        {
+            if (windows[i].Day == windows[i - 1].Day && windows[i].Start < windows[i - 1].End)
+                throw new InvalidOperationException($"{windows[i].Day}: the time blocks overlap.");
+        }
+
+        var otherAffiliations = await _context.StaffAffiliations
+            .Include(a => a.HospitalUser).ThenInclude(h => h.HospitalProfile)
+            .Where(a =>
+                a.StaffUserId == staffUserId &&
+                a.Id != affiliation.Id &&
+                a.Status == AffiliationStatus.Active)
+            .ToListAsync();
+
+        // Hours offered to two hospitals must not clash or leave no time to travel.
+        if (!dto.IsPrimary && windows.Count > 0)
+        {
+            var otherRules = await StaffAvailabilityHelper.LoadAsync(
+                _context,
+                otherAffiliations.Select(a => a.Id).ToList());
+
+            foreach (var other in otherAffiliations)
+            {
+                var rules = otherRules.GetValueOrDefault(other.Id);
+                if (rules == null || !rules.HasWeeklyLimit) continue;
+
+                var clash = windows.FirstOrDefault(w => rules.Windows.Any(o =>
+                    o.Day == w.Day &&
+                    StaffAvailabilityHelper.WithinTravelGap(w.Start, w.End, o.Start, o.End)));
+                if (clash != null)
+                {
+                    var otherName = other.HospitalUser.HospitalProfile?.HospitalName ?? "another hospital";
+                    throw new InvalidOperationException(
+                        $"{clash.Day} {clash.Start:HH\\:mm}-{clash.End:HH\\:mm} clashes with the hours you offer {otherName}. " +
+                        $"Leave at least {StaffAvailabilityHelper.TravelGap.TotalMinutes:0} minutes between hospitals.");
+                }
+            }
+        }
+
+        var today = HospitalToday();
+        var unavailableDates = (dto.UnavailableDates ?? new List<DateOnly>())
+            .Where(d => d >= today)
+            .Distinct()
+            .OrderBy(d => d)
+            .ToList();
+        if (unavailableDates.Count > 366)
+            throw new InvalidOperationException("You can list at most 366 days off.");
+
+        // Only one hospital can be the main employer.
+        if (dto.IsPrimary)
+        {
+            foreach (var other in otherAffiliations.Where(a => a.IsPrimary))
+                other.IsPrimary = false;
+        }
+        affiliation.IsPrimary = dto.IsPrimary;
+
+        _context.StaffAvailabilityWindows.RemoveRange(
+            await _context.StaffAvailabilityWindows.Where(w => w.AffiliationId == affiliation.Id).ToListAsync());
+        _context.StaffUnavailableDates.RemoveRange(
+            await _context.StaffUnavailableDates.Where(d => d.AffiliationId == affiliation.Id).ToListAsync());
+
+        _context.StaffAvailabilityWindows.AddRange(windows.Select(w => new StaffAvailabilityWindow
+        {
+            AffiliationId = affiliation.Id,
+            DayOfWeek = w.Day,
+            StartTime = w.Start,
+            EndTime = w.End
+        }));
+        _context.StaffUnavailableDates.AddRange(unavailableDates.Select(d => new StaffUnavailableDate
+        {
+            AffiliationId = affiliation.Id,
+            Date = d
+        }));
+
+        _context.AuditLogs.Add(new AuditLog
+        {
+            UserId = staffUserId,
+            UserEmail = affiliation.StaffUser.Email,
+            Role = affiliation.StaffRole.ToString(),
+            Action = "STAFF_AVAILABILITY_UPDATED",
+            Details =
+                $"{GetStaffName(affiliation.StaffUser)} set availability at hospital user {affiliation.HospitalUserId}: " +
+                $"primary={dto.IsPrimary}, {windows.Count} weekly block(s), {unavailableDates.Count} unavailable date(s)"
+        });
+
+        await _context.SaveChangesAsync();
+
+        var result = MapAffiliation(affiliation, affiliation.HospitalUser, affiliation.StaffUser);
+        var results = new List<StaffAffiliationDto> { result };
+        await AttachLiveDutyAsync(results);
+        await AttachAvailabilityAsync(results);
+        return result;
+    }
+
+    private async Task AttachAvailabilityAsync(List<StaffAffiliationDto> dtos)
+    {
+        if (dtos.Count == 0) return;
+
+        var rules = await StaffAvailabilityHelper.LoadAsync(_context, dtos.Select(d => d.AffiliationId).ToList());
+        foreach (var dto in dtos)
+        {
+            if (!rules.TryGetValue(dto.AffiliationId, out var rule)) continue;
+            dto.AvailabilityWindows = rule.Windows
+                .Select(w => new AvailabilityWindowDto
+                {
+                    DayOfWeek = (int)w.Day,
+                    StartTime = w.Start,
+                    EndTime = w.End
+                })
+                .ToList();
+            dto.UnavailableDates = rule.UnavailableDates.OrderBy(d => d).ToList();
+        }
+    }
+
+    /// <summary>
+    /// Rejects a shift outside what the doctor offers this hospital unless the hospital
+    /// confirmed the one-off. The "Outside availability:" prefix lets clients offer that choice.
+    /// </summary>
+    private async Task EnsureWithinAvailabilityAsync(
+        StaffAffiliation affiliation,
+        DateOnly shiftDate,
+        TimeOnly start,
+        TimeOnly end,
+        bool overrideAvailability)
+    {
+        if (overrideAvailability) return;
+
+        var rules = (await StaffAvailabilityHelper.LoadAsync(_context, new[] { affiliation.Id }))
+            .GetValueOrDefault(affiliation.Id);
+        var reason = StaffAvailabilityHelper.Explain(rules, shiftDate, start, end);
+        if (reason != null)
+            throw new InvalidOperationException(
+                $"Outside availability: {GetStaffName(affiliation.StaffUser)} is {reason} at this hospital.");
     }
 
     public async Task<List<HospitalBoothDto>> GetHospitalBoothsAsync(Guid hospitalUserId, bool activeOnly = false)
@@ -649,7 +885,8 @@ public class StaffManagementService : IStaffManagementService
         if (affiliation.StaffRole == UserRole.FRONT_DESK)
             throw new InvalidOperationException("Shifts can only be assigned to doctors or nurses.");
 
-        await EnsureNoShiftOverlapAsync(affiliation.StaffUserId, dto.ShiftDate, dto.StartTime, dto.EndTime);
+        await EnsureNoShiftOverlapAsync(hospitalUserId, affiliation.StaffUserId, dto.ShiftDate, dto.StartTime, dto.EndTime);
+        await EnsureWithinAvailabilityAsync(affiliation, dto.ShiftDate, dto.StartTime, dto.EndTime, dto.OverrideAvailability);
 
         var (boothId, boothLabel) = await ResolveBoothAssignmentAsync(
             hospitalUserId,
@@ -742,18 +979,88 @@ public class StaffManagementService : IStaffManagementService
             .ThenBy(s => s.StartTime)
             .ToListAsync();
 
-        return shifts
+        var blocks = shifts
             .Where(s => localByStaff.ContainsKey(s.Affiliation.StaffUserId))
-            .Select(s => new StaffBusyBlockDto
+            .Select(s =>
             {
-                StaffUserId = s.Affiliation.StaffUserId,
-                LocalAffiliationId = localByStaff[s.Affiliation.StaffUserId],
-                ShiftDate = s.ShiftDate,
-                StartTime = s.StartTime,
-                EndTime = s.EndTime,
-                IsExternal = s.Affiliation.HospitalUserId != hospitalUserId
+                // Another hospital's shift also blocks the travel time either side of it.
+                var isExternal = s.Affiliation.HospitalUserId != hospitalUserId;
+                return new StaffBusyBlockDto
+                {
+                    StaffUserId = s.Affiliation.StaffUserId,
+                    LocalAffiliationId = localByStaff[s.Affiliation.StaffUserId],
+                    ShiftDate = s.ShiftDate,
+                    StartTime = isExternal ? PadStart(s.StartTime) : s.StartTime,
+                    EndTime = isExternal ? PadEnd(s.EndTime) : s.EndTime,
+                    IsExternal = isExternal
+                };
             })
             .ToList();
+
+        blocks.AddRange(await BuildUnavailableBlocksAsync(
+            localAffiliations.Select(a => (a.Id, a.StaffUserId)).ToList(),
+            from,
+            to));
+        return blocks;
+    }
+
+    /// <summary>
+    /// Days off and hours a doctor does not offer this hospital, expressed as busy
+    /// blocks so the scheduling agent never proposes a shift there.
+    /// </summary>
+    private async Task<List<StaffBusyBlockDto>> BuildUnavailableBlocksAsync(
+        List<(Guid AffiliationId, Guid StaffUserId)> affiliations,
+        DateOnly? from,
+        DateOnly? to)
+    {
+        var blocks = new List<StaffBusyBlockDto>();
+        var rules = await StaffAvailabilityHelper.LoadAsync(_context, affiliations.Select(a => a.AffiliationId).ToList());
+        var dayStart = TimeOnly.MinValue;
+        var dayEnd = new TimeOnly(23, 59, 59);
+
+        foreach (var (affiliationId, staffUserId) in affiliations)
+        {
+            if (!rules.TryGetValue(affiliationId, out var rule)) continue;
+
+            void Add(DateOnly date, TimeOnly start, TimeOnly end)
+            {
+                if (end <= start) return;
+                blocks.Add(new StaffBusyBlockDto
+                {
+                    StaffUserId = staffUserId,
+                    LocalAffiliationId = affiliationId,
+                    ShiftDate = date,
+                    StartTime = start,
+                    EndTime = end,
+                    IsUnavailable = true
+                });
+            }
+
+            foreach (var date in rule.UnavailableDates)
+            {
+                if ((!from.HasValue || date >= from.Value) && (!to.HasValue || date <= to.Value))
+                    Add(date, dayStart, dayEnd);
+            }
+
+            // Weekly hours need a bounded range to expand into dates.
+            if (!rule.HasWeeklyLimit || !from.HasValue || !to.HasValue) continue;
+            if (to.Value.DayNumber - from.Value.DayNumber > 62) continue;
+
+            for (var date = from.Value; date <= to.Value; date = date.AddDays(1))
+            {
+                if (rule.UnavailableDates.Contains(date)) continue;
+
+                var cursor = dayStart;
+                foreach (var window in rule.Windows.Where(w => w.Day == date.DayOfWeek).OrderBy(w => w.Start))
+                {
+                    Add(date, cursor, window.Start);
+                    cursor = window.End;
+                }
+                Add(date, cursor, dayEnd);
+            }
+        }
+
+        return blocks;
     }
 
     public async Task<StaffCoverageReportDto> GetCoverageReportAsync(Guid hospitalUserId, DateOnly from, DateOnly to)
@@ -1198,6 +1505,18 @@ public class StaffManagementService : IStaffManagementService
         return null;
     }
 
+    private static TimeOnly PadStart(TimeOnly start)
+    {
+        var padded = start.ToTimeSpan() - StaffAvailabilityHelper.TravelGap;
+        return padded < TimeSpan.Zero ? TimeOnly.MinValue : TimeOnly.FromTimeSpan(padded);
+    }
+
+    private static TimeOnly PadEnd(TimeOnly end)
+    {
+        var padded = end.ToTimeSpan() + StaffAvailabilityHelper.TravelGap;
+        return padded >= TimeSpan.FromDays(1) ? TimeOnly.MaxValue : TimeOnly.FromTimeSpan(padded);
+    }
+
     private static TimeOnly ParseSuggestTime(string? value, TimeOnly fallback)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -1253,11 +1572,22 @@ public class StaffManagementService : IStaffManagementService
         ValidateShiftSchedule(dto.ShiftDate, dto.StartTime, dto.EndTime, existingStart: shift.StartTime, existingDate: shift.ShiftDate);
 
         await EnsureNoShiftOverlapAsync(
+            hospitalUserId,
             shift.Affiliation.StaffUserId,
             dto.ShiftDate,
             dto.StartTime,
             dto.EndTime,
             excludeShiftId: shift.Id);
+
+        // Booth or notes edits keep the slot, so only a moved slot is checked again.
+        var slotMoved =
+            shift.ShiftDate != dto.ShiftDate ||
+            shift.StartTime.Hour != dto.StartTime.Hour ||
+            shift.StartTime.Minute != dto.StartTime.Minute ||
+            shift.EndTime.Hour != dto.EndTime.Hour ||
+            shift.EndTime.Minute != dto.EndTime.Minute;
+        if (slotMoved)
+            await EnsureWithinAvailabilityAsync(shift.Affiliation, dto.ShiftDate, dto.StartTime, dto.EndTime, dto.OverrideAvailability);
 
         shift.ShiftDate = dto.ShiftDate;
         shift.StartTime = dto.StartTime;
@@ -1421,9 +1751,11 @@ public class StaffManagementService : IStaffManagementService
     }
 
     /// <summary>
-    /// Blocks overlapping shifts for the same staff member on the same date (any hospital).
+    /// Blocks overlapping shifts for the same staff member on the same date (any hospital),
+    /// and shifts at another hospital that leave no time to travel.
     /// </summary>
     private async Task EnsureNoShiftOverlapAsync(
+        Guid hospitalUserId,
         Guid staffUserId,
         DateOnly shiftDate,
         TimeOnly startTime,
@@ -1444,6 +1776,15 @@ public class StaffManagementService : IStaffManagementService
         {
             throw new InvalidOperationException(
                 "This staff member is already unavailable during that time slot.");
+        }
+
+        var tooCloseElsewhere = existing.Any(s =>
+            s.Affiliation.HospitalUserId != hospitalUserId &&
+            StaffAvailabilityHelper.WithinTravelGap(startTime, endTime, s.StartTime, s.EndTime));
+        if (tooCloseElsewhere)
+        {
+            throw new InvalidOperationException(
+                $"This staff member has a shift at another hospital within {StaffAvailabilityHelper.TravelGap.TotalMinutes:0} minutes of this slot. Leave travel time between hospitals.");
         }
     }
 
@@ -1625,7 +1966,8 @@ public class StaffManagementService : IStaffManagementService
             DutyStatus = affiliation.DutyStatus.ToString(),
             DutyUpdatedAt = affiliation.DutyUpdatedAt,
             InvitedAt = affiliation.InvitedAt,
-            RespondedAt = affiliation.RespondedAt
+            RespondedAt = affiliation.RespondedAt,
+            IsPrimary = affiliation.IsPrimary
         };
     }
 
