@@ -13,6 +13,7 @@ import {
   RoleAvatarIcon,
 } from './HospitalIcons';
 import useConfirmDialog from '../../../shared/hooks/useConfirmDialog';
+import { describeAvailability } from '../../staff/utils/availability';
 
 function mapAffiliationToCard(item) {
   const isPending = item.status === 'Pending';
@@ -39,6 +40,8 @@ function mapAffiliationToCard(item) {
     status: isPending ? 'Pending Request' : liveDuty,
     photoUrl: item.staffProfilePhotoUrl || null,
     invitedAt: item.invitedAt,
+    // Only doctors split their week between hospitals.
+    availability: !isPending && item.staffRole === 'DOCTOR' ? describeAvailability(item) : '',
   };
 }
 
@@ -477,6 +480,11 @@ export default function HospitalStaffTab() {
                   <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
                     {staff.email}
                   </span>
+                  {staff.availability ? (
+                    <span style={{ fontSize: '0.75rem', color: 'var(--color-text-body)', overflowWrap: 'anywhere' }}>
+                      {staff.availability}
+                    </span>
+                  ) : null}
                 </div>
               </div>
 

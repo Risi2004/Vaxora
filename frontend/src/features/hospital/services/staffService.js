@@ -89,6 +89,13 @@ export const staffService = {
     });
   },
 
+  updateMyAvailability(affiliationId, payload) {
+    return apiRequest(`/staff/affiliations/${affiliationId}/availability`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  },
+
   getMyInvitations() {
     return apiRequest('/staff/invitations');
   },
