@@ -224,6 +224,61 @@ public class StaffBusyBlockDto
     public bool IsUnavailable { get; set; }
 }
 
+/// <summary>One dated run of a posted vaccine session, with the staff rostered onto it.</summary>
+public class RosterSessionDto
+{
+    public Guid ScheduleId { get; set; }
+    public DateOnly Date { get; set; }
+    public TimeOnly StartTime { get; set; }
+    public TimeOnly EndTime { get; set; }
+    public Guid? BoothId { get; set; }
+    public string? BoothLabel { get; set; }
+    public string VaccineName { get; set; } = string.Empty;
+    public List<RosterSessionStaffDto> Doctors { get; set; } = new();
+    public List<RosterSessionStaffDto> Nurses { get; set; } = new();
+    /// <summary>False once the session has ended.</summary>
+    public bool CanAssign { get; set; }
+}
+
+public class RosterSessionStaffDto
+{
+    public Guid ShiftId { get; set; }
+    public Guid AffiliationId { get; set; }
+    public string StaffName { get; set; } = string.Empty;
+    public TimeOnly StartTime { get; set; }
+    public TimeOnly EndTime { get; set; }
+}
+
+public class SessionCandidateDto
+{
+    public Guid AffiliationId { get; set; }
+    public string StaffName { get; set; } = string.Empty;
+    public string StaffRole { get; set; } = string.Empty;
+    public string? Specialization { get; set; }
+    public string? StaffPhotoUrl { get; set; }
+    public bool Available { get; set; }
+    /// <summary>Why this person cannot simply be picked, when not available.</summary>
+    public string? Reason { get; set; }
+    /// <summary>Only the doctor's own hours or day off are in the way, so the hospital may confirm a one-off.</summary>
+    public bool CanOverride { get; set; }
+    public int ShiftsThatDay { get; set; }
+}
+
+public class AssignSessionStaffDto
+{
+    [Required]
+    public Guid ScheduleId { get; set; }
+
+    [Required]
+    public DateOnly Date { get; set; }
+
+    [Required]
+    [MinLength(1)]
+    public List<Guid> AffiliationIds { get; set; } = new();
+
+    public bool OverrideAvailability { get; set; }
+}
+
 public class StaffDayCoverageDto
 {
     public DateOnly Date { get; set; }
