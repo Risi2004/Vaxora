@@ -250,7 +250,7 @@ export default function AdminHospitalsTab() {
               <span style={{ display: 'inline-flex' }}><IconHospital size={22} /></span>
               Hospital Centers Performance &amp; Vaccine Supply
             </div>
-            <p style={{ margin: '4px 0 0 0', fontSize: '0.82rem', color: '#64748b' }}>
+            <p style={{ margin: '4px 0 0 0', fontSize: '0.82rem', color: '#94a3b8' }}>
               Track hospital immunization metrics, cold-chain compliance, wastage rates, and manage vaccine batch allocations.
             </p>
           </div>
@@ -318,7 +318,7 @@ export default function AdminHospitalsTab() {
             <tbody>
               {filteredHospitals.length === 0 ? (
                 <tr>
-                  <td colSpan={8} style={{ textAlign: 'center', padding: '36px', color: '#64748b' }}>
+                  <td colSpan={8} style={{ textAlign: 'center', padding: '36px', color: '#94a3b8' }}>
                     No hospitals found matching your criteria.
                   </td>
                 </tr>
@@ -344,7 +344,7 @@ export default function AdminHospitalsTab() {
                     <td>
                       <div style={{ fontSize: '0.85rem' }}>
                         <strong style={{ color: '#ffffff' }}>{h.city}</strong>
-                        <div style={{ color: '#38bdf8', fontWeight: 600, marginTop: '2px' }}>{h.code}</div>
+                        <div style={{ color: '#00b4d8', fontWeight: 600, marginTop: '2px' }}>{h.code}</div>
                       </div>
                     </td>
                     <td>
@@ -364,7 +364,7 @@ export default function AdminHospitalsTab() {
                       </div>
                     </td>
                     <td>
-                      <span style={{ fontWeight: 700, color: '#38bdf8' }}>
+                      <span style={{ fontWeight: 700, color: '#00b4d8' }}>
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                           <IconSnowflake size={14} /> {h.coldChainTemp}
                         </span>
@@ -379,7 +379,7 @@ export default function AdminHospitalsTab() {
                       <button
                         type="button"
                         className="doctor-table-btn"
-                        style={{ background: '#0284c7', color: '#ffffff', borderColor: '#38bdf8' }}
+                        style={{ background: '#0077b6', color: '#ffffff', borderColor: '#00b4d8' }}
                         onClick={() => {
                           setSelectedHospital(h);
                           setIsDetailModalOpen(true);
@@ -400,7 +400,7 @@ export default function AdminHospitalsTab() {
       {isDetailModalOpen && selectedHospital && (
         <div className="doctor-modal-overlay" onClick={() => setIsDetailModalOpen(false)}>
           <div className="doctor-modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '820px' }}>
-            <div className="doctor-modal-header" style={{ background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)' }}>
+            <div className="doctor-modal-header" style={{ background: '#0077b6' }}>
               <div>
                 <h3 className="doctor-modal-title">{selectedHospital.name}</h3>
                 <p style={{ margin: '4px 0 0 0', fontSize: '0.82rem', color: 'rgba(255,255,255,0.85)' }}>
@@ -420,13 +420,13 @@ export default function AdminHospitalsTab() {
                   <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#ffffff', marginTop: '2px' }}>{selectedHospital.totalDoses}</div>
                 </div>
 
-                <div style={{ background: '#111a2e', border: '1px solid rgba(2, 132, 199, 0.3)', borderRadius: '10px', padding: '12px' }}>
-                  <span style={{ fontSize: '0.74rem', color: '#38bdf8', fontWeight: 700 }}>On-Time Rate</span>
+                <div style={{ background: '#111a2e', border: '1px solid rgba(0, 119, 182, 0.3)', borderRadius: '10px', padding: '12px' }}>
+                  <span style={{ fontSize: '0.74rem', color: '#00b4d8', fontWeight: 700 }}>On-Time Rate</span>
                   <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#ffffff', marginTop: '2px' }}>{selectedHospital.completionRate}</div>
                 </div>
 
-                <div style={{ background: '#111a2e', border: '1px solid rgba(56, 189, 248, 0.3)', borderRadius: '10px', padding: '12px' }}>
-                  <span style={{ fontSize: '0.74rem', color: '#38bdf8', fontWeight: 700 }}>Cold Chain Vault</span>
+                <div style={{ background: '#111a2e', border: '1px solid rgba(0, 180, 216, 0.3)', borderRadius: '10px', padding: '12px' }}>
+                  <span style={{ fontSize: '0.74rem', color: '#00b4d8', fontWeight: 700 }}>Cold Chain Vault</span>
                   <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#ffffff', marginTop: '2px' }}>{selectedHospital.coldChainTemp}</div>
                 </div>
 
@@ -463,7 +463,7 @@ export default function AdminHospitalsTab() {
                   <button
                     type="button"
                     className="doctor-table-btn"
-                    style={{ background: '#0284c7', color: '#fff', borderColor: '#38bdf8', fontSize: '0.82rem' }}
+                    style={{ background: '#0077b6', color: '#fff', borderColor: '#00b4d8', fontSize: '0.82rem' }}
                     onClick={() => setIsAllocateModalOpen(true)}
                   >
                     + Provide / Allocate Vaccines
@@ -495,11 +495,11 @@ export default function AdminHospitalsTab() {
                           </td>
                           <td style={{ color: '#cbd5e1' }}>{v.allocatedTotal} doses</td>
                           <td>
-                            <span className="admin-id-pill" style={{ fontSize: '0.75rem', color: '#38bdf8' }}>{v.lot}</span>
+                            <span className="admin-id-pill" style={{ fontSize: '0.75rem', color: '#00b4d8' }}>{v.lot}</span>
                           </td>
                           <td style={{ color: '#94a3b8' }}>{v.exp}</td>
                           <td>
-                            <span style={{ fontWeight: 600, color: '#38bdf8' }}>{v.temp}</span>
+                            <span style={{ fontWeight: 600, color: '#00b4d8' }}>{v.temp}</span>
                           </td>
                         </tr>
                       ))}
@@ -520,7 +520,7 @@ export default function AdminHospitalsTab() {
               <button
                 type="button"
                 className="doctor-btn-submit"
-                style={{ background: '#0284c7' }}
+                style={{ background: '#0077b6' }}
                 onClick={() => setIsAllocateModalOpen(true)}
               >
                 + Allocate Vaccine Quota

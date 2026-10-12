@@ -9,6 +9,7 @@ import {
   getPatientAppointmentStatusDisplay,
   normalizePatientAppointmentStatus,
 } from '../utils/appointmentStatusDisplay';
+import useConfirmDialog from '../../../shared/hooks/useConfirmDialog';
 
 const ACTIVE_APPOINTMENT_STATUSES = new Set([
   'confirmed',
@@ -64,6 +65,7 @@ function registerPayHereCallbacks(payhere, callbacks) {
 }
 
 export default function AppointmentsTab() {
+  const [confirm, confirmDialog] = useConfirmDialog();
   const [showAgentModal, setShowAgentModal] = useState(false);
   const [vaccinesList, setVaccinesList] = useState([]);
   const [availableHospitals, setAvailableHospitals] = useState([]);
@@ -110,10 +112,17 @@ export default function AppointmentsTab() {
   const [selectedFee, setSelectedFee] = useState(0);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
-  const showToast = (msg) => {
+  const [notificationTone, setNotificationTone] = useState('success'); // success | error | info
+  const toastTimerRef = useRef(null);
+
+  const showToast = (msg, tone = 'success') => {
     setNotification(msg);
-    setTimeout(() => setNotification(''), 5000);
+    setNotificationTone(tone);
+    clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => setNotification(''), 5000);
   };
+
+  useEffect(() => () => clearTimeout(toastTimerRef.current), []);
 
   // 1. Fetch logged-in patient's saved appointments from database
   const loadMyAppointments = useCallback(async () => {
@@ -207,7 +216,8 @@ export default function AppointmentsTab() {
       showToast('Payment confirmed. Your appointment is booked and receipts have been emailed.');
     } else {
       showToast(
-        'PayHere checkout finished. Waiting for payment notification — refresh shortly, or ask the hospital desk to Mark paid if you paid at the counter.'
+        'PayHere checkout finished. Waiting for payment notification — refresh shortly, or ask the hospital desk to Mark paid if you paid at the counter.',
+        'info'
       );
     }
     setTimeout(() => {
@@ -242,7 +252,7 @@ export default function AppointmentsTab() {
       };
       handleReturnSuccess();
     } else if (paymentParam === 'cancelled') {
-      showToast('PayHere payment was cancelled. You can complete payment anytime from your appointments list.');
+      showToast('PayHere payment was cancelled. You can complete payment anytime from your appointments list.', 'info');
       window.history.replaceState({}, document.title, window.location.pathname);
       loadMyAppointments();
     }
@@ -482,25 +492,17 @@ export default function AppointmentsTab() {
     }
   };
 
-  // 6. Handle Time Slot Selection
-  const handleTimeChange = (e) => {
-    setFormData((prev) => ({
-      ...prev,
-      time: e.target.value,
-    }));
-  };
-
   // 7. Handle Form Submission -> Persists Appointment to Database
-  const handleBook = async (e) => {
+  const handleBook = async (e, payAtDesk = false) => {
     e.preventDefault();
     if (!formData.vaccine || !formData.hospitalUserId || !formData.date || !formData.time) {
-      alert('Please complete all steps (Vaccine, Hospital, Date, and Time).');
+      showToast('Please complete all steps (Vaccine, Hospital, Date, and Time).', 'error');
       return;
     }
 
     const todayLocal = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Colombo' });
     if (formData.date < todayLocal) {
-      alert('That appointment date is in the past. Please pick another date.');
+      showToast('That appointment date is in the past. Please pick another date.', 'error');
       return;
     }
     if (formData.date === todayLocal) {
@@ -515,13 +517,13 @@ export default function AppointmentsTab() {
       const parsed = Date.parse(`1970-01-01T${normalizeSlotTo24h(slotStart)}`);
       const nowParsed = Date.parse(`1970-01-01T${nowHm}:00`);
       if (!Number.isNaN(parsed) && !Number.isNaN(nowParsed) && parsed < nowParsed) {
-        alert('That time slot has already started. Please choose a later slot.');
+        showToast('That time slot has already started. Please choose a later slot.', 'error');
         return;
       }
     }
 
     const isFree = selectedFee <= 0;
-    const chosenMethod = isFree ? 'Free' : 'PayHere';
+    const chosenMethod = isFree ? 'Free' : payAtDesk ? 'Hospital' : 'PayHere';
 
     const payload = {
       hospitalUserId: formData.hospitalUserId,
@@ -543,7 +545,16 @@ export default function AppointmentsTab() {
       const resStatus = String(res?.status ?? res?.Status ?? '').toLowerCase();
 
       if (resFee <= 0 || resStatus === 'confirmed') {
-        showToast('✓ Free appointment confirmed! Booking details sent to your email.');
+        showToast('Free appointment confirmed! Booking details sent to your email.');
+        resetBookingForm();
+        await loadMyAppointments();
+        setTimeout(() => {
+          const section = document.querySelector('.appointments-list-section');
+          if (section) section.scrollIntoView({ behavior: 'smooth' });
+        }, 200);
+      } else if (payAtDesk) {
+        // Slot is held; the hospital desk marks the booking paid on the day.
+        showToast(`Appointment booked. Pay Rs. ${resFee.toLocaleString()} at the hospital desk on the day.`);
         resetBookingForm();
         await loadMyAppointments();
         setTimeout(() => {
@@ -561,7 +572,7 @@ export default function AppointmentsTab() {
         launchPayHere(checkoutPayload, res.id || res.Id);
       }
     } catch (err) {
-      alert(`Booking failed: ${err.message}`);
+      showToast(`Booking failed: ${err.message}`, 'error');
     } finally {
       setSubmitting(false);
     }
@@ -587,7 +598,7 @@ export default function AppointmentsTab() {
   // Direct PayHere Official JavaScript SDK Popup Launcher
   const launchPayHere = (checkoutPayload, aptId) => {
     if (!window.payhere) {
-      alert('PayHere payment library is still loading or blocked by your browser. Please refresh and try again.');
+      showToast('PayHere payment library is still loading or blocked by your browser. Please refresh and try again.', 'error');
       return;
     }
 
@@ -598,17 +609,17 @@ export default function AppointmentsTab() {
           await syncPayHereConfirmation(aptId);
         } catch (err) {
           console.error('Failed to sync PayHere payment:', err);
-          showToast(err.message || 'Could not sync payment status. Please refresh.');
+          showToast(err.message || 'Could not sync payment status. Please refresh.', 'error');
           await loadMyAppointments();
         }
       },
       onDismissed: function onDismissed() {
-        showToast('PayHere checkout closed. You can complete payment anytime by clicking "Pay Now" on your appointment.');
+        showToast('PayHere checkout closed. You can complete payment anytime by clicking "Pay Now" on your appointment.', 'info');
         loadMyAppointments();
       },
       onError: function onError(error) {
         console.error('PayHere error:', error);
-        alert(`PayHere error: ${error}`);
+        showToast(`PayHere error: ${error}`, 'error');
         loadMyAppointments();
       },
     });
@@ -643,7 +654,7 @@ export default function AppointmentsTab() {
       const checkoutPayload = await appointmentService.initPayHere(apt.id || apt.Id);
       launchPayHere(checkoutPayload, apt.id || apt.Id);
     } catch (err) {
-      alert(`Failed to launch PayHere: ${err.message}`);
+      showToast(`Failed to launch PayHere: ${err.message}`, 'error');
     } finally {
       setIsProcessingPayment(false);
     }
@@ -693,18 +704,25 @@ export default function AppointmentsTab() {
   // 8. Handle Appointment Cancellation
   const handleCancel = async (apt) => {
     if (!isEligibleForCancellation(apt)) {
-      alert('Appointments can only be cancelled at least 24 hours before the scheduled start time. For same-day adjustments, please contact the hospital directly.');
+      showToast('Appointments can only be cancelled at least 24 hours before the scheduled start time. For same-day adjustments, please contact the hospital directly.', 'error');
       return;
     }
 
-    if (window.confirm('Are you sure you want to cancel this appointment slot? Your 20-minute slot will be made free for other citizens and a cancellation email will be sent to you.')) {
-      try {
-        await appointmentService.cancelAppointment(apt.id || apt.Id);
-        showToast('Appointment cancelled successfully. A confirmation email has been dispatched and the slot is now free.');
-        await loadMyAppointments();
-      } catch (err) {
-        alert(`Failed to cancel appointment: ${err.message}`);
-      }
+    const ok = await confirm({
+      title: 'Cancel appointment?',
+      message: `Cancel your ${apt.vaccineName || apt.vaccine || 'vaccination'} session at ${apt.hospitalName || 'the hospital'}? Your 20-minute slot will be freed and a cancellation email will be sent.`,
+      cancelLabel: 'Keep',
+      confirmLabel: 'Cancel session',
+      destructive: true,
+    });
+    if (!ok) return;
+
+    try {
+      await appointmentService.cancelAppointment(apt.id || apt.Id);
+      showToast('Appointment cancelled successfully. A confirmation email has been dispatched and the slot is now free.');
+      await loadMyAppointments();
+    } catch (err) {
+      showToast(`Failed to cancel appointment: ${err.message}`, 'error');
     }
   };
 
@@ -771,8 +789,24 @@ export default function AppointmentsTab() {
       <div className="manage-appointments-card">
         {/* Notification Alert */}
         {notification && (
-          <div className="appointment-alert-pill" role="alert">
-            ✓ {notification}
+          <div
+            className="appointment-alert-pill"
+            role="alert"
+            style={{
+              // Stays in view below the navbar so messages are seen from the list too.
+              position: 'sticky',
+              top: '84px',
+              zIndex: 50,
+              ...(notificationTone === 'success'
+                ? {}
+                : {
+                    background: `var(--color-${notificationTone}-bg)`,
+                    borderColor: `var(--color-${notificationTone}-border)`,
+                    color: notificationTone === 'info' ? 'var(--color-primary)' : `var(--color-${notificationTone})`,
+                  }),
+            }}
+          >
+            {notificationTone === 'success' ? '✓ ' : ''}{notification}
           </div>
         )}
 
@@ -797,14 +831,15 @@ export default function AppointmentsTab() {
                 alignItems: 'center',
                 gap: '8px',
                 padding: '9px 18px',
-                background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
-                color: '#ffffff',
+                background: 'var(--color-accent)',
+                color: 'var(--color-text-inverse)',
                 border: 'none',
-                borderRadius: '10px',
-                fontSize: '14px',
-                fontWeight: 700,
+                borderRadius: 'var(--btn-radius)',
+                fontFamily: 'var(--btn-font)',
+                fontSize: 'var(--btn-size-md)',
+                fontWeight: 'var(--btn-weight)',
                 cursor: 'pointer',
-                boxShadow: '0 4px 12px rgba(2, 132, 199, 0.35)',
+                boxShadow: 'var(--shadow-btn)',
                 transition: 'all 0.2s ease'
               }}
               onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}
@@ -816,7 +851,7 @@ export default function AppointmentsTab() {
                 background: 'rgba(255, 255, 255, 0.25)',
                 padding: '2px 8px',
                 borderRadius: '12px',
-                fontSize: '11px',
+                fontSize: '12px',
                 fontWeight: 600
               }}>AI</span>
             </button>
@@ -837,7 +872,7 @@ export default function AppointmentsTab() {
               {/* 1. Select Vaccine (Always Enabled) */}
               <div className="book-form-group">
                 <label className="book-form-label" htmlFor="select-vaccine">
-                  Select Vaccine <span style={{ color: '#dc2626' }}>*</span>
+                  Select Vaccine <span style={{ color: 'var(--color-error)' }}>*</span>
                 </label>
                 <div className="select-dropdown-wrap">
                   <select
@@ -876,7 +911,7 @@ export default function AppointmentsTab() {
                   className={`book-form-label ${!isVaccineSelected ? 'disabled' : ''}`}
                   htmlFor="select-hospital"
                 >
-                  Select Hospital <span style={{ color: '#dc2626' }}>*</span>
+                  Select Hospital <span style={{ color: 'var(--color-error)' }}>*</span>
                 </label>
                 <div className={`select-dropdown-wrap ${!isVaccineSelected ? 'disabled' : ''}`}>
                   <select
@@ -920,7 +955,7 @@ export default function AppointmentsTab() {
                   className={`book-form-label ${!isHospitalSelected ? 'disabled' : ''}`}
                   htmlFor="select-date-trigger"
                 >
-                  Date <span style={{ color: '#dc2626' }}>*</span>
+                  Date <span style={{ color: 'var(--color-error)' }}>*</span>
                 </label>
 
                 <div className={`select-dropdown-wrap ${!isHospitalSelected ? 'disabled' : ''}`}>
@@ -937,7 +972,7 @@ export default function AppointmentsTab() {
                   >
                     <span style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       <IconCalendar size={16} />
-                      <span style={{ color: formData.date ? '#0f172a' : '#94a3b8', fontWeight: formData.date ? '600' : 'normal' }}>
+                      <span style={{ color: formData.date ? 'var(--color-text-title)' : 'var(--color-text-placeholder)', fontWeight: formData.date ? '600' : 'normal' }}>
                         {!isHospitalSelected
                           ? 'Select Hospital first...'
                           : loadingDates
@@ -949,7 +984,7 @@ export default function AppointmentsTab() {
                           : 'Click to select available date from calendar'}
                       </span>
                     </span>
-                    <span style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                    <span style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)' }}>
                       {showCalendarPopup ? '▲' : '▼'}
                     </span>
                   </button>
@@ -1105,7 +1140,7 @@ export default function AppointmentsTab() {
                   className={`book-form-label ${!isDateSelected ? 'disabled' : ''}`}
                   id="select-time-label"
                 >
-                  Time Slot (20-Minute Sessions) <span style={{ color: '#dc2626' }}>*</span>
+                  Time Slot (20-Minute Sessions) <span style={{ color: 'var(--color-error)' }}>*</span>
                 </label>
 
                 {!isDateSelected ? (
@@ -1193,17 +1228,17 @@ export default function AppointmentsTab() {
                   margin: '22px 0 10px 0',
                   padding: '20px',
                   borderRadius: '14px',
-                  background: selectedFee > 0 ? '#f0f9ff' : '#f0fdf4',
-                  border: `1.5px solid ${selectedFee > 0 ? '#38bdf8' : '#86efac'}`,
+                  background: selectedFee > 0 ? 'var(--color-info-bg)' : 'var(--color-success-bg)',
+                  border: `1.5px solid ${selectedFee > 0 ? 'var(--color-info-border)' : 'var(--color-success-border)'}`,
                   boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
                   <div>
-                    <div style={{ fontSize: '0.82rem', textTransform: 'uppercase', letterSpacing: '0.6px', color: selectedFee > 0 ? '#0369a1' : '#15803d', fontWeight: 800 }}>
+                    <div style={{ fontSize: '0.8125rem', textTransform: 'uppercase', letterSpacing: '0.6px', color: selectedFee > 0 ? 'var(--color-accent)' : 'var(--color-success)', fontWeight: 800 }}>
                       Vaccination Fee (Configured by Hospital)
                     </div>
-                    <div style={{ fontSize: '1.45rem', fontWeight: 800, color: selectedFee > 0 ? '#0284c7' : '#16a34a', marginTop: '2px' }}>
+                    <div style={{ fontSize: '1.5rem', fontWeight: 800, color: selectedFee > 0 ? 'var(--color-accent)' : 'var(--color-success)', marginTop: '2px' }}>
                       {selectedFee > 0 ? `Rs. ${selectedFee.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : 'Free (0 Rs - Fully Subsidized)'}
                     </div>
                   </div>
@@ -1211,9 +1246,9 @@ export default function AppointmentsTab() {
                     style={{
                       padding: '6px 14px',
                       borderRadius: '20px',
-                      background: selectedFee > 0 ? '#e0f2fe' : '#dcfce7',
-                      color: selectedFee > 0 ? '#0369a1' : '#15803d',
-                      fontSize: '0.82rem',
+                      background: selectedFee > 0 ? 'var(--color-info-bg)' : 'var(--color-success-bg)',
+                      color: selectedFee > 0 ? 'var(--color-accent)' : 'var(--color-success)',
+                      fontSize: '0.8125rem',
                       fontWeight: 700,
                     }}
                   >
@@ -1223,7 +1258,7 @@ export default function AppointmentsTab() {
 
                 {/* If fee > 0: Card payment required notice */}
                 {selectedFee > 0 && (
-                  <div style={{ marginTop: '16px', paddingTop: '14px', borderTop: '1px solid #bae6fd' }}>
+                  <div style={{ marginTop: '16px', paddingTop: '14px', borderTop: '1px solid var(--color-info-border)' }}>
                     <div
                       style={{
                         display: 'flex',
@@ -1231,17 +1266,17 @@ export default function AppointmentsTab() {
                         gap: '12px',
                         padding: '12px 16px',
                         borderRadius: '10px',
-                        border: '1px solid #bae6fd',
-                        background: '#ffffff',
+                        border: '1px solid var(--color-info-border)',
+                        background: 'var(--color-surface)',
                       }}
                     >
-                      <span style={{ fontSize: '1.4rem' }}>💳</span>
+                      <span style={{ fontSize: '1.5rem' }}>💳</span>
                       <div>
-                        <div style={{ fontWeight: 700, color: '#0369a1', fontSize: '0.92rem' }}>
-                          Online Card Payment Required
+                        <div style={{ fontWeight: 700, color: 'var(--color-accent)', fontSize: '0.9375rem' }}>
+                          Pay Online or on the Day
                         </div>
-                        <div style={{ fontSize: '0.82rem', color: '#64748b', marginTop: '2px', lineHeight: 1.4 }}>
-                          Payment of <strong>Rs. {selectedFee.toLocaleString()}</strong> is completed securely via online card payment to confirm your booking.
+                        <div style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)', marginTop: '2px', lineHeight: 1.4 }}>
+                          Pay <strong>Rs. {selectedFee.toLocaleString()}</strong> securely by card now, or at the hospital desk on the day of your appointment.
                         </div>
                       </div>
                     </div>
@@ -1268,6 +1303,17 @@ export default function AppointmentsTab() {
                   ? 'Confirm & Book Free Spot'
                   : `Pay Now (Rs. ${selectedFee.toLocaleString()})`}
               </button>
+              {selectedFee > 0 && (
+                <button
+                  type="button"
+                  className="btn-book-appointment btn-book-pay-later"
+                  disabled={!isFormComplete || submitting}
+                  onClick={(e) => handleBook(e, true)}
+                  title="Book now and pay at the hospital desk on the day"
+                >
+                  Pay on the Day
+                </button>
+              )}
             </div>
           </form>
         </div>
@@ -1281,7 +1327,7 @@ export default function AppointmentsTab() {
               left: 0,
               right: 0,
               bottom: 0,
-              backgroundColor: 'rgba(15, 23, 42, 0.65)',
+              backgroundColor: 'var(--color-overlay)',
               backdropFilter: 'blur(5px)',
               display: 'flex',
               alignItems: 'center',
@@ -1424,34 +1470,34 @@ export default function AppointmentsTab() {
                         <td className="td-vaccine">
                           <div style={{ fontWeight: 600 }}>{apt.vaccineName || apt.vaccine}</div>
                           {apt.doctorName && (
-                            <div style={{ fontSize: '0.78rem', color: '#64748b' }}>
-                              Dr. {apt.doctorName}
+                            <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
+                              Dr. {apt.doctorName.replace(/^(?:(?:dr\.|dr\s|doctor\s)\s*)+/i, '')}
                             </div>
                           )}
                         </td>
                         <td className="td-date">{apt.appointmentDate || apt.date}</td>
                         <td className="td-time">
-                          <span style={{ fontWeight: 600, color: '#1e40af' }}>
+                          <span style={{ fontWeight: 600, color: 'var(--color-primary)' }}>
                             {apt.timeSlot || apt.time}
                           </span>
                         </td>
                         <td className="td-location">{apt.hospitalName || apt.location}</td>
                         <td style={{ textAlign: 'center' }}>
-                          <div style={{ fontWeight: 700, fontSize: '0.9rem', color: feeNum > 0 ? '#0284c7' : '#16a34a' }}>
+                          <div style={{ fontWeight: 700, fontSize: '0.875rem', color: feeNum > 0 ? 'var(--color-accent)' : 'var(--color-success)' }}>
                             {feeNum > 0 ? `LKR ${feeNum.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : 'Free'}
                           </div>
                           <div style={{ marginTop: '3px' }}>
                             {feeNum <= 0 ? (
-                              <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: '10px', fontSize: '0.74rem', fontWeight: 700, backgroundColor: '#dcfce7', color: '#15803d' }}>
+                              <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 700, backgroundColor: 'var(--color-success-bg)', color: 'var(--color-success)' }}>
                                 ✓ Subsidized
                               </span>
                             ) : payStatus === 'Paid' ? (
-                              <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: '10px', fontSize: '0.74rem', fontWeight: 700, backgroundColor: '#dcfce7', color: '#15803d' }}>
-                                ✓ Paid Online
+                              <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 700, backgroundColor: 'var(--color-success-bg)', color: 'var(--color-success)' }}>
+                                {['Hospital', 'WalkIn'].includes(apt.paymentMethod || apt.PaymentMethod) ? '✓ Paid' : '✓ Paid Online'}
                               </span>
                             ) : (
                               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-                                <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: '10px', fontSize: '0.72rem', fontWeight: 700, backgroundColor: '#fee2e2', color: '#b91c1c' }}>
+                                <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 700, backgroundColor: 'var(--color-error-bg)', color: 'var(--color-error)' }}>
                                   Payment Due
                                 </span>
                                 {(apt.status || '').toLowerCase() !== 'cancelled' && (
@@ -1461,11 +1507,11 @@ export default function AppointmentsTab() {
                                     disabled={isProcessingPayment}
                                     style={{
                                       padding: '3px 8px',
-                                      backgroundColor: '#0284c7',
-                                      color: '#ffffff',
+                                      backgroundColor: 'var(--color-accent)',
+                                      color: 'var(--color-text-inverse)',
                                       border: 'none',
                                       borderRadius: '4px',
-                                      fontSize: '0.72rem',
+                                      fontSize: '0.75rem',
                                       fontWeight: 700,
                                       cursor: 'pointer',
                                     }}
@@ -1529,6 +1575,7 @@ export default function AppointmentsTab() {
         </div>
       </div>
       </div>
+      {confirmDialog}
     </div>
   );
 }

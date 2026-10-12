@@ -3,6 +3,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../inventory/data/models/batch_model.dart';
 import '../../../inventory/presentation/screens/qr_scanner_screen.dart';
 import '../../data/models/staff_appointment_model.dart';
+import 'clinical_context_panel.dart';
 import 'staff_common_widgets.dart';
 
 class StaffAdministrationResult {
@@ -11,6 +12,7 @@ class StaffAdministrationResult {
   final String injectionSite;
   final String route;
   final String notes;
+  final bool doseConfirmed;
   final bool consentConfirmed;
   final bool vitalsConfirmed;
 
@@ -20,6 +22,7 @@ class StaffAdministrationResult {
     required this.injectionSite,
     required this.route,
     required this.notes,
+    required this.doseConfirmed,
     required this.consentConfirmed,
     required this.vitalsConfirmed,
   });
@@ -74,6 +77,7 @@ class _StaffAdministerSheetState extends State<_StaffAdministerSheet> {
   String _injectionSite = _sites.first;
   String _route = _routes.first;
   final _notesCtrl = TextEditingController();
+  bool _dose = false;
   bool _consent = false;
   bool _vitals = false;
 
@@ -109,11 +113,11 @@ class _StaffAdministerSheetState extends State<_StaffAdministerSheet> {
     if (scanned != null && mounted) setState(() => _batchId = scanned.id);
   }
 
-  void _submit() {
-    if (!_consent || !_vitals) {
+  Future<void> _submit() async {
+    if (!_dose || !_consent || !_vitals) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Confirm consent and vitals before certifying.'),
+          content: Text('Confirm the prescribed dose, consent and vitals before certifying.'),
         ),
       );
       return;
@@ -130,6 +134,16 @@ class _StaffAdministerSheetState extends State<_StaffAdministerSheet> {
       );
       return;
     }
+    final ok = await confirmAction(
+      context,
+      title: 'Record administration?',
+      message:
+          'Certify ${widget.patient.patientName} received '
+          '${widget.patient.vaccineName} from lot ${selected.lotNumber}? '
+          'This writes to the clinical record.',
+      confirmLabel: 'Record dose',
+    );
+    if (!ok || !mounted) return;
     Navigator.of(context).pop(
       StaffAdministrationResult(
         batchId: selected.id,
@@ -137,6 +151,7 @@ class _StaffAdministerSheetState extends State<_StaffAdministerSheet> {
         injectionSite: _injectionSite,
         route: _route,
         notes: _notesCtrl.text.trim(),
+        doseConfirmed: _dose,
         consentConfirmed: _consent,
         vitalsConfirmed: _vitals,
       ),
@@ -192,7 +207,11 @@ class _StaffAdministerSheetState extends State<_StaffAdministerSheet> {
                 fontWeight: FontWeight.w700,
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
+            ClinicalContextPanel(
+              patientProfileId: widget.patient.patientProfileId,
+            ),
+            const SizedBox(height: 14),
             const Text(
               'Vaccine lot',
               style: TextStyle(
@@ -297,6 +316,17 @@ class _StaffAdministerSheetState extends State<_StaffAdministerSheet> {
               ),
             ),
             const SizedBox(height: 8),
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              value: _dose,
+              onChanged: (v) => setState(() => _dose = v ?? false),
+              controlAffinity: ListTileControlAffinity.leading,
+              title: Text(
+                "Dose matches doctor's order "
+                '(${widget.patient.prescribedDosage ?? 'not set'})',
+                style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600),
+              ),
+            ),
             CheckboxListTile(
               contentPadding: EdgeInsets.zero,
               value: _consent,

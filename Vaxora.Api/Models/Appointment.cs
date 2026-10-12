@@ -96,6 +96,20 @@ public class Appointment
 
     public DateTime? DosageUpdatedAt { get; set; }
 
+    /// <summary>When the patient arrived and was checked in (UTC). Only checked-in patients can be called.</summary>
+    public DateTime? CheckedInAt { get; set; }
+
+    public Guid? CheckedInByUserId { get; set; }
+
+    /// <summary>
+    /// Doctor or nurse who called the patient into the current clinical session.
+    /// Cleared when the patient goes back to the queue or the visit is cancelled.
+    /// </summary>
+    public Guid? SessionStaffUserId { get; set; }
+
+    [MaxLength(200)]
+    public string? SessionStaffName { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public DateTime? UpdatedAt { get; set; }

@@ -196,6 +196,39 @@ export function IconClose(props) {
   );
 }
 
+export function IconChevronLeft(props) {
+  return (
+    <SvgIcon {...props}>
+      <path d="M14.5 6l-6 6 6 6" {...stroke} />
+    </SvgIcon>
+  );
+}
+
+export function IconChevronRight(props) {
+  return (
+    <SvgIcon {...props}>
+      <path d="M9.5 6l6 6-6 6" {...stroke} />
+    </SvgIcon>
+  );
+}
+
+export function IconArrowRight(props) {
+  return (
+    <SvgIcon {...props}>
+      <path d="M5 12h14M13 6l6 6-6 6" {...stroke} />
+    </SvgIcon>
+  );
+}
+
+export function IconSend(props) {
+  return (
+    <SvgIcon {...props}>
+      <path d="M21 3L10.5 13.5" {...stroke} />
+      <path d="M21 3l-6.5 18-4-7.5L3 9.5 21 3z" {...stroke} />
+    </SvgIcon>
+  );
+}
+
 export function IconCheck(props) {
   return (
     <SvgIcon {...props}>
@@ -251,6 +284,32 @@ export function IconBot(props) {
       <circle cx="9.2" cy="13" r="1.1" fill="currentColor" stroke="none" />
       <circle cx="14.8" cy="13" r="1.1" fill="currentColor" stroke="none" />
       <path d="M9 16.5h6" {...stroke} />
+    </SvgIcon>
+  );
+}
+
+/** Copilot-style sparkles for AI agent CTAs (animate via .roster-ai-sparkle-*). */
+export function IconAgentSparkles({ className, size = 18, ...props }) {
+  return (
+    <SvgIcon size={size} className={className} {...props}>
+      <path
+        className="roster-ai-sparkle roster-ai-sparkle-a"
+        fill="currentColor"
+        stroke="none"
+        d="M11.2 3.2c.25 2.35 1.55 3.7 3.9 3.95-2.35.25-3.65 1.6-3.9 3.95-.25-2.35-1.55-3.7-3.9-3.95 2.35-.25 3.65-1.6 3.9-3.95z"
+      />
+      <path
+        className="roster-ai-sparkle roster-ai-sparkle-b"
+        fill="currentColor"
+        stroke="none"
+        d="M17.4 11.1c.16 1.45.95 2.28 2.4 2.45-1.45.16-2.24.99-2.4 2.45-.16-1.46-.95-2.29-2.4-2.45 1.45-.17 2.24-1 2.4-2.45z"
+      />
+      <path
+        className="roster-ai-sparkle roster-ai-sparkle-c"
+        fill="currentColor"
+        stroke="none"
+        d="M7.1 14.2c.14 1.2.78 1.9 2 2.05-1.22.14-1.86.84-2 2.05-.14-1.21-.78-1.91-2-2.05 1.22-.15 1.86-.85 2-2.05z"
+      />
     </SvgIcon>
   );
 }

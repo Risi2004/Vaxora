@@ -1,6 +1,6 @@
 /* ==========================================================================
    Vaxora - Admin Portal Dark Theme & Sidebar Stylesheet
-   Color Identity: Vaxora Logo Blue (#0284c7, #0ea5e9, #38bdf8, #2563eb)
+   Color Identity: Vaxora Logo Blue (#0077b6, #00b4d8, #00b4d8, #0077b6)
                   Crisp White (#ffffff, #f8fafc) & Deep Black Theme (#030712, #070a13, #0c111e)
    ========================================================================== */
 
@@ -63,7 +63,7 @@
 
 .admin-brand-sub {
   font-size: 0.72rem;
-  color: #38bdf8;
+  color: #00b4d8;
   font-weight: 700;
   letter-spacing: 0.5px;
   text-transform: uppercase;
@@ -78,7 +78,7 @@
 .admin-nav-section-label {
   font-size: 0.68rem;
   font-weight: 800;
-  color: #64748b;
+  color: #94a3b8;
   letter-spacing: 1px;
   padding: 8px 24px 6px;
   text-transform: uppercase;
@@ -119,15 +119,15 @@
 }
 
 .admin-sidebar-link.active {
-  background: linear-gradient(90deg, rgba(2, 132, 199, 0.25) 0%, rgba(14, 165, 233, 0.1) 100%);
+  background: linear-gradient(90deg, rgba(0, 119, 182, 0.25) 0%, rgba(0, 180, 216, 0.1) 100%);
   color: #ffffff;
-  border-color: rgba(56, 189, 248, 0.4);
+  border-color: rgba(0, 180, 216, 0.4);
   font-weight: 700;
-  box-shadow: 0 4px 16px rgba(2, 132, 199, 0.22);
+  box-shadow: 0 4px 16px rgba(0, 119, 182, 0.22);
 }
 
 .admin-sidebar-link.active .admin-link-icon {
-  color: #38bdf8;
+  color: #00b4d8;
 }
 
 .admin-link-icon {
@@ -176,7 +176,7 @@
 
 .admin-sidebar-user-card:hover {
   background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(56, 189, 248, 0.4);
+  border-color: rgba(0, 180, 216, 0.4);
 }
 
 .admin-sidebar-user-name {
@@ -187,7 +187,7 @@
 
 .admin-sidebar-user-role {
   font-size: 0.72rem;
-  color: #38bdf8;
+  color: #00b4d8;
 }
 
 .admin-sidebar-logout-btn {
@@ -253,12 +253,12 @@
   align-items: center;
   gap: 6px;
   font-size: 0.76rem;
-  color: #64748b;
+  color: #94a3b8;
   margin-top: 2px;
 }
 
 .admin-breadcrumb-active {
-  color: #38bdf8;
+  color: #00b4d8;
   font-weight: 600;
 }
 
@@ -309,7 +309,7 @@
   background: #070a13;
   text-align: center;
   font-size: 0.8rem;
-  color: #64748b;
+  color: #94a3b8;
 }
 
 .admin-dark-footer p {
@@ -323,7 +323,7 @@
 /* Hero Banner */
 .admin-dark-app .doctor-hero-banner {
   background: linear-gradient(135deg, #091e3a 0%, #03446a 50%, #081226 100%);
-  border: 1px solid rgba(14, 165, 233, 0.35);
+  border: 1px solid rgba(0, 180, 216, 0.35);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
   border-radius: 18px;
   padding: 24px 28px;
@@ -352,7 +352,7 @@
 }
 
 .admin-dark-app .doctor-stat-card:hover {
-  border-color: rgba(56, 189, 248, 0.4);
+  border-color: rgba(0, 180, 216, 0.4);
   transform: translateY(-2px);
 }
 
@@ -365,7 +365,7 @@
 }
 
 .admin-dark-app .doctor-stat-meta {
-  color: #64748b;
+  color: #94a3b8;
 }
 
 /* Main Cards */
@@ -436,7 +436,7 @@
 }
 
 .admin-dark-app .doctor-patient-name-link {
-  color: #38bdf8;
+  color: #00b4d8;
   font-weight: 700;
 }
 
@@ -455,9 +455,9 @@
 }
 
 .admin-dark-app .doctor-table-btn:hover {
-  background: #0284c7;
+  background: #0077b6;
   color: #ffffff;
-  border-color: #38bdf8;
+  border-color: #00b4d8;
 }
 
 /* Sleek Admin Table Action Buttons */
@@ -513,16 +513,16 @@
 }
 
 .admin-btn-view {
-  background: rgba(56, 189, 248, 0.1);
-  color: #38bdf8;
-  border-color: rgba(56, 189, 248, 0.25);
+  background: rgba(0, 180, 216, 0.1);
+  color: #00b4d8;
+  border-color: rgba(0, 180, 216, 0.25);
 }
 
 .admin-btn-view:hover:not(:disabled) {
-  background: #0284c7;
+  background: #0077b6;
   color: #ffffff;
-  border-color: #38bdf8;
-  box-shadow: 0 0 12px rgba(2, 132, 199, 0.35);
+  border-color: #00b4d8;
+  box-shadow: 0 0 12px rgba(0, 119, 182, 0.35);
   transform: translateY(-1px);
 }
 
@@ -561,7 +561,7 @@
 }
 
 .admin-dark-app .doctor-filter-btn {
-  color: #94a3b8;
+  color: #475569;
 }
 
 .admin-dark-app .doctor-filter-btn:hover {
@@ -570,9 +570,9 @@
 }
 
 .admin-dark-app .doctor-filter-btn.active {
-  background: #0284c7 !important;
+  background: #0077b6 !important;
   color: #ffffff !important;
-  box-shadow: 0 2px 10px rgba(2, 132, 199, 0.4);
+  box-shadow: 0 2px 10px rgba(0, 119, 182, 0.4);
 }
 
 .admin-dark-app .doctor-filter-date-input {
@@ -609,11 +609,11 @@
 
 .admin-dark-app .doctor-obs-item-meta,
 .admin-dark-app .doctor-coldbox-lot {
-  color: #64748b;
+  color: #94a3b8;
 }
 
 .admin-dark-app .doctor-coldbox-number {
-  color: #38bdf8;
+  color: #00b4d8;
 }
 
 /* Modals */
@@ -646,9 +646,9 @@
 .admin-dark-app .doctor-form-input:focus,
 .admin-dark-app .doctor-form-select:focus,
 .admin-dark-app .doctor-form-textarea:focus {
-  border-color: #0284c7;
+  border-color: #0077b6;
   outline: none;
-  box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.25);
+  box-shadow: 0 0 0 2px rgba(0, 119, 182, 0.25);
 }
 
 .admin-dark-app .doctor-btn-cancel {
@@ -692,7 +692,7 @@
 
 .admin-role-badge.doctor {
   background: rgba(37, 99, 235, 0.15);
-  color: #60a5fa;
+  color: #90e0ef;
   border: 1px solid rgba(37, 99, 235, 0.3);
 }
 
@@ -702,16 +702,18 @@
   border: 1px solid rgba(16, 185, 129, 0.3);
 }
 
+/* Role colours match the shared colour language: patient teal, doctor blue,
+   nurse green, hospital amber, ministry admin purple (dark-theme variants). */
 .admin-role-badge.hospital {
-  background: rgba(2, 132, 199, 0.15);
-  color: #38bdf8;
-  border: 1px solid rgba(2, 132, 199, 0.35);
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.32);
 }
 
 .admin-role-badge.patient {
-  background: rgba(148, 163, 184, 0.12);
-  color: #cbd5e1;
-  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(20, 184, 166, 0.15);
+  color: #2dd4bf;
+  border: 1px solid rgba(20, 184, 166, 0.3);
 }
 
 .admin-role-badge.admin {
@@ -722,16 +724,16 @@
 
 .admin-id-pill {
   background: #101c30;
-  color: #38bdf8;
-  border: 1px solid rgba(56, 189, 248, 0.35);
+  color: #00b4d8;
+  border: 1px solid rgba(0, 180, 216, 0.35);
   font-weight: 700;
   padding: 2px 8px;
   border-radius: 6px;
 }
 
 .admin-pill-badge.blue {
-  background: rgba(2, 132, 199, 0.2);
-  color: #38bdf8;
+  background: rgba(0, 119, 182, 0.2);
+  color: #00b4d8;
 }
 
 .admin-pill-badge.amber {
@@ -748,9 +750,9 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: rgba(2, 132, 199, 0.2);
-  color: #38bdf8;
-  border: 1px solid rgba(56, 189, 248, 0.4);
+  background: rgba(0, 119, 182, 0.2);
+  color: #00b4d8;
+  border: 1px solid rgba(0, 180, 216, 0.4);
   padding: 3px 9px;
   border-radius: 9999px;
   font-size: 0.75rem;
@@ -761,8 +763,8 @@
   width: 7px;
   height: 7px;
   border-radius: 9999px;
-  background: #38bdf8;
-  box-shadow: 0 0 8px #38bdf8;
+  background: #00b4d8;
+  box-shadow: 0 0 8px #00b4d8;
   animation: adminPulse 2s infinite ease-in-out;
 }
 
@@ -773,8 +775,8 @@
 
 .admin-doc-link-btn {
   background: #101c30;
-  border: 1px solid rgba(56, 189, 248, 0.3);
-  color: #38bdf8;
+  border: 1px solid rgba(0, 180, 216, 0.3);
+  color: #00b4d8;
   font-size: 0.78rem;
   font-weight: 600;
   padding: 5px 10px;
@@ -791,9 +793,9 @@
 }
 
 .admin-doc-link-btn:hover {
-  background: #0284c7;
+  background: #0077b6;
   color: #ffffff;
-  border-color: #38bdf8;
+  border-color: #00b4d8;
 }
 
 .admin-doc-stack {
@@ -804,9 +806,9 @@
 }
 
 .admin-doc-badge-link {
-  background: rgba(56, 189, 248, 0.1);
-  border: 1px solid rgba(56, 189, 248, 0.3);
-  color: #38bdf8;
+  background: rgba(0, 180, 216, 0.1);
+  border: 1px solid rgba(0, 180, 216, 0.3);
+  color: #00b4d8;
   font-size: 0.76rem;
   font-weight: 600;
   padding: 4px 9px;
@@ -821,10 +823,10 @@
 }
 
 .admin-doc-badge-link:hover {
-  background: #0284c7;
+  background: #0077b6;
   color: #ffffff;
-  border-color: #38bdf8;
-  box-shadow: 0 0 10px rgba(2, 132, 199, 0.35);
+  border-color: #00b4d8;
+  box-shadow: 0 0 10px rgba(0, 119, 182, 0.35);
   transform: translateY(-1px);
 }
 
@@ -857,7 +859,7 @@
 /* Toast */
 .admin-dark-app .doctor-toast {
   background: #0c1b33;
-  border: 1px solid #0284c7;
+  border: 1px solid #0077b6;
   color: #ffffff;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
 }
@@ -916,7 +918,7 @@
 }
 
 .admin-brand-tag {
-  background: #0284c7;
+  background: #0077b6;
   color: #ffffff;
   font-size: 0.68rem;
   font-weight: 800;

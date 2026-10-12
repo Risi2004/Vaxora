@@ -1,0 +1,213 @@
+/* ==========================================================================
+   Portal hero (components/PortalHero.jsx)
+   One soft-mint banner for every portal page: dark text on a light mint band
+   with a teal edge. Home pages add a photo that fades into the band from the
+   left; other pages use the compact size with no photo.
+   ========================================================================== */
+
+.portal-hero {
+  position: relative;
+  display: block;
+  margin-bottom: 28px;
+  border-radius: 20px;
+  overflow: hidden;
+  color: var(--color-text-title);
+  /* Soft mint wash (token colours) keeps dark text readable over the wave art */
+  background-color: var(--color-soft-panel);
+  background-image:
+    linear-gradient(
+      105deg,
+      color-mix(in srgb, var(--color-soft-panel) 92%, transparent) 0%,
+      color-mix(in srgb, var(--color-soft-panel) 72%, transparent) 42%,
+      color-mix(in srgb, var(--color-soft-panel-deep) 38%, transparent) 72%,
+      color-mix(in srgb, var(--color-soft-panel-deep) 18%, transparent) 100%
+    ),
+    url('../assets/images/portal/hero-wave-banner.jpg');
+  background-size: cover, cover;
+  background-position: center, right center;
+  background-repeat: no-repeat;
+  border: 1.5px solid rgba(var(--rgb-primary), 0.45);
+  box-shadow: 0 14px 34px -24px rgba(var(--rgb-primary-dark), 0.35);
+}
+
+.portal-hero--home {
+  min-height: 300px;
+}
+
+/* Full-bleed home banner: edge-to-edge under the navbar, not a card.
+   Scoped to pages that opt in with .portal-hero--bleed. */
+.portal-hero--bleed {
+  width: 100vw;
+  max-width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+  margin-top: 0;
+  margin-bottom: 28px;
+  border-radius: 0;
+  border: none;
+  border-bottom: 1px solid rgba(var(--rgb-primary), 0.22);
+  box-shadow: none;
+  min-height: clamp(280px, 34vh, 400px);
+}
+
+.portal-hero--bleed .portal-hero__content {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 40px 32px;
+}
+
+.portal-hero--bleed .portal-hero__media {
+  border-radius: 0;
+}
+
+/* Drop the main content top pad so the bleed hero starts at the navbar */
+.doctor-content-area:has(.portal-hero--bleed),
+.hospital-content-area:has(.portal-hero--bleed),
+.patient-main-content:has(.portal-hero--bleed) {
+  padding-top: 0;
+}
+
+.doctor-dashboard-container:has(.portal-hero--bleed),
+.hospital-dashboard-container:has(.portal-hero--bleed),
+.patient-dashboard-container:has(.portal-hero--bleed) {
+  overflow-x: clip;
+}
+
+.portal-hero__content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  max-width: 600px;
+  padding: 32px 36px;
+}
+
+.portal-hero--compact .portal-hero__content {
+  max-width: 760px;
+  padding: 24px 32px;
+  gap: 8px;
+}
+
+.portal-hero__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 4px 12px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-primary);
+  background: rgba(255, 255, 255, 0.75);
+  border: 1px solid var(--color-border-card);
+  border-radius: var(--radius-pill);
+}
+
+.portal-hero__title {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: clamp(1.7rem, 2.6vw, 2.2rem);
+  font-weight: 800;
+  line-height: 1.12;
+  color: var(--color-text-title);
+  text-wrap: balance;
+}
+
+.portal-hero--compact .portal-hero__title {
+  font-size: clamp(1.4rem, 2.2vw, 1.8rem);
+}
+
+.portal-hero__sub {
+  margin: 0;
+  max-width: 52ch;
+  font-size: 1rem;
+  line-height: 1.55;
+  color: var(--color-text-body);
+}
+
+.portal-hero__extra {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+  margin-top: 6px;
+  max-width: 100%;
+}
+
+/* Inner groups reused from the old banners: drop their old bottom margins,
+   the column gap above handles spacing. */
+.portal-hero__extra > * {
+  margin-bottom: 0 !important;
+}
+
+/* Photo: clipped on its own so dropdowns in the content can overflow. */
+.portal-hero__media {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.portal-hero__image {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 60%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  /* The photo itself fades out, so the band shows through with no seam. */
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, 0.55) 22%, black 48%);
+  mask-image: linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, 0.55) 22%, black 48%);
+}
+
+@media (max-width: 900px) {
+  .portal-hero__content {
+    padding: 26px 24px;
+  }
+
+  .portal-hero--bleed .portal-hero__content {
+    padding: 32px 20px;
+  }
+
+  /* Narrow screens: the photo sits faintly behind the text. */
+  .portal-hero__image {
+    width: 100%;
+    opacity: 0.22;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+}
+
+@media (max-width: 600px) {
+  .portal-hero {
+    border-radius: 16px;
+    margin-bottom: 20px;
+  }
+
+  .portal-hero--bleed {
+    border-radius: 0;
+    min-height: clamp(240px, 32vh, 320px);
+    margin-bottom: 20px;
+  }
+
+  .portal-hero--home:not(.portal-hero--bleed) {
+    min-height: 0;
+  }
+
+  .portal-hero__content,
+  .portal-hero--compact .portal-hero__content {
+    padding: 22px 18px;
+  }
+
+  .portal-hero--bleed .portal-hero__content {
+    padding: 28px 16px;
+  }
+}

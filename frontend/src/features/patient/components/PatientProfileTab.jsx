@@ -25,25 +25,25 @@ const formatDate = (iso) => {
 
 const statusColor = (status) => {
   const s = String(status || "").toLowerCase();
-  if (s === "confirmed" || s === "completed") return "#10b981";
-  if (s === "cancelled") return "#ef4444";
-  if (s === "pendingpayment" || s === "pending") return "#b45309";
-  return "#0284c7";
+  if (s === "confirmed" || s === "completed") return "var(--color-success)";
+  if (s === "cancelled") return "var(--color-error)";
+  if (s === "pendingpayment" || s === "pending") return "var(--color-warning)";
+  return "var(--color-accent)";
 };
 
 const severityColor = (severity) => {
   const s = String(severity || "").toLowerCase();
-  if (s === "critical" || s === "severe") return "#dc2626";
-  if (s === "moderate") return "#b45309";
-  if (s === "mild") return "#0284c7";
-  return "#64748b";
+  if (s === "critical" || s === "severe") return "var(--color-error)";
+  if (s === "moderate") return "var(--color-warning)";
+  if (s === "mild") return "var(--color-accent)";
+  return "var(--color-text-muted)";
 };
 
 const historyStatusColor = (status) => {
   const s = String(status || "").toLowerCase();
-  if (s === "active" || s === "chronic") return "#b45309";
-  if (s === "resolved" || s === "inremission") return "#10b981";
-  return "#64748b";
+  if (s === "active" || s === "chronic") return "var(--color-warning)";
+  if (s === "resolved" || s === "inremission") return "var(--color-success)";
+  return "var(--color-text-muted)";
 };
 
 export default function PatientProfileTab() {
@@ -281,14 +281,13 @@ export default function PatientProfileTab() {
             className="appointment-alert-pill"
             role="alert"
             style={{
-              maxWidth: "960px",
               width: "100%",
               backgroundColor:
                 notificationType === "error"
-                  ? "rgba(239, 68, 68, 0.15)"
-                  : "rgba(16, 185, 129, 0.15)",
-              borderColor: notificationType === "error" ? "#ef4444" : "#10b981",
-              color: notificationType === "error" ? "#f87171" : "#34d399",
+                  ? "rgba(var(--rgb-error), 0.15)"
+                  : "rgba(var(--rgb-success), 0.15)",
+              borderColor: notificationType === "error" ? "var(--color-error)" : "var(--color-success-border)",
+              color: notificationType === "error" ? "var(--color-error)" : "var(--color-success)",
             }}
           >
             {notificationType === "error" ? "⚠️" : "✓"} {notification}
@@ -311,7 +310,7 @@ export default function PatientProfileTab() {
                       height: "150px",
                       borderRadius: "50%",
                       objectFit: "cover",
-                      border: "3px solid #0284c7",
+                      border: "3px solid var(--color-accent)",
                     }}
                   />
                 ) : (
@@ -321,11 +320,11 @@ export default function PatientProfileTab() {
                     fill="none"
                     xmlns="http://www.w3.org/2000/svg"
                   >
-                    <circle cx="100" cy="100" r="100" fill="#d9dde3" />
-                    <circle cx="100" cy="80" r="38" fill="#525862" />
+                    <circle cx="100" cy="100" r="100" style={{ fill: "var(--color-soft-panel-deep)" }} />
+                    <circle cx="100" cy="80" r="38" style={{ fill: "var(--color-text-muted)" }} />
                     <path
                       d="M40 174C40 140.863 66.863 118 100 118C133.137 118 160 140.863 160 174"
-                      fill="#525862"
+                      style={{ fill: "var(--color-text-muted)" }}
                     />
                   </svg>
                 )}
@@ -349,7 +348,7 @@ export default function PatientProfileTab() {
                     height="18"
                     viewBox="0 0 24 24"
                     fill="none"
-                    stroke="#1d1854"
+                    style={{ stroke: "var(--color-text-title)" }}
                     strokeWidth="2.2"
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -368,8 +367,8 @@ export default function PatientProfileTab() {
                     <h2 className="profile-info-title">Personal Information</h2>
                     <span
                       style={{
-                        fontSize: "0.8rem",
-                        color: "#10b981",
+                        fontSize: "0.8125rem",
+                        color: "var(--color-success)",
                         fontWeight: 600,
                       }}
                     >
@@ -397,7 +396,7 @@ export default function PatientProfileTab() {
                         height="18"
                         viewBox="0 0 24 24"
                         fill="none"
-                        stroke="#ffffff"
+                        style={{ stroke: "var(--color-text-inverse)" }}
                         strokeWidth="2.4"
                         strokeLinecap="round"
                         strokeLinejoin="round"
@@ -416,7 +415,7 @@ export default function PatientProfileTab() {
                     <span className="profile-field-colon">:</span>
                     <span
                       className="profile-field-value"
-                      style={{ fontWeight: 700, color: "#0284c7" }}
+                      style={{ fontWeight: 700, color: "var(--color-accent)" }}
                     >
                       {profileData.id || (loading ? "Loading..." : "N/A")}
                     </span>
@@ -500,10 +499,7 @@ export default function PatientProfileTab() {
         {/* =========================================================================
             2. MEDICAL HISTORY CARD
            ========================================================================= */}
-        <div
-          className="manage-appointments-card"
-          style={{ maxWidth: "960px", width: "100%" }}
-        >
+        <div className="manage-appointments-card">
           <div className="profile-appointments-section">
             <h2
               className="appointments-section-heading"
@@ -532,7 +528,7 @@ export default function PatientProfileTab() {
                         style={{
                           padding: "20px",
                           textAlign: "center",
-                          color: "#64748b",
+                          color: "var(--color-text-body)",
                         }}
                       >
                         Loading medical history…
@@ -541,13 +537,7 @@ export default function PatientProfileTab() {
                   ) : sortedMedicalHistory.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={4}
-                        style={{
-                          padding: "20px",
-                          textAlign: "center",
-                          fontStyle: "italic",
-                          color: "#64748b",
-                        }}
+                        colSpan={4} className="empty-table-cell"
                       >
                         No medical history on file yet.
                       </td>
@@ -563,14 +553,14 @@ export default function PatientProfileTab() {
                               gap: 2,
                             }}
                           >
-                            <span style={{ fontWeight: 600, color: "#1e1b4b" }}>
+                            <span style={{ fontWeight: 600, color: "var(--color-text-title)" }}>
                               {rec.title || "—"}
                             </span>
                             {rec.icd10Code && (
                               <span
                                 style={{
-                                  fontSize: "0.72rem",
-                                  color: "#94a3b8",
+                                  fontSize: "0.75rem",
+                                  color: "var(--color-text-placeholder)",
                                 }}
                               >
                                 ICD-10: {rec.icd10Code}
@@ -579,8 +569,8 @@ export default function PatientProfileTab() {
                             {rec.description && (
                               <span
                                 style={{
-                                  fontSize: "0.78rem",
-                                  color: "#64748b",
+                                  fontSize: "0.75rem",
+                                  color: "var(--color-text-body)",
                                 }}
                               >
                                 {rec.description}
@@ -654,7 +644,7 @@ export default function PatientProfileTab() {
                         style={{
                           padding: "20px",
                           textAlign: "center",
-                          color: "#64748b",
+                          color: "var(--color-text-body)",
                         }}
                       >
                         Loading appointments…
@@ -663,13 +653,7 @@ export default function PatientProfileTab() {
                   ) : sortedAppointments.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={5}
-                        style={{
-                          padding: "20px",
-                          textAlign: "center",
-                          fontStyle: "italic",
-                          color: "#64748b",
-                        }}
+                        colSpan={5} className="empty-table-cell"
                       >
                         No appointments scheduled yet.
                       </td>
@@ -722,7 +706,7 @@ export default function PatientProfileTab() {
               <button
                 type="button"
                 className="btn-book-appointment"
-                style={{ padding: "9px 24px", fontSize: "0.96rem" }}
+                style={{ padding: "9px 24px", fontSize: "0.9375rem" }}
                 onClick={() => navigate("/patient/appointments")}
               >
                 Book Appointment
@@ -761,7 +745,7 @@ export default function PatientProfileTab() {
                         style={{
                           padding: "20px",
                           textAlign: "center",
-                          color: "#64748b",
+                          color: "var(--color-text-body)",
                         }}
                       >
                         Loading vaccination history…
@@ -770,13 +754,7 @@ export default function PatientProfileTab() {
                   ) : sortedVaccinations.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={4}
-                        style={{
-                          padding: "20px",
-                          textAlign: "center",
-                          fontStyle: "italic",
-                          color: "#64748b",
-                        }}
+                        colSpan={4} className="empty-table-cell"
                       >
                         No vaccination records on file yet.
                       </td>
@@ -790,8 +768,8 @@ export default function PatientProfileTab() {
                             <span
                               style={{
                                 marginLeft: "8px",
-                                fontSize: "0.78rem",
-                                color: "#64748b",
+                                fontSize: "0.75rem",
+                                color: "var(--color-text-body)",
                               }}
                             >
                               (Dose {rec.doseNumber})
@@ -808,7 +786,7 @@ export default function PatientProfileTab() {
                           className="td-status"
                           style={{ borderRight: "none" }}
                         >
-                          <span style={{ color: "#10b981", fontWeight: 600 }}>
+                          <span style={{ color: "var(--color-success)", fontWeight: 600 }}>
                             ✓ Completed
                           </span>
                         </td>
@@ -825,65 +803,24 @@ export default function PatientProfileTab() {
             4. DANGER ZONE: Delete Account
            ========================================================================= */}
         <div
-          className="patient-profile-card"
-          style={{
-            borderColor: "rgba(239, 68, 68, 0.35)",
-            background:
-              "linear-gradient(180deg, rgba(239, 68, 68, 0.05) 0%, rgba(15, 23, 42, 0.4) 100%)",
-            borderRadius: "16px",
-            padding: "24px",
-            marginTop: "8px",
-          }}
+          className="danger-zone-card"
         >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              flexWrap: "wrap",
-              gap: "16px",
-            }}
+          <div className="danger-zone-row"
           >
             <div>
-              <h4
-                style={{
-                  margin: "0 0 6px",
-                  color: "#ef4444",
-                  fontSize: "1.05rem",
-                  fontWeight: 700,
-                }}
+              <h4 className="danger-zone-title"
               >
                 Danger Zone
               </h4>
-              <p
-                style={{
-                  margin: 0,
-                  fontSize: "0.85rem",
-                  color: "#94a3b8",
-                  maxWidth: "600px",
-                }}
+              <p className="danger-zone-text"
               >
                 Permanently delete your Vaxora patient account, personal
                 records, and vaccination history. This action cannot be undone.
               </p>
             </div>
-            <button
+            <button className="btn-danger"
               type="button"
               onClick={() => setIsDeleteModalOpen(true)}
-              style={{
-                background: "#dc2626",
-                color: "#ffffff",
-                border: "1px solid #ef4444",
-                borderRadius: "8px",
-                padding: "10px 18px",
-                fontSize: "0.88rem",
-                fontWeight: 700,
-                cursor: "pointer",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "8px",
-                boxShadow: "0 2px 8px rgba(220, 38, 38, 0.3)",
-              }}
             >
               <IconTrash size={16} /> Delete Account
             </button>

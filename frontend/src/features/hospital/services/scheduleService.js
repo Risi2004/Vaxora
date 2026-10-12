@@ -53,6 +53,13 @@ export const scheduleService = {
     });
   },
 
+  updateSchedule(scheduleId, payload) {
+    return apiRequest(`/schedule/${scheduleId}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  },
+
   getHospitalSchedules() {
     return apiRequest('/schedule/hospital', {
       method: 'GET',

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_text_styles.dart';
+import 'landing_section_head.dart';
 
 class ReviewItem {
   final int id;
@@ -30,20 +30,20 @@ class _ReviewsCarouselState extends State<ReviewsCarousel> {
   static const List<ReviewItem> reviews = [
     ReviewItem(
       id: 1,
-      name: 'Kumar',
-      comment: 'thank you for the services',
-      role: 'Verified Citizen',
+      name: 'Verified Citizen',
+      comment: 'Seamless booking and verified digital vaccination records.',
+      role: 'Patient',
     ),
     ReviewItem(
       id: 2,
-      name: 'Anura',
-      comment: "It's more helpful for me",
+      name: 'Patient',
+      comment: 'Got my booster reminder on time. Highly recommended!',
       role: 'Patient',
     ),
     ReviewItem(
       id: 3,
-      name: 'Kajol',
-      comment: 'thank you',
+      name: 'Parent',
+      comment: 'Quick process with clear hospital directions.',
       role: 'Parent',
     ),
     ReviewItem(
@@ -111,11 +111,13 @@ class _ReviewsCarouselState extends State<ReviewsCarousel> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Watch our user reviews',
-                style: AppTextStyles.h2,
+              const Expanded(
+                child: LandingSectionHead(
+                  eyebrow: 'Reviews',
+                  title: 'What people say',
+                ),
               ),
               Row(
                 children: [
@@ -140,7 +142,7 @@ class _ReviewsCarouselState extends State<ReviewsCarousel> {
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
 
           // Swipeable Cards PageView
           SizedBox(
@@ -245,7 +247,7 @@ class _ReviewsCarouselState extends State<ReviewsCarousel> {
                 decoration: BoxDecoration(
                   color: _currentIndex == index
                       ? AppColors.brandBlue
-                      : const Color(0xFFCBD5E1),
+                      : AppColors.borderCard,
                   borderRadius: BorderRadius.circular(4),
                 ),
               ),

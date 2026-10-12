@@ -130,7 +130,17 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen> {
 
           widget.onAppointmentBooked?.call(data);
 
-          if (!newApt.isPaid && newApt.fee > 0) {
+          if (data['payAtDesk'] == true) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                backgroundColor: AppColors.success,
+                content: Text(
+                  'Reserved! Pay LKR ${newApt.fee.toStringAsFixed(0)} at the hospital desk on the day.',
+                ),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          } else if (!newApt.isPaid && newApt.fee > 0) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 backgroundColor: const Color(0xFF003366),
@@ -176,85 +186,63 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen> {
     );
   }
 
-  void _cancelAppointment(PatientAppointment apt) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: StaffSurfaces.cardBg,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(StaffSurfaces.cardRadius)),
-        title: const Text(
-          'Cancel appointment?',
-          style: TextStyle(fontWeight: FontWeight.w700, color: StaffSurfaces.textPrimary),
-        ),
-        content: Text(
-          'Cancel your ${apt.vaccineName} session at ${apt.hospitalName}?',
-          style: const TextStyle(fontSize: 13.5, color: StaffSurfaces.textSecondary),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text(
-              'Keep',
-              style: TextStyle(fontWeight: FontWeight.w600, color: StaffSurfaces.textSecondary),
-            ),
-          ),
-          FilledButton(
-            onPressed: () async {
-              Navigator.pop(ctx);
-              try {
-                final targetId = apt.rawId.isNotEmpty ? apt.rawId : apt.id;
-                await AppointmentRepository.cancelAppointment(targetId);
-                if (mounted) {
-                  setState(() {
-                    _appointments = _appointments.map((a) {
-                      if ((apt.rawId.isNotEmpty && a.rawId == apt.rawId) || a.id == apt.id) {
-                        return PatientAppointment(
-                          id: a.id,
-                          rawId: a.rawId,
-                          vaccineName: a.vaccineName,
-                          hospitalName: a.hospitalName,
-                          location: a.location,
-                          date: a.date,
-                          time: a.time,
-                          doctorName: a.doctorName,
-                          status: 'Cancelled',
-                          fee: a.fee,
-                          isPaid: a.isPaid,
-                        );
-                      }
-                      return a;
-                    }).toList();
-                  });
-                }
-                _loadBackendAppointments();
-                widget.onAppointmentsChanged?.call();
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      backgroundColor: AppColors.error,
-                      content: Text('Appointment cancelled.'),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                }
-              } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      backgroundColor: AppColors.error,
-                      content: Text('Failed to cancel: $e'),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                }
-              }
-            },
-            style: FilledButton.styleFrom(backgroundColor: AppColors.error, elevation: 0),
-            child: const Text('Cancel session'),
-          ),
-        ],
-      ),
+  Future<void> _cancelAppointment(PatientAppointment apt) async {
+    final ok = await confirmAction(
+      context,
+      title: 'Cancel appointment?',
+      message: 'Cancel your ${apt.vaccineName} session at ${apt.hospitalName}?',
+      cancelLabel: 'Keep',
+      confirmLabel: 'Cancel session',
+      destructive: true,
     );
+    if (!ok || !mounted) return;
+    try {
+      final targetId = apt.rawId.isNotEmpty ? apt.rawId : apt.id;
+      await AppointmentRepository.cancelAppointment(targetId);
+      if (mounted) {
+        setState(() {
+          _appointments = _appointments.map((a) {
+            if ((apt.rawId.isNotEmpty && a.rawId == apt.rawId) || a.id == apt.id) {
+              return PatientAppointment(
+                id: a.id,
+                rawId: a.rawId,
+                vaccineName: a.vaccineName,
+                hospitalName: a.hospitalName,
+                location: a.location,
+                date: a.date,
+                time: a.time,
+                doctorName: a.doctorName,
+                status: 'Cancelled',
+                fee: a.fee,
+                isPaid: a.isPaid,
+              );
+            }
+            return a;
+          }).toList();
+        });
+      }
+      _loadBackendAppointments();
+      widget.onAppointmentsChanged?.call();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            backgroundColor: AppColors.error,
+            content: Text('Appointment cancelled.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: AppColors.error,
+            content: Text('Failed to cancel: $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
 
   void _payNow(PatientAppointment apt) {
@@ -323,7 +311,7 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen> {
                   label: 'Upcoming',
                   value: '${upcomingList.length}',
                   icon: Icons.event_note_outlined,
-                  accent: upcomingList.isNotEmpty ? const Color(0xFFB2660A) : StaffSurfaces.brandSoft,
+                  accent: upcomingList.isNotEmpty ? AppColors.warning : StaffSurfaces.brandSoft,
                 ),
                 StaffIntroStat(
                   label: 'Past',

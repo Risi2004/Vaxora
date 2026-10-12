@@ -11,7 +11,9 @@ import '../../data/models/shift_swap_request_model.dart';
 import '../../data/repositories/hospital_staff_repository.dart';
 import '../widgets/cover_requests_sheet.dart';
 import '../widgets/invite_staff_sheet.dart';
+import '../../../staff/presentation/utils/staff_date_utils.dart';
 import 'hospital_shifts_screen.dart';
+import 'staff_scheduling_agent_screen.dart';
 
 /// Hospital-side "Staff" tab: on-duty roster and full active staff list.
 class HospitalStaffScreen extends StatefulWidget {
@@ -108,6 +110,19 @@ class _HospitalStaffScreenState extends State<HospitalStaffScreen> {
         .push(MaterialPageRoute(builder: (_) => const HospitalShiftsScreen()));
   }
 
+  Future<void> _openSchedulingAgent() async {
+    final range = weekRangeFromToday(days: 7);
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => StaffSchedulingAgentScreen(
+          weekStart: range.from,
+          weekEnd: range.to,
+          autoSuggest: true,
+        ),
+      ),
+    );
+  }
+
   int get _onDutyCount => _staff.where((s) => s.isOnDutyNow).length;
 
   List<HospitalStaffMemberModel> get _onDuty =>
@@ -128,6 +143,11 @@ class _HospitalStaffScreenState extends State<HospitalStaffScreen> {
             icon: Icons.event_note_outlined,
             tooltip: 'Weekly shifts',
             onPressed: _loading ? null : _openShifts,
+          ),
+          StaffHeaderAction(
+            icon: Icons.auto_awesome,
+            tooltip: 'Scheduling agent',
+            onPressed: _loading ? null : _openSchedulingAgent,
           ),
           StaffHeaderAction(
             icon: Icons.swap_horiz,
@@ -183,7 +203,7 @@ class _HospitalStaffScreenState extends State<HospitalStaffScreen> {
                   value: '${_pending.length}',
                   icon: Icons.mark_email_unread_outlined,
                   accent: _pending.isNotEmpty
-                      ? const Color(0xFFB2660A)
+                      ? AppColors.warning
                       : AppColors.success,
                 ),
               ],
@@ -326,7 +346,7 @@ class _StaffMemberCard extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: StaffSurfaces.card(
         borderColor: member.isPending
-            ? const Color(0xFFF5B168)
+            ? AppColors.warningBorder
             : (member.isOnDutyNow
                   ? AppColors.success.withValues(alpha: 0.28)
                   : StaffSurfaces.cardBorder),

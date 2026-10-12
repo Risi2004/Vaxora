@@ -1,13 +1,11 @@
 import StaffClinicalDashboard from '../../staff/components/StaffClinicalDashboard';
 import ClinicalAdministerModal from './ClinicalAdministerModal';
 import AefiReportModal from './AefiReportModal';
-import doctorHomeHero from '../../../assets/images/doctor-home-hero.jpg';
+import doctorHomeHero from '../../../assets/images/portal/hero-doctor.jpg';
+import { withStaffTitle } from '../../../shared/utils/staffName';
 
 function formatDoctorName(user) {
-  const raw = (user?.name || '').trim();
-  if (!raw) return 'Doctor';
-  if (/^dr\.?\s/i.test(raw)) return raw;
-  return `Dr. ${raw}`;
+  return withStaffTitle(user?.name, 'Dr.', 'Doctor');
 }
 
 export default function DoctorDashboardOverview() {

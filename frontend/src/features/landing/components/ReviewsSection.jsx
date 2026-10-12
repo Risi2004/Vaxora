@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from "react";
-import previousIcon from "../../../assets/icons/previous.svg";
-import nextIcon from "../../../assets/icons/next.svg";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { IconChevronLeft, IconChevronRight } from "../../../shared/icons/AppIcons";
 import { feedbackService } from "../../../shared/services/feedbackService";
 import { deferEffectCallback } from "../../../shared/utils/deferEffectCallback.js";
 
-const CARDS_PER_PAGE = 3;
+const VISIBLE_DESKTOP = 3;
+const MIN_CARDS = 6;
+const SLIDE_MS = 650;
 const PLACEHOLDER_REVIEWS = [
   {
     id: "p1",
@@ -26,30 +27,63 @@ const PLACEHOLDER_REVIEWS = [
   },
 ];
 
+/** Pad so the strip can keep stepping one card at a time. */
+function ensureCarouselReviews(list) {
+  const source = list.length > 0 ? list : PLACEHOLDER_REVIEWS;
+  const filled = [];
+  let i = 0;
+  while (filled.length < Math.max(MIN_CARDS, source.length)) {
+    const item = source[i % source.length];
+    filled.push({
+      ...item,
+      id: filled.length < source.length ? item.id : `${item.id}-loop-${filled.length}`,
+    });
+    i += 1;
+  }
+  return filled;
+}
+
 const renderStars = (rating) => (
-  <span style={{ color: "#fbbf24", fontSize: "0.9rem", letterSpacing: 1 }}>
+  <span style={{ color: "var(--color-rating)", fontSize: "0.875rem", letterSpacing: 1 }}>
     {"★".repeat(rating)}
-    <span style={{ color: "#cbd5e1" }}>{"★".repeat(5 - rating)}</span>
+    <span style={{ color: "var(--color-border-card)" }}>{"★".repeat(5 - rating)}</span>
   </span>
 );
+
+function ReviewCard({ item }) {
+  return (
+    <article className="review-card">
+      <div className="review-header">
+        <span className="reviewer-name">{item.name}</span>
+        {renderStars(item.rating || 5)}
+      </div>
+      <div className="review-body">
+        <p className="review-comment">{item.comment || item.message}</p>
+      </div>
+      {item.category ? <div className="review-category">{item.category}</div> : null}
+    </article>
+  );
+}
 
 export default function ReviewsSection() {
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [reviewIndex, setReviewIndex] = useState(0);
+  const [index, setIndex] = useState(0);
+  const [visible, setVisible] = useState(VISIBLE_DESKTOP);
   const [isPaused, setIsPaused] = useState(false);
+  const [disableTransition, setDisableTransition] = useState(false);
+  const snapModeRef = useRef(null); // 'start' | 'prev'
 
-  // Fetch 6 reviews (2 pages of 3)
   useEffect(
     () =>
       deferEffectCallback(async () => {
         try {
           const data = await feedbackService.getPublicRandom(6);
           const list = Array.isArray(data) ? data : [];
-          setReviews(list.length > 0 ? list : PLACEHOLDER_REVIEWS);
+          setReviews(ensureCarouselReviews(list));
         } catch (err) {
           console.warn("Could not load public reviews:", err);
-          setReviews(PLACEHOLDER_REVIEWS);
+          setReviews(ensureCarouselReviews([]));
         } finally {
           setLoading(false);
         }
@@ -57,34 +91,80 @@ export default function ReviewsSection() {
     [],
   );
 
-  // Split into pages
-  const pages = [];
-  for (let i = 0; i < reviews.length; i += CARDS_PER_PAGE) {
-    pages.push(reviews.slice(i, i + CARDS_PER_PAGE));
-  }
-  const maxPages = Math.max(pages.length, 1);
-
-  const handleNextReview = useCallback(() => {
-    setReviewIndex((prev) => (prev + 1) % maxPages);
-  }, [maxPages]);
-
-  const handlePrevReview = () => {
-    setReviewIndex((prev) => (prev - 1 + maxPages) % maxPages);
-  };
-
-  // Auto-slide
   useEffect(() => {
-    if (isPaused || maxPages <= 1) return undefined;
-    const timer = setInterval(handleNextReview, 6000);
-    return () => clearInterval(timer);
-  }, [isPaused, handleNextReview, maxPages]);
+    const mq = window.matchMedia("(max-width: 900px)");
+    const apply = () => {
+      setVisible(mq.matches ? 1 : VISIBLE_DESKTOP);
+      setIndex(0);
+    };
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
+
+  // Clone leading cards so the last forward step can loop without a jump
+  const slides =
+    reviews.length > 0 ? [...reviews, ...reviews.slice(0, visible)] : [];
+  const loopAt = reviews.length;
+
+  const goNext = useCallback(() => {
+    setIndex((prev) => prev + 1);
+  }, []);
+
+  const goPrev = useCallback(() => {
+    setIndex((prev) => {
+      if (prev > 0) return prev - 1;
+      snapModeRef.current = "prev";
+      setDisableTransition(true);
+      return Math.max(loopAt, 0);
+    });
+  }, [loopAt]);
+
+  // Forward loop: after landing on clones, snap to real start
+  useEffect(() => {
+    if (index !== loopAt || loopAt === 0) return undefined;
+    const timer = window.setTimeout(() => {
+      snapModeRef.current = "start";
+      setDisableTransition(true);
+      setIndex(0);
+    }, SLIDE_MS);
+    return () => window.clearTimeout(timer);
+  }, [index, loopAt]);
+
+  // Re-enable transition after a snap
+  useEffect(() => {
+    if (!disableTransition) return undefined;
+    const id = window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        const mode = snapModeRef.current;
+        snapModeRef.current = null;
+        setDisableTransition(false);
+        if (mode === "prev" && loopAt > 0) {
+          setIndex(loopAt - 1);
+        }
+      });
+    });
+    return () => window.cancelAnimationFrame(id);
+  }, [disableTransition, loopAt]);
+
+  // Auto-advance one card at a time, right → left
+  useEffect(() => {
+    if (isPaused || reviews.length <= visible) return undefined;
+    const timer = window.setInterval(goNext, 4000);
+    return () => window.clearInterval(timer);
+  }, [isPaused, goNext, reviews.length, visible]);
+
+  const stepPercent = 100 / visible;
 
   return (
     <section id="reviews" className="reviews-section">
-      <h2 className="reviews-title">Watch our user reviews</h2>
+      <div className="section-head">
+        <span className="section-eyebrow">Reviews</span>
+        <h2 className="landing-section-title">What people say</h2>
+      </div>
 
       {loading ? (
-        <p style={{ textAlign: "center", color: "#64748b", padding: 40 }}>
+        <p style={{ textAlign: "center", color: "var(--color-text-muted)", padding: 40 }}>
           Loading reviews…
         </p>
       ) : (
@@ -93,62 +173,29 @@ export default function ReviewsSection() {
             className="carousel-wrapper"
             onMouseEnter={() => setIsPaused(true)}
             onMouseLeave={() => setIsPaused(false)}
+            style={{ "--reviews-visible": visible }}
           >
             <button
               type="button"
               className="carousel-btn prev-btn"
-              onClick={handlePrevReview}
-              aria-label="Previous reviews"
+              onClick={goPrev}
+              aria-label="Previous review"
             >
-              <img
-                src={previousIcon}
-                alt="Previous"
-                className="carousel-arrow"
-              />
+              <IconChevronLeft className="carousel-arrow" />
             </button>
 
             <div className="carousel-viewport">
               <div
-                className="carousel-track"
-                style={{ transform: `translateX(-${reviewIndex * 100}%)` }}
+                className={`carousel-track${disableTransition ? " is-jumping" : ""}`}
+                style={{ transform: `translateX(-${index * stepPercent}%)` }}
               >
-                {pages.map((pageReviews, pageIdx) => (
+                {slides.map((item, slideIdx) => (
                   <div
-                    key={pageIdx}
-                    className={`reviews-page ${reviewIndex === pageIdx ? "active-page" : ""}`}
-                    aria-hidden={reviewIndex !== pageIdx}
+                    key={`${item.id}-${slideIdx}`}
+                    className="review-slide"
+                    aria-hidden={slideIdx < index || slideIdx >= index + visible}
                   >
-                    {pageReviews.map((item) => (
-                      <div key={item.id} className="review-card">
-                        <div
-                          className="review-header"
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                          }}
-                        >
-                          <span className="reviewer-name">{item.name}</span>
-                          {renderStars(item.rating || 5)}
-                        </div>
-                        <div className="review-body">
-                          <p className="review-comment">
-                            {item.comment || item.message}
-                          </p>
-                        </div>
-                        {item.category && (
-                          <div
-                            style={{
-                              marginTop: 8,
-                              fontSize: "0.72rem",
-                              color: "#94a3b8",
-                            }}
-                          >
-                            {item.category}
-                          </div>
-                        )}
-                      </div>
-                    ))}
+                    <ReviewCard item={item} />
                   </div>
                 ))}
               </div>
@@ -157,26 +204,26 @@ export default function ReviewsSection() {
             <button
               type="button"
               className="carousel-btn next-btn"
-              onClick={handleNextReview}
-              aria-label="Next reviews"
+              onClick={goNext}
+              aria-label="Next review"
             >
-              <img src={nextIcon} alt="Next" className="carousel-arrow" />
+              <IconChevronRight className="carousel-arrow" />
             </button>
           </div>
 
-          {maxPages > 1 && (
+          {loopAt > 1 && (
             <div
               className="carousel-dots"
               role="tablist"
-              aria-label="Review page navigation"
+              aria-label="Review navigation"
             >
-              {Array.from({ length: maxPages }).map((_, idx) => (
+              {Array.from({ length: loopAt }).map((_, idx) => (
                 <button
                   key={idx}
                   type="button"
-                  className={`dot ${reviewIndex === idx ? "active" : ""}`}
-                  onClick={() => setReviewIndex(idx)}
-                  aria-label={`Go to review slide ${idx + 1}`}
+                  className={`dot ${(index % loopAt) === idx ? "active" : ""}`}
+                  onClick={() => setIndex(idx)}
+                  aria-label={`Go to review ${idx + 1}`}
                 />
               ))}
             </div>

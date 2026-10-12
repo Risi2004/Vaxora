@@ -44,7 +44,7 @@ export default function ClinicalPrescribeModal({ isOpen, onClose, patient, onSav
         <div className="doctor-modal-header">
           <div>
             <h3 className="doctor-modal-title">Prescribe Dose</h3>
-            <p style={{ margin: '4px 0 0 0', fontSize: '0.82rem', color: 'rgba(255,255,255,0.85)' }}>
+            <p style={{ margin: '4px 0 0 0', fontSize: '0.8125rem', color: 'rgba(255,255,255,0.85)' }}>
               {patient.name} · {patient.vaccine}
             </p>
           </div>
@@ -67,11 +67,11 @@ export default function ClinicalPrescribeModal({ isOpen, onClose, patient, onSav
                 disabled={saving}
                 required
               />
-              <p style={{ margin: '6px 0 0', fontSize: '0.78rem', color: '#64748b' }}>
+              <p style={{ margin: '6px 0 0', fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
                 The nurse will confirm and administer exactly this dose.
               </p>
             </div>
-            {error && <p style={{ color: '#b91c1c', fontSize: '0.82rem' }}>{error}</p>}
+            {error && <p style={{ color: 'var(--color-error)', fontSize: '0.8125rem' }}>{error}</p>}
           </div>
           <div className="doctor-modal-footer">
             <button type="button" className="doctor-btn-cancel" onClick={onClose} disabled={saving}>

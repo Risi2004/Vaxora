@@ -6,125 +6,17 @@ namespace Vaxora.Api.Data;
 
 public static class DbInitializer
 {
-    public static async Task SeedAsync(IServiceProvider serviceProvider, IConfiguration configuration)
-    {
-        using var scope = serviceProvider.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
-        var logger = scope.ServiceProvider.GetRequiredService<ILogger<ApplicationDbContext>>();
-
-        try
-        {
-            // Ensure __EFMigrationsHistory table exists in public schema
-            try
-            {
-                await context.Database.ExecuteSqlRawAsync(@"
-                    CREATE TABLE IF NOT EXISTS ""__EFMigrationsHistory"" (
-                        ""MigrationId"" character varying(150) NOT NULL,
-                        ""ProductVersion"" character varying(32) NOT NULL,
-                        CONSTRAINT ""PK___EFMigrationsHistory"" PRIMARY KEY (""MigrationId"")
-                    );
-                ");
-
-                // 20260928004401_AddAppointmentsAndBooths is a consolidated full-schema baseline migration.
-                // On a clean database, executing the 16 historical migrations prior to AddAppointmentsAndBooths
-                // causes collision because AddAppointmentsAndBooths re-creates the initial sequences and tables.
-                // We baseline these historical migrations so AddAppointmentsAndBooths executes cleanly as the schema baseline.
-                var baselineHistoricalMigrations = new[]
-                {
-                    "20260910031256_InitialCreate",
-                    "20260910041633_AlignSignupSchema",
-                    "20260910044322_RemoveDoctorHospitalAffiliation",
-                    "20260910044524_RemoveNurseDepartmentAndAffiliation",
-                    "20260910051426_AddVaxoraRegistrationNumbersAndSequences",
-                    "20260912125907_AddStaffManagement",
-                    "20260914063649_AddInventoryModule",
-                    "20260918000000_AddAppointmentScheduleModule",
-                    "20260920070000_AddAppointmentPrescribedDosage",
-                    "20260920120000_AddPatientRecordsModule",
-                    "20260922193000_AddAgentWorkflowState",
-                    "20260924160000_AddHospitalBooths",
-                    "20260924180000_AddHospitalBoothVaccines",
-                    "20260926080618_SyncModelSnapshot",
-                    "20260926090000_EnsureAppointmentScheduleColumns",
-                    "20260927220000_AddVaccineScheduleBooth"
-                };
-
-                foreach (var migrationId in baselineHistoricalMigrations)
-                {
-                    await context.Database.ExecuteSqlRawAsync(
-                        $"INSERT INTO \"__EFMigrationsHistory\" (\"MigrationId\", \"ProductVersion\") VALUES ('{migrationId}', '8.0.11') ON CONFLICT DO NOTHING;");
-                }
-
-                // Check if baseline/incremental tables exist from prior runs.
-                // If they exist, synchronize their migration IDs so EF Core's migrator executes remaining migrations cleanly.
-                var subsequentChecks = new (string MigrationId, string SqlCheck)[]
-                {
-                    ("20260928004401_AddAppointmentsAndBooths", "SELECT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'Appointments');"),
-                    ("20260929010000_AddShiftSwapRequests", "SELECT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'ShiftSwapRequests');"),
-                    ("20260929030000_AddCoverReplacementOnSwap", "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ShiftSwapRequests' AND column_name = 'CoverDoctorUserId');"),
-                    ("20261001120000_AddAgentWorkflowExecutionEvidence", "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'AgentWorkflows' AND column_name = 'CompletedStepsJson');"),
-                    ("20261002120000_AddBatchOpenVialDosesRemaining", "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'Batches' AND column_name = 'OpenVialDosesRemaining');"),
-                    ("20261002130000_AllowGuestWalkInAppointments", "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'Appointments' AND column_name = 'GuestWalkInPatientName');"),
-                    ("20261005120000_AddHospitalFormularyPrice", "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'HospitalFormularies' AND column_name = 'Price');")
-                };
-
-                foreach (var (migrationId, sqlCheck) in subsequentChecks)
-                {
-                    try
-                    {
-                        var conn = context.Database.GetDbConnection();
-                        if (conn.State != System.Data.ConnectionState.Open)
-                        {
-                            await conn.OpenAsync();
-                        }
-                        using var command = conn.CreateCommand();
-                        command.CommandText = sqlCheck;
-                        var exists = (bool?)await command.ExecuteScalarAsync() ?? false;
-                        if (exists)
-                        {
-                            await context.Database.ExecuteSqlRawAsync(
-                                $"INSERT INTO \"__EFMigrationsHistory\" (\"MigrationId\", \"ProductVersion\") VALUES ('{migrationId}', '8.0.11') ON CONFLICT DO NOTHING;");
-                        }
-                    }
-                    catch (Exception exCheck)
-                    {
-                        logger.LogWarning(exCheck, "Notice checking migration synchronization for {MigrationId}: {Message}", migrationId, exCheck.Message);
-                    }
-                }
-            }
-            catch (Exception exInitHist)
-            {
-                logger.LogWarning(exInitHist, "Notice during __EFMigrationsHistory baseline setup: {Message}", exInitHist.Message);
-            }
-
-            // Apply critical additive columns even if EF MigrateAsync is blocked
-            // (e.g. incomplete migration metadata). Inventory queries depend on these.
-            try
-            {
-                await context.Database.ExecuteSqlRawAsync(@"
-                    ALTER TABLE ""Batches"" ADD COLUMN IF NOT EXISTS ""OpenVialDosesRemaining"" INTEGER NULL;
-                ");
-            }
-            catch (Exception exBootstrap)
-            {
-                logger.LogWarning(exBootstrap, "Non-fatal notice during early schema bootstrap: {Message}", exBootstrap.Message);
-            }
-
-            try
-            {
-                await context.Database.MigrateAsync();
-            }
-            catch (Exception exMigrate)
-            {
-                logger.LogWarning(exMigrate, "MigrateAsync notice: {Message}. Continuing to safe schema synchronization and account seeding.", exMigrate.Message);
-            }
-
-            // Safe column checks for pricing, agent workflows, and payment integration
-            try
-            {
-                await context.Database.ExecuteSqlRawAsync(@"
+    /// <summary>
+    /// Additive columns/tables applied on every start in case a migration was skipped.
+    /// Runs through ExecuteSqlRaw, which treats { and } as format placeholders, so JSON
+    /// defaults must be written as '{{}}'.
+    /// </summary>
+    public const string SchemaSafetySql = @"
+                    ALTER TABLE ""Users"" ADD COLUMN IF NOT EXISTS ""FullName"" VARCHAR(150) NULL;
                     ALTER TABLE ""VaccineSchedules"" ADD COLUMN IF NOT EXISTS ""Price"" NUMERIC(18,2) NOT NULL DEFAULT 0.00;
+                    ALTER TABLE ""HospitalFormularies"" ADD COLUMN IF NOT EXISTS ""SupplierCost"" NUMERIC NOT NULL DEFAULT 0;
+                    ALTER TABLE ""HospitalFormularies"" ADD COLUMN IF NOT EXISTS ""SupplierName"" VARCHAR(200) NULL;
+                    ALTER TABLE ""HospitalFormularies"" ADD COLUMN IF NOT EXISTS ""SupplierEmail"" VARCHAR(200) NULL;
                     ALTER TABLE ""Appointments"" ADD COLUMN IF NOT EXISTS ""Fee"" NUMERIC(18,2) NOT NULL DEFAULT 0.00;
                     ALTER TABLE ""Appointments"" ADD COLUMN IF NOT EXISTS ""PaymentMethod"" VARCHAR(50) NOT NULL DEFAULT 'Free';
                     ALTER TABLE ""Appointments"" ADD COLUMN IF NOT EXISTS ""PaymentStatus"" VARCHAR(50) NOT NULL DEFAULT 'Paid';
@@ -133,11 +25,15 @@ public static class DbInitializer
                     ALTER TABLE ""Appointments"" ADD COLUMN IF NOT EXISTS ""PrescribedByDoctorUserId"" UUID NULL;
                     ALTER TABLE ""Appointments"" ADD COLUMN IF NOT EXISTS ""PrescribedByDoctorName"" VARCHAR(200) NULL;
                     ALTER TABLE ""Appointments"" ADD COLUMN IF NOT EXISTS ""DosageUpdatedAt"" TIMESTAMPTZ NULL;
+                    ALTER TABLE ""Appointments"" ADD COLUMN IF NOT EXISTS ""CheckedInAt"" TIMESTAMPTZ NULL;
+                    ALTER TABLE ""Appointments"" ADD COLUMN IF NOT EXISTS ""CheckedInByUserId"" UUID NULL;
+                    ALTER TABLE ""Appointments"" ADD COLUMN IF NOT EXISTS ""SessionStaffUserId"" UUID NULL;
+                    ALTER TABLE ""Appointments"" ADD COLUMN IF NOT EXISTS ""SessionStaffName"" VARCHAR(200) NULL;
                     ALTER TABLE ""Batches"" ADD COLUMN IF NOT EXISTS ""OpenVialDosesRemaining"" INTEGER NULL;
-                    ALTER TABLE ""AgentWorkflows"" ADD COLUMN IF NOT EXISTS ""PlanJson"" TEXT NOT NULL DEFAULT '{}';
+                    ALTER TABLE ""AgentWorkflows"" ADD COLUMN IF NOT EXISTS ""PlanJson"" TEXT NOT NULL DEFAULT '{{}}';
                     ALTER TABLE ""AgentWorkflows"" ADD COLUMN IF NOT EXISTS ""CompletedStepsJson"" TEXT NOT NULL DEFAULT '[]';
                     ALTER TABLE ""AgentWorkflows"" ADD COLUMN IF NOT EXISTS ""ToolResultsJson"" TEXT NOT NULL DEFAULT '[]';
-                    ALTER TABLE ""AgentWorkflows"" ADD COLUMN IF NOT EXISTS ""ValidationResultsJson"" TEXT NOT NULL DEFAULT '{}';
+                    ALTER TABLE ""AgentWorkflows"" ADD COLUMN IF NOT EXISTS ""ValidationResultsJson"" TEXT NOT NULL DEFAULT '{{}}';
                     ALTER TABLE ""AgentWorkflows"" ADD COLUMN IF NOT EXISTS ""ErrorDetails"" VARCHAR(4000) NULL;
                     ALTER TABLE ""AgentWorkflows"" ADD COLUMN IF NOT EXISTS ""FinalOutcome"" VARCHAR(4000) NULL;
 
@@ -203,7 +99,128 @@ public static class DbInitializer
                         ""CreatedAt"" TIMESTAMPTZ NOT NULL,
                         ""UpdatedAt"" TIMESTAMPTZ NULL
                     );
+                ";
+
+    public static async Task SeedAsync(IServiceProvider serviceProvider, IConfiguration configuration)
+    {
+        using var scope = serviceProvider.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<ApplicationDbContext>>();
+
+        try
+        {
+            // Ensure __EFMigrationsHistory table exists in public schema
+            try
+            {
+                await context.Database.ExecuteSqlRawAsync(@"
+                    CREATE TABLE IF NOT EXISTS ""__EFMigrationsHistory"" (
+                        ""MigrationId"" character varying(150) NOT NULL,
+                        ""ProductVersion"" character varying(32) NOT NULL,
+                        CONSTRAINT ""PK___EFMigrationsHistory"" PRIMARY KEY (""MigrationId"")
+                    );
                 ");
+
+                // 20260928004401_AddAppointmentsAndBooths is a consolidated full-schema baseline migration.
+                // On a clean database, executing the 16 historical migrations prior to AddAppointmentsAndBooths
+                // causes collision because AddAppointmentsAndBooths re-creates the initial sequences and tables.
+                // We baseline these historical migrations so AddAppointmentsAndBooths executes cleanly as the schema baseline.
+                var baselineHistoricalMigrations = new[]
+                {
+                    "20260910031256_InitialCreate",
+                    "20260910041633_AlignSignupSchema",
+                    "20260910044322_RemoveDoctorHospitalAffiliation",
+                    "20260910044524_RemoveNurseDepartmentAndAffiliation",
+                    "20260910051426_AddVaxoraRegistrationNumbersAndSequences",
+                    "20260912125907_AddStaffManagement",
+                    "20260914063649_AddInventoryModule",
+                    "20260918000000_AddAppointmentScheduleModule",
+                    "20260920070000_AddAppointmentPrescribedDosage",
+                    "20260920120000_AddPatientRecordsModule",
+                    "20260922193000_AddAgentWorkflowState",
+                    "20260924160000_AddHospitalBooths",
+                    "20260924180000_AddHospitalBoothVaccines",
+                    "20260926080618_SyncModelSnapshot",
+                    "20260926090000_EnsureAppointmentScheduleColumns",
+                    "20260927220000_AddVaccineScheduleBooth"
+                };
+
+                foreach (var migrationId in baselineHistoricalMigrations)
+                {
+                    await context.Database.ExecuteSqlRawAsync(
+                        $"INSERT INTO \"__EFMigrationsHistory\" (\"MigrationId\", \"ProductVersion\") VALUES ('{migrationId}', '8.0.11') ON CONFLICT DO NOTHING;");
+                }
+
+                // Check if baseline/incremental tables exist from prior runs.
+                // If they exist, synchronize their migration IDs so EF Core's migrator executes remaining migrations cleanly.
+                var subsequentChecks = new (string MigrationId, string SqlCheck)[]
+                {
+                    ("20260928004401_AddAppointmentsAndBooths", "SELECT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'Appointments');"),
+                    ("20260929010000_AddShiftSwapRequests", "SELECT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'ShiftSwapRequests');"),
+                    ("20260929030000_AddCoverReplacementOnSwap", "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ShiftSwapRequests' AND column_name = 'CoverDoctorUserId');"),
+                    ("20261001120000_AddAgentWorkflowExecutionEvidence", "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'AgentWorkflows' AND column_name = 'CompletedStepsJson');"),
+                    ("20261002120000_AddBatchOpenVialDosesRemaining", "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'Batches' AND column_name = 'OpenVialDosesRemaining');"),
+                    ("20261002130000_AllowGuestWalkInAppointments", "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'Appointments' AND column_name = 'GuestWalkInPatientName');"),
+                    ("20261005120000_AddHospitalFormularyPrice", "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'HospitalFormularies' AND column_name = 'Price');"),
+                    ("20261012120000_AddHospitalFormularySupplierCost", "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'HospitalFormularies' AND column_name = 'SupplierCost');"),
+                    ("20261012130000_AddHospitalFormularySupplierContact", "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'HospitalFormularies' AND column_name = 'SupplierEmail');")
+                };
+
+                foreach (var (migrationId, sqlCheck) in subsequentChecks)
+                {
+                    try
+                    {
+                        var conn = context.Database.GetDbConnection();
+                        if (conn.State != System.Data.ConnectionState.Open)
+                        {
+                            await conn.OpenAsync();
+                        }
+                        using var command = conn.CreateCommand();
+                        command.CommandText = sqlCheck;
+                        var exists = (bool?)await command.ExecuteScalarAsync() ?? false;
+                        if (exists)
+                        {
+                            await context.Database.ExecuteSqlRawAsync(
+                                $"INSERT INTO \"__EFMigrationsHistory\" (\"MigrationId\", \"ProductVersion\") VALUES ('{migrationId}', '8.0.11') ON CONFLICT DO NOTHING;");
+                        }
+                    }
+                    catch (Exception exCheck)
+                    {
+                        logger.LogWarning(exCheck, "Notice checking migration synchronization for {MigrationId}: {Message}", migrationId, exCheck.Message);
+                    }
+                }
+            }
+            catch (Exception exInitHist)
+            {
+                logger.LogWarning(exInitHist, "Notice during __EFMigrationsHistory baseline setup: {Message}", exInitHist.Message);
+            }
+
+            // Apply critical additive columns even if EF MigrateAsync is blocked
+            // (e.g. incomplete migration metadata). Inventory queries depend on these.
+            try
+            {
+                await context.Database.ExecuteSqlRawAsync(@"
+                    ALTER TABLE ""Batches"" ADD COLUMN IF NOT EXISTS ""OpenVialDosesRemaining"" INTEGER NULL;
+                ");
+            }
+            catch (Exception exBootstrap)
+            {
+                logger.LogWarning(exBootstrap, "Non-fatal notice during early schema bootstrap: {Message}", exBootstrap.Message);
+            }
+
+            try
+            {
+                await context.Database.MigrateAsync();
+            }
+            catch (Exception exMigrate)
+            {
+                logger.LogWarning(exMigrate, "MigrateAsync notice: {Message}. Continuing to safe schema synchronization and account seeding.", exMigrate.Message);
+            }
+
+            // Safe column checks for pricing, agent workflows, and payment integration
+            try
+            {
+                await context.Database.ExecuteSqlRawAsync(SchemaSafetySql);
             }
             catch (Exception exSql)
             {
@@ -213,10 +230,14 @@ public static class DbInitializer
             // ============ SEED ADMIN ============
             // Seed Admin if not exists
             var adminEmail = configuration["AdminSeed:Email"] ?? "admin@vaxora.health.gov.lk";
-            var adminPassword = configuration["AdminSeed:Password"] ?? "Admin@Vaxora2026";
+            // No built-in password: without AdminSeed__Password no admin is created.
+            var adminPassword = configuration["AdminSeed:Password"];
 
             var existingAdmin = await context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == adminEmail.ToLower());
-            if (existingAdmin == null)
+            if (existingAdmin == null && string.IsNullOrWhiteSpace(adminPassword))
+                logger.LogWarning("Administrator account not seeded: set AdminSeed__Password.");
+
+            if (existingAdmin == null && !string.IsNullOrWhiteSpace(adminPassword))
             {
                 var admin = new User
                 {
@@ -246,14 +267,14 @@ public static class DbInitializer
             }
 
             // ============ SEED TEST HOSPITAL (DEV ONLY) ============
-            // TODO(revert): remove before merging to main
+            // Created only when TestSeed__HospitalPassword is set, so no password lives in the code.
             const string testHospitalEmail = "hospital@vaxora.local";
-            const string testHospitalPassword = "Hospital@123";
+            var testHospitalPassword = configuration["TestSeed:HospitalPassword"];
 
             var existingHospital = await context.Users
                 .FirstOrDefaultAsync(u => u.Email.ToLower() == testHospitalEmail.ToLower());
 
-            if (existingHospital == null)
+            if (existingHospital == null && !string.IsNullOrWhiteSpace(testHospitalPassword))
             {
                 var hospitalUser = new User
                 {
@@ -295,18 +316,18 @@ public static class DbInitializer
                 });
 
                 await context.SaveChangesAsync();
-                logger.LogInformation("Test hospital account seeded: {Email} / {Password}",
-                    testHospitalEmail, testHospitalPassword);
+                logger.LogInformation("Test hospital account seeded: {Email}", testHospitalEmail);
             }
 
             // ============ SEED TEST PATIENT (DEV ONLY) ============
+            // Created only when TestSeed__PatientPassword is set.
             const string testPatientEmail = "patient1@vaxora.lk";
-            const string testPatientPassword = "Password123!";
+            var testPatientPassword = configuration["TestSeed:PatientPassword"];
 
             var existingPatient = await context.Users
                 .FirstOrDefaultAsync(u => u.Email.ToLower() == testPatientEmail.ToLower());
 
-            if (existingPatient == null)
+            if (existingPatient == null && !string.IsNullOrWhiteSpace(testPatientPassword))
             {
                 var patientUser = new User
                 {
@@ -344,8 +365,7 @@ public static class DbInitializer
                 });
 
                 await context.SaveChangesAsync();
-                logger.LogInformation("Test patient account seeded: {Email} / {Password}",
-                    testPatientEmail, testPatientPassword);
+                logger.LogInformation("Test patient account seeded: {Email}", testPatientEmail);
             }
             // ============ END DEV-ONLY ============
             // Seed National Vaccines if not exists

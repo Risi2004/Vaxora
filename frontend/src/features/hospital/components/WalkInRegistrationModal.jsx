@@ -1,5 +1,5 @@
 import { deferEffectCallback } from '../../../shared/utils/deferEffectCallback.js';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 const FALLBACK_VACCINES = [
   'Pfizer-BioNTech Bivalent',
@@ -34,41 +34,68 @@ export default function WalkInRegistrationModal({
   onClose,
   onAddPatient,
   vaccines,
+  vaccinePrices,
   booths,
 }) {
   const vaccineOptions = useMemo(
     () => vaccines?.length > 0 ? vaccines : FALLBACK_VACCINES,
     [vaccines]
   );
-  const boothOptions = useMemo(
-    () => booths?.length > 0 ? booths : [{ id: 'default', label: 'Unassigned booth' }],
-    [booths]
-  );
-
   const [formData, setFormData] = useState({
     ...EMPTY_FORM,
     vaccine: vaccineOptions[0] || '',
-    assignedBooth: boothOptions[0]?.label || '',
   });
+
+  // Only offer booths that stock the chosen vaccine (all booths when none list it).
+  // "Auto" (empty value) lets the server pick a staffed booth with the shortest queue.
+  const boothOptions = useMemo(() => {
+    const list = Array.isArray(booths) ? booths : [];
+    const wanted = String(formData.vaccine || '').trim().toLowerCase();
+    const offering = list.filter((booth) =>
+      (booth.vaccineNames || []).some((name) => {
+        const value = String(name || '').trim().toLowerCase();
+        return value && (value === wanted || value.includes(wanted) || wanted.includes(value));
+      })
+    );
+    return offering.length > 0 ? offering : list;
+  }, [booths, formData.vaccine]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
+  // Reset only when the modal opens: the queue page re-renders on a timer, and
+  // resetting on every render would wipe what the desk is typing.
+  const wasOpenRef = useRef(false);
   useEffect(() => deferEffectCallback(() => {
+    const opening = isOpen && !wasOpenRef.current;
+    wasOpenRef.current = isOpen;
     if (!isOpen) return;
-    setError('');
-    setFormData({
-      ...EMPTY_FORM,
-      vaccine: vaccineOptions[0] || '',
-      dose: DOSE_OPTIONS[0],
-      assignedBooth: boothOptions[0]?.label || '',
-    });
-  }), [isOpen, vaccineOptions, boothOptions]);
+    if (opening) {
+      setError('');
+      setFormData({
+        ...EMPTY_FORM,
+        vaccine: vaccineOptions[0] || '',
+        dose: DOSE_OPTIONS[0],
+      });
+      return;
+    }
+    // The vaccine list can arrive after opening: keep the choice valid.
+    setFormData((prev) =>
+      vaccineOptions.includes(prev.vaccine)
+        ? prev
+        : { ...prev, vaccine: vaccineOptions[0] || '', assignedBooth: '' }
+    );
+  }), [isOpen, vaccineOptions]);
 
   if (!isOpen) return null;
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    // A new vaccine may not be offered at the previously chosen booth.
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+      ...(name === 'vaccine' ? { assignedBooth: '' } : {}),
+    }));
   };
 
   const handleSubmit = async (e) => {
@@ -87,7 +114,7 @@ export default function WalkInRegistrationModal({
         patientPhone: formData.phone.trim(),
         vaccineName: formData.vaccine,
         dose: formData.dose,
-        boothLabel: formData.assignedBooth,
+        boothLabel: formData.assignedBooth || null,
         age: formData.age ? Number(formData.age) : null,
         gender: formData.gender,
       });
@@ -118,10 +145,10 @@ export default function WalkInRegistrationModal({
                   marginBottom: '12px',
                   padding: '10px 12px',
                   borderRadius: '8px',
-                  background: 'rgba(239, 68, 68, 0.12)',
-                  border: '1px solid #ef4444',
-                  color: '#b91c1c',
-                  fontSize: '0.85rem',
+                  background: 'rgba(var(--rgb-error), 0.12)',
+                  border: '1px solid var(--color-error)',
+                  color: 'var(--color-error)',
+                  fontSize: '0.875rem',
                   fontWeight: 600,
                 }}
               >
@@ -142,7 +169,7 @@ export default function WalkInRegistrationModal({
               />
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '12px' }}>
               <div className="modal-form-group">
                 <label className="modal-label">NIC / National ID *</label>
                 <input
@@ -154,20 +181,19 @@ export default function WalkInRegistrationModal({
                   required
                   className="modal-input"
                 />
-                <p style={{ margin: '6px 0 0', fontSize: '0.75rem', color: '#64748b' }}>
-                  Matches an existing account by NIC, or creates one with the email/phone below.
-                </p>
               </div>
 
               <div className="modal-form-group">
                 <label className="modal-label">Age / Gender</label>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '6px' }}>
                   <input
                     type="number"
                     name="age"
                     value={formData.age}
                     onChange={handleChange}
                     placeholder="Age"
+                    min="0"
+                    max="120"
                     className="modal-input"
                   />
                   <select
@@ -183,8 +209,11 @@ export default function WalkInRegistrationModal({
                 </div>
               </div>
             </div>
+            <p style={{ margin: '-8px 0 0', fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
+              Matches an existing account by NIC, or creates one with the email and phone below.
+            </p>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '12px' }}>
               <div className="modal-form-group">
                 <label className="modal-label">Email *</label>
                 <input
@@ -196,9 +225,6 @@ export default function WalkInRegistrationModal({
                   required
                   className="modal-input"
                 />
-                <p style={{ margin: '6px 0 0', fontSize: '0.75rem', color: '#64748b' }}>
-                  For new guest accounts only: this is their login email, and the default password is their NIC.
-                </p>
               </div>
               <div className="modal-form-group">
                 <label className="modal-label">Phone *</label>
@@ -213,6 +239,9 @@ export default function WalkInRegistrationModal({
                 />
               </div>
             </div>
+            <p style={{ margin: '-8px 0 0', fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
+              New guest accounts sign in with this email; the default password is their NIC.
+            </p>
 
             <div className="modal-form-group">
               <label className="modal-label">Vaccine Formulation</label>
@@ -226,9 +255,15 @@ export default function WalkInRegistrationModal({
                   <option key={name} value={name}>{name}</option>
                 ))}
               </select>
+              {vaccinePrices?.[formData.vaccine] ? (
+                <span style={{ display: 'block', marginTop: 4, fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
+                  Fee: {vaccinePrices[formData.vaccine]}
+                  {vaccinePrices[formData.vaccine] !== 'Free' ? ', collect at the desk (Mark paid)' : ''}
+                </span>
+              ) : null}
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '12px' }}>
               <div className="modal-form-group">
                 <label className="modal-label">Dose Sequence</label>
                 <select
@@ -251,12 +286,16 @@ export default function WalkInRegistrationModal({
                   onChange={handleChange}
                   className="modal-select"
                 >
+                  <option value="">Auto (best booth)</option>
                   {boothOptions.map((booth) => (
                     <option key={booth.id} value={booth.label}>{booth.label}</option>
                   ))}
                 </select>
               </div>
             </div>
+            <span style={{ display: 'block', marginTop: 6, fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
+              A doctor prescribes the dosage at the booth. Only booths offering this vaccine are listed.
+            </span>
           </div>
 
           <div className="modal-footer">
