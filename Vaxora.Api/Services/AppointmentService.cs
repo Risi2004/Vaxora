@@ -103,14 +103,8 @@ public class AppointmentService : IAppointmentService
                         s.VaccineName.ToLower().Contains(vName))
             .ToListAsync();
 
-        if (schedules.Count == 0)
-        {
-            // Fallback: check all active schedules for this hospital if vaccine matching is broad
-            schedules = await _context.VaccineSchedules
-                .AsNoTracking()
-                .Where(s => (s.HospitalUserId == resolvedHospitalUserId || (resolvedProfileId != null && s.HospitalProfileId == resolvedProfileId)) && s.Status == "Active")
-                .ToListAsync();
-        }
+        // No fallback to the hospital's other vaccines: those dates have no slots for this
+        // vaccine, so a patient would pick a date and find nothing to book.
 
         var today = StaffDutyHelper.HospitalToday();
         var now = TimeOnly.FromDateTime(StaffDutyHelper.HospitalNow());
