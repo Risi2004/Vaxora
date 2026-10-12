@@ -193,7 +193,10 @@ public class StaffManagementServiceTests
         var externalAffiliation = AddActiveAffiliation(context, otherHospital, doctor);
         var date = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(3));
         AddSession(context, hospital, date);
-        // Busy elsewhere in the morning slot only.
+        var afternoon = AddSession(context, hospital, date);
+        afternoon.StartTime = "14:00";
+        afternoon.EndTime = "16:00";
+        // Busy elsewhere through the morning session only.
         AddShift(context, otherHospital, externalAffiliation, date);
         await context.SaveChangesAsync();
         var service = CreateService(context);

@@ -493,7 +493,7 @@ export default function AppointmentsTab() {
   };
 
   // 7. Handle Form Submission -> Persists Appointment to Database
-  const handleBook = async (e) => {
+  const handleBook = async (e, payAtDesk = false) => {
     e.preventDefault();
     if (!formData.vaccine || !formData.hospitalUserId || !formData.date || !formData.time) {
       showToast('Please complete all steps (Vaccine, Hospital, Date, and Time).', 'error');
@@ -523,7 +523,7 @@ export default function AppointmentsTab() {
     }
 
     const isFree = selectedFee <= 0;
-    const chosenMethod = isFree ? 'Free' : 'PayHere';
+    const chosenMethod = isFree ? 'Free' : payAtDesk ? 'Hospital' : 'PayHere';
 
     const payload = {
       hospitalUserId: formData.hospitalUserId,
@@ -546,6 +546,15 @@ export default function AppointmentsTab() {
 
       if (resFee <= 0 || resStatus === 'confirmed') {
         showToast('Free appointment confirmed! Booking details sent to your email.');
+        resetBookingForm();
+        await loadMyAppointments();
+        setTimeout(() => {
+          const section = document.querySelector('.appointments-list-section');
+          if (section) section.scrollIntoView({ behavior: 'smooth' });
+        }, 200);
+      } else if (payAtDesk) {
+        // Slot is held; the hospital desk marks the booking paid on the day.
+        showToast(`Appointment booked. Pay Rs. ${resFee.toLocaleString()} at the hospital desk on the day.`);
         resetBookingForm();
         await loadMyAppointments();
         setTimeout(() => {
@@ -1264,10 +1273,10 @@ export default function AppointmentsTab() {
                       <span style={{ fontSize: '1.5rem' }}>💳</span>
                       <div>
                         <div style={{ fontWeight: 700, color: 'var(--color-accent)', fontSize: '0.9375rem' }}>
-                          Online Card Payment Required
+                          Pay Online or on the Day
                         </div>
                         <div style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)', marginTop: '2px', lineHeight: 1.4 }}>
-                          Payment of <strong>Rs. {selectedFee.toLocaleString()}</strong> is completed securely via online card payment to confirm your booking.
+                          Pay <strong>Rs. {selectedFee.toLocaleString()}</strong> securely by card now, or at the hospital desk on the day of your appointment.
                         </div>
                       </div>
                     </div>
@@ -1294,6 +1303,17 @@ export default function AppointmentsTab() {
                   ? 'Confirm & Book Free Spot'
                   : `Pay Now (Rs. ${selectedFee.toLocaleString()})`}
               </button>
+              {selectedFee > 0 && (
+                <button
+                  type="button"
+                  className="btn-book-appointment btn-book-pay-later"
+                  disabled={!isFormComplete || submitting}
+                  onClick={(e) => handleBook(e, true)}
+                  title="Book now and pay at the hospital desk on the day"
+                >
+                  Pay on the Day
+                </button>
+              )}
             </div>
           </form>
         </div>
@@ -1473,7 +1493,7 @@ export default function AppointmentsTab() {
                               </span>
                             ) : payStatus === 'Paid' ? (
                               <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 700, backgroundColor: 'var(--color-success-bg)', color: 'var(--color-success)' }}>
-                                ✓ Paid Online
+                                {['Hospital', 'WalkIn'].includes(apt.paymentMethod || apt.PaymentMethod) ? '✓ Paid' : '✓ Paid Online'}
                               </span>
                             ) : (
                               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>

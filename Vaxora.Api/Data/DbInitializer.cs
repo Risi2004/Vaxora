@@ -230,10 +230,14 @@ public static class DbInitializer
             // ============ SEED ADMIN ============
             // Seed Admin if not exists
             var adminEmail = configuration["AdminSeed:Email"] ?? "admin@vaxora.health.gov.lk";
-            var adminPassword = configuration["AdminSeed:Password"] ?? "Admin@Vaxora2026";
+            // No built-in password: without AdminSeed__Password no admin is created.
+            var adminPassword = configuration["AdminSeed:Password"];
 
             var existingAdmin = await context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == adminEmail.ToLower());
-            if (existingAdmin == null)
+            if (existingAdmin == null && string.IsNullOrWhiteSpace(adminPassword))
+                logger.LogWarning("Administrator account not seeded: set AdminSeed__Password.");
+
+            if (existingAdmin == null && !string.IsNullOrWhiteSpace(adminPassword))
             {
                 var admin = new User
                 {
@@ -263,14 +267,14 @@ public static class DbInitializer
             }
 
             // ============ SEED TEST HOSPITAL (DEV ONLY) ============
-            // TODO(revert): remove before merging to main
+            // Created only when TestSeed__HospitalPassword is set, so no password lives in the code.
             const string testHospitalEmail = "hospital@vaxora.local";
-            const string testHospitalPassword = "Hospital@123";
+            var testHospitalPassword = configuration["TestSeed:HospitalPassword"];
 
             var existingHospital = await context.Users
                 .FirstOrDefaultAsync(u => u.Email.ToLower() == testHospitalEmail.ToLower());
 
-            if (existingHospital == null)
+            if (existingHospital == null && !string.IsNullOrWhiteSpace(testHospitalPassword))
             {
                 var hospitalUser = new User
                 {
@@ -312,18 +316,18 @@ public static class DbInitializer
                 });
 
                 await context.SaveChangesAsync();
-                logger.LogInformation("Test hospital account seeded: {Email} / {Password}",
-                    testHospitalEmail, testHospitalPassword);
+                logger.LogInformation("Test hospital account seeded: {Email}", testHospitalEmail);
             }
 
             // ============ SEED TEST PATIENT (DEV ONLY) ============
+            // Created only when TestSeed__PatientPassword is set.
             const string testPatientEmail = "patient1@vaxora.lk";
-            const string testPatientPassword = "Password123!";
+            var testPatientPassword = configuration["TestSeed:PatientPassword"];
 
             var existingPatient = await context.Users
                 .FirstOrDefaultAsync(u => u.Email.ToLower() == testPatientEmail.ToLower());
 
-            if (existingPatient == null)
+            if (existingPatient == null && !string.IsNullOrWhiteSpace(testPatientPassword))
             {
                 var patientUser = new User
                 {
@@ -361,8 +365,7 @@ public static class DbInitializer
                 });
 
                 await context.SaveChangesAsync();
-                logger.LogInformation("Test patient account seeded: {Email} / {Password}",
-                    testPatientEmail, testPatientPassword);
+                logger.LogInformation("Test patient account seeded: {Email}", testPatientEmail);
             }
             // ============ END DEV-ONLY ============
             // Seed National Vaccines if not exists

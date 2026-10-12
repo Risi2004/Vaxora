@@ -8,6 +8,8 @@ import HeroTabs from '../../../components/HeroTabs';
 import useConfirmDialog from '../../../shared/hooks/useConfirmDialog';
 import useViewParam from '../../../shared/hooks/useViewParam';
 import { notifyInvitesChanged } from '../hooks/usePendingInviteCount';
+import StaffAvailabilityModal from './StaffAvailabilityModal';
+import { describeAvailability } from '../utils/availability';
 
 /** Each tab shows only its own section, like the hospital roster tabs. First key is the default. */
 const SHIFT_SECTIONS = ['week', 'cover'];
@@ -262,6 +264,7 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff', view
   const [toast, setToast] = useState('');
   const [actionId, setActionId] = useState(null);
   const [coverShift, setCoverShift] = useState(null);
+  const [availabilityFor, setAvailabilityFor] = useState(null);
   const [coverReason, setCoverReason] = useState('');
   const [coverQuota, setCoverQuota] = useState(null);
   const [coverLoading, setCoverLoading] = useState(false);
@@ -404,10 +407,14 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff', view
 
     setActionId(`${affiliationId}-${decision}`);
     try {
-      await staffService.respondToInvitation(affiliationId, decision);
+      const result = await staffService.respondToInvitation(affiliationId, decision);
       showToast(decision === 'Accept' ? 'Invitation accepted.' : 'Invitation rejected.');
       notifyInvitesChanged();
       await loadData();
+      // A doctor says when this hospital may roster them straight after joining.
+      if (decision === 'Accept' && result?.staffRole === 'DOCTOR') {
+        setAvailabilityFor(result);
+      }
     } catch (err) {
       setError(err.message || `Failed to ${decision.toLowerCase()} invitation.`);
     } finally {
@@ -937,21 +944,36 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff', view
                       <div style={{ minWidth: 0 }}>
                         <div style={{ fontWeight: 700, color: 'var(--color-text-title)', lineHeight: 1.4 }}>
                           {item.hospitalName || 'Hospital'}
+                          {item.isPrimary ? <span className="staff-affil-primary-tag">Primary</span> : null}
                         </div>
                         <div style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)', marginTop: 8 }}>
                           Joined: {item.respondedAt ? new Date(item.respondedAt).toLocaleDateString() : '—'}
                         </div>
+                        {item.staffRole === 'DOCTOR' ? (
+                          <div className="staff-affil-hours">{describeAvailability(item)}</div>
+                        ) : null}
                       </div>
                     </div>
-                    <div
-                      className={`staff-affil-presence${item.isOnDutyNow ? ' is-live' : ''}`}
-                      title={
-                        item.isOnDutyNow
-                          ? 'You can do clinical work at this hospital now'
-                          : 'Clock in from your dashboard, or wait for your rostered shift'
-                      }
-                    >
-                      {item.isOnDutyNow ? 'On duty now' : 'Not on duty'}
+                    <div className="staff-affil-actions">
+                      {item.staffRole === 'DOCTOR' ? (
+                        <button
+                          type="button"
+                          className="staff-affil-accept-btn"
+                          onClick={() => setAvailabilityFor(item)}
+                        >
+                          Availability
+                        </button>
+                      ) : null}
+                      <div
+                        className={`staff-affil-presence${item.isOnDutyNow ? ' is-live' : ''}`}
+                        title={
+                          item.isOnDutyNow
+                            ? 'You can do clinical work at this hospital now'
+                            : 'Clock in from your dashboard, or wait for your rostered shift'
+                        }
+                      >
+                        {item.isOnDutyNow ? 'On duty now' : 'Not on duty'}
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -960,6 +982,18 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff', view
           </div>
           )}
         </>
+      )}
+
+      {availabilityFor && (
+        <StaffAvailabilityModal
+          affiliation={availabilityFor}
+          onClose={() => setAvailabilityFor(null)}
+          onSaved={() => {
+            setAvailabilityFor(null);
+            showToast('Availability saved.');
+            loadData();
+          }}
+        />
       )}
 
       {coverShift && (

@@ -265,6 +265,123 @@ public class StaffManagementController : ControllerBase
         }
     }
 
+    [HttpPut("affiliations/{affiliationId:guid}/availability")]
+    [Authorize(Roles = "DOCTOR")]
+    public async Task<IActionResult> UpdateMyAvailability(Guid affiliationId, [FromBody] UpdateStaffAvailabilityDto dto)
+    {
+        if (!TryGetUserId(out var staffUserId))
+            return Unauthorized(new { message = "Invalid identity claim." });
+
+        try
+        {
+            var result = await _staffService.UpdateMyAvailabilityAsync(staffUserId, affiliationId, dto);
+            return Ok(result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating availability for {AffiliationId}", affiliationId);
+            return StatusCode(500, new { message = "Failed to update availability." });
+        }
+    }
+
+    [HttpGet("sessions")]
+    [Authorize(Roles = "HOSPITAL")]
+    public async Task<IActionResult> GetRosterSessions([FromQuery] DateOnly from, [FromQuery] DateOnly to)
+    {
+        if (!TryGetUserId(out var hospitalUserId))
+            return Unauthorized(new { message = "Invalid identity claim." });
+
+        try
+        {
+            return Ok(await _staffService.GetRosterSessionsAsync(hospitalUserId, from, to));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error listing roster sessions");
+            return StatusCode(500, new { message = "Failed to fetch sessions." });
+        }
+    }
+
+    [HttpGet("sessions/candidates")]
+    [Authorize(Roles = "HOSPITAL")]
+    public async Task<IActionResult> GetSessionCandidates([FromQuery] Guid scheduleId, [FromQuery] DateOnly date)
+    {
+        if (!TryGetUserId(out var hospitalUserId))
+            return Unauthorized(new { message = "Invalid identity claim." });
+
+        try
+        {
+            return Ok(await _staffService.GetSessionCandidatesAsync(hospitalUserId, scheduleId, date));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error listing session candidates");
+            return StatusCode(500, new { message = "Failed to fetch available staff." });
+        }
+    }
+
+    [HttpPost("sessions/assign")]
+    [Authorize(Roles = "HOSPITAL")]
+    public async Task<IActionResult> AssignSessionStaff([FromBody] AssignSessionStaffDto dto)
+    {
+        if (!TryGetUserId(out var hospitalUserId))
+            return Unauthorized(new { message = "Invalid identity claim." });
+
+        try
+        {
+            return Ok(await _staffService.AssignSessionStaffAsync(hospitalUserId, dto));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error assigning session staff");
+            return StatusCode(500, new { message = "Failed to assign staff." });
+        }
+    }
+
     [HttpPost("shifts")]
     [Authorize(Roles = "HOSPITAL")]
     public async Task<IActionResult> CreateShift([FromBody] CreateStaffShiftDto dto)

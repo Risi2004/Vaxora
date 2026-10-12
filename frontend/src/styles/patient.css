@@ -1505,7 +1505,22 @@
 .book-btn-wrap {
   display: flex;
   justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px;
   margin-top: 28px;
+}
+
+.btn-book-appointment.btn-book-pay-later:not(:disabled) {
+  background: var(--btn-secondary-bg);
+  color: var(--btn-secondary-text);
+  border: 1px solid var(--btn-secondary-border);
+  box-shadow: none;
+}
+
+.btn-book-appointment.btn-book-pay-later:hover:not(:disabled) {
+  background: var(--btn-secondary-bg-hover);
+  border-color: var(--color-primary);
+  box-shadow: none;
 }
 
 .btn-book-appointment {
