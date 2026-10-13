@@ -29,14 +29,17 @@
 
 ## Overview
 
-Vaxora is a full-stack system for vaccination program operations. It supports patients, hospitals, and clinical staff across appointment booking, inventory and schedules, rostering and cover requests, payments, and document handling. An AI layer can propose actions; authorized users approve sensitive changes before they take effect.
+Vaxora is a full-stack system for vaccination program operations. It supports patients, hospitals, doctors, nurses, front desk staff, and system admins across appointment booking, walk-ins and clinic queues, vaccination records, inventory and schedules, rostering, shift swaps and cover requests, payments, and document handling. An AI layer can propose actions; authorized users approve sensitive changes before they take effect.
 
 ## Features
 
 - Role-based web portals and a Flutter mobile client
 - Appointments, hospital schedules, and payment integration
+- Front desk check-in, walk-ins, booths, and the clinical queue
+- Patient visits, medical history, and vaccination records and cards
 - Hospital inventory (formulary, batches, stock alerts)
-- Staff affiliations, shifts, and cover workflows
+- Staff affiliations, shifts, shift swaps, and cover workflows
+- Patient feedback and email notifications
 - Multi-agent AI accessible only through the ASP.NET Core API
 - Human approval before high-impact writes
 - Object storage for registration documents
@@ -51,7 +54,7 @@ Vaxora is a full-stack system for vaccination program operations. It supports pa
 | Mobile | Flutter |
 | Agents | Python, FastAPI, OpenAI-compatible LLM provider |
 | Infrastructure | Containerized API and agent services, SPA hosting, managed PostgreSQL, object storage |
-| Tests | xUnit, Vitest, pytest, Flutter tests |
+| Tests | xUnit, Vitest, Playwright, pytest, Flutter tests, k6 |
 
 ## Prerequisites
 
@@ -140,6 +143,8 @@ flutter run --dart-define=API_URL=http://10.0.2.2:5004/api
 
 For a physical device, use a host URL the device can reach.
 
+Without `--dart-define=API_URL`, the app talks to the hosted API, not your local one. Always pass it when testing against a local stack.
+
 ## Configuration
 
 | Service | File | Required settings |
@@ -147,6 +152,15 @@ For a physical device, use a host URL the device can reach.
 | API | `Vaxora.Api/.env` | Database connection string, JWT signing key, agent service URL (and shared key if used) |
 | Agent | `agent/.env` | LLM credentials, API base URL (include `/api`), matching shared key if used |
 | Web | `frontend/.env` | Leave empty for local proxy, or set `VITE_API_URL` to your API origin |
+
+The API file also holds optional settings for the integrations you want to use:
+
+| Integration | Settings prefix | Used for |
+|-------------|-----------------|----------|
+| Email | `Smtp__` | Account, appointment, and staffing emails |
+| Object storage | `CloudflareR2__` | Registration documents |
+| Payments | `PayHere__` | Appointment payments |
+| Seed accounts | `AdminSeed__`, `TestSeed__` | Initial admin and test logins |
 
 Full variable names are listed in each `*.env.example`.
 
@@ -199,7 +213,9 @@ cd agent && pytest tests -q
 cd mobile && flutter test
 ```
 
-Continuous integration is defined in [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
+End-to-end specs are in `frontend/e2e` (`npm run test:e2e`) and k6 load scripts are in `perf/k6`. Both write to the API's database, so use a disposable one.
+
+Continuous integration runs the unit suites above and is defined in [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 
 ## Contributing
 
