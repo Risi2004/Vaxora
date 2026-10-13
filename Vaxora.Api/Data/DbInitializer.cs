@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Storage;
 using Vaxora.Api.Models;
 using Vaxora.Api.Services;
 
@@ -110,6 +112,26 @@ public static class DbInitializer
 
         try
         {
+            // The migration baseline below needs a database to write to. If the database does not exist yet,
+            // create it empty first; otherwise MigrateAsync creates it later and runs the historical migrations
+            // for real, which collide with the consolidated baseline and leave the schema half built.
+            try
+            {
+                if (context.Database.IsNpgsql())
+                {
+                    var databaseCreator = context.GetService<IRelationalDatabaseCreator>();
+                    if (!await databaseCreator.ExistsAsync())
+                    {
+                        await databaseCreator.CreateAsync();
+                        logger.LogInformation("Database did not exist and was created before migration.");
+                    }
+                }
+            }
+            catch (Exception exCreate)
+            {
+                logger.LogWarning(exCreate, "Notice while checking that the database exists: {Message}", exCreate.Message);
+            }
+
             // Ensure __EFMigrationsHistory table exists in public schema
             try
             {
