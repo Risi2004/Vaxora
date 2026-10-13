@@ -293,6 +293,8 @@ class HospitalStaffRepository {
         'targetAgent': 'StaffSchedulingAgent',
         'messages': messages,
       },
+      // A week plan takes several model calls; the API itself waits up to 4 minutes.
+      timeout: const Duration(minutes: 4),
     );
     if (response is Map<String, dynamic>) return response;
     throw ApiException('Scheduling agent returned an unexpected response.');

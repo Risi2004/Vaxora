@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import re
@@ -103,6 +104,18 @@ def _parse_suggest_dates_from_messages(
 
 PLANNING_TOOLS = ("analyze_staffing_needs", "build_staffing_plan")
 _ISO_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
+
+
+def _has_real_date(value: Any) -> bool:
+    """True when the text holds a date that exists (2026-13-45 does not)."""
+    match = _ISO_DATE.search(str(value or ""))
+    if not match:
+        return False
+    try:
+        date.fromisoformat(match.group(0))
+    except ValueError:
+        return False
+    return True
 
 
 def _salvage_plan_args(raw: str) -> Dict[str, Any]:
@@ -219,8 +232,10 @@ class StaffSchedulingAgent:
         approx_input = max(1, sum(len(json.dumps(m, default=str)) for m in messages) // 4)
         if tools:
             approx_input += max(1, len(json.dumps(tools)) // 4)
-        budget = 8000
-        auto_max = max(384, min(1200, budget - approx_input - 64))
+        # A week plan lists one staff pick per gap, so the reply needs real room:
+        # a tight cap cuts the plan off mid-list and the model's picks are lost.
+        budget = settings.llm_context_budget
+        auto_max = max(384, min(settings.llm_max_output_tokens, budget - approx_input - 64))
         payload: Dict[str, Any] = {
             "model": self.model,
             "messages": messages,
@@ -239,11 +254,24 @@ class StaffSchedulingAgent:
                 payload["tool_choice"] = "auto"
 
         async with httpx.AsyncClient(timeout=120.0) as client:
-            resp = await client.post(
-                f"{self.base_url}/chat/completions",
-                headers=headers,
-                json=payload,
-            )
+            # One retry for failures that return quickly (busy or briefly unreachable
+            # model), so a blip does not drop the request to rules-based planning.
+            for attempt in range(2):
+                try:
+                    resp = await client.post(
+                        f"{self.base_url}/chat/completions",
+                        headers=headers,
+                        json=payload,
+                    )
+                except (httpx.ConnectError, httpx.ConnectTimeout) as conn_err:
+                    if attempt == 1:
+                        raise
+                    logger.warning("LLM unreachable, retrying once: %s", conn_err)
+                else:
+                    if attempt == 1 or resp.status_code not in (429, 502, 503, 504):
+                        break
+                    logger.warning("LLM HTTP %s, retrying once", resp.status_code)
+                await asyncio.sleep(1.5)
             if resp.status_code >= 400:
                 detail = resp.text
                 logger.error("LLM HTTP %s: %s", resp.status_code, detail[:500])
@@ -253,7 +281,13 @@ class StaffSchedulingAgent:
                     response=resp,
                 )
             data = resp.json()
-            return data["choices"][0]["message"]
+            choice = data["choices"][0]
+            if choice.get("finish_reason") == "length":
+                logger.warning(
+                    "LLM reply was cut off at max_tokens=%s; raise LLM_MAX_OUTPUT_TOKENS.",
+                    payload["max_tokens"],
+                )
+            return choice["message"]
 
     @staticmethod
     def _tool_message_content(tool_name: str, tool_output: Any) -> str:
@@ -345,7 +379,8 @@ class StaffSchedulingAgent:
         exclude = []
         if decline_data.get("affiliationId"):
             exclude.append(str(decline_data["affiliationId"]))
-        for item in decline_data.get("excludeAffiliationIds") or []:
+        extra = decline_data.get("excludeAffiliationIds")
+        for item in extra if isinstance(extra, list) else []:
             exclude.append(str(item))
         result = await tool_propose_alternative_for_gap(
             gap_id=str(gap_id),
@@ -439,6 +474,24 @@ class StaffSchedulingAgent:
         return {"error": f"Unknown tool: {tool_name}"}
 
     async def run(
+        self,
+        messages: List[Dict[str, Any]],
+        token: Optional[str] = None,
+        patient_info: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Never raises: an unexpected error becomes a safe reply, not an HTTP 500."""
+        try:
+            return await self._run(messages, token, patient_info)
+        except Exception as err:
+            logger.exception("[%s] Unhandled error: %s", self.name, err)
+            # Flagged so the client falls back to its rules-based suggestions.
+            return self._reply(
+                messages if isinstance(messages, list) else [],
+                "The scheduling assistant hit an unexpected error. Please try again.",
+                model_unavailable=True,
+            )
+
+    async def _run(
         self,
         messages: List[Dict[str, Any]],
         token: Optional[str] = None,
@@ -604,7 +657,15 @@ class StaffSchedulingAgent:
                         model_unavailable=True,
                     )
 
-            tool_calls = msg.get("tool_calls") or []
+            # A malformed model reply is treated as plain text with no tool calls.
+            if not isinstance(msg, dict):
+                msg = {}
+            raw_calls = msg.get("tool_calls")
+            tool_calls = [
+                tc
+                for tc in (raw_calls if isinstance(raw_calls, list) else [])
+                if isinstance(tc, dict) and isinstance(tc.get("function"), dict)
+            ]
             if not tool_calls:
                 # After analyze, the model sometimes writes a chat essay instead of
                 # calling build_staffing_plan — build in code so the calendar still gets cards.
@@ -672,7 +733,7 @@ class StaffSchedulingAgent:
 
             build_success_this_round = False
             for tc in tool_calls:
-                fn = tc.get("function", {})
+                fn = tc["function"]
                 fn_name = fn.get("name")
                 fn_args_raw = fn.get("arguments", {})
                 if isinstance(fn_args_raw, str):
@@ -695,9 +756,9 @@ class StaffSchedulingAgent:
                     default_from, default_to = _parse_suggest_dates_from_messages(
                         messages, week_start, week_end
                     )
-                    if not _ISO_DATE.search(str(fn_args.get("from_date") or "")):
+                    if not _has_real_date(fn_args.get("from_date")):
                         fn_args["from_date"] = default_from
-                    if not _ISO_DATE.search(str(fn_args.get("to_date") or "")):
+                    if not _has_real_date(fn_args.get("to_date")):
                         fn_args["to_date"] = default_to
 
                 try:
@@ -751,7 +812,7 @@ class StaffSchedulingAgent:
                 )
 
             # Short-circuit: once the plan is built, skip the LLM summary round.
-            # Conversation is already ~7k tokens on 8k-context pods; another call would 400.
+            # The plan message already says who covers what, and it saves a model call.
             if build_success_this_round and proposals:
                 content = (
                     (last_plan or {}).get("message")
