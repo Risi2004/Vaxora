@@ -2,6 +2,8 @@ import { deferEffectCallback } from '../../../shared/utils/deferEffectCallback.j
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import staffService from '../services/staffService';
 import { RoleAvatarIcon } from './HospitalIcons';
+import { hospitalMinutesNow, hospitalToday } from '../utils/hospitalDate';
+import useConfirmDialog from '../../../shared/hooks/useConfirmDialog';
 
 function roleLabel(role) {
   const value = String(role || '').toUpperCase();
@@ -36,6 +38,18 @@ function formatShiftLine(request) {
   return `${date} · ${window}${booth}`;
 }
 
+/** A started shift can no longer be reassigned (the API rejects it too). */
+function hasShiftStarted(request) {
+  const day = String(request.shiftDate || '').slice(0, 10);
+  if (!day) return false;
+  const today = hospitalToday();
+  if (day < today) return true;
+  if (day > today) return false;
+  const match = /^(\d{1,2}):(\d{2})/.exec(String(request.shiftWindow || ''));
+  if (!match) return false;
+  return hospitalMinutesNow() >= Number(match[1]) * 60 + Number(match[2]);
+}
+
 function requestNote(request) {
   const reason = String(request.reason || '').trim();
   if (reason) return reason;
@@ -43,8 +57,10 @@ function requestNote(request) {
   return snippet || null;
 }
 
-function CoverRequestCard({ request, busy, onApprove, onDecline }) {
+function CoverRequestCard({ request, busy, onApprove, onDecline, onRanked }) {
   const [selectedAffiliationId, setSelectedAffiliationId] = useState('');
+  const [ranking, setRanking] = useState(false);
+  const [rankNote, setRankNote] = useState('');
   const suggestions = useMemo(
     () => (request.suggestions || []).filter((s) => s.available !== false),
     [request.suggestions]
@@ -53,14 +69,45 @@ function CoverRequestCard({ request, busy, onApprove, onDecline }) {
   const isPending = String(request.status || '').toLowerCase() === 'pending';
   const isApproved = String(request.status || '').toLowerCase() === 'approved';
   const isDeclined = String(request.status || '').toLowerCase() === 'declined';
+  const isCancelled = String(request.status || '').toLowerCase() === 'cancelled';
   const note = requestNote(request);
-  const canApprove = isPending && hasCover && Boolean(selectedAffiliationId);
+  const started = isPending && hasShiftStarted(request);
+  const canApprove = isPending && !started && hasCover && Boolean(selectedAffiliationId);
 
-  const statusLabel = isApproved ? 'Approved' : isDeclined ? 'Declined' : 'Needs review';
-  const statusTone = isApproved ? 'success' : isDeclined ? 'danger' : 'warning';
+  const statusLabel = isApproved
+    ? 'Approved'
+    : isDeclined
+      ? 'Declined'
+      : isCancelled
+        ? 'Cancelled'
+        : 'Needs review';
+  const statusTone = isApproved
+    ? 'success'
+    : isDeclined
+      ? 'danger'
+      : isCancelled
+        ? 'neutral'
+        : 'warning';
 
-  const reviewSummary =
-    request.reviewSummary ||
+  // AI ranking runs only on request so a slow model never blocks the inbox.
+  const handleRankWithAi = async () => {
+    setRanking(true);
+    setRankNote('');
+    try {
+      const ranked = await staffService.rankShiftSwap(request.id);
+      onRanked?.(ranked);
+      if (!ranked?.aiRanked) setRankNote('AI ranking unavailable right now — showing roster order.');
+    } catch (err) {
+      setRankNote(err.message || 'AI ranking unavailable right now — showing roster order.');
+    } finally {
+      setRanking(false);
+    }
+  };
+  const canRank = isPending && !started && suggestions.length > 1;
+
+  const reviewSummary = started
+    ? 'This shift has already started — it can no longer be reassigned. Decline to close the request.'
+    : request.reviewSummary ||
     (suggestions.length === 0
       ? 'No other staff of this role on the roster.'
       : hasCover
@@ -101,7 +148,20 @@ function CoverRequestCard({ request, busy, onApprove, onDecline }) {
           <div className="hospital-cover-review-banner">
             <span aria-hidden="true">✦</span>
             <p>{reviewSummary}</p>
+            {request.aiRanked ? (
+              <span className="hospital-cover-ai-chip">Ranked by AI</span>
+            ) : canRank ? (
+              <button
+                type="button"
+                className="hospital-cover-ai-btn"
+                onClick={handleRankWithAi}
+                disabled={busy || ranking}
+              >
+                {ranking ? 'Ranking…' : 'Rank with AI'}
+              </button>
+            ) : null}
           </div>
+          {rankNote ? <p className="hospital-cover-rank-note">{rankNote}</p> : null}
 
           {suggestions.length > 0 ? (
             <div className="hospital-cover-suggestions" role="radiogroup" aria-label="Replacement staff">
@@ -156,7 +216,7 @@ function CoverRequestCard({ request, busy, onApprove, onDecline }) {
               disabled={busy || !canApprove}
               onClick={() => onApprove(selectedAffiliationId)}
             >
-              {busy ? 'Saving…' : hasCover ? 'Assign' : 'No cover'}
+              {busy ? 'Saving…' : started ? 'Shift started' : hasCover ? 'Assign' : 'No cover'}
             </button>
           </div>
         </>
@@ -166,6 +226,7 @@ function CoverRequestCard({ request, busy, onApprove, onDecline }) {
 }
 
 export default function HospitalCoverRequestsPanel({ onPendingCountChange }) {
+  const [confirm, confirmDialog] = useConfirmDialog();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [requests, setRequests] = useState([]);
@@ -205,6 +266,19 @@ export default function HospitalCoverRequestsPanel({ onPendingCountChange }) {
 
   const decide = async (request, { approved, replacementAffiliationId }) => {
     if (decidingId) return;
+    const replacementName = (request.suggestions || []).find(
+      (s) => s.affiliationId === replacementAffiliationId
+    )?.staffName;
+    const ok = await confirm({
+      title: approved ? 'Assign cover?' : 'Decline cover request?',
+      message: approved
+        ? `Assign ${replacementName || 'the selected replacement'} to ${request.requesterName || 'this staff member'}'s shift on ${request.shiftDate}? The original staff member will be covered.`
+        : `Decline cover for ${request.requesterName || 'this staff member'} on ${request.shiftDate}? They will need to make other arrangements.`,
+      confirmLabel: approved ? 'Assign cover' : 'Decline',
+      destructive: !approved,
+    });
+    if (!ok) return;
+
     setDecidingId(request.id);
     setError('');
     try {
@@ -247,8 +321,8 @@ export default function HospitalCoverRequestsPanel({ onPendingCountChange }) {
               className={`hospital-nav-btn ${filter === 'pending' ? 'active' : ''}`}
               onClick={() => setFilter('pending')}
               style={{
-                background: filter === 'pending' ? '#19469d' : '#ffffff',
-                border: '1px solid #cbd5e1',
+                background: filter === 'pending' ? 'var(--color-primary)' : 'var(--color-surface)',
+                border: '1px solid var(--color-border-card)',
               }}
             >
               Pending ({pending.length})
@@ -258,8 +332,8 @@ export default function HospitalCoverRequestsPanel({ onPendingCountChange }) {
               className={`hospital-nav-btn ${filter === 'all' ? 'active' : ''}`}
               onClick={() => setFilter('all')}
               style={{
-                background: filter === 'all' ? '#19469d' : '#ffffff',
-                border: '1px solid #cbd5e1',
+                background: filter === 'all' ? 'var(--color-primary)' : 'var(--color-surface)',
+                border: '1px solid var(--color-border-card)',
               }}
             >
               All ({requests.length})
@@ -305,10 +379,14 @@ export default function HospitalCoverRequestsPanel({ onPendingCountChange }) {
                 })
               }
               onDecline={() => decide(request, { approved: false })}
+              onRanked={(ranked) =>
+                setRequests((prev) => prev.map((row) => (row.id === ranked.id ? ranked : row)))
+              }
             />
           ))}
         </div>
       )}
+      {confirmDialog}
     </div>
   );
 }

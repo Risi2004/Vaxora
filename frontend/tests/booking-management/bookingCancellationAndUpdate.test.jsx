@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import AppointmentsTab from '../../src/features/patient/components/AppointmentsTab';
 import { appointmentService } from '../../src/features/patient/services/appointmentService';
 
@@ -22,7 +22,6 @@ describe('Booking Management - Cancellation & Status Updates (Scenario 9)', () =
   beforeEach(() => {
     vi.clearAllMocks();
     appointmentService.getVaccinesWithHospitals.mockResolvedValue([]);
-    window.alert = vi.fn();
     window.confirm = vi.fn(() => true);
 
     global.fetch = vi.fn().mockResolvedValue({
@@ -60,13 +59,11 @@ describe('Booking Management - Cancellation & Status Updates (Scenario 9)', () =
     const cancelBtn = await screen.findByRole('button', { name: /^Cancel$/i });
     expect(cancelBtn).toBeInTheDocument();
 
-    // Click cancel
+    // Click cancel, then confirm in the dialog
     fireEvent.click(cancelBtn);
-
-    // Verify window.confirm prompt was shown
-    expect(window.confirm).toHaveBeenCalledWith(
-      expect.stringContaining('Are you sure you want to cancel this appointment slot?')
-    );
+    const dialog = await screen.findByRole('alertdialog');
+    expect(within(dialog).getByText(/Your 20-minute slot will be freed/i)).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel session' }));
 
     // Verify appointmentService.cancelAppointment was dispatched with appointment ID
     await waitFor(() => {
@@ -148,7 +145,7 @@ describe('Booking Management - Cancellation & Status Updates (Scenario 9)', () =
   });
 
   // 9c. Cancellation API failure handling
-  it('handles cancellation API error and displays alert', async () => {
+  it('handles cancellation API error and displays the error message', async () => {
     const futureDate = new Date();
     futureDate.setDate(futureDate.getDate() + 5);
     const futureDateStr = futureDate.toISOString().split('T')[0];
@@ -175,18 +172,18 @@ describe('Booking Management - Cancellation & Status Updates (Scenario 9)', () =
 
     const cancelBtn = await screen.findByRole('button', { name: /^Cancel$/i });
     fireEvent.click(cancelBtn);
+    const dialog = await screen.findByRole('alertdialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel session' }));
 
-    await waitFor(() => {
-      expect(window.alert).toHaveBeenCalledWith(
+    expect(
+      await screen.findByText(
         'Failed to cancel appointment: Appointment has already been marked as in-progress.'
-      );
-    });
+      )
+    ).toBeInTheDocument();
   });
 
   // 9d. Cancellation dismissed when user declines confirmation dialog
   it('does not dispatch cancellation request if user cancels confirmation dialog', async () => {
-    window.confirm = vi.fn(() => false); // User clicks "Cancel" on confirm prompt
-
     const futureDate = new Date();
     futureDate.setDate(futureDate.getDate() + 3);
     const futureDateStr = futureDate.toISOString().split('T')[0];
@@ -210,8 +207,10 @@ describe('Booking Management - Cancellation & Status Updates (Scenario 9)', () =
 
     const cancelBtn = await screen.findByRole('button', { name: /^Cancel$/i });
     fireEvent.click(cancelBtn);
+    const dialog = await screen.findByRole('alertdialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Keep' }));
 
-    expect(window.confirm).toHaveBeenCalled();
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
     expect(appointmentService.cancelAppointment).not.toHaveBeenCalled();
   });
 

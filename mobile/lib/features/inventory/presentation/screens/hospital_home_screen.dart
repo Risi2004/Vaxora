@@ -6,6 +6,8 @@ import '../../../hospital_staff/data/models/hospital_staff_member_model.dart';
 import '../../../hospital_staff/data/models/shift_swap_request_model.dart';
 import '../../../hospital_staff/data/repositories/hospital_staff_repository.dart';
 import '../../../hospital_staff/presentation/screens/hospital_shifts_screen.dart';
+import '../../../hospital_staff/presentation/screens/staff_scheduling_agent_screen.dart';
+import '../../../staff/presentation/utils/staff_date_utils.dart';
 import '../../../staff/presentation/widgets/network_avatar.dart';
 import '../../../staff/presentation/widgets/staff_common_widgets.dart';
 import '../providers/inventory_provider.dart';
@@ -110,6 +112,19 @@ class _HospitalHomeScreenState extends State<HospitalHomeScreen> {
     );
   }
 
+  Future<void> _openSchedulingAgent() async {
+    final range = weekRangeFromToday(days: 7);
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => StaffSchedulingAgentScreen(
+          weekStart: range.from,
+          weekEnd: range.to,
+          autoSuggest: true,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final inventory = context.watch<InventoryProvider>();
@@ -161,7 +176,7 @@ class _HospitalHomeScreenState extends State<HospitalHomeScreen> {
                   value: '$alertCount',
                   icon: Icons.warning_amber_outlined,
                   accent: alertCount > 0
-                      ? const Color(0xFFB2660A)
+                      ? AppColors.warning
                       : AppColors.success,
                 ),
                 StaffIntroStat(
@@ -228,33 +243,18 @@ class _HospitalHomeScreenState extends State<HospitalHomeScreen> {
                   subtitle:
                       '$_pendingCover pending. Review them in Staff.',
                   tone: StaffChipTone.warning,
-                  onTap: () => widget.onNavigateTab(1),
+                  onTap: () => widget.onNavigateTab(2),
                 ),
             ],
             const SizedBox(height: 18),
             const StaffSectionHeader(title: 'Shortcuts'),
             _ShortcutTile(
-              icon: Icons.inventory_2_outlined,
-              title: 'Inventory',
-              subtitle: 'Batches, scan QR, issue and wastage',
-              accent: StaffSurfaces.brandSoft,
-              onTap: () => widget.onNavigateTab(2),
-            ),
-            _ShortcutTile(
-              icon: Icons.notifications_outlined,
-              title: 'Stock alerts',
-              subtitle: 'Low stock, expiry, and expired lots',
-              accent: const Color(0xFFB2660A),
-              well: const Color(0xFFFFF4E5),
-              onTap: _openAlerts,
-            ),
-            _ShortcutTile(
-              icon: Icons.auto_awesome,
-              title: 'Inventory AI',
-              subtitle: 'Restock and expiry rescue drafts',
-              accent: const Color(0xFF6D5BAE),
-              well: const Color(0xFFEDE9F8),
-              onTap: _openAi,
+              icon: Icons.event_note_outlined,
+              title: 'Desk & schedules',
+              subtitle: 'Walk-ins, check-in, mark paid, post sessions',
+              accent: AppColors.accentTeal,
+              well: const Color(0xFFE6F7F5),
+              onTap: () => widget.onNavigateTab(1),
             ),
             _ShortcutTile(
               icon: Icons.groups_outlined,
@@ -262,14 +262,59 @@ class _HospitalHomeScreenState extends State<HospitalHomeScreen> {
               subtitle: '${_staff.length} active · $_onDuty on duty',
               accent: AppColors.accentTeal,
               well: const Color(0xFFE6F7F5),
-              onTap: () => widget.onNavigateTab(1),
+              onTap: () => widget.onNavigateTab(2),
             ),
             _ShortcutTile(
-              icon: Icons.event_note_outlined,
+              icon: Icons.meeting_room_outlined,
+              title: 'Booths',
+              subtitle: 'Stations and vaccines they offer',
+              accent: StaffSurfaces.brandSoft,
+              onTap: () => widget.onNavigateTab(3),
+            ),
+            _ShortcutTile(
+              icon: Icons.inventory_2_outlined,
+              title: 'Inventory',
+              subtitle: 'Batches, scan QR, issue and wastage',
+              accent: StaffSurfaces.brandSoft,
+              onTap: () => widget.onNavigateTab(4),
+            ),
+            _ShortcutTile(
+              icon: Icons.notifications_outlined,
+              title: 'Stock alerts',
+              subtitle: 'Low stock, expiry, and expired lots',
+              accent: AppColors.warning,
+              well: AppColors.warningBg,
+              onTap: _openAlerts,
+            ),
+            _ShortcutTile(
+              icon: Icons.auto_awesome,
+              title: 'Inventory AI',
+              subtitle: 'Restock and expiry rescue drafts',
+              accent: AppColors.ai,
+              well: AppColors.aiBg,
+              onTap: _openAi,
+            ),
+            _ShortcutTile(
+              icon: Icons.calendar_month_outlined,
               title: 'Weekly shifts',
-              subtitle: 'This week’s assigned sessions',
+              subtitle: 'Roster view + AI suggest week',
               accent: StaffSurfaces.brandSoft,
               onTap: _openShifts,
+            ),
+            _ShortcutTile(
+              icon: Icons.auto_awesome,
+              title: 'Scheduling agent',
+              subtitle: 'Chat and approve AI shift proposals',
+              accent: const Color(0xFF6D5BAE),
+              well: const Color(0xFFEDE9F8),
+              onTap: _openSchedulingAgent,
+            ),
+            _ShortcutTile(
+              icon: Icons.person_outline,
+              title: 'Profile',
+              subtitle: 'Hospital account and settings',
+              accent: StaffSurfaces.brandSoft,
+              onTap: () => widget.onNavigateTab(5),
             ),
           ],
         ),
@@ -308,7 +353,7 @@ class _AttentionTile extends StatelessWidget {
               borderColor: switch (tone) {
                 StaffChipTone.danger =>
                   AppColors.error.withValues(alpha: 0.28),
-                StaffChipTone.warning => const Color(0xFFF5B168),
+                StaffChipTone.warning => AppColors.warningBorder,
                 _ => StaffSurfaces.cardBorder,
               },
             ),
@@ -320,7 +365,7 @@ class _AttentionTile extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: switch (tone) {
                       StaffChipTone.danger => AppColors.errorBg,
-                      StaffChipTone.warning => const Color(0xFFFFF4E5),
+                      StaffChipTone.warning => AppColors.warningBg,
                       StaffChipTone.success => AppColors.successBg,
                       _ => StaffSurfaces.softPanelDeep,
                     },
@@ -331,7 +376,7 @@ class _AttentionTile extends StatelessWidget {
                     size: 18,
                     color: switch (tone) {
                       StaffChipTone.danger => AppColors.error,
-                      StaffChipTone.warning => const Color(0xFFB2660A),
+                      StaffChipTone.warning => AppColors.warning,
                       StaffChipTone.success => AppColors.success,
                       _ => StaffSurfaces.brandSoft,
                     },

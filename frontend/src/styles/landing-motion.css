@@ -1,0 +1,126 @@
+/* ==========================================================================
+   Landing page header, footer extras and scroll reveal
+   ========================================================================== */
+
+
+/* --------------------------------------------------------------------------
+   Nav jumps land below the fixed header; header buttons never wrap
+   -------------------------------------------------------------------------- */
+.landing-container main section[id] {
+  scroll-margin-top: 96px;
+}
+
+.site-header .btn-login,
+.site-header .btn-signup,
+.site-header .nav-link {
+  white-space: nowrap;
+}
+
+@media (max-width: 1180px) {
+  .site-header .nav-link {
+    padding: 9px 14px;
+  }
+}
+
+@media (max-width: 960px) {
+  .site-header .desktop-nav-pill,
+  .site-header .desktop-header-actions {
+    display: none !important;
+  }
+
+  .site-header .mobile-hamburger-btn {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Footer extras: plain text lines, accent link, two-sided bottom bar
+   -------------------------------------------------------------------------- */
+.footer-text {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+/* Buttons and links in the footer share one line height so every column
+   has the same rhythm. */
+.footer-col .footer-link {
+  line-height: 1.5;
+}
+
+.footer-link-accent {
+  margin-top: var(--space-1);
+  font-weight: var(--weight-semibold);
+  color: var(--color-soft-panel-deep);
+}
+
+.footer-bottom {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+@media (max-width: 1024px) {
+  .footer-inner {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Footer social links
+   -------------------------------------------------------------------------- */
+.footer-socials {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-5) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.footer-social {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 50%;
+  transition: color var(--transition-fast), background var(--transition-fast), transform var(--transition-fast);
+}
+
+.footer-social:hover {
+  color: var(--color-text-inverse);
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  transform: translateY(-2px);
+}
+
+/* --------------------------------------------------------------------------
+   Scroll reveal (attributes set by LandingPage)
+   -------------------------------------------------------------------------- */
+[data-reveal] {
+  opacity: 0;
+  transition:
+    opacity 800ms ease var(--reveal-delay, 0ms),
+    transform 800ms cubic-bezier(0.2, 0.7, 0.2, 1) var(--reveal-delay, 0ms);
+}
+
+[data-reveal="up"] {
+  transform: translateY(36px);
+}
+
+[data-reveal="zoom"] {
+  transform: scale(0.94);
+}
+
+[data-reveal].is-revealed {
+  opacity: 1;
+  transform: none;
+}

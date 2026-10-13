@@ -128,7 +128,7 @@ export default function RecordVisitModal({
             <p
               style={{
                 margin: "4px 0 0 0",
-                fontSize: "0.82rem",
+                fontSize: "0.8125rem",
                 color: "rgba(255,255,255,0.85)",
               }}
             >
@@ -151,8 +151,8 @@ export default function RecordVisitModal({
             {/* Patient summary bar */}
             <div
               style={{
-                background: "#f8fafc",
-                border: "1.5px solid #e2e8f0",
+                background: "var(--color-bg)",
+                border: "1.5px solid var(--color-border-light)",
                 borderRadius: "12px",
                 padding: "14px 18px",
                 marginBottom: "18px",
@@ -168,8 +168,8 @@ export default function RecordVisitModal({
                 <span
                   style={{
                     fontWeight: 800,
-                    color: "#1e1b4b",
-                    fontSize: "1.05rem",
+                    color: "var(--color-text-title)",
+                    fontSize: "1rem",
                     marginLeft: "10px",
                   }}
                 >
@@ -177,8 +177,8 @@ export default function RecordVisitModal({
                 </span>
                 <div
                   style={{
-                    fontSize: "0.8rem",
-                    color: "#64748b",
+                    fontSize: "0.8125rem",
+                    color: "var(--color-text-muted)",
                     marginTop: "3px",
                   }}
                 >
@@ -191,13 +191,13 @@ export default function RecordVisitModal({
               <div
                 role="alert"
                 style={{
-                  background: "#fef2f2",
-                  color: "#b91c1c",
-                  border: "1px solid #fecaca",
+                  background: "var(--color-error-bg)",
+                  color: "var(--color-error)",
+                  border: "1px solid var(--color-error-border)",
                   borderRadius: "10px",
                   padding: "10px 14px",
                   marginBottom: "14px",
-                  fontSize: "0.85rem",
+                  fontSize: "0.875rem",
                 }}
               >
                 {error}
@@ -290,7 +290,7 @@ export default function RecordVisitModal({
                 <div className="doctor-form-group">
                   <label
                     className="doctor-form-label"
-                    style={{ fontSize: "0.78rem" }}
+                    style={{ fontSize: "0.75rem" }}
                   >
                     BP (mmHg)
                   </label>
@@ -308,7 +308,7 @@ export default function RecordVisitModal({
                 <div className="doctor-form-group">
                   <label
                     className="doctor-form-label"
-                    style={{ fontSize: "0.78rem" }}
+                    style={{ fontSize: "0.75rem" }}
                   >
                     Temperature (°C)
                   </label>
@@ -326,7 +326,7 @@ export default function RecordVisitModal({
                 <div className="doctor-form-group">
                   <label
                     className="doctor-form-label"
-                    style={{ fontSize: "0.78rem" }}
+                    style={{ fontSize: "0.75rem" }}
                   >
                     Heart Rate (bpm)
                   </label>
@@ -344,7 +344,7 @@ export default function RecordVisitModal({
                 <div className="doctor-form-group">
                   <label
                     className="doctor-form-label"
-                    style={{ fontSize: "0.78rem" }}
+                    style={{ fontSize: "0.75rem" }}
                   >
                     Weight (kg)
                   </label>
@@ -362,7 +362,7 @@ export default function RecordVisitModal({
                 <div className="doctor-form-group">
                   <label
                     className="doctor-form-label"
-                    style={{ fontSize: "0.78rem" }}
+                    style={{ fontSize: "0.75rem" }}
                   >
                     Height (cm)
                   </label>
@@ -380,7 +380,7 @@ export default function RecordVisitModal({
                 <div className="doctor-form-group">
                   <label
                     className="doctor-form-label"
-                    style={{ fontSize: "0.78rem" }}
+                    style={{ fontSize: "0.75rem" }}
                   >
                     SpO₂ (%)
                   </label>

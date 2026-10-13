@@ -10,12 +10,14 @@ class BatchCard extends StatelessWidget {
   const BatchCard({super.key, required this.batch, required this.onTap});
 
   StaffChipTone get _tone {
+    if (batch.isOnOrder) return StaffChipTone.warning;
     if (batch.isExpired || batch.isLowStock) return StaffChipTone.danger;
     if (batch.isExpiringSoon) return StaffChipTone.warning;
     return StaffChipTone.success;
   }
 
   String get _label {
+    if (batch.isOnOrder) return 'On order';
     if (batch.isExpired) return 'Expired';
     if (batch.isLowStock) return 'Low stock';
     if (batch.isExpiringSoon) return 'Expiring';
@@ -36,7 +38,7 @@ class BatchCard extends StatelessWidget {
             decoration: StaffSurfaces.card(
               borderColor: switch (_tone) {
                 StaffChipTone.danger => AppColors.error.withValues(alpha: 0.28),
-                StaffChipTone.warning => const Color(0xFFF5B168),
+                StaffChipTone.warning => AppColors.warningBorder,
                 _ => AppColors.success.withValues(alpha: 0.28),
               },
             ),
@@ -78,7 +80,7 @@ class BatchCard extends StatelessWidget {
                     color: _tone == StaffChipTone.danger
                         ? AppColors.error
                         : (_tone == StaffChipTone.warning
-                            ? const Color(0xFFB2660A)
+                            ? AppColors.warning
                             : AppColors.success),
                   ),
                 ),

@@ -5,10 +5,12 @@ import logo from '../../../assets/images/logo.png';
 import { authService, getUser, subscribeAuthUser } from '../../auth';
 import DeleteAccountModal from '../../auth/components/DeleteAccountModal';
 import { IconClose, IconHospital, IconLogout, IconMenu, IconTrash } from './HospitalIcons';
+import useConfirmDialog from '../../../shared/hooks/useConfirmDialog';
 
 export default function HospitalNavbar() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [confirm, confirmDialog] = useConfirmDialog();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -44,6 +46,14 @@ export default function HospitalNavbar() {
   }, [showProfileMenu]);
 
   const handleLogout = async () => {
+    const ok = await confirm({
+      title: 'Log out?',
+      message: 'You will need to sign in again to manage this hospital.',
+      cancelLabel: 'Stay',
+      confirmLabel: 'Log out',
+      destructive: true,
+    });
+    if (!ok) return;
     await authService.logout();
     navigate('/login');
   };
@@ -51,9 +61,10 @@ export default function HospitalNavbar() {
   const navItems = [
     { path: '/hospital/dashboard', label: 'Home' },
     { path: '/hospital/appointments', label: 'Appointments' },
+    { path: '/hospital/roster', label: 'Roster' },
     { path: '/hospital/inventory', label: 'Inventory' },
+    { path: '/hospital/sessions', label: 'Sessions' },
     { path: '/hospital/staff', label: 'Staff' },
-    { path: '/hospital/booths', label: 'Booths' },
     { path: '/hospital/feedback', label: 'Feedback' },
   ];
 
@@ -122,7 +133,7 @@ export default function HospitalNavbar() {
                   src={user.profilePhotoUrl}
                   alt={user.name || 'Hospital'}
                   className="navbar-avatar-img"
-                  style={{ borderColor: '#059669' }}
+                  style={{ borderColor: 'var(--color-success-border)' }}
                 />
               ) : (
                 <div className="hospital-avatar-circle">
@@ -137,13 +148,13 @@ export default function HospitalNavbar() {
                   <div className="hospital-dropdown-name">{user?.name || 'Hospital'}</div>
                   <div className="hospital-dropdown-meta">{user?.profileDetails?.hospitalType || 'Administrator Portal'}</div>
                   {user?.registrationNumber && (
-                    <div className="hospital-dropdown-meta" style={{ color: '#2563eb', fontWeight: 600 }}>
+                    <div className="hospital-dropdown-meta" style={{ color: 'var(--color-primary)', fontWeight: 600 }}>
                       Reg: {user.registrationNumber}
                     </div>
                   )}
                 </div>
 
-                <div style={{ height: '1px', background: '#f1f5f9', margin: '6px 0 10px' }} />
+                <div style={{ height: '1px', background: 'var(--color-surface-subtle)', margin: '6px 0 10px' }} />
 
                 <button
                   type="button"
@@ -212,7 +223,7 @@ export default function HospitalNavbar() {
                 </button>
               );
             })}
-            <div style={{ height: '1px', background: '#e2e8f0', margin: '6px 0' }} />
+            <div style={{ height: '1px', background: 'var(--color-soft-panel-deep)', margin: '6px 0' }} />
             <button
               type="button"
               className="portal-mobile-nav-btn"
@@ -247,6 +258,7 @@ export default function HospitalNavbar() {
         </div>
       )}
 
+      {confirmDialog}
       {/* Delete Account Confirmation Modal */}
       <DeleteAccountModal
         isOpen={isDeleteModalOpen}

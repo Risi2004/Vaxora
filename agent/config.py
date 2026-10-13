@@ -14,6 +14,10 @@ class Settings(BaseModel):
     # non-empty placeholder so imports/tests work without secrets (CI).
     openrouter_api_key: str = os.getenv("OPENROUTER_API_KEY") or "missing-openrouter-api-key"
     openrouter_model: str = os.getenv("OPENROUTER_MODEL", "qwen/qwen3.8-27b")
+    # Token budgets for the staff scheduling agent. The default model has a 1M-token
+    # context, so these only need lowering for a small self-hosted model.
+    llm_context_budget: int = int(os.getenv("LLM_CONTEXT_BUDGET", "60000"))
+    llm_max_output_tokens: int = int(os.getenv("LLM_MAX_OUTPUT_TOKENS", "6000"))
     
     # Vaxora ASP.NET Core API Base URL (normalized to always end with /api)
     vaxora_api_base_url: str = os.getenv("VAXORA_API_BASE_URL", "http://localhost:5004/api")

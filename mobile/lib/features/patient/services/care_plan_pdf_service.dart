@@ -140,12 +140,12 @@ class CarePlanPdfService {
         '${DateTime.now().minute.toString().padLeft(2, '0')}';
 
     // Colour palette — matches the web
-    const brandBlue = PdfColor.fromInt(0xFF123E5D);
-    const textTitle = PdfColor.fromInt(0xFF12384B);
+    const brandBlue = PdfColor.fromInt(0xFF0077B6);
+    const textTitle = PdfColor.fromInt(0xFF03045E);
     const textBody = PdfColor.fromInt(0xFF334155);
-    const textMuted = PdfColor.fromInt(0xFF667B83);
-    const border = PdfColor.fromInt(0xFFE1E9E6);
-    const surfaceSubtle = PdfColor.fromInt(0xFFF5F8F7);
+    const textMuted = PdfColor.fromInt(0xFF5B6680);
+    const border = PdfColor.fromInt(0xFFE6E9ED);
+    const surfaceSubtle = PdfColor.fromInt(0xFFF5F7F9);
 
     // ---- Load Unicode-capable fonts ----
     // Load bundled Noto Sans fonts. These ship with the app, so there's
@@ -252,10 +252,10 @@ class CarePlanPdfService {
             if (plan.recommendedScreenings.isNotEmpty) ...[
               _subHeading(
                 'CLINICAL SCREENINGS & TESTS',
-                PdfColor.fromInt(0xFF0369A1),
+                PdfColor.fromInt(0xFF0077B6),
               ),
               ...plan.recommendedScreenings.map(
-                (s) => _bullet(s, textBody, PdfColor.fromInt(0xFF0369A1)),
+                (s) => _bullet(s, textBody, PdfColor.fromInt(0xFF0077B6)),
               ),
               pw.SizedBox(height: 6),
             ],
@@ -331,7 +331,7 @@ class CarePlanPdfService {
                 pw.Text(
                   'Personalized AI Care Plan & Immunization Advisory',
                   style: pw.TextStyle(
-                    color: PdfColor.fromInt(0xFFDBEAFE),
+                    color: PdfColor.fromInt(0xFFCAF0F8),
                     fontSize: 9,
                   ),
                 ),
@@ -339,7 +339,7 @@ class CarePlanPdfService {
                 pw.Text(
                   'Cryptographically Verified Clinical Decision Support',
                   style: pw.TextStyle(
-                    color: PdfColor.fromInt(0xFFBFDBFE),
+                    color: PdfColor.fromInt(0xFF90E0EF),
                     fontSize: 7,
                   ),
                 ),
@@ -361,7 +361,7 @@ class CarePlanPdfService {
               pw.Text(
                 'Issued: $issued',
                 style: pw.TextStyle(
-                  color: PdfColor.fromInt(0xFFDBEAFE),
+                  color: PdfColor.fromInt(0xFFCAF0F8),
                   fontSize: 7.5,
                 ),
               ),
@@ -369,7 +369,7 @@ class CarePlanPdfService {
               pw.Text(
                 'Status: Verified Active',
                 style: pw.TextStyle(
-                  color: PdfColor.fromInt(0xFFDBEAFE),
+                  color: PdfColor.fromInt(0xFFCAF0F8),
                   fontSize: 7.5,
                 ),
               ),
@@ -408,7 +408,7 @@ class CarePlanPdfService {
                 pw.Text(
                   'PATIENT INFORMATION',
                   style: pw.TextStyle(
-                    color: PdfColor.fromInt(0xFF0369A1),
+                    color: PdfColor.fromInt(0xFF0077B6),
                     fontSize: 7.5,
                     fontWeight: pw.FontWeight.bold,
                   ),
@@ -489,8 +489,8 @@ class CarePlanPdfService {
       width: double.infinity,
       padding: const pw.EdgeInsets.all(10),
       decoration: pw.BoxDecoration(
-        color: PdfColor.fromInt(0xFFF0F9FF),
-        border: pw.Border.all(color: PdfColor.fromInt(0xFFBAE6FD), width: 0.5),
+        color: PdfColor.fromInt(0xFFEEF9FC),
+        border: pw.Border.all(color: PdfColor.fromInt(0xFFCAF0F8), width: 0.5),
         borderRadius: pw.BorderRadius.circular(4),
       ),
       child: pw.Text(
@@ -509,7 +509,7 @@ class CarePlanPdfService {
     PdfColor bg = PdfColor.fromInt(0xFFEFF6FF);
     PdfColor borderColor = PdfColor.fromInt(0xFF3B82F6);
     PdfColor fg = PdfColor.fromInt(0xFF087F78);
-    PdfColor badgeBg = PdfColor.fromInt(0xFFBFDBFE);
+    PdfColor badgeBg = PdfColor.fromInt(0xFF90E0EF);
 
     if (sev == 'CRITICAL') {
       bg = PdfColor.fromInt(0xFFFEF2F2);
@@ -584,7 +584,7 @@ class CarePlanPdfService {
       margin: const pw.EdgeInsets.only(bottom: 6),
       padding: const pw.EdgeInsets.all(9),
       decoration: pw.BoxDecoration(
-        color: PdfColor.fromInt(0xFFF5F8F7),
+        color: PdfColor.fromInt(0xFFF5F7F9),
         border: pw.Border.all(color: border, width: 0.5),
         borderRadius: pw.BorderRadius.circular(4),
       ),
@@ -644,7 +644,7 @@ class CarePlanPdfService {
       padding: const pw.EdgeInsets.all(9),
       decoration: pw.BoxDecoration(
         color: PdfColor.fromInt(0xFFEFF6FF),
-        border: pw.Border.all(color: PdfColor.fromInt(0xFFBFDBFE), width: 0.5),
+        border: pw.Border.all(color: PdfColor.fromInt(0xFF90E0EF), width: 0.5),
         borderRadius: pw.BorderRadius.circular(4),
       ),
       child: pw.Row(
@@ -680,7 +680,7 @@ class CarePlanPdfService {
             pw.Text(
               'Due within ${v.dueWithinDays} days',
               style: pw.TextStyle(
-                color: PdfColor.fromInt(0xFF066D68),
+                color: PdfColor.fromInt(0xFF0077B6),
                 fontSize: 7.5,
                 fontWeight: pw.FontWeight.bold,
               ),

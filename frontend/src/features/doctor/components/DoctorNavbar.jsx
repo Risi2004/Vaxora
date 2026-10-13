@@ -5,10 +5,14 @@ import logo from '../../../assets/images/logo.png';
 import { authService, getUser, subscribeAuthUser } from '../../auth';
 import DeleteAccountModal from '../../auth/components/DeleteAccountModal';
 import { IconClose, IconDoctor, IconLogout, IconMenu, IconStethoscope, IconTrash } from '../../../shared/icons/AppIcons';
+import { withStaffTitle } from '../../../shared/utils/staffName';
+import usePendingInviteCount from '../../staff/hooks/usePendingInviteCount';
+import useConfirmDialog from '../../../shared/hooks/useConfirmDialog';
 
 export default function DoctorNavbar() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [confirm, confirmDialog] = useConfirmDialog();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -44,15 +48,32 @@ export default function DoctorNavbar() {
   }, [showProfileMenu]);
 
   const handleLogout = async () => {
+    const ok = await confirm({
+      title: 'Log out?',
+      message: 'You will need to sign in again to access staff tools.',
+      cancelLabel: 'Stay',
+      confirmLabel: 'Log out',
+      destructive: true,
+    });
+    if (!ok) return;
     await authService.logout();
     navigate('/login');
   };
 
+  const pendingInvites = usePendingInviteCount();
+
   const navItems = [
     { path: '/doctor/dashboard', label: 'Home' },
     { path: '/doctor/appointments', label: 'Appointments' },
-    { path: '/doctor/patients', label: 'Patient history' },
-    { path: '/doctor/affiliations', label: 'Affiliations' },
+    { path: '/doctor/patients', label: 'Patients' },
+    { path: '/doctor/shifts', label: 'My shifts' },
+    // With invites waiting, open straight on them.
+    {
+      path: '/doctor/hospitals',
+      to: pendingInvites > 0 ? '/doctor/hospitals?view=invitations' : undefined,
+      label: 'Hospitals',
+      badge: pendingInvites,
+    },
     { path: '/doctor/feedback', label: 'Feedback' },
   ];
 
@@ -85,9 +106,10 @@ export default function DoctorNavbar() {
                 key={item.path}
                 type="button"
                 className={`doctor-nav-btn ${active ? 'active' : ''}`}
-                onClick={() => handleNavigate(item.path)}
+                onClick={() => handleNavigate(item.to || item.path)}
               >
                 {item.label}
+                {item.badge > 0 ? <span className="nav-count-badge">{item.badge}</span> : null}
               </button>
             );
           })}
@@ -108,7 +130,7 @@ export default function DoctorNavbar() {
               style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
             >
               <span className="navbar-user-meta">
-                <span className="navbar-user-name">{user?.name || 'Doctor'}</span>
+                <span className="navbar-user-name">{withStaffTitle(user?.name, 'Dr.', 'Doctor')}</span>
                 <span className="navbar-user-sub">
                   {user?.registrationNumber
                     || user?.profileDetails?.specialization
@@ -132,16 +154,16 @@ export default function DoctorNavbar() {
             {showProfileMenu && (
               <div className="doctor-profile-dropdown">
                 <div className="doctor-dropdown-header">
-                  <div className="doctor-dropdown-name">{user?.name || 'Dr. Medical Practitioner'}</div>
-                  <div className="doctor-dropdown-meta">{user?.profileDetails?.specialization || 'Consultant Specialist'}</div>
+                  <div className="doctor-dropdown-name">{withStaffTitle(user?.name, 'Dr.', 'Dr. Medical Practitioner')}</div>
+                  <div className="doctor-dropdown-meta">{user?.profileDetails?.specialization || 'Doctor'}</div>
                   {user?.registrationNumber && (
-                    <div className="doctor-dropdown-meta" style={{ color: '#2563eb', fontWeight: 600 }}>
+                    <div className="doctor-dropdown-meta" style={{ color: 'var(--color-primary)', fontWeight: 600 }}>
                       Reg: {user.registrationNumber}
                     </div>
                   )}
                 </div>
 
-                <div style={{ height: '1px', background: '#f1f5f9', margin: '6px 0 10px' }} />
+                <div style={{ height: '1px', background: 'var(--color-surface-subtle)', margin: '6px 0 10px' }} />
 
                 <button
                   type="button"
@@ -204,13 +226,14 @@ export default function DoctorNavbar() {
                   key={item.path}
                   type="button"
                   className={`portal-mobile-nav-btn ${active ? 'active' : ''}`}
-                  onClick={() => handleNavigate(item.path)}
+                  onClick={() => handleNavigate(item.to || item.path)}
                 >
                   {item.label}
+                  {item.badge > 0 ? <span className="nav-count-badge">{item.badge}</span> : null}
                 </button>
               );
             })}
-            <div style={{ height: '1px', background: '#e2e8f0', margin: '6px 0' }} />
+            <div style={{ height: '1px', background: 'var(--color-soft-panel-deep)', margin: '6px 0' }} />
             <button
               type="button"
               className="portal-mobile-nav-btn"
@@ -246,10 +269,11 @@ export default function DoctorNavbar() {
       )}
 
       {/* Delete Account Confirmation Modal */}
+      {confirmDialog}
       <DeleteAccountModal
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}
-        userName={user?.name || 'Dr. Medical Practitioner'}
+        userName={withStaffTitle(user?.name, 'Dr.', 'Dr. Medical Practitioner')}
         roleName="Doctor"
       />
     </header>

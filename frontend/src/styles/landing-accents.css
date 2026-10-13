@@ -1,0 +1,161 @@
+/* ==========================================================================
+   Landing page accents
+   One brand blue for icons, links and buttons; navy for text; true greys
+   for everything else. Status colours only appear where they mean
+   something (a dose given or due in the previews).
+   ========================================================================== */
+
+/* "New" tag on a feature */
+.feature-badge {
+  display: inline-block;
+  margin-left: var(--space-2);
+  padding: 2px 8px;
+  font-size: 0.75rem;
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  vertical-align: middle;
+  color: var(--color-primary);
+  background: var(--color-soft-panel);
+  border: 1px solid var(--color-soft-panel-deep);
+  border-radius: var(--radius-pill);
+}
+
+/* Reviews sit on the page's one soft band, full width */
+.landing-container .reviews-section {
+  box-shadow: 0 0 0 100vmax var(--color-soft-panel);
+  clip-path: inset(0 -100vmax);
+  background: var(--color-soft-panel);
+  margin-top: 0;
+  margin-bottom: 0;
+  padding-top: 56px;
+  padding-bottom: 56px;
+}
+
+.landing-container .reviews-section .section-eyebrow {
+  background: var(--color-surface);
+}
+
+@media (max-width: 768px) {
+  .landing-container .reviews-section {
+    padding-top: 40px;
+    padding-bottom: 40px;
+  }
+}
+
+/* ---- Preview card ---- */
+.mock-card {
+  position: relative;
+  width: 100%;
+  max-width: 300px;
+  padding: var(--space-5);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card-hover);
+}
+
+.mock-card-title {
+  margin-bottom: var(--space-4);
+  font-family: var(--font-heading);
+  font-size: 1rem;
+  font-weight: var(--weight-bold);
+  color: var(--color-text-title);
+}
+
+.mock-value {
+  display: block;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-title);
+}
+
+.mock-sub {
+  display: block;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.mock-list {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  list-style: none;
+}
+
+.mock-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--color-border-light);
+}
+
+.mock-row:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.mock-person {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.mock-token {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  color: var(--color-text-muted);
+}
+
+.mock-chip {
+  flex-shrink: 0;
+  padding: 3px 10px;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-muted);
+  background: var(--color-surface-subtle);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-pill);
+}
+
+.mock-chip.is-done {
+  color: var(--color-success);
+  background: var(--color-success-bg);
+  border-color: var(--color-success-border);
+}
+
+.mock-chip.is-due {
+  color: var(--color-warning);
+  background: var(--color-warning-bg);
+  border-color: var(--color-warning-border);
+}
+
+.mock-chip.is-now {
+  color: var(--color-text-inverse);
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.mock-stock {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  background: var(--color-surface-subtle);
+  border-radius: var(--radius-sm);
+}
+
+.mock-tick {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  color: var(--color-success);
+  background: var(--color-success-bg);
+  border-radius: 50%;
+}

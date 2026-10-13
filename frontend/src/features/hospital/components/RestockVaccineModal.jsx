@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useState } from 'react';
+import { useState } from 'react';
 
 const DEFAULT_LIST = [
   'Pfizer-BioNTech Bivalent (mRNA)',
@@ -19,7 +19,6 @@ function emptyForm() {
     quantity: '',
     expiryDate: '',
     storageUnit: '',
-    supplier: '',
   };
 }
 
@@ -39,23 +38,18 @@ export default function RestockVaccineModal({
   const [formData, setFormData] = useState(emptyForm);
   const [isCustomMode, setIsCustomMode] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
 
-  // Reset before paint when opening, and again when closing — avoids flashing custom-mode UI.
-  useLayoutEffect(() => {
-    if (isOpen) {
-      setIsCustomMode(false);
-      setSubmitting(false);
-      setFormData(emptyForm());
-    }
-  }, [isOpen]);
-
-  useEffect(() => {
-    if (!isOpen) {
-      setIsCustomMode(false);
-      setSubmitting(false);
-      setFormData(emptyForm());
-    }
-  }, [isOpen]);
+  // Reset whenever the modal opens or closes. Adjusting state during render
+  // (instead of in an effect) applies before paint, so custom mode never flashes.
+  const [wasOpen, setWasOpen] = useState(isOpen);
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
+    setIsCustomMode(false);
+    setSubmitting(false);
+    setError('');
+    setFormData(emptyForm());
+  }
 
   if (!isOpen) return null;
 
@@ -81,19 +75,20 @@ export default function RestockVaccineModal({
       : formData.vaccineName.trim();
 
     if (!finalName) {
-      alert('Please select or enter a valid vaccine product name.');
+      setError('Please select or enter a valid vaccine product name.');
       return;
     }
     if (!formData.lotNumber.trim() || !String(formData.quantity).trim()) {
-      alert('Please fill the Lot Number and Quantity.');
+      setError('Please fill the Lot Number and Quantity.');
       return;
     }
     if (!formData.storageUnit) {
-      alert('Please select a cold vault.');
+      setError('Please select a cold vault.');
       return;
     }
 
     setSubmitting(true);
+    setError('');
     try {
       await onAddStock({
         vaccineName: finalName,
@@ -101,14 +96,14 @@ export default function RestockVaccineModal({
         quantity: parseInt(formData.quantity, 10),
         storageUnit: formData.storageUnit,
         expiryDate: formData.expiryDate || undefined,
-        supplier: formData.supplier.trim(),
         ...(isCustomMode ? { category: formData.category || 'routine' } : {}),
       });
       setIsCustomMode(false);
       setFormData(emptyForm());
       onClose();
-    } catch {
-      // Parent toasts; keep values so the user can fix and retry.
+    } catch (err) {
+      // Keep values so the user can fix and retry.
+      setError(err?.message || 'Failed to log the restock shipment.');
     } finally {
       setSubmitting(false);
     }
@@ -122,7 +117,7 @@ export default function RestockVaccineModal({
             <h3 style={{ margin: 0 }}>
               {isCustomMode ? 'Add new vaccine product' : 'Log Vaccine Restock Shipment'}
             </h3>
-            <p style={{ margin: '4px 0 0', fontSize: '0.84rem', color: '#64748b' }}>
+            <p style={{ margin: '4px 0 0', fontSize: '0.8125rem', color: 'var(--color-text-muted)' }}>
               {isCustomMode
                 ? 'Enter the product details, then continue with lot and vault info below.'
                 : 'Select from hospital-registered vaccine formulations or enter a new product name.'}
@@ -143,7 +138,7 @@ export default function RestockVaccineModal({
                   }));
                 }}
                 disabled={submitting}
-                style={{ padding: '6px 12px', fontSize: '0.8rem' }}
+                style={{ padding: '6px 12px', fontSize: '0.8125rem' }}
               >
                 ← Back to list
               </button>
@@ -186,7 +181,7 @@ export default function RestockVaccineModal({
                       setIsCustomMode(true);
                       setFormData((prev) => ({ ...prev, vaccineName: '', customVaccineName: '' }));
                     }}
-                    style={{ padding: '0 14px', fontSize: '0.82rem' }}
+                    style={{ padding: '0 14px', fontSize: '0.8125rem' }}
                     disabled={submitting}
                   >
                     + New
@@ -234,7 +229,7 @@ export default function RestockVaccineModal({
                     </select>
                   </div>
                 </div>
-                <p style={{ margin: '-4px 0 12px', fontSize: '0.76rem', color: '#64748b' }}>
+                <p style={{ margin: '-4px 0 12px', fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
                   New products are saved to your formulary when the shipment is committed.
                 </p>
               </>
@@ -303,19 +298,11 @@ export default function RestockVaccineModal({
               </div>
             </div>
 
-            <div className="modal-form-group">
-              <label className="modal-label">Authorized supplier / batch dispatch</label>
-              <input
-                type="text"
-                name="supplier"
-                value={formData.supplier}
-                onChange={handleChange}
-                placeholder="e.g. State Pharmaceuticals Corporation (SPC) / MOH"
-                className="modal-input"
-                disabled={submitting}
-                autoComplete="off"
-              />
-            </div>
+            {error && (
+              <p role="alert" style={{ margin: '4px 0 0', color: 'var(--color-error)', fontSize: '0.875rem', fontWeight: 600 }}>
+                {error}
+              </p>
+            )}
           </div>
 
           <div className="modal-footer">

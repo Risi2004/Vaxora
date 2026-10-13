@@ -13,11 +13,11 @@ public interface IShiftSwapService
     Task<List<ShiftSwapRequestDto>> ListForHospitalAsync(
         Guid hospitalUserId,
         string? status = null,
-        int limit = 40,
-        string? bearerToken = null);
+        int limit = 40);
+    /// <summary>Re-orders one pending request's replacements with the AI agent, on demand.</summary>
+    Task<ShiftSwapRequestDto> RankWithAgentAsync(Guid hospitalUserId, Guid requestId, string? bearerToken);
     Task<ShiftSwapRequestDto> DecideAsync(Guid hospitalUserId, Guid requestId, ShiftSwapDecisionDto decision);
     Task<List<ShiftSwapRequestDto>> ListForStaffAsync(Guid staffUserId, int limit = 40);
-    Task TryRecordFromAgentAsync(Guid staffUserId, string? agentJson);
 }
 
 /// <summary>
@@ -134,8 +134,7 @@ public class ShiftSwapService : IShiftSwapService
     public async Task<List<ShiftSwapRequestDto>> ListForHospitalAsync(
         Guid hospitalUserId,
         string? status = null,
-        int limit = 40,
-        string? bearerToken = null)
+        int limit = 40)
     {
         await EnsureActiveHospitalAsync(hospitalUserId);
         limit = Math.Clamp(limit, 1, 80);
@@ -159,9 +158,37 @@ public class ShiftSwapService : IShiftSwapService
             .Take(limit)
             .ToListAsync();
 
+        // Roster-order suggestions only; the AI ranking is a separate, on-demand call
+        // so a slow LLM never blocks the inbox.
         var dtos = rows.Select(Map).ToList();
-        await AttachSuggestionsAsync(hospitalUserId, dtos, bearerToken);
+        await AttachSuggestionsAsync(hospitalUserId, dtos);
         return dtos;
+    }
+
+    public async Task<ShiftSwapRequestDto> RankWithAgentAsync(
+        Guid hospitalUserId,
+        Guid requestId,
+        string? bearerToken)
+    {
+        await EnsureActiveHospitalAsync(hospitalUserId);
+
+        var row = await _context.ShiftSwapRequests
+            .AsNoTracking()
+            .Include(r => r.RequesterUser).ThenInclude(u => u.DoctorProfile)
+            .Include(r => r.RequesterUser).ThenInclude(u => u.NurseProfile)
+            .Include(r => r.HospitalUser).ThenInclude(h => h.HospitalProfile)
+            .FirstOrDefaultAsync(r => r.Id == requestId && r.HospitalUserId == hospitalUserId);
+
+        if (row == null)
+            throw new KeyNotFoundException("Cover request not found.");
+        if (row.Status != ShiftSwapStatus.Pending)
+            throw new InvalidOperationException("Only pending cover requests can be ranked.");
+
+        var dto = Map(row);
+        await AttachSuggestionsAsync(hospitalUserId, new List<ShiftSwapRequestDto> { dto });
+        if (dto.Suggestions.Count > 1)
+            dto.AiRanked = await RankCoverWithAgentAsync(new List<ShiftSwapRequestDto> { dto }, bearerToken);
+        return dto;
     }
 
     public async Task<List<ShiftSwapRequestDto>> ListForStaffAsync(Guid staffUserId, int limit = 40)
@@ -242,60 +269,6 @@ public class ShiftSwapService : IShiftSwapService
         return await GetMappedAsync(row.Id);
     }
 
-    public async Task TryRecordFromAgentAsync(Guid staffUserId, string? agentJson)
-    {
-        if (string.IsNullOrWhiteSpace(agentJson)) return;
-
-        try
-        {
-            using var document = JsonDocument.Parse(agentJson);
-            var root = document.RootElement;
-
-            if (!root.TryGetProperty("proposals", out var proposals) ||
-                proposals.ValueKind != JsonValueKind.Array)
-            {
-                return;
-            }
-
-            foreach (var proposal in proposals.EnumerateArray())
-            {
-                if (proposal.ValueKind != JsonValueKind.Object) continue;
-
-                var kind = proposal.TryGetProperty("kind", out var kindEl) && kindEl.ValueKind == JsonValueKind.String
-                    ? kindEl.GetString()
-                    : null;
-                if (!string.IsNullOrWhiteSpace(kind) &&
-                    !string.Equals(kind, "ShiftSwapRequest", StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
-
-                if (!proposal.TryGetProperty("shiftId", out var shiftEl)) continue;
-                var shiftRaw = shiftEl.ValueKind == JsonValueKind.String ? shiftEl.GetString() : shiftEl.ToString();
-                if (!Guid.TryParse(shiftRaw, out var shiftId) || shiftId == Guid.Empty) continue;
-
-                var snippet = proposal.TryGetProperty("conversationSnippet", out var snEl) && snEl.ValueKind == JsonValueKind.String
-                    ? snEl.GetString()
-                    : null;
-                var reason = proposal.TryGetProperty("reason", out var reasonEl) && reasonEl.ValueKind == JsonValueKind.String
-                    ? reasonEl.GetString()
-                    : null;
-
-                await CreateAsync(staffUserId, new CreateShiftSwapRequestDto
-                {
-                    ShiftId = shiftId,
-                    Reason = reason,
-                    ConversationSnippet = snippet
-                });
-                return;
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Could not persist shift-swap request from agent payload for {StaffUserId}", staffUserId);
-        }
-    }
-
     private async Task<ShiftSwapRequestDto> GetMappedAsync(Guid id)
     {
         var row = await _context.ShiftSwapRequests
@@ -338,8 +311,7 @@ public class ShiftSwapService : IShiftSwapService
 
     private async Task AttachSuggestionsAsync(
         Guid hospitalUserId,
-        List<ShiftSwapRequestDto> dtos,
-        string? bearerToken)
+        List<ShiftSwapRequestDto> dtos)
     {
         var pending = dtos.Where(d =>
             string.Equals(d.Status, nameof(ShiftSwapStatus.Pending), StringComparison.OrdinalIgnoreCase))
@@ -358,7 +330,10 @@ public class ShiftSwapService : IShiftSwapService
         var pool = await _context.StaffAffiliations
             .Include(a => a.StaffUser).ThenInclude(u => u.DoctorProfile)
             .Include(a => a.StaffUser).ThenInclude(u => u.NurseProfile)
-            .Where(a => a.HospitalUserId == hospitalUserId && a.Status == AffiliationStatus.Active)
+            .Where(a =>
+                a.HospitalUserId == hospitalUserId &&
+                a.Status == AffiliationStatus.Active &&
+                a.StaffRole != UserRole.FRONT_DESK)
             .ToListAsync();
 
         var staffIds = pool.Select(a => a.StaffUserId).Distinct().ToList();
@@ -372,6 +347,8 @@ public class ShiftSwapService : IShiftSwapService
                     s.Affiliation.Status == AffiliationStatus.Active &&
                     dates.Contains(s.ShiftDate))
                 .ToListAsync();
+
+        var availability = await StaffAvailabilityHelper.LoadAsync(_context, pool.Select(a => a.Id).ToList());
 
         foreach (var dto in pending)
         {
@@ -404,6 +381,22 @@ public class ShiftSwapService : IShiftSwapService
                 var overlaps = theirs.Any(s =>
                     shift.StartTime < s.EndTime && shift.EndTime > s.StartTime);
                 if (overlaps) continue;
+
+                // Working at another hospital too close to this window, or outside the
+                // hours this doctor offers here.
+                var tooCloseElsewhere = theirs.Any(s =>
+                    s.Affiliation.HospitalUserId != hospitalUserId &&
+                    StaffAvailabilityHelper.WithinTravelGap(shift.StartTime, shift.EndTime, s.StartTime, s.EndTime));
+                if (tooCloseElsewhere) continue;
+
+                if (!StaffAvailabilityHelper.IsAvailable(
+                        availability.GetValueOrDefault(affiliation.Id),
+                        shift.ShiftDate,
+                        shift.StartTime,
+                        shift.EndTime))
+                {
+                    continue;
+                }
 
                 var specMatch = SpecializationFits(
                     affiliation.StaffUser.DoctorProfile?.Specialization,
@@ -455,18 +448,17 @@ public class ShiftSwapService : IShiftSwapService
                     ? $"{specCount} matching specialization, then other {roleLabel}s."
                     : $"{picked.Count} other {roleLabel}(s) can cover this window.";
         }
-
-        await RankCoverWithAgentAsync(dtos, bearerToken);
     }
 
-    private async Task RankCoverWithAgentAsync(List<ShiftSwapRequestDto> dtos, string? bearerToken)
+    /// <summary>Returns true when the agent replied and its ranking was applied.</summary>
+    private async Task<bool> RankCoverWithAgentAsync(List<ShiftSwapRequestDto> dtos, string? bearerToken)
     {
         var pending = dtos.Where(d =>
                 string.Equals(d.Status, nameof(ShiftSwapStatus.Pending), StringComparison.OrdinalIgnoreCase) &&
                 d.Suggestions.Count > 0)
             .ToList();
         if (pending.Count == 0 || string.IsNullOrWhiteSpace(bearerToken))
-            return;
+            return false;
 
         var payload = new
         {
@@ -505,20 +497,21 @@ public class ShiftSwapService : IShiftSwapService
 
         try
         {
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
             var result = await _agentGateway.ChatAsync(request, bearerToken, new[] { "StaffSchedulingAgent" }, cts.Token);
             if (!result.Success || string.IsNullOrWhiteSpace(result.Json))
-                return;
+                return false;
 
-            ApplyAgentRanking(pending, result.Json);
+            return ApplyAgentRanking(pending, result.Json);
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Cover ranking agent unavailable; using roster order.");
+            return false;
         }
     }
 
-    private static void ApplyAgentRanking(List<ShiftSwapRequestDto> pending, string agentJson)
+    private static bool ApplyAgentRanking(List<ShiftSwapRequestDto> pending, string agentJson)
     {
         using var document = JsonDocument.Parse(agentJson);
         var root = document.RootElement;
@@ -526,22 +519,23 @@ public class ShiftSwapService : IShiftSwapService
             ? contentEl.GetString()
             : agentJson;
         if (string.IsNullOrWhiteSpace(content))
-            return;
+            return false;
 
         var json = content.Trim();
         var start = json.IndexOf('{');
         var end = json.LastIndexOf('}');
         if (start < 0 || end <= start)
-            return;
+            return false;
 
         using var rankedDoc = JsonDocument.Parse(json[start..(end + 1)]);
         if (!rankedDoc.RootElement.TryGetProperty("reviews", out var reviews) ||
             reviews.ValueKind != JsonValueKind.Array)
         {
-            return;
+            return false;
         }
 
         var byId = pending.ToDictionary(d => d.Id);
+        var applied = false;
         foreach (var review in reviews.EnumerateArray())
         {
             if (!review.TryGetProperty("requestId", out var idEl)) continue;
@@ -575,9 +569,12 @@ public class ShiftSwapService : IShiftSwapService
                 ordered.Add(match);
             }
 
+            applied |= ordered.Count > 0;
             ordered.AddRange(pool.Values);
             dto.Suggestions = ordered;
         }
+
+        return applied;
     }
 
     private async Task ReassignShiftAsync(
@@ -592,6 +589,14 @@ public class ShiftSwapService : IShiftSwapService
 
         if (shift == null)
             throw new InvalidOperationException("This shift is no longer on the roster.");
+
+        var today = HospitalToday();
+        if (shift.ShiftDate < today ||
+            (shift.ShiftDate == today && TimeOnly.FromDateTime(HospitalNow()) >= shift.StartTime))
+        {
+            throw new InvalidOperationException(
+                "This shift has already started — it can no longer be reassigned. Decline the request instead.");
+        }
 
         var replacement = await _context.StaffAffiliations
             .Include(a => a.StaffUser).ThenInclude(u => u.DoctorProfile)
@@ -621,6 +626,21 @@ public class ShiftSwapService : IShiftSwapService
 
         if (overlapping.Any(s => shift.StartTime < s.EndTime && shift.EndTime > s.StartTime))
             throw new InvalidOperationException("That person is already booked in this window.");
+
+        if (overlapping.Any(s =>
+                s.Affiliation.HospitalUserId != hospitalUserId &&
+                StaffAvailabilityHelper.WithinTravelGap(shift.StartTime, shift.EndTime, s.StartTime, s.EndTime)))
+        {
+            throw new InvalidOperationException(
+                "That person has a shift at another hospital too close to this window.");
+        }
+
+        var replacementRules = (await StaffAvailabilityHelper.LoadAsync(_context, new[] { replacement.Id }))
+            .GetValueOrDefault(replacement.Id);
+        var unavailableReason = StaffAvailabilityHelper.Explain(
+            replacementRules, shift.ShiftDate, shift.StartTime, shift.EndTime);
+        if (unavailableReason != null)
+            throw new InvalidOperationException($"That person is {unavailableReason} at this hospital.");
 
         var fromName = GetStaffName(shift.Affiliation.StaffUser);
         var toName = GetStaffName(replacement.StaffUser);
@@ -687,25 +707,7 @@ public class ShiftSwapService : IShiftSwapService
         return false;
     }
 
-    private static string GetStaffName(User? staffUser)
-    {
-        if (staffUser == null) return "Staff";
-        if (staffUser.Role == UserRole.DOCTOR && staffUser.DoctorProfile != null)
-            return WithRolePrefix(staffUser.DoctorProfile.FullName, "Dr.");
-        if (staffUser.Role == UserRole.NURSE && staffUser.NurseProfile != null)
-            return WithRolePrefix(staffUser.NurseProfile.FullName, "Nurse");
-        return staffUser.Email;
-    }
-
-    private static string WithRolePrefix(string? fullName, string prefix)
-    {
-        var name = (fullName ?? string.Empty).Trim();
-        if (string.IsNullOrEmpty(name))
-            return prefix.TrimEnd('.');
-        if (name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-            return name;
-        return $"{prefix} {name}".Trim();
-    }
+    private static string GetStaffName(User? staffUser) => StaffNameFormatter.Format(staffUser);
 
     private async Task<CoverQuotaDto> BuildQuotaAsync(
         Guid staffUserId,
@@ -765,11 +767,13 @@ public class ShiftSwapService : IShiftSwapService
         var daysUntil = shift.ShiftDate.DayNumber - today.DayNumber;
         quota.DaysUntilShift = daysUntil;
 
+        // Reassigning a started shift would credit the replacement with hours the
+        // requester already worked, so cover is only possible before the start.
         if (daysUntil < 0 ||
-            (daysUntil == 0 && HospitalNow().TimeOfDay >= shift.EndTime.ToTimeSpan()))
+            (daysUntil == 0 && HospitalNow().TimeOfDay >= shift.StartTime.ToTimeSpan()))
         {
             quota.CanRequest = false;
-            quota.BlockReason = "This shift has already finished.";
+            quota.BlockReason = "This shift has already started — tell the hospital desk directly.";
             quota.Summary = quota.BlockReason;
             return quota;
         }

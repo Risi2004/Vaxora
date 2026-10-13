@@ -1,6 +1,7 @@
 import { deferEffectCallback } from '../../../shared/utils/deferEffectCallback.js';
 import { useEffect, useRef, useState } from 'react';
 import staffService from '../services/staffService';
+import { IconSend } from '../../../shared/icons/AppIcons';
 
 export default function AddStaffRequestModal({ isOpen, onClose, onSendRequest, isSubmitting = false }) {
   const [query, setQuery] = useState('');
@@ -126,7 +127,7 @@ export default function AddStaffRequestModal({ isOpen, onClose, onSendRequest, i
         <div className="modal-header">
           <div>
             <h3 style={{ margin: 0 }}>Add New Staff</h3>
-            <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '3px 0 0' }}>
+            <p style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)', margin: '3px 0 0' }}>
               Search by name, email, or Vaxora ID and invite an approved doctor or nurse
             </p>
           </div>
@@ -137,7 +138,7 @@ export default function AddStaffRequestModal({ isOpen, onClose, onSendRequest, i
 
         <form onSubmit={handleSubmit}>
           <div className="modal-body">
-            <div className="modal-form-group" ref={wrapRef} style={{ position: 'relative' }}>
+            <div className="modal-form-group" ref={wrapRef}>
               <label className="modal-label">Name, Email, or Vaxora ID *</label>
               <input
                 type="text"
@@ -152,35 +153,30 @@ export default function AddStaffRequestModal({ isOpen, onClose, onSendRequest, i
                 autoFocus
                 autoComplete="off"
               />
-              <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
                 Type at least 2 characters. Select a result, then send the request.
               </span>
 
               {showDropdown && (
                 <div
                   style={{
-                    position: 'absolute',
-                    zIndex: 20,
-                    left: 0,
-                    right: 0,
-                    top: '100%',
                     marginTop: 4,
-                    background: '#ffffff',
-                    border: '1px solid #cbd5e1',
+                    background: 'var(--color-surface)',
+                    border: '1px solid var(--color-border-card)',
                     borderRadius: 8,
-                    boxShadow: '0 8px 24px rgba(15, 23, 42, 0.12)',
-                    maxHeight: 240,
+                    maxHeight: 300,
                     overflowY: 'auto',
+                    flexShrink: 0,
                   }}
                 >
                   {searching && (
-                    <div style={{ padding: '10px 12px', color: '#64748b', fontSize: '0.85rem' }}>
+                    <div style={{ padding: '10px 12px', color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>
                       Searching...
                     </div>
                   )}
 
                   {!searching && results.length === 0 && (
-                    <div style={{ padding: '10px 12px', color: '#64748b', fontSize: '0.85rem' }}>
+                    <div style={{ padding: '10px 12px', color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>
                       No matching approved doctors or nurses found.
                     </div>
                   )}
@@ -199,21 +195,21 @@ export default function AddStaffRequestModal({ isOpen, onClose, onSendRequest, i
                             textAlign: 'left',
                             padding: '10px 12px',
                             border: 'none',
-                            borderBottom: '1px solid #f1f5f9',
-                            background: disabled ? '#f8fafc' : '#ffffff',
+                            borderBottom: '1px solid var(--color-border-light)',
+                            background: disabled ? 'var(--color-bg)' : 'var(--color-surface)',
                             cursor: disabled ? 'not-allowed' : 'pointer',
                             opacity: disabled ? 0.7 : 1,
                           }}
                         >
-                          <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.9rem' }}>
+                          <div style={{ fontWeight: 700, color: 'var(--color-text-title)', fontSize: '0.875rem' }}>
                             {candidate.fullName}
                           </div>
-                          <div style={{ fontSize: '0.78rem', color: '#475569', marginTop: 2 }}>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--color-text-body)', marginTop: 2 }}>
                             {candidate.registrationNumber} · {candidate.email} · {candidate.role}
                             {candidate.specialization ? ` · ${candidate.specialization}` : ''}
                           </div>
                           {disabled && (
-                            <div style={{ fontSize: '0.72rem', color: '#b45309', marginTop: 2 }}>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--color-warning)', marginTop: 2 }}>
                               Already invited or affiliated
                             </div>
                           )}
@@ -229,11 +225,11 @@ export default function AddStaffRequestModal({ isOpen, onClose, onSendRequest, i
                 style={{
                   marginTop: 8,
                   padding: '10px 12px',
-                  background: '#eff6ff',
-                  border: '1px solid #bfdbfe',
+                  background: 'var(--color-info-bg)',
+                  border: '1px solid var(--color-info-border)',
                   borderRadius: 8,
-                  fontSize: '0.85rem',
-                  color: '#1e3a8a',
+                  fontSize: '0.875rem',
+                  color: 'var(--color-primary-dark)',
                 }}
               >
                 Selected: <strong>{selected.fullName}</strong> ({selected.registrationNumber})
@@ -241,7 +237,7 @@ export default function AddStaffRequestModal({ isOpen, onClose, onSendRequest, i
             )}
 
             {error && (
-              <div style={{ color: '#dc2626', fontSize: '0.85rem', marginTop: '8px' }} role="alert">
+              <div style={{ color: 'var(--color-error)', fontSize: '0.875rem', marginTop: '8px' }} role="alert">
                 {error}
               </div>
             )}
@@ -257,7 +253,7 @@ export default function AddStaffRequestModal({ isOpen, onClose, onSendRequest, i
               style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
               disabled={isSubmitting}
             >
-              <span>✉️</span> {isSubmitting ? 'Sending...' : 'Send Request'}
+              <IconSend size={18} /> {isSubmitting ? 'Sending...' : 'Send Request'}
             </button>
           </div>
         </form>

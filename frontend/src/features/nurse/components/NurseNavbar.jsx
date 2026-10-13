@@ -5,10 +5,14 @@ import logo from '../../../assets/images/logo.png';
 import { authService, getUser, subscribeAuthUser } from '../../auth';
 import DeleteAccountModal from '../../auth/components/DeleteAccountModal';
 import { IconClose, IconLogout, IconMenu, IconNurse, IconTrash } from '../../../shared/icons/AppIcons';
+import { withStaffTitle } from '../../../shared/utils/staffName';
+import usePendingInviteCount from '../../staff/hooks/usePendingInviteCount';
+import useConfirmDialog from '../../../shared/hooks/useConfirmDialog';
 
 export default function NurseNavbar() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [confirm, confirmDialog] = useConfirmDialog();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -44,15 +48,32 @@ export default function NurseNavbar() {
   }, [showProfileMenu]);
 
   const handleLogout = async () => {
+    const ok = await confirm({
+      title: 'Log out?',
+      message: 'You will need to sign in again to access staff tools.',
+      cancelLabel: 'Stay',
+      confirmLabel: 'Log out',
+      destructive: true,
+    });
+    if (!ok) return;
     await authService.logout();
     navigate('/login');
   };
 
+  const pendingInvites = usePendingInviteCount();
+
   const navItems = [
     { path: '/nurse/dashboard', label: 'Home' },
     { path: '/nurse/appointments', label: 'Appointments' },
-    { path: '/nurse/patients', label: 'Patient history' },
-    { path: '/nurse/affiliations', label: 'Affiliations' },
+    { path: '/nurse/patients', label: 'Patients' },
+    { path: '/nurse/shifts', label: 'My shifts' },
+    // With invites waiting, open straight on them.
+    {
+      path: '/nurse/hospitals',
+      to: pendingInvites > 0 ? '/nurse/hospitals?view=invitations' : undefined,
+      label: 'Hospitals',
+      badge: pendingInvites,
+    },
     { path: '/nurse/feedback', label: 'Feedback' },
   ];
 
@@ -85,9 +106,10 @@ export default function NurseNavbar() {
                 key={item.path}
                 type="button"
                 className={`doctor-nav-btn ${active ? 'active' : ''}`}
-                onClick={() => handleNavigate(item.path)}
+                onClick={() => handleNavigate(item.to || item.path)}
               >
                 {item.label}
+                {item.badge > 0 ? <span className="nav-count-badge">{item.badge}</span> : null}
               </button>
             );
           })}
@@ -108,7 +130,7 @@ export default function NurseNavbar() {
               style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
             >
               <span className="navbar-user-meta">
-                <span className="navbar-user-name">{user?.name || 'Nurse'}</span>
+                <span className="navbar-user-name">{withStaffTitle(user?.name, 'Nurse')}</span>
                 <span className="navbar-user-sub">
                   {user?.registrationNumber || 'Nurse'}
                 </span>
@@ -119,10 +141,10 @@ export default function NurseNavbar() {
                   src={user.profilePhotoUrl}
                   alt={user.name || 'Nurse'}
                   className="navbar-avatar-img"
-                  style={{ borderColor: '#0284c7' }}
+                  style={{ borderColor: 'var(--color-accent)' }}
                 />
               ) : (
-                <div className="navbar-avatar-fallback" style={{ background: '#e0f2fe', color: '#0284c7', borderColor: '#38bdf8' }}>
+                <div className="navbar-avatar-fallback" style={{ background: 'var(--color-info-bg)', color: 'var(--color-accent)', borderColor: 'var(--color-info-border)' }}>
                   <IconNurse size={20} />
                 </div>
               )}
@@ -131,16 +153,16 @@ export default function NurseNavbar() {
             {showProfileMenu && (
               <div className="doctor-profile-dropdown">
                 <div className="doctor-dropdown-header">
-                  <div className="doctor-dropdown-name">{user?.name || 'Nurse Profile'}</div>
-                  <div className="doctor-dropdown-meta">Senior Immunization Nurse</div>
+                  <div className="doctor-dropdown-name">{withStaffTitle(user?.name, 'Nurse', 'Nurse Profile')}</div>
+                  <div className="doctor-dropdown-meta">{user?.profileDetails?.specialization || 'Nurse'}</div>
                   {user?.registrationNumber && (
-                    <div className="doctor-dropdown-meta" style={{ color: '#0284c7', fontWeight: 600 }}>
+                    <div className="doctor-dropdown-meta" style={{ color: 'var(--color-accent)', fontWeight: 600 }}>
                       Reg: {user.registrationNumber}
                     </div>
                   )}
                 </div>
 
-                <div style={{ height: '1px', background: '#f1f5f9', margin: '6px 0 10px' }} />
+                <div style={{ height: '1px', background: 'var(--color-surface-subtle)', margin: '6px 0 10px' }} />
 
                 <button
                   type="button"
@@ -203,13 +225,14 @@ export default function NurseNavbar() {
                   key={item.path}
                   type="button"
                   className={`portal-mobile-nav-btn ${active ? 'active' : ''}`}
-                  onClick={() => handleNavigate(item.path)}
+                  onClick={() => handleNavigate(item.to || item.path)}
                 >
                   {item.label}
+                  {item.badge > 0 ? <span className="nav-count-badge">{item.badge}</span> : null}
                 </button>
               );
             })}
-            <div style={{ height: '1px', background: '#e2e8f0', margin: '6px 0' }} />
+            <div style={{ height: '1px', background: 'var(--color-soft-panel-deep)', margin: '6px 0' }} />
             <button
               type="button"
               className="portal-mobile-nav-btn"
@@ -244,11 +267,12 @@ export default function NurseNavbar() {
         </div>
       )}
 
+      {confirmDialog}
       {/* Delete Account Confirmation Modal */}
       <DeleteAccountModal
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}
-        userName={user?.name || 'Nurse Profile'}
+        userName={withStaffTitle(user?.name, 'Nurse', 'Nurse Profile')}
         roleName="Nurse"
       />
     </header>

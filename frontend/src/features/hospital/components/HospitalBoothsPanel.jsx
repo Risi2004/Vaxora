@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import staffService from '../services/staffService';
 import inventoryService from '../services/inventoryService';
 import { IconDoor } from './HospitalIcons';
+import useConfirmDialog from '../../../shared/hooks/useConfirmDialog';
 
 const emptyForm = {
   code: '',
@@ -10,6 +11,7 @@ const emptyForm = {
 };
 
 export default function HospitalBoothsPanel() {
+  const [confirm, confirmDialog] = useConfirmDialog();
   const [booths, setBooths] = useState([]);
   const [vaccines, setVaccines] = useState([]);
   const [form, setForm] = useState(emptyForm);
@@ -20,6 +22,7 @@ export default function HospitalBoothsPanel() {
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
   const toastTimerRef = useRef(null);
+  const formCardRef = useRef(null);
 
   const showToast = (message) => {
     setToast(message);
@@ -95,6 +98,7 @@ export default function HospitalBoothsPanel() {
       vaccineIds: Array.isArray(booth.vaccineIds) ? booth.vaccineIds : [],
     });
     setError('');
+    formCardRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
   };
 
   const handleSave = async (e) => {
@@ -135,6 +139,19 @@ export default function HospitalBoothsPanel() {
   };
 
   const handleToggleActive = async (booth) => {
+    if (booth.isActive) {
+      const label = booth.name?.trim()
+        ? `${booth.code} · ${booth.name}`
+        : booth.code;
+      const ok = await confirm({
+        title: 'Deactivate booth?',
+        message: `Deactivate ${label}? It will stop appearing for new schedules until reactivated.`,
+        confirmLabel: 'Deactivate',
+        destructive: true,
+      });
+      if (!ok) return;
+    }
+
     setActionId(booth.boothId);
     setError('');
     try {
@@ -170,19 +187,21 @@ export default function HospitalBoothsPanel() {
         <div
           className="appointment-alert-pill"
           role="alert"
-          style={{ marginBottom: '16px', background: '#fef2f2', color: '#b91c1c', borderColor: '#fecaca' }}
+          style={{ marginBottom: '16px', background: 'var(--color-error-bg)', color: 'var(--color-error)', borderColor: 'var(--color-error-border)' }}
         >
           {error}
         </div>
       )}
 
-      <div className="hospital-section-card" style={{ marginBottom: '20px' }}>
+      <div className="hospital-section-card" style={{ marginBottom: '20px', scrollMarginTop: '90px' }} ref={formCardRef}>
         <div className="section-title-group" style={{ marginBottom: '14px' }}>
           <h2 style={{ margin: 0 }}>
             <span className="section-title-icon"><IconDoor size={22} /></span> Vaccination Booths
           </h2>
           <p className="section-title-desc">
-            Each booth lists the vaccines it gives. Bookings for those vaccines open that booth.
+            {editingId
+              ? `Editing ${form.code || 'booth'}. Save your changes or cancel.`
+              : 'Each booth lists the vaccines it gives. Bookings for those vaccines open that booth.'}
           </p>
         </div>
 
@@ -217,7 +236,7 @@ export default function HospitalBoothsPanel() {
           <div className="modal-form-group" style={{ margin: 0 }}>
             <label className="modal-label">Vaccines this booth gives</label>
             {vaccines.length === 0 ? (
-              <p style={{ margin: '6px 0 0', color: '#64748b', fontSize: '0.85rem' }}>
+              <p style={{ margin: '6px 0 0', color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>
                 Register vaccines under Inventory before assigning them here.
               </p>
             ) : (
@@ -233,10 +252,10 @@ export default function HospitalBoothsPanel() {
                         gap: '6px',
                         padding: '6px 10px',
                         borderRadius: '999px',
-                        border: `1px solid ${checked ? '#7dd3fc' : '#e2e8f0'}`,
-                        background: checked ? '#f0f9ff' : '#ffffff',
-                        fontSize: '0.82rem',
-                        color: '#0f172a',
+                        border: `1px solid ${checked ? 'var(--color-info-border)' : 'var(--color-border-light)'}`,
+                        background: checked ? 'var(--color-info-bg)' : 'var(--color-surface)',
+                        fontSize: '0.8125rem',
+                        color: 'var(--color-text-title)',
                         cursor: 'pointer',
                       }}
                     >
@@ -264,16 +283,7 @@ export default function HospitalBoothsPanel() {
             <button
               type="submit"
               disabled={saving}
-              style={{
-                padding: '8px 16px',
-                fontSize: '0.88rem',
-                fontWeight: 700,
-                color: '#ffffff',
-                background: '#19469d',
-                border: '1px solid #19469d',
-                borderRadius: '8px',
-                cursor: 'pointer',
-              }}
+              className="btn-hospital-primary"
             >
               {saving ? 'Saving...' : editingId ? 'Save Changes' : 'Add Booth'}
             </button>
@@ -282,16 +292,7 @@ export default function HospitalBoothsPanel() {
                 type="button"
                 onClick={resetForm}
                 disabled={saving}
-                style={{
-                  padding: '8px 16px',
-                  fontSize: '0.88rem',
-                  fontWeight: 600,
-                  color: '#334155',
-                  background: '#ffffff',
-                  border: '1px solid #cbd5e1',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                }}
+                className="btn-hospital-secondary"
               >
                 Cancel
               </button>
@@ -300,16 +301,7 @@ export default function HospitalBoothsPanel() {
               type="button"
               onClick={loadBooths}
               disabled={loading}
-              style={{
-                padding: '8px 16px',
-                fontSize: '0.88rem',
-                fontWeight: 600,
-                color: '#334155',
-                background: '#ffffff',
-                border: '1px solid #cbd5e1',
-                borderRadius: '8px',
-                cursor: 'pointer',
-              }}
+              className="btn-hospital-secondary"
             >
               Refresh
             </button>
@@ -319,11 +311,11 @@ export default function HospitalBoothsPanel() {
 
       {loading ? (
         <div className="hospital-section-card" style={{ maxWidth: '420px' }}>
-          <p style={{ color: '#64748b', margin: 0 }}>Loading booths...</p>
+          <p style={{ color: 'var(--color-text-muted)', margin: 0 }}>Loading booths...</p>
         </div>
       ) : booths.length === 0 ? (
         <div className="hospital-section-card" style={{ maxWidth: '420px' }}>
-          <p style={{ color: '#64748b', margin: 0 }}>
+          <p style={{ color: 'var(--color-text-muted)', margin: 0 }}>
             No booths yet. Use the form above to add one.
           </p>
         </div>
@@ -356,7 +348,7 @@ export default function HospitalBoothsPanel() {
                     display: 'inline-flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    color: '#94a3b8',
+                    color: 'var(--color-text-placeholder)',
                     background: 'transparent',
                     border: 'none',
                     borderRadius: '6px',
@@ -383,21 +375,21 @@ export default function HospitalBoothsPanel() {
                     <span key={name} className="booth-vaccine-chip">{name}</span>
                   ))
                 ) : (
-                  <span style={{ fontSize: '0.78rem', color: '#94a3b8' }}>No vaccines assigned</span>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--color-text-placeholder)' }}>No vaccines assigned</span>
                 )}
               </div>
 
               <div className="booth-card-footer">
                 <span
                   className="booth-status-indicator"
-                  style={{ color: booth.isActive ? '#15803d' : '#64748b' }}
+                  style={{ color: booth.isActive ? 'var(--color-success)' : 'var(--color-text-muted)' }}
                 >
                   <span
                     style={{
                       width: '6px',
                       height: '6px',
                       borderRadius: '50%',
-                      background: booth.isActive ? '#22c55e' : '#94a3b8',
+                      background: booth.isActive ? 'var(--color-success)' : 'var(--color-text-placeholder)',
                       display: 'inline-block',
                     }}
                   />
@@ -411,10 +403,10 @@ export default function HospitalBoothsPanel() {
                     padding: '4px 2px',
                     border: 'none',
                     background: 'transparent',
-                    fontSize: '0.78rem',
+                    fontSize: '0.75rem',
                     fontWeight: 600,
                     cursor: 'pointer',
-                    color: booth.isActive ? '#b91c1c' : '#047857',
+                    color: booth.isActive ? 'var(--color-error)' : 'var(--color-success)',
                   }}
                 >
                   {actionId === booth.boothId
@@ -428,6 +420,7 @@ export default function HospitalBoothsPanel() {
           ))}
         </div>
       )}
+      {confirmDialog}
     </div>
   );
 }

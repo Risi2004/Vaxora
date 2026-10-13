@@ -1,10 +1,10 @@
 import { deferEffectCallback } from '../../../shared/utils/deferEffectCallback.js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AddStaffRequestModal from './AddStaffRequestModal';
-import HospitalCoverRequestsPanel from './HospitalCoverRequestsPanel';
-import HospitalShiftsPanel from './HospitalShiftsPanel';
+import DeskAccountsPanel from '../../desk/components/DeskAccountsPanel';
 import staffService from '../services/staffService';
-import staffHeroImage from '../../../assets/images/hospital-staff-hero.jpg';
+import PortalHero from '../../../components/PortalHero';
+import HeroTabs from '../../../components/HeroTabs';
 import {
   IconClock,
   IconDoctor,
@@ -12,11 +12,20 @@ import {
   IconUsers,
   RoleAvatarIcon,
 } from './HospitalIcons';
+import useConfirmDialog from '../../../shared/hooks/useConfirmDialog';
+import { describeAvailability } from '../../staff/utils/availability';
 
 function mapAffiliationToCard(item) {
   const isPending = item.status === 'Pending';
   const roleLabel = item.staffRole === 'DOCTOR' ? 'Doctor' : 'Nurse';
-  const liveDuty = item.isOnDutyNow ? 'On duty' : 'No active shift';
+  const liveDuty =
+    String(item.dutyStatus || '').toLowerCase() === 'onbreak'
+      ? 'On break'
+      : item.isOnDutyNow
+        ? item.isClockedIn
+          ? 'Clocked in'
+          : 'On shift'
+        : 'Not on duty';
 
   return {
     id: item.affiliationId,
@@ -31,11 +40,13 @@ function mapAffiliationToCard(item) {
     status: isPending ? 'Pending Request' : liveDuty,
     photoUrl: item.staffProfilePhotoUrl || null,
     invitedAt: item.invitedAt,
+    // Only doctors split their week between hospitals.
+    availability: !isPending && item.staffRole === 'DOCTOR' ? describeAvailability(item) : '',
   };
 }
 
 export default function HospitalStaffTab() {
-  const [pageView, setPageView] = useState('directory'); // 'directory' | 'shifts' | 'covers'
+  const [confirm, confirmDialog] = useConfirmDialog();
   const [activeTab, setActiveTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -47,13 +58,9 @@ export default function HospitalStaffTab() {
   const [actionId, setActionId] = useState(null);
   const [sortBy] = useState('name');
   const [page, setPage] = useState(1);
-  const [pendingCoverCount, setPendingCoverCount] = useState(0);
   const pageSize = 6;
 
   const toastTimerRef = useRef(null);
-  const handlePendingCoverCount = useCallback((count) => {
-    setPendingCoverCount(Number(count) || 0);
-  }, []);
 
   const showToast = (message) => {
     setNotification(message);
@@ -84,40 +91,27 @@ export default function HospitalStaffTab() {
     loadStaff();
   }), [loadStaff]);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const data = await staffService.getHospitalShiftSwaps({ status: 'Pending', limit: 40 });
-        if (cancelled) return;
-        const list = Array.isArray(data) ? data : [];
-        setPendingCoverCount(
-          list.filter((r) => String(r.status || '').toLowerCase() === 'pending').length
-        );
-      } catch {
-        if (!cancelled) setPendingCoverCount(0);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   const handleSendRequest = async (registrationNumber) => {
     setIsSubmitting(true);
     try {
       const invited = await staffService.inviteStaff(registrationNumber);
       showToast(`Invitation sent to ${invited.staffName} (${invited.staffRegistrationNumber}).`);
       await loadStaff();
-    } catch (err) {
-      setError(err.message || 'Failed to send staff invitation.');
-      throw err;
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleCancelRequest = async (affiliationId) => {
+    const staff = staffList.find((s) => s.id === affiliationId);
+    const ok = await confirm({
+      title: 'Cancel invitation?',
+      message: `Cancel the pending invite for ${staff?.name || 'this staff member'}?`,
+      confirmLabel: 'Cancel invite',
+      destructive: true,
+    });
+    if (!ok) return;
+
     setActionId(affiliationId);
     try {
       await staffService.removeAffiliation(affiliationId);
@@ -131,10 +125,24 @@ export default function HospitalStaffTab() {
   };
 
   const handleRemoveStaff = async (affiliationId) => {
+    const staff = staffList.find((s) => s.id === affiliationId);
+    const ok = await confirm({
+      title: 'Remove staff?',
+      message: `Remove ${staff?.name || 'this staff member'} from the roster? Their upcoming shifts here will be freed for reassignment.`,
+      confirmLabel: 'Remove',
+      destructive: true,
+    });
+    if (!ok) return;
+
     setActionId(affiliationId);
     try {
-      await staffService.removeAffiliation(affiliationId);
-      showToast('Staff removed from roster.');
+      const result = await staffService.removeAffiliation(affiliationId);
+      const freed = Number(result?.freedShiftCount) || 0;
+      showToast(
+        freed > 0
+          ? `Staff removed. ${freed} upcoming shift${freed === 1 ? ' was' : 's were'} freed — reassign them in Shifts.`
+          : 'Staff removed from roster.'
+      );
       await loadStaff();
     } catch (err) {
       setError(err.message || 'Failed to remove staff.');
@@ -149,9 +157,11 @@ export default function HospitalStaffTab() {
       const matchesSearch = haystack.includes(searchQuery.toLowerCase());
 
       if (!matchesSearch) return false;
+      if (activeTab === 'pending') return staff.affiliationStatus === 'Pending';
+      // Directory views: active affiliations only
+      if (staff.affiliationStatus !== 'Active') return false;
       if (activeTab === 'doctors') return staff.role === 'Doctor';
       if (activeTab === 'nurses') return staff.role === 'Nurse';
-      if (activeTab === 'pending') return staff.affiliationStatus === 'Pending';
       return true;
     });
 
@@ -196,73 +206,45 @@ export default function HospitalStaffTab() {
             maxWidth: '1400px',
             width: '100%',
             marginBottom: '20px',
-            background: '#fef2f2',
-            color: '#b91c1c',
-            borderColor: '#fecaca',
+            background: 'var(--color-error-bg)',
+            color: 'var(--color-error)',
+            borderColor: 'var(--color-error-border)',
           }}
         >
           {error}
           <button
             type="button"
             onClick={() => setError('')}
-            style={{ marginLeft: '12px', background: 'none', border: 'none', cursor: 'pointer', color: '#b91c1c' }}
+            style={{ marginLeft: '12px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-error)' }}
           >
             Dismiss
           </button>
         </div>
       )}
 
-      <div className="hospital-hero-banner hospital-staff-hero">
-        <div className="hospital-staff-hero-inner">
-          <div className="hospital-hero-content">
-            <p className="hospital-hero-eyebrow">Staff management</p>
-            <h1>Hospital Medical Staff &amp; Doctors</h1>
-            <p className="hospital-hero-sub">
-              Manage affiliated doctors and nurses. Invite verified practitioners with their Vaxora ID.
-            </p>
-            <div className="hospital-staff-hero-tabs" role="tablist" aria-label="Staff views">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={pageView === 'directory'}
-                className={`hospital-staff-hero-tab ${pageView === 'directory' ? 'active' : ''}`}
-                onClick={() => setPageView('directory')}
-              >
-                Directory
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={pageView === 'shifts'}
-                className={`hospital-staff-hero-tab ${pageView === 'shifts' ? 'active' : ''}`}
-                onClick={() => setPageView('shifts')}
-              >
-                Shifts
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={pageView === 'covers'}
-                className={`hospital-staff-hero-tab ${pageView === 'covers' ? 'active' : ''}`}
-                onClick={() => setPageView('covers')}
-              >
-                Cover requests
-                {pendingCoverCount > 0 ? (
-                  <span className="hospital-staff-hero-tab-badge">{pendingCoverCount}</span>
-                ) : null}
-              </button>
-            </div>
-          </div>
-        </div>
-        <div className="hospital-hero-media" aria-hidden="true">
-          <img src={staffHeroImage} alt="" className="hospital-hero-image" />
-        </div>
-      </div>
+      <PortalHero
+        eyebrow="Staff management"
+        title="Medical staff"
+        subtitle={
+          activeTab === 'desk'
+            ? 'Create and remove the logins your reception staff use at the front desk.'
+            : 'Manage affiliated doctors and nurses, and invite verified practitioners by their Vaxora ID.'
+        }
+      >
+        <HeroTabs
+          label="Staff sections"
+          active={activeTab === 'pending' || activeTab === 'desk' ? activeTab : 'directory'}
+          onChange={(key) => setActiveTab(key === 'directory' ? 'all' : key)}
+          tabs={[
+            { key: 'directory', label: 'Directory' },
+            { key: 'pending', label: 'Pending invites', badge: pendingCount },
+            { key: 'desk', label: 'Front desk' },
+          ]}
+        />
+      </PortalHero>
 
-      {pageView === 'shifts' ? (
-        <HospitalShiftsPanel />
-      ) : pageView === 'covers' ? (
-        <HospitalCoverRequestsPanel onPendingCountChange={handlePendingCoverCount} />
+      {activeTab === 'desk' ? (
+        <DeskAccountsPanel />
       ) : (
       <>
       <div className="hospital-staff-toolbar">
@@ -285,7 +267,7 @@ export default function HospitalStaffTab() {
 
       <div className="hospital-metrics-grid hospital-metrics-grid--4" style={{ marginBottom: '24px' }}>
         <div className="hospital-stat-card">
-          <div className="hospital-stat-icon stat-icon-blue">
+          <div className="hospital-stat-icon stat-icon-slate">
             <IconUsers size={22} />
           </div>
           <div className="hospital-stat-info">
@@ -296,7 +278,7 @@ export default function HospitalStaffTab() {
         </div>
 
         <div className="hospital-stat-card">
-          <div className="hospital-stat-icon stat-icon-purple">
+          <div className="hospital-stat-icon stat-icon-blue">
             <IconDoctor size={22} />
           </div>
           <div className="hospital-stat-info">
@@ -307,7 +289,7 @@ export default function HospitalStaffTab() {
         </div>
 
         <div className="hospital-stat-card">
-          <div className="hospital-stat-icon stat-icon-teal">
+          <div className="hospital-stat-icon stat-icon-green">
             <IconNurse size={22} />
           </div>
           <div className="hospital-stat-info">
@@ -330,17 +312,18 @@ export default function HospitalStaffTab() {
       </div>
 
       <div className="hospital-staff-toolbar">
+        {activeTab !== 'pending' ? (
         <div className="hospital-staff-filters" role="group" aria-label="Filter staff by category">
           <button
             type="button"
             className={`hospital-nav-btn ${activeTab === 'all' ? 'active' : ''}`}
             onClick={() => setActiveTab('all')}
             style={{
-              background: activeTab === 'all' ? '#19469d' : '#ffffff',
-              border: '1px solid #cbd5e1',
+              background: activeTab === 'all' ? 'var(--color-primary)' : 'var(--color-surface)',
+              border: '1px solid var(--color-border-card)',
             }}
           >
-            All ({staffList.length})
+            All ({activeStaff.length})
           </button>
 
           <button
@@ -348,11 +331,11 @@ export default function HospitalStaffTab() {
             className={`hospital-nav-btn ${activeTab === 'doctors' ? 'active' : ''}`}
             onClick={() => setActiveTab('doctors')}
             style={{
-              background: activeTab === 'doctors' ? '#19469d' : '#ffffff',
-              border: '1px solid #cbd5e1',
+              background: activeTab === 'doctors' ? 'var(--color-primary)' : 'var(--color-surface)',
+              border: '1px solid var(--color-border-card)',
             }}
           >
-            Doctors ({staffList.filter((s) => s.role === 'Doctor').length})
+            Doctors ({doctorsCount})
           </button>
 
           <button
@@ -360,25 +343,16 @@ export default function HospitalStaffTab() {
             className={`hospital-nav-btn ${activeTab === 'nurses' ? 'active' : ''}`}
             onClick={() => setActiveTab('nurses')}
             style={{
-              background: activeTab === 'nurses' ? '#19469d' : '#ffffff',
-              border: '1px solid #cbd5e1',
+              background: activeTab === 'nurses' ? 'var(--color-primary)' : 'var(--color-surface)',
+              border: '1px solid var(--color-border-card)',
             }}
           >
-            Nurses ({staffList.filter((s) => s.role === 'Nurse').length})
-          </button>
-
-          <button
-            type="button"
-            className={`hospital-nav-btn ${activeTab === 'pending' ? 'active' : ''}`}
-            onClick={() => setActiveTab('pending')}
-            style={{
-              background: activeTab === 'pending' ? '#19469d' : '#ffffff',
-              border: '1px solid #cbd5e1',
-            }}
-          >
-            Pending ({pendingCount})
+            Nurses ({nursesCount})
           </button>
         </div>
+        ) : (
+          <div className="hospital-staff-filters" aria-hidden="true" />
+        )}
 
         <input
           aria-label="Search staff directory"
@@ -393,15 +367,15 @@ export default function HospitalStaffTab() {
       <div className="booths-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))' }}>
         {loading ? (
           <div
-            className="hospital-section-card"
-            style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px', color: '#64748b' }}
+            className="hospital-section-card empty-state-text"
+            style={{ gridColumn: '1 / -1' }}
           >
             Loading staff directory...
           </div>
         ) : filteredStaff.length === 0 ? (
           <div
-            className="hospital-section-card"
-            style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px', color: '#64748b' }}
+            className="hospital-section-card empty-state-text"
+            style={{ gridColumn: '1 / -1' }}
           >
             {staffList.length === 0
               ? 'No staff yet. Invite an approved doctor or nurse with their Vaxora ID to get started.'
@@ -413,11 +387,13 @@ export default function HospitalStaffTab() {
               key={staff.id}
               className="booth-card"
               style={{
+                // Top stripe and role tag follow the role colour, as on the roster
+                '--tone': staff.role === 'Doctor' ? 'var(--color-role-doctor)' : 'var(--color-success)',
                 padding: '22px',
                 border:
                   staff.affiliationStatus === 'Pending'
-                    ? '1px solid rgba(245, 158, 11, 0.45)'
-                    : '1px solid rgba(21, 42, 85, 0.18)',
+                    ? '1px solid var(--color-warning-border)'
+                    : '1px solid rgba(var(--rgb-primary-dark), 0.18)',
               }}
             >
               <div className="booth-card-header">
@@ -425,9 +401,9 @@ export default function HospitalStaffTab() {
                   <span
                     className="booth-number-tag"
                     style={{
-                      background: staff.role === 'Doctor' ? '#19469d' : '#0f766e',
-                      color: '#ffffff',
-                      borderColor: staff.role === 'Doctor' ? '#153a82' : '#0b5f59',
+                      background: staff.role === 'Doctor' ? 'var(--color-role-doctor)' : 'var(--color-success)',
+                      color: 'var(--color-text-inverse)',
+                      borderColor: staff.role === 'Doctor' ? 'var(--color-role-doctor)' : 'var(--color-success)',
                     }}
                   >
                     {staff.role}
@@ -436,12 +412,12 @@ export default function HospitalStaffTab() {
                     style={{
                       fontFamily: 'var(--font-heading)',
                       fontWeight: 700,
-                      fontSize: '0.78rem',
-                      background: '#eff6ff',
-                      color: '#1e40af',
+                      fontSize: '0.75rem',
+                      background: 'var(--color-info-bg)',
+                      color: 'var(--color-primary)',
                       padding: '2px 8px',
                       borderRadius: '4px',
-                      border: '1px solid #bfdbfe',
+                      border: '1px solid var(--color-info-border)',
                     }}
                   >
                     {staff.vaxoraId}
@@ -455,23 +431,23 @@ export default function HospitalStaffTab() {
                       width: '6px',
                       height: '6px',
                       background:
-                        staff.status === 'On duty'
-                          ? '#22c55e'
+                        staff.isOnDutyNow
+                          ? 'var(--color-success)'
                           : staff.affiliationStatus === 'Pending'
-                            ? '#f59e0b'
-                            : '#94a3b8',
+                            ? 'var(--color-warning)'
+                            : 'var(--color-text-placeholder)',
                     }}
                   />
                   <span
                     style={{
                       color:
-                        staff.status === 'On duty'
-                          ? '#15803d'
+                        staff.isOnDutyNow
+                          ? 'var(--color-success)'
                           : staff.affiliationStatus === 'Pending'
-                            ? '#b45309'
-                            : '#64748b',
+                            ? 'var(--color-warning)'
+                            : 'var(--color-text-muted)',
                       fontWeight: 700,
-                      fontSize: '0.78rem',
+                      fontSize: '0.75rem',
                     }}
                   >
                     {staff.status}
@@ -479,10 +455,10 @@ export default function HospitalStaffTab() {
                 </div>
               </div>
 
-              <div className="booth-staff-info" style={{ padding: '14px', background: '#f8fafc' }}>
+              <div className="booth-staff-info" style={{ padding: '14px', background: 'var(--color-bg)' }}>
                 <div
                   className="staff-avatar-mini"
-                  style={{ width: '50px', height: '50px', background: '#e2e8f0', color: '#475569', overflow: 'hidden' }}
+                  style={{ width: '50px', height: '50px', background: 'var(--color-soft-panel-deep)', color: 'var(--color-text-body)', overflow: 'hidden' }}
                 >
                   {staff.photoUrl ? (
                     <img
@@ -495,15 +471,20 @@ export default function HospitalStaffTab() {
                   )}
                 </div>
                 <div className="staff-text-group" style={{ gap: '2px' }}>
-                  <span className="staff-name" style={{ fontSize: '1.08rem' }}>
+                  <span className="staff-name" style={{ fontSize: '1.125rem' }}>
                     {staff.name}
                   </span>
-                  <span className="staff-role-desc" style={{ color: '#2563eb', fontWeight: 600 }}>
+                  <span className="staff-role-desc" style={{ color: 'var(--color-primary)', fontWeight: 600 }}>
                     {staff.specialty}
                   </span>
-                  <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
                     {staff.email}
                   </span>
+                  {staff.availability ? (
+                    <span style={{ fontSize: '0.75rem', color: 'var(--color-text-body)', overflowWrap: 'anywhere' }}>
+                      {staff.availability}
+                    </span>
+                  ) : null}
                 </div>
               </div>
 
@@ -516,30 +497,33 @@ export default function HospitalStaffTab() {
                     style={{
                       background: 'none',
                       border: 'none',
-                      color: '#dc2626',
+                      color: 'var(--color-error)',
                       fontWeight: 600,
-                      fontSize: '0.78rem',
+                      fontSize: '0.75rem',
                       cursor: 'pointer',
                     }}
                   >
                     {actionId === staff.id ? 'Cancelling...' : 'Cancel Request'}
                   </button>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveStaff(staff.id)}
-                    disabled={actionId === staff.id}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: '#dc2626',
-                      fontWeight: 600,
-                      fontSize: '0.78rem',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {actionId === staff.id ? 'Removing...' : 'Remove'}
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveStaff(staff.id)}
+                      disabled={actionId === staff.id}
+                      title="Their upcoming shifts here will be freed for reassignment"
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--color-error)',
+                        fontWeight: 600,
+                        fontSize: '0.75rem',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {actionId === staff.id ? 'Removing...' : 'Remove'}
+                    </button>
+                  </>
                 )}
               </div>
             </div>
@@ -560,7 +544,7 @@ export default function HospitalStaffTab() {
           >
             Previous
           </button>
-          <span style={{ color: '#64748b', fontSize: '0.85rem' }}>
+          <span style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>
             Page {page} of {pageCount}
           </span>
           <button
@@ -573,6 +557,9 @@ export default function HospitalStaffTab() {
           </button>
         </div>
       )}
+      </>
+
+      )}
 
       <AddStaffRequestModal
         isOpen={isModalOpen}
@@ -580,8 +567,7 @@ export default function HospitalStaffTab() {
         onSendRequest={handleSendRequest}
         isSubmitting={isSubmitting}
       />
-      </>
-      )}
+      {confirmDialog}
     </div>
   );
 }

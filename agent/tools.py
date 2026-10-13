@@ -270,6 +270,38 @@ def _clean_slot_string(slot_str: Any) -> str:
         return m.group(1)
     return s
 
+# Appointments in these states can no longer be cancelled by the patient.
+NON_CANCELLABLE_STATUSES = {"cancelled", "completed", "rejected", "administering", "observation"}
+
+def _cancellable_appointments(appointments: Any) -> List[Dict[str, Any]]:
+    """Active, upcoming appointments (soonest first) that a patient may still cancel."""
+    today_str = _hospital_today()
+    result = []
+    for a in (appointments if isinstance(appointments, list) else []):
+        if not isinstance(a, dict):
+            continue
+        if str(a.get("status", "")).strip().lower() in NON_CANCELLABLE_STATUSES:
+            continue
+        apt_date = _clean_date_string(a.get("appointmentDate"))
+        if re.match(r'^\d{4}-\d{2}-\d{2}$', apt_date) and apt_date < today_str:
+            continue
+        result.append(a)
+    return sorted(result, key=lambda a: _clean_date_string(a.get("appointmentDate")) or "9999-12-31")
+
+def _appointment_matches(appointment: Dict[str, Any], term: str) -> bool:
+    term = term.lower().strip()
+    if not term:
+        return False
+    a_id = str(appointment.get("id", "")).lower()
+    return (
+        term == a_id
+        or (len(term) >= 4 and a_id.startswith(term))
+        or term in str(appointment.get("referenceNumber", "")).lower()
+        or term in str(appointment.get("vaccineName", "")).lower()
+        or term in str(appointment.get("appointmentDate", "")).lower()
+        or term in str(appointment.get("hospitalName", "")).lower()
+    )
+
 async def api_get(endpoint: str, token: Optional[str] = None, params: Optional[Dict[str, Any]] = None) -> Any:
     headers = {"Content-Type": "application/json"}
     if token:
@@ -388,17 +420,27 @@ async def _resolve_hospital_and_vaccine(hospital_id_or_name: Optional[str], vacc
 
         h_input = (hospital_id_or_name or "").lower().strip()
         # Clean sluggy terms like "hospital-royal" -> ["royal"]
-        h_tokens = [t for t in re.split(r'[\s\-_]+', h_input) if t and t not in ("hospital", "hospitals", "clinic", "center")]
+        generic_words = ("hospital", "hospitals", "clinic", "center")
+        h_tokens = [t for t in re.split(r'[\s\-_]+', h_input) if t and t not in generic_words]
 
+        # The closest name wins, not the first one listed: an exact name, then the most
+        # shared words, then the fewest extra words. "Lakeside General" must not land on
+        # "General Hospital" because both contain "general".
         matched_hid = None
+        best_score = None
         for kh in known_hospitals:
-            kh_name = kh["name"].lower()
-            if h_input and (h_input in kh_name or kh_name in h_input):
+            kh_name = kh["name"].lower().strip()
+            if not h_input or not kh_name:
+                continue
+            name_tokens = [t for t in re.split(r'[\s\-_]+', kh_name) if t and t not in generic_words]
+            shared = sum(1 for t in h_tokens if t in kh_name)
+            if not shared and not (h_input in kh_name or kh_name in h_input):
+                continue
+            extra = sum(1 for t in name_tokens if t not in h_input)
+            score = (h_input == kh_name, shared, -extra)
+            if best_score is None or score > best_score:
+                best_score = score
                 matched_hid = kh["userId"]
-                break
-            if h_tokens and any(t in kh_name for t in h_tokens):
-                matched_hid = kh["userId"]
-                break
 
         # If still not matched, check if a hospital offers the matched vaccine
         if not matched_hid and resolved_vaccine_name:
@@ -483,6 +525,14 @@ async def tool_get_available_vaccines_and_hospitals(token: Optional[str] = None)
     except Exception as e:
         return {"success": False, "error": str(e)}
 
+async def tool_get_bookable_sessions(token: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Active clinic sessions patients can book, one entry per hospital and vaccine schedule."""
+    try:
+        sessions = await api_get("/schedule/available", token=token)
+        return sessions if isinstance(sessions, list) else []
+    except Exception:
+        return []
+
 async def tool_get_current_date_time(token: Optional[str] = None) -> Dict[str, Any]:
     """Retrieve today's date, current day of week, month, year, time, and 14-day upcoming calendar in Vaxora."""
     return {
@@ -560,6 +610,30 @@ async def tool_get_available_slots(hospital_user_id: str, vaccine_name: str, dat
     except Exception as e:
         return {"success": False, "error": str(e)}
 
+# Most dates checked for a free slot at one hospital before giving up.
+MAX_DATES_SCANNED = 14
+
+
+async def _find_open_slots(hospital_user_id: str, vaccine_name: str, preferred_date: Optional[str], token: Optional[str]):
+    """
+    Earliest date with a free slot at one hospital, starting from the patient's preferred date.
+    Returns (has_sessions, date, open_slots); date is None when nothing is free.
+    """
+    params = {"hospitalUserId": hospital_user_id, "vaccineName": vaccine_name}
+    dates_res = await api_get("/appointments/available-dates", token=token, params=params)
+    if not dates_res or not isinstance(dates_res, list):
+        return False, None, []
+
+    selected = _resolve_preferred_date(preferred_date, dates_res) or dates_res[0].get("date")
+    ordered = [selected] + [d.get("date") for d in dates_res if d.get("date") != selected]
+    for day in ordered[:MAX_DATES_SCANNED]:
+        slots_res = await api_get("/appointments/available-slots", token=token, params={**params, "date": day})
+        open_slots = [s for s in (slots_res if isinstance(slots_res, list) else []) if not s.get("isBooked")]
+        if open_slots:
+            return True, day, open_slots
+    return True, None, []
+
+
 async def tool_autonomous_find_and_propose(
     vaccine_name: str,
     hospital_name_or_id: Optional[str] = None,
@@ -577,29 +651,48 @@ async def tool_autonomous_find_and_propose(
         # 1. Resolve hospital and vaccine name
         hid, vname = await _resolve_hospital_and_vaccine(hospital_name_or_id, vaccine_name, token=token)
 
-        # 2. Get schedule details for hospital name and price.
-        hospital_name = "Hospital Center"
-        schedule_id = None
-        vaccine_id = None
-        price = 0.0
-        formatted_price = "Free (0 LKR)"
-        is_free = True
-
+        # 2. Hospitals that run a session for this vaccine, with their name and price.
         try:
             schedules = await api_get("/schedule/available", token=token)
-            for s in schedules:
-                s_huid = str(s.get("hospitalUserId") or "").lower()
-                s_vname = str(s.get("vaccineName") or "").strip().lower()
-                if (s_huid == str(hid).lower() or not hid) and (s_vname == vname.lower() or s_vname in vname.lower() or vname.lower() in s_vname):
-                    hospital_name = s.get("hospitalName") or hospital_name
-                    schedule_id = s.get("id")
-                    vaccine_id = s.get("vaccineId")
-                    price = float(s.get("price") or 0.0)
-                    formatted_price = s.get("formattedPrice") or (f"LKR {price:,.2f}" if price > 0 else "Free (0 LKR)")
-                    is_free = price <= 0
-                    break
         except Exception:
-            pass
+            schedules = []
+        sessions: Dict[str, Dict[str, Any]] = {}
+        for s in (schedules if isinstance(schedules, list) else []):
+            s_huid = str(s.get("hospitalUserId") or "").lower()
+            s_vname = str(s.get("vaccineName") or "").strip().lower()
+            if s_huid and s_vname and (s_vname == vname.lower() or s_vname in vname.lower() or vname.lower() in s_vname):
+                sessions.setdefault(s_huid, s)
+
+        # A named hospital is searched on its own. With no hospital named, every hospital
+        # running the vaccine is searched and the earliest open slot wins.
+        hospital_named = bool(str(hospital_name_or_id or "").strip())
+        if hospital_named or not sessions:
+            candidates = [hid]
+        else:
+            candidates = [s.get("hospitalUserId") for s in sessions.values()]
+
+        # 3. Earliest date with a free slot across the candidates
+        best = None
+        any_dates = False
+        for candidate in candidates:
+            has_dates, found_date, found_slots = await _find_open_slots(candidate, vname, preferred_date, token)
+            any_dates = any_dates or has_dates
+            if not found_slots:
+                continue
+            rank = (found_date, found_slots[0].get("startTime") or "")
+            if best is None or rank < best[0]:
+                best = (rank, candidate, found_date, found_slots)
+
+        if best:
+            _, hid, selected_date, open_slots = best
+
+        session = sessions.get(str(hid).lower()) or {}
+        hospital_name = session.get("hospitalName") or "Hospital Center"
+        schedule_id = session.get("id")
+        vaccine_id = session.get("vaccineId")
+        price = float(session.get("price") or 0.0)
+        formatted_price = session.get("formattedPrice") or (f"LKR {price:,.2f}" if price > 0 else "Free (0 LKR)")
+        is_free = price <= 0
 
         if hospital_name == "Hospital Center":
             try:
@@ -612,38 +705,21 @@ async def tool_autonomous_find_and_propose(
             except Exception:
                 pass
 
-        # 3. Retrieve available clinic dates
-        dates_res = await api_get("/appointments/available-dates", token=token, params={"hospitalUserId": hid, "vaccineName": vname})
-        if not dates_res or not isinstance(dates_res, list) or len(dates_res) == 0:
+        if not best:
+            # Point the patient at hospitals that do run this vaccine.
+            others = sorted({
+                s.get("hospitalName") for key, s in sessions.items()
+                if key != str(hid).lower() and s.get("hospitalName")
+            })
+            elsewhere = f" Other hospitals running {vname}: {', '.join(others)}." if others else ""
+            if not any_dates:
+                return {
+                    "success": False,
+                    "error": f"No clinic sessions found for {vname} at {hospital_name}. Please choose another vaccine or hospital.{elsewhere}"
+                }
             return {
                 "success": False,
-                "error": f"No clinic sessions found for {vname} at {hospital_name}. Please choose another vaccine or hospital."
-            }
-
-        # Select date matching preference using intelligent calendar and month resolver
-        selected_date = _resolve_preferred_date(preferred_date, dates_res)
-        if not selected_date:
-            # Default to the earliest available date
-            selected_date = dates_res[0].get("date")
-
-        # 4. Fetch available slots for this date
-        slots_res = await api_get("/appointments/available-slots", token=token, params={"hospitalUserId": hid, "vaccineName": vname, "date": selected_date})
-        open_slots = [s for s in (slots_res if isinstance(slots_res, list) else []) if not s.get("isBooked")]
-
-        # If no open slots on chosen date, try next available dates
-        if not open_slots:
-            for next_d in dates_res:
-                if next_d.get("date") != selected_date:
-                    next_slots = await api_get("/appointments/available-slots", token=token, params={"hospitalUserId": hid, "vaccineName": vname, "date": next_d.get("date")})
-                    open_slots = [s for s in (next_slots if isinstance(next_slots, list) else []) if not s.get("isBooked")]
-                    if open_slots:
-                        selected_date = next_d.get("date")
-                        break
-
-        if not open_slots:
-            return {
-                "success": False,
-                "error": f"All slots are currently booked for {vname} at {hospital_name} across upcoming dates."
+                "error": f"All slots are currently booked for {vname} at {hospital_name} across upcoming dates.{elsewhere}"
             }
 
         # Pick slot matching user time preference
@@ -734,7 +810,11 @@ async def tool_book_appointment(
             pass
 
         # Determine payment method based on schedule pricing
-        if schedule_price > 0 or payment_method.lower() in ("payhere", "paid", "online"):
+        pay_at_desk = (payment_method or "").lower() in ("hospital", "desk", "pay_on_the_day")
+        if pay_at_desk and schedule_price > 0:
+            # Patient pays at the hospital desk on the day; no online checkout.
+            resolved_payment_method = "Hospital"
+        elif schedule_price > 0 or (payment_method or "").lower() in ("payhere", "paid", "online"):
             resolved_payment_method = "PayHere"
         else:
             resolved_payment_method = "Free"
@@ -760,7 +840,8 @@ async def tool_book_appointment(
         fee = float(res.get("fee") or schedule_price or 0.0)
         is_free = fee <= 0 and res.get("status") != "PendingPayment"
 
-        if not is_free or res.get("status") == "PendingPayment" or fee > 0:
+        booked_at_desk = str(res.get("paymentMethod") or "").lower() == "hospital"
+        if not booked_at_desk and (not is_free or res.get("status") == "PendingPayment" or fee > 0):
             try:
                 payhere_payload = await api_post("/payment/payhere-init", data={"appointmentId": appointment_id}, token=token)
             except Exception as pe:
@@ -771,6 +852,7 @@ async def tool_book_appointment(
             "appointment": res,
             "payhere_payload": payhere_payload,
             "is_free": is_free,
+            "pay_at_desk": booked_at_desk,
             "fee": fee
         }
     except Exception as e:
@@ -792,8 +874,9 @@ async def tool_cancel_appointment(appointment_id: Optional[str] = None, token: O
         try:
             patient_appts = await api_get("/appointments/patient", token=token)
         except Exception as ex_fetch:
-            # If fetching fails, still attempt direct delete if an ID is present
-            if appointment_id:
+            # Without the patient's list we can only act on an exact appointment GUID;
+            # the API still enforces ownership and cancellation rules.
+            if _is_valid_uuid(appointment_id):
                 data = await api_delete(f"/appointments/{appointment_id.strip()}/cancel", token=token)
                 return {"success": True, "result": data, "message": f"Appointment {appointment_id} cancelled."}
             raise ex_fetch
@@ -804,50 +887,20 @@ async def tool_cancel_appointment(appointment_id: Optional[str] = None, token: O
         target_input = (appointment_id or "").strip()
         lower_input = target_input.lower()
 
-        # Filter candidates: non-cancelled
-        active_appts = [
-            a for a in patient_appts 
-            if str(a.get("status", "")).lower() != "cancelled"
-        ]
+        active_appts = _cancellable_appointments(patient_appts)
 
         if not active_appts:
             return {"success": False, "error": "No active upcoming appointments found to cancel."}
-
-        to_cancel = []
 
         if not target_input or lower_input in ("latest", "upcoming", "my appointment", "appointment"):
             to_cancel = [active_appts[0]]
         elif lower_input in ("all", "everything", "all appointments", "all bookings"):
             to_cancel = active_appts
         else:
-            for a in active_appts:
-                a_id = str(a.get("id", "")).lower()
-                a_ref = str(a.get("referenceNumber", "")).lower()
-                a_vaccine = str(a.get("vaccineName", "")).lower()
-                a_date = str(a.get("appointmentDate", "")).lower()
-                a_hospital = str(a.get("hospitalName", "")).lower()
-
-                if (
-                    lower_input == a_id or
-                    (len(lower_input) >= 4 and a_id.startswith(lower_input)) or
-                    (a_ref and lower_input in a_ref) or
-                    (lower_input in a_vaccine) or
-                    (lower_input in a_date) or
-                    (lower_input in a_hospital)
-                ):
-                    to_cancel.append(a)
-
-            if not to_cancel:
-                for a in patient_appts:
-                    a_id = str(a.get("id", "")).lower()
-                    if lower_input in a_id:
-                        to_cancel.append(a)
+            to_cancel = [a for a in active_appts if _appointment_matches(a, lower_input)]
 
         if not to_cancel:
-            if target_input:
-                data = await api_delete(f"/appointments/{target_input}/cancel", token=token)
-                return {"success": True, "result": data, "message": f"Appointment {target_input} cancelled."}
-            return {"success": False, "error": f"Could not find an active appointment matching '{target_input}'."}
+            return {"success": False, "error": f"Could not find an active upcoming appointment matching '{target_input}'."}
 
         cancelled_items = []
         for apt in to_cancel:
@@ -884,45 +937,52 @@ async def tool_propose_cancellation_for_approval(
     """Prepares an appointment cancellation card for explicit patient approval BEFORE executing cancellation."""
     target_apt = None
     active_appts = []
+    search_terms = []
     try:
         if token:
             patient_appts = await api_get("/appointments/patient", token=token)
-            if isinstance(patient_appts, list):
-                active_appts = [a for a in patient_appts if str(a.get("status", "")).lower() != "cancelled"]
-                
-                # Check target criteria
-                search_terms = []
-                if appointment_id and appointment_id.lower() not in ("latest", "all", "none"):
-                    search_terms.append(appointment_id.lower().strip())
-                if vaccine_name:
-                    search_terms.append(vaccine_name.lower().strip())
-                if appointment_date:
-                    search_terms.append(appointment_date.strip())
+            active_appts = _cancellable_appointments(patient_appts)
 
-                if search_terms:
-                    for a in active_appts:
-                        a_id = str(a.get("id", "")).lower()
-                        a_ref = str(a.get("referenceNumber", "")).lower()
-                        a_vac = str(a.get("vaccineName", "")).lower()
-                        a_date = str(a.get("appointmentDate", "")).lower()
-                        
-                        for st in search_terms:
-                            if st in a_id or st in a_ref or st in a_vac or st in a_date:
-                                target_apt = a
-                                break
-                        if target_apt:
-                            break
+            if appointment_id and appointment_id.lower().strip() not in ("latest", "upcoming", "all", "none"):
+                search_terms.append(appointment_id)
+            if vaccine_name:
+                search_terms.append(vaccine_name)
+            if appointment_date:
+                search_terms.append(_clean_date_string(appointment_date))
 
-                # Fallback to latest/first active appointment if not specifically matched
-                if not target_apt and active_appts:
-                    target_apt = active_appts[0]
+            if search_terms:
+                # Pick the appointment matching the most criteria; never fall back
+                # to an unrelated appointment when nothing matches.
+                best_score = 0
+                for a in active_appts:
+                    score = sum(1 for st in search_terms if _appointment_matches(a, st))
+                    if score > best_score:
+                        best_score, target_apt = score, a
+            elif active_appts:
+                target_apt = active_appts[0]
     except Exception:
         pass
 
-    if token and not target_apt and not active_appts:
+    if token and not active_appts:
         return {
             "success": False,
             "error": "No active upcoming appointments found to cancel."
+        }
+
+    if token and not target_apt:
+        return {
+            "success": False,
+            "error": "No active upcoming appointment matches that request. Ask the patient which appointment to cancel.",
+            "active_appointments": [
+                {
+                    "id": a.get("id"),
+                    "vaccineName": a.get("vaccineName"),
+                    "hospitalName": a.get("hospitalName"),
+                    "appointmentDate": a.get("appointmentDate"),
+                    "timeSlot": a.get("timeSlot"),
+                }
+                for a in active_appts
+            ],
         }
 
     resolved_id = target_apt.get("id") if target_apt else (appointment_id or "")
@@ -987,7 +1047,7 @@ TOOLS_SCHEMA = [
                     },
                     "hospital_name_or_id": {
                         "type": "string",
-                        "description": "Optional hospital name or GUID if specified by user (e.g. 'Royal Hospitals'). If omitted, optimal hospital is chosen automatically."
+                        "description": "Hospital name or GUID, ONLY when the patient named a hospital (e.g. 'Royal Hospitals'). Leave it out otherwise: every hospital running the vaccine is then searched for the earliest open slot. Never guess a hospital."
                     },
                     "preferred_date": {
                         "type": "string",
@@ -1092,7 +1152,7 @@ TOOLS_SCHEMA = [
                     "appointment_date": {"type": "string", "description": "Date in 'YYYY-MM-DD' format"},
                     "time_slot": {"type": "string", "description": "Time slot string"},
                     "notes": {"type": "string", "description": "Any special notes"},
-                    "payment_method": {"type": "string", "description": "'Free' or 'PayHere'"},
+                    "payment_method": {"type": "string", "description": "'Free', 'PayHere', or 'Hospital' when the patient will pay at the hospital desk on the day"},
                     "vaccine_id": {"type": "string", "description": "Vaccine GUID"},
                     "vaccine_schedule_id": {"type": "string", "description": "Schedule GUID"}
                 },

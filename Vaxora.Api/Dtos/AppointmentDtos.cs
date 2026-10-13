@@ -53,7 +53,7 @@ public class BookAppointmentRequestDto
 
     public string? Notes { get; set; }
 
-    public string PaymentMethod { get; set; } = "Free"; // "Free", "PayHere"
+    public string PaymentMethod { get; set; } = "Free"; // "Free", "PayHere", "Hospital" (pay at the desk on the day)
 }
 
 public class AppointmentResponseDto
@@ -62,6 +62,7 @@ public class AppointmentResponseDto
     public Guid? PatientUserId { get; set; }
     public Guid? PatientProfileId { get; set; }
     public string PatientName { get; set; } = string.Empty;
+    public string? PatientProfilePhotoUrl { get; set; }
     public string? PatientNic { get; set; }
     public string? PatientPhone { get; set; }
     public string? PatientEmail { get; set; }
@@ -88,6 +89,12 @@ public class AppointmentResponseDto
     public Guid? PrescribedByDoctorUserId { get; set; }
     public string? PrescribedByDoctorName { get; set; }
     public DateTime? DosageUpdatedAt { get; set; }
+    public DateTime? CheckedInAt { get; set; }
+    /// <summary>Doctor or nurse running the current clinical session (Administering or Observation).</summary>
+    public Guid? SessionStaffUserId { get; set; }
+    public string? SessionStaffName { get; set; }
+    /// <summary>Walk-in registration matched the patient's existing booking for today (checked in, not duplicated).</summary>
+    public bool MatchedExistingBooking { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
 }
@@ -99,6 +106,7 @@ public class StaffAppointmentPatientContactDto
     public string? PatientNic { get; set; }
     public string? PatientPhone { get; set; }
     public string? PatientEmail { get; set; }
+    public string? PatientProfilePhotoUrl { get; set; }
 }
 
 public class UpdateAppointmentStatusDto
@@ -110,6 +118,12 @@ public class UpdateAppointmentStatusDto
     public string Status { get; set; } = "Confirmed";
 
     public string? Remarks { get; set; }
+
+    /// <summary>
+    /// Take over a colleague's live session: keeps the current status and makes the caller
+    /// the session owner. Status must equal the appointment's current status.
+    /// </summary>
+    public bool? TakeOver { get; set; }
 
     /// <summary>
     /// Optional clinical administration details used when moving to Observation/Completed.
@@ -133,6 +147,9 @@ public class UpdateAppointmentStatusDto
     public bool? ConsentConfirmed { get; set; }
 
     public bool? VitalsConfirmed { get; set; }
+
+    /// <summary>Administering staff confirm the doctor's prescribed dose before giving it.</summary>
+    public bool? DoseConfirmed { get; set; }
 }
 
 public class CreateWalkInAppointmentDto

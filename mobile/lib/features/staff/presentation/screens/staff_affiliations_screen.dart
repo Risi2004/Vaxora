@@ -86,84 +86,15 @@ class _StaffAffiliationsScreenState extends State<StaffAffiliationsScreen> {
   }
 
   Future<void> _confirmReject(AffiliationModel item) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      barrierColor: StaffSurfaces.textPrimary.withValues(alpha: 0.35),
-      builder: (ctx) => Dialog(
-        backgroundColor: StaffSurfaces.appBarBg,
-        surfaceTintColor: Colors.transparent,
-        elevation: 0,
-        insetPadding: const EdgeInsets.symmetric(horizontal: 28),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(18),
-          side: const BorderSide(color: StaffSurfaces.cardBorder),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text(
-                'Reject invitation?',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: StaffSurfaces.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Decline the invitation from ${item.hospitalName}? You can be invited again later.',
-                style: const TextStyle(
-                  color: StaffSurfaces.textSecondary,
-                  height: 1.4,
-                  fontSize: 13.5,
-                ),
-              ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextButton(
-                      onPressed: () => Navigator.of(ctx).pop(false),
-                      style: TextButton.styleFrom(
-                        foregroundColor: StaffSurfaces.textSecondary,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                      child: const Text(
-                        'Cancel',
-                        style: TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: FilledButton(
-                      onPressed: () => Navigator.of(ctx).pop(true),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: AppColors.error,
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                      child: const Text(
-                        'Reject',
-                        style: TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
+    final confirmed = await confirmAction(
+      context,
+      title: 'Reject invitation?',
+      message:
+          'Decline the invitation from ${item.hospitalName}? You can be invited again later.',
+      confirmLabel: 'Reject',
+      destructive: true,
     );
-    if (confirmed == true) {
+    if (confirmed) {
       await _respond(item, 'Reject');
     }
   }
@@ -253,7 +184,7 @@ class _StaffAffiliationsScreenState extends State<StaffAffiliationsScreen> {
                   value: '${_invitations.length}',
                   icon: Icons.mark_email_unread_outlined,
                   accent: _invitations.isNotEmpty
-                      ? const Color(0xFFB2660A)
+                      ? AppColors.warning
                       : AppColors.success,
                 ),
               ],
@@ -351,7 +282,7 @@ class _InvitationCard extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: StaffSurfaces.card(borderColor: const Color(0xFFF5B168)),
+      decoration: StaffSurfaces.card(borderColor: AppColors.warningBorder),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -483,7 +414,7 @@ class _AffiliationCard extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           StaffStatusChip(
-            label: item.isOnDutyNow ? 'On duty' : 'No active shift',
+            label: item.dutyLabel,
             tone: item.isOnDutyNow
                 ? StaffChipTone.success
                 : StaffChipTone.neutral,

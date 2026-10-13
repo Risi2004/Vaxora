@@ -1,5 +1,6 @@
 import { deferEffectCallback } from "../../../shared/utils/deferEffectCallback.js";
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
+import { hospitalToday } from "../../hospital/utils/hospitalDate";
 import clinicalPatientService from "../services/clinicalPatientService";
 import staffAppointmentService from "../../staff/services/staffAppointmentService";
 import {
@@ -11,6 +12,7 @@ import {
 import StaffSubpageHeader from "../../staff/components/StaffSubpageHeader";
 import AddMedicalHistoryModal from "./AddMedicalHistoryModal";
 import RecordVisitModal from "./RecordVisitModal";
+import useConfirmDialog from "../../../shared/hooks/useConfirmDialog";
 
 function mapPatientDetail(detail) {
   if (!detail) return null;
@@ -44,14 +46,10 @@ function mapPatientDetail(detail) {
   };
 }
 
+/** Compared against the hospital's calendar day, like the API does. */
 function isPastDate(dateStr) {
   if (!dateStr) return false;
-  const day = String(dateStr).slice(0, 10);
-  const today = new Date();
-  const y = today.getFullYear();
-  const m = String(today.getMonth() + 1).padStart(2, "0");
-  const d = String(today.getDate()).padStart(2, "0");
-  return day < `${y}-${m}-${d}`;
+  return String(dateStr).slice(0, 10) < hospitalToday();
 }
 
 function statusPill(status, { overdue = false } = {}) {
@@ -102,16 +100,16 @@ function MedicalHistoryRow({ record }) {
     <tr key={record.id}>
       <td>
         <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-          <strong style={{ color: "#1e1b4b", fontSize: "0.9rem" }}>
+          <strong style={{ color: "var(--color-text-title)", fontSize: "0.875rem" }}>
             {record.title}
           </strong>
           {hasDesc && (
-            <span style={{ fontSize: "0.78rem", color: "#64748b" }}>
+            <span style={{ fontSize: "0.75rem", color: "var(--color-text-muted)" }}>
               {hasDesc}
             </span>
           )}
           {hasIcd && (
-            <span style={{ fontSize: "0.72rem", color: "#94a3b8" }}>
+            <span style={{ fontSize: "0.75rem", color: "var(--color-text-placeholder)" }}>
               ICD-10: {hasIcd}
             </span>
           )}
@@ -128,7 +126,7 @@ function MedicalHistoryRow({ record }) {
           {record.status || "—"}
         </span>
       </td>
-      <td style={{ fontSize: "0.82rem", color: "#64748b" }}>
+      <td style={{ fontSize: "0.8125rem", color: "var(--color-text-muted)" }}>
         {record.recordedByName || "—"}
       </td>
     </tr>
@@ -136,6 +134,7 @@ function MedicalHistoryRow({ record }) {
 }
 
 export default function DoctorPatientsTab() {
+  const [confirm, confirmDialog] = useConfirmDialog();
   const [searchQuery, setSearchQuery] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
@@ -330,13 +329,13 @@ export default function DoctorPatientsTab() {
 
   const handleMarkMissed = async (pv) => {
     if (!pv?.id) return;
-    if (
-      !window.confirm(
-        `Mark ${pv.vaccine} on ${pv.date} as missed? This closes the incomplete visit.`,
-      )
-    ) {
-      return;
-    }
+    const ok = await confirm({
+      title: 'Mark visit as missed?',
+      message: `Mark ${pv.vaccine} on ${pv.date} as missed? This closes the incomplete visit.`,
+      confirmLabel: 'Mark missed',
+      destructive: true,
+    });
+    if (!ok) return;
     setClosingMissedId(pv.id);
     setError("");
     try {
@@ -399,9 +398,9 @@ export default function DoctorPatientsTab() {
             className="appointment-alert-pill"
             role="alert"
             style={{
-              background: "#fef2f2",
-              color: "#b91c1c",
-              borderColor: "#fecaca",
+              background: "var(--color-error-bg)",
+              color: "var(--color-error)",
+              borderColor: "var(--color-error-border)",
             }}
           >
             {error}
@@ -410,6 +409,14 @@ export default function DoctorPatientsTab() {
 
         {!selectedPatient && (
           <div className="doctor-appointment-inner-card">
+            <div className="section-title-group" style={{ marginBottom: 16 }}>
+              <h2 className="doctor-card-title" style={{ margin: 0 }}>
+                Recent Dosage Updates
+              </h2>
+              <p className="section-title-desc">
+                Latest vaccination dosage changes — search to open a full patient record
+              </p>
+            </div>
             <div className="doctor-appointments-filter-bar">
               <div
                 className="doctor-filter-group"
@@ -485,8 +492,8 @@ export default function DoctorPatientsTab() {
 
               <div
                 style={{
-                  fontSize: "0.88rem",
-                  color: "#64748b",
+                  fontSize: "0.875rem",
+                  color: "var(--color-text-muted)",
                   fontWeight: 600,
                 }}
               >
@@ -633,8 +640,8 @@ export default function DoctorPatientsTab() {
                     </div>
                     <div
                       style={{
-                        fontSize: "0.88rem",
-                        color: "#64748b",
+                        fontSize: "0.875rem",
+                        color: "var(--color-text-muted)",
                         fontWeight: 600,
                       }}
                     >
@@ -933,8 +940,8 @@ export default function DoctorPatientsTab() {
                     </h3>
                     <div
                       style={{
-                        fontSize: "0.88rem",
-                        color: "#64748b",
+                        fontSize: "0.875rem",
+                        color: "var(--color-text-muted)",
                         fontWeight: 600,
                       }}
                     >
@@ -950,13 +957,13 @@ export default function DoctorPatientsTab() {
                     <div
                       role="alert"
                       style={{
-                        background: "#fef2f2",
-                        color: "#b91c1c",
-                        border: "1px solid #fecaca",
+                        background: "var(--color-error-bg)",
+                        color: "var(--color-error)",
+                        border: "1px solid var(--color-error-border)",
                         borderRadius: "10px",
                         padding: "10px 14px",
                         marginBottom: "14px",
-                        fontSize: "0.85rem",
+                        fontSize: "0.875rem",
                       }}
                     >
                       {medicalHistoryError}
@@ -971,15 +978,7 @@ export default function DoctorPatientsTab() {
                       Loading medical history…
                     </p>
                   ) : !hasMedicalHistory ? (
-                    <div
-                      style={{
-                        padding: 24,
-                        textAlign: "center",
-                        fontSize: "0.9rem",
-                        color: "#64748b",
-                        fontStyle: "italic",
-                      }}
-                    >
+                    <div className="empty-state">
                       No medical history on file. Use the &quot;+ Add Medical
                       History&quot; button above to record a diagnosis, allergy,
                       medication, or surgery.
@@ -1001,17 +1000,15 @@ export default function DoctorPatientsTab() {
                             const rows = groupedHistory[group.key] || [];
                             if (rows.length === 0) return null;
                             return (
-                              <>
-                                <tr
-                                  key={`group-${group.key}`}
-                                  className="ph-record-row-missed"
-                                >
+                              <Fragment key={`group-${group.key}`}>
+                                <tr>
                                   <td
                                     colSpan={5}
                                     style={{
+                                      background: "var(--color-soft-panel)",
                                       fontWeight: 700,
-                                      color: "#1e1b4b",
-                                      fontSize: "0.8rem",
+                                      color: "var(--color-text-title)",
+                                      fontSize: "0.8125rem",
                                       letterSpacing: 0.4,
                                     }}
                                   >
@@ -1021,7 +1018,7 @@ export default function DoctorPatientsTab() {
                                 {rows.map((r) => (
                                   <MedicalHistoryRow key={r.id} record={r} />
                                 ))}
-                              </>
+                              </Fragment>
                             );
                           })}
                         </tbody>
@@ -1071,6 +1068,7 @@ export default function DoctorPatientsTab() {
           }
         }}
       />
+      {confirmDialog}
     </div>
   );
 }
