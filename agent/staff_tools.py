@@ -201,8 +201,14 @@ async def tool_propose_shift_for_approval(
             "error": f"{clean_date} is in the past. Propose a date on or after {_hospital_today()}.",
         }
 
-    start_minutes = _minutes(clean_start)
-    end_minutes = _minutes(clean_end)
+    try:
+        start_minutes = _minutes(clean_start)
+        end_minutes = _minutes(clean_end)
+    except ValueError:
+        return {
+            "success": False,
+            "error": "start_time and end_time must be in HH:mm format.",
+        }
     if end_minutes <= start_minutes:
         return {
             "success": False,
@@ -1184,12 +1190,17 @@ async def _prepare_roster_state(
             )
 
     for affiliation_id, day, start, end in _remembered_declines():
+        try:
+            declined_start, declined_end = _minutes(start), _minutes(end)
+        except ValueError:
+            # A decline with unreadable times must not break every later plan.
+            continue
         planned.append(
             {
                 "affiliationId": affiliation_id,
                 "date": day,
-                "start": _minutes(start),
-                "end": _minutes(end),
+                "start": declined_start,
+                "end": declined_end,
                 "role": "",
                 "boothId": None,
             }
@@ -1390,10 +1401,19 @@ def _assign_gap_proposals(
     soft_exclude: bool = False,
     pick_offset: int = 0,
 ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, int]]:
-    exclude = {str(item) for item in (exclude_affiliation_ids or []) if item}
-    allowed = {str(item) for item in (gap_ids or [])} if gap_ids else None
+    # These three come from the model, so anything that is not a list is ignored.
+    if not isinstance(exclude_affiliation_ids, list):
+        exclude_affiliation_ids = []
+    if not isinstance(gap_ids, list):
+        gap_ids = []
+    if not isinstance(preferred_assignments, list):
+        preferred_assignments = []
+    exclude = {str(item) for item in exclude_affiliation_ids if item}
+    allowed = {str(item) for item in gap_ids} if gap_ids else None
     preferred_by_gap: Dict[str, str] = {}
-    for item in preferred_assignments or []:
+    for item in preferred_assignments:
+        if not isinstance(item, dict):
+            continue
         gap_id = _resolve_gap_id(str(item.get("gap_id") or item.get("gapId") or item.get("g") or "").strip())
         affiliation_id = str(
             item.get("affiliation_id") or item.get("affiliationId") or item.get("id") or ""
@@ -1701,7 +1721,7 @@ async def tool_propose_alternative_for_gap(
 ) -> Dict[str, Any]:
     """Propose the next fairest person for one declined gap."""
     catalog = _gap_catalog.get(_hospital_key.get(), {})
-    gap = (catalog.get("gaps") or {}).get(gap_id)
+    gap = (catalog.get("gaps") or {}).get(gap_id) if isinstance(gap_id, str) else None
     if not gap:
         return {"success": False, "error": "Gap not found. Run analyze_staffing_needs first."}
     snapshot = catalog.get("state") or {}

@@ -301,3 +301,61 @@ async def test_planning_tool_crash_returns_safe_reply(monkeypatch):
     assert result["proposals"] is None
     assert result["modelUnavailable"] is True
     assert "isoformat" not in result["content"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("no_api_writes")
+@pytest.mark.parametrize(
+    "reply",
+    [
+        None,
+        {"tool_calls": "not a list"},
+        {"tool_calls": [None, {}, {"function": None}]},
+        {"content": "", "tool_calls": [_tool_call("build_staffing_plan", {"from_date": "2026-13-45", "preferred_assignments": ["x", 5], "gap_ids": 7})]},
+        {"content": "", "tool_calls": [_tool_call("propose_shift_for_approval", {"affiliation_id": "a1", "shift_date": "2099-01-01", "start_time": "soon", "end_time": "later"})]},
+        {"content": "", "tool_calls": [_tool_call("propose_alternative_for_gap", {"gap_id": {"x": 1}})]},
+    ],
+)
+async def test_malformed_model_output_never_raises(monkeypatch, reply):
+    agent = StaffSchedulingAgent()
+    monkeypatch.setattr(agent, "_call_llm", ScriptedLlm([reply]))
+
+    async def _no_api(*args, **kwargs):
+        raise Exception("API Error (401): no access in tests")
+
+    monkeypatch.setattr(staff_tools, "api_get", _no_api)
+
+    result = await agent.run([{"role": "user", "content": "Staff the rest of the week"}], token="t")
+
+    assert isinstance(result["content"], str)
+    assert result["proposals"] is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("no_api_writes")
+async def test_decline_with_bad_payload_never_raises():
+    agent = StaffSchedulingAgent()
+    payload = json.dumps(
+        {"gapId": "g1", "affiliationId": "a1", "startTime": "x", "endTime": 5, "excludeAffiliationIds": True, "requestAlternative": True}
+    )
+
+    result = await agent.run(
+        [{"role": "user", "content": f"__shift_declined__ {payload}"}], token="t"
+    )
+
+    assert isinstance(result["content"], str)
+
+
+@pytest.mark.asyncio
+async def test_unexpected_internal_error_becomes_a_safe_reply(monkeypatch):
+    agent = StaffSchedulingAgent()
+
+    async def _boom(*args, **kwargs):
+        raise RuntimeError("secret internal detail")
+
+    monkeypatch.setattr(agent, "_run", _boom)
+
+    result = await agent.run([{"role": "user", "content": "Who is on my staff?"}], token="t")
+
+    assert result["modelUnavailable"] is True
+    assert "secret" not in result["content"]
