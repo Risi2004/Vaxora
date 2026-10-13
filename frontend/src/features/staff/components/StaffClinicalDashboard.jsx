@@ -67,6 +67,15 @@ function isInSession(patient) {
   return patient.status === 'consulting' || patient.status === 'observation';
 }
 
+/** Queue tabs follow the visit: not arrived, waiting (checked in), in session, done. */
+function queueTab(patient, tab) {
+  if (tab === 'not_arrived') return patient.status === 'waiting' && !patient.checkedIn;
+  if (tab === 'waiting') return patient.status === 'waiting' && patient.checkedIn;
+  if (tab === 'in_session') return isInSession(patient);
+  if (tab === 'completed') return patient.status === 'completed';
+  return true;
+}
+
 /** "B01 · Nurse Kavindi": who has a colleague's live session. */
 function sessionOwnerLabel(patient) {
   const boothCode = patient.booth ? String(patient.booth).split(' · ')[0] : null;
@@ -142,7 +151,8 @@ export default function StaffClinicalDashboard({
   const [isAdministerModalOpen, setIsAdministerModalOpen] = useState(false);
   const [isAefiModalOpen, setIsAefiModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterStatus, setFilterStatus] = useState('all');
+  // Opens on checked-in patients waiting to be called.
+  const [filterStatus, setFilterStatus] = useState('waiting');
   const [toastMessage, setToastMessage] = useState(null);
   const [confirm, confirmDialog] = useConfirmDialog();
   const [user] = useState(() => getUser());
@@ -334,7 +344,11 @@ export default function StaffClinicalDashboard({
     (a) => a.status === 'Confirmed' && !a.prescribedDosage
   ).length;
 
+  // Earliest slot first, then earliest check-in; Call Next walks this same order.
   const patients = useMemo(() => {
+    const byQueueOrder = (a, b) =>
+      (a.startMinutes ?? Infinity) - (b.startMinutes ?? Infinity) ||
+      String(a.checkedInAt || '').localeCompare(String(b.checkedInAt || ''));
     return todayAppointments.map((a) => {
       const id = a.id;
       const status = mapDbStatusToUi(a.status);
@@ -351,6 +365,7 @@ export default function StaffClinicalDashboard({
         prescribedBy: a.prescribedByDoctorName || null,
         paymentStatus: a.paymentStatus || '—',
         checkedIn: Boolean(a.checkedInAt),
+        checkedInAt: a.checkedInAt || null,
         sessionStaffUserId: a.sessionStaffUserId || null,
         sessionStaffName: a.sessionStaffName || null,
         booth: a.boothLabel || null,
@@ -362,7 +377,7 @@ export default function StaffClinicalDashboard({
         notes: a.notes || '',
         updatedAt: a.updatedAt || a.dosageUpdatedAt || null,
       };
-    });
+    }).sort(byQueueOrder);
   }, [todayAppointments]);
 
   // Booth of my live shift at this hospital, if any. Clock-ins without a shift have none.
@@ -675,7 +690,7 @@ export default function StaffClinicalDashboard({
     setHospitalMenuOpen(false);
     setSelectedHospitalUserId(hospitalUserId);
     setActivePatientId(null);
-    setFilterStatus('all');
+    setFilterStatus('waiting');
     setSearchQuery('');
     setContactCache({});
     loadDashboardData(hospitalUserId);
@@ -722,27 +737,13 @@ export default function StaffClinicalDashboard({
       p.token.toLowerCase().includes(q) ||
       p.vaccine.toLowerCase().includes(q);
 
-    if (!matchesSearch) return false;
-    if (filterStatus === 'all') return true;
-    if (filterStatus === 'waiting') {
-      return p.status === 'waiting' && isPaymentSettled(p);
-    }
-    if (filterStatus === 'awaiting_payment') {
-      return p.status === 'waiting' && !isPaymentSettled(p);
-    }
-    return p.status === filterStatus;
+    return matchesSearch && queueTab(p, filterStatus);
   });
 
-  const waitingCount = scopedPatients.filter(
-    (p) => p.status === 'waiting' && isPaymentSettled(p)
-  ).length;
-  const awaitingPaymentCount = scopedPatients.filter(
-    (p) =>
-      p.status === 'waiting' &&
-      !isPaymentSettled(p)
-  ).length;
-  const completedCount = scopedPatients.filter((p) => p.status === 'completed').length;
-  const observationCount = scopedPatients.filter((p) => p.status === 'observation').length;
+  const notArrivedCount = scopedPatients.filter((p) => queueTab(p, 'not_arrived')).length;
+  const waitingCount = scopedPatients.filter((p) => queueTab(p, 'waiting')).length;
+  const inSessionCount = scopedPatients.filter((p) => queueTab(p, 'in_session')).length;
+  const completedCount = scopedPatients.filter((p) => queueTab(p, 'completed')).length;
   // Show the switcher whenever staff have multiple affiliations (doctors + multi-hospital nurses).
   const showHospitalSwitch = (allowHospitalSwitch || affiliations.length > 1) && affiliations.length > 1;
   const canCertifyActive = activePatient?.status === 'consulting' && activePaymentSettled;
@@ -1165,33 +1166,31 @@ export default function StaffClinicalDashboard({
                 </button>
                 <button
                   type="button"
+                  className={`queue-scope-btn${filterStatus === 'not_arrived' ? ' active' : ''}`}
+                  onClick={() => setFilterStatus('not_arrived')}
+                >
+                  Not arrived ({notArrivedCount})
+                </button>
+                <button
+                  type="button"
                   className={`queue-scope-btn${filterStatus === 'waiting' ? ' active' : ''}`}
                   onClick={() => setFilterStatus('waiting')}
                 >
                   Waiting ({waitingCount})
                 </button>
-                {awaitingPaymentCount > 0 ? (
-                  <button
-                    type="button"
-                    className={`queue-scope-btn${filterStatus === 'awaiting_payment' ? ' active' : ''}`}
-                    onClick={() => setFilterStatus('awaiting_payment')}
-                  >
-                    Awaiting payment ({awaitingPaymentCount})
-                  </button>
-                ) : null}
                 <button
                   type="button"
-                  className={`queue-scope-btn${filterStatus === 'observation' ? ' active' : ''}`}
-                  onClick={() => setFilterStatus('observation')}
+                  className={`queue-scope-btn${filterStatus === 'in_session' ? ' active' : ''}`}
+                  onClick={() => setFilterStatus('in_session')}
                 >
-                  Observation ({observationCount})
+                  In session ({inSessionCount})
                 </button>
                 <button
                   type="button"
                   className={`queue-scope-btn${filterStatus === 'completed' ? ' active' : ''}`}
                   onClick={() => setFilterStatus('completed')}
                 >
-                  Completed ({completedCount})
+                  Done ({completedCount})
                 </button>
               </div>
 
@@ -1207,7 +1206,7 @@ export default function StaffClinicalDashboard({
                 type="button"
                 className="btn-inventory-refresh"
                 onClick={() => {
-                  setFilterStatus('all');
+                  setFilterStatus('waiting');
                   setSearchQuery('');
                   loadDashboardData(selectedHospitalUserId);
                 }}
@@ -1247,7 +1246,9 @@ export default function StaffClinicalDashboard({
                         ? "Loading today's appointments..."
                         : patients.length === 0
                           ? 'No appointments for today at your affiliated hospital.'
-                          : 'No patients matching your search criteria.'}
+                          : searchQuery
+                            ? 'No patients matching your search criteria.'
+                            : 'No patients in this view.'}
                     </td>
                   </tr>
                 ) : (
