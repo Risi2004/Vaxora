@@ -108,6 +108,30 @@ class StaffAppointmentModel {
     return '—';
   }
 
+  /// Slot start as minutes since midnight ("17:20", "17:20:00" or "05:20 PM").
+  int? get startMinutes {
+    for (final raw in [startTime, timeSlot]) {
+      final m = RegExp(r'^(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)?', caseSensitive: false)
+          .firstMatch((raw ?? '').trim());
+      if (m == null) continue;
+      var hours = int.parse(m.group(1)!);
+      final meridiem = (m.group(3) ?? '').toUpperCase();
+      if (meridiem == 'PM' && hours < 12) hours += 12;
+      if (meridiem == 'AM' && hours == 12) hours = 0;
+      return hours * 60 + int.parse(m.group(2)!);
+    }
+    return null;
+  }
+
+  /// Earliest slot first, then earliest check-in; Call next walks this order.
+  static int byQueueOrder(StaffAppointmentModel a, StaffAppointmentModel b) {
+    const last = 1 << 30;
+    final bySlot = (a.startMinutes ?? last).compareTo(b.startMinutes ?? last);
+    return bySlot != 0
+        ? bySlot
+        : (a.checkedInAt ?? '').compareTo(b.checkedInAt ?? '');
+  }
+
   bool get hasDosage =>
       prescribedDosage != null && prescribedDosage!.trim().isNotEmpty;
 

@@ -89,6 +89,8 @@ async function renderDashboard({ onDuty, shifts }) {
   );
   // Summary card counts appear once today's appointments have loaded.
   await screen.findByText('1 booked · 1 left');
+  // The queue opens on Waiting; live sessions sit under In session.
+  fireEvent.click(screen.getByRole('button', { name: /^In session/ }));
 }
 
 describe('Staff Management - Live session ownership', () => {

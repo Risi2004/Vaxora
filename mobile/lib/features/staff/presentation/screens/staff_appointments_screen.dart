@@ -47,7 +47,8 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
   List<BatchModel> _lots = [];
   String _selectedHospitalId = '';
   late String _filterDate;
-  String _filterStatus = 'all';
+  // Today opens on checked-in patients waiting to be called; other dates on All.
+  String _filterStatus = 'waiting';
   final TextEditingController _searchCtrl = TextEditingController();
   bool _loadingHospitals = true;
   bool _loadingAppointments = false;
@@ -181,7 +182,8 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
             .catchError((_) => <ShiftModel>[]),
       ]);
       if (!mounted) return;
-      final list = results[0] as List<StaffAppointmentModel>;
+      final list = [...results[0] as List<StaffAppointmentModel>]
+        ..sort(StaffAppointmentModel.byQueueOrder);
       final lots = results[1] as List<BatchModel>;
       _todayShifts = results[2] as List<ShiftModel>;
       setState(() {
@@ -336,27 +338,24 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
           a.patientName.toLowerCase().contains(q) ||
           a.token.toLowerCase().contains(q) ||
           a.vaccineName.toLowerCase().contains(q);
-      if (!matchesSearch) return false;
-
-      if (_filterStatus == 'all') return true;
-      if (_filterStatus == 'waiting') {
-        return a.uiStatus == 'waiting' && a.isPaymentSettled;
-      }
-      if (_filterStatus == 'awaiting_payment') {
-        return a.uiStatus == 'waiting' && !a.isPaymentSettled;
-      }
-      return a.uiStatus == _filterStatus;
+      return matchesSearch && _inTab(a, _filterStatus);
     }).toList();
   }
 
-  int get _completedCount =>
-      _scopedAppointments.where((a) => a.uiStatus == 'completed').length;
-  int get _waitingCount => _scopedAppointments
-      .where((a) => a.uiStatus == 'waiting' && a.isPaymentSettled)
-      .length;
-  int get _awaitingPaymentCount => _scopedAppointments
-      .where((a) => a.uiStatus == 'waiting' && !a.isPaymentSettled)
-      .length;
+  /// Queue chips follow the visit: not arrived, waiting (checked in), in session, done.
+  static bool _inTab(StaffAppointmentModel a, String tab) => switch (tab) {
+        'not_arrived' => a.uiStatus == 'waiting' && !a.isCheckedIn,
+        'waiting' => a.uiStatus == 'waiting' && a.isCheckedIn,
+        'in_session' => _isInSession(a),
+        'completed' => a.uiStatus == 'completed',
+        _ => true,
+      };
+
+  int _tabCount(String tab) =>
+      _scopedAppointments.where((a) => _inTab(a, tab)).length;
+
+  int get _completedCount => _tabCount('completed');
+  int get _waitingCount => _tabCount('waiting');
   int get _observationCount =>
       _scopedAppointments.where((a) => a.uiStatus == 'observation').length;
 
@@ -629,6 +628,7 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
     setState(() {
       _filterDate =
           '${picked.year.toString().padLeft(4, '0')}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+      _filterStatus = _filterDate == todayIsoDate() ? 'waiting' : 'all';
     });
     await _loadAppointments();
   }
@@ -753,7 +753,10 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
               isToday: isToday,
               onPick: _pickDate,
               onToday: () async {
-                setState(() => _filterDate = todayIsoDate());
+                setState(() {
+                  _filterDate = todayIsoDate();
+                  _filterStatus = 'waiting';
+                });
                 await _loadAppointments();
               },
             ),
@@ -840,21 +843,19 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
                   onTap: () => setState(() => _filterStatus = 'all'),
                 ),
                 _FilterChip(
+                  label: 'Not arrived (${_tabCount('not_arrived')})',
+                  selected: _filterStatus == 'not_arrived',
+                  onTap: () => setState(() => _filterStatus = 'not_arrived'),
+                ),
+                _FilterChip(
                   label: 'Waiting ($_waitingCount)',
                   selected: _filterStatus == 'waiting',
                   onTap: () => setState(() => _filterStatus = 'waiting'),
                 ),
-                if (_awaitingPaymentCount > 0)
-                  _FilterChip(
-                    label: 'Awaiting payment ($_awaitingPaymentCount)',
-                    selected: _filterStatus == 'awaiting_payment',
-                    onTap: () =>
-                        setState(() => _filterStatus = 'awaiting_payment'),
-                  ),
                 _FilterChip(
-                  label: 'Observation ($_observationCount)',
-                  selected: _filterStatus == 'observation',
-                  onTap: () => setState(() => _filterStatus = 'observation'),
+                  label: 'In session (${_tabCount('in_session')})',
+                  selected: _filterStatus == 'in_session',
+                  onTap: () => setState(() => _filterStatus = 'in_session'),
                 ),
                 _FilterChip(
                   label: 'Done ($_completedCount)',
@@ -927,7 +928,7 @@ class _StaffAppointmentsScreenState extends State<StaffAppointmentsScreen> {
               StaffEmptyCard(
                 message: _searchQuery.trim().isNotEmpty
                     ? 'No patients matching your search criteria.'
-                    : 'No appointments in this filter for the selected date.',
+                    : 'No patients in this view.',
                 icon: Icons.event_busy_outlined,
               )
             else ...[

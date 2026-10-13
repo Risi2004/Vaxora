@@ -1203,6 +1203,18 @@
   max-width: 320px;
 }
 
+/* Tabs wrap inside the card instead of spilling past it on narrow screens. */
+.doctor-queue-card .queue-scope-switch {
+  flex-wrap: wrap;
+  flex-shrink: 1;
+  max-width: 100%;
+  border-radius: 18px;
+}
+
+.doctor-queue-card .queue-scope-btn {
+  white-space: nowrap;
+}
+
 .doctor-filter-pills {
   display: flex;
   align-items: center;
