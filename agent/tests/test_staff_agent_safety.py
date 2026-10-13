@@ -241,3 +241,63 @@ async def test_cover_ranking_falls_back_when_model_fails(monkeypatch):
 
     # An empty JSON object tells the API to keep roster order.
     assert json.loads(result["content"]) == {}
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("no_api_writes")
+async def test_cut_off_plan_arguments_still_get_the_requested_dates(monkeypatch):
+    agent = StaffSchedulingAgent()
+    # Output budget ran out mid-list: no closing brackets, second pair incomplete.
+    cut_off = (
+        '{"from_date": "2026-10-12", "to_date": "2026-10-18", "preferred_assignments": '
+        '[{"gap_id": "g1", "affiliation_id": "a1"}, {"gap_id": "g2", "affil'
+    )
+    llm = ScriptedLlm(
+        [
+            {"content": "", "tool_calls": [_tool_call("analyze_staffing_needs", {})]},
+            {"content": "", "tool_calls": [_tool_call("build_staffing_plan", cut_off)]},
+        ]
+    )
+    monkeypatch.setattr(agent, "_call_llm", llm)
+    seen: List[Dict[str, Any]] = []
+
+    async def _fake_tool(name, arguments, token):
+        seen.append({"name": name, **arguments})
+        return {"success": False, "error": "stub"}
+
+    monkeypatch.setattr(agent, "execute_tool", _fake_tool)
+
+    await agent.run(
+        [
+            {
+                "role": "user",
+                "content": "Suggest shifts for booked appointments from 2026-10-12 to 2026-10-18",
+            }
+        ],
+        token="t",
+    )
+
+    assert [call["name"] for call in seen[:2]] == ["analyze_staffing_needs", "build_staffing_plan"]
+    assert all(call["from_date"] == "2026-10-12" and call["to_date"] == "2026-10-18" for call in seen[:2])
+    assert seen[1]["preferred_assignments"] == [{"gap_id": "g1", "affiliation_id": "a1"}]
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("no_api_writes")
+async def test_planning_tool_crash_returns_safe_reply(monkeypatch):
+    agent = StaffSchedulingAgent()
+    llm = ScriptedLlm(
+        [{"content": "", "tool_calls": [_tool_call("analyze_staffing_needs", {})]}]
+    )
+    monkeypatch.setattr(agent, "_call_llm", llm)
+
+    async def _crash(name, arguments, token):
+        raise ValueError("Invalid isoformat string: ''")
+
+    monkeypatch.setattr(agent, "execute_tool", _crash)
+
+    result = await agent.run([{"role": "user", "content": "Staff the rest of the week"}], token="t")
+
+    assert result["proposals"] is None
+    assert result["modelUnavailable"] is True
+    assert "isoformat" not in result["content"]
