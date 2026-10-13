@@ -101,6 +101,34 @@ def _parse_suggest_dates_from_messages(
     return fallback_from, fallback_to
 
 
+PLANNING_TOOLS = ("analyze_staffing_needs", "build_staffing_plan")
+_ISO_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
+
+
+def _salvage_plan_args(raw: str) -> Dict[str, Any]:
+    """
+    Recover what arrived of a planning tool call whose JSON was cut off mid-list
+    (a long week can exceed the output budget): the dates and every complete
+    {gap_id, affiliation_id} pair.
+    """
+    args: Dict[str, Any] = {}
+    for key in ("from_date", "to_date"):
+        match = re.search(rf'"{key}"\s*:\s*"(\d{{4}}-\d{{2}}-\d{{2}})"', raw)
+        if match:
+            args[key] = match.group(1)
+    assignments = []
+    for chunk in re.findall(r"\{[^{}]*\}", raw):
+        try:
+            item = json.loads(chunk)
+        except Exception:
+            continue
+        if isinstance(item, dict) and item.get("gap_id") and item.get("affiliation_id"):
+            assignments.append(item)
+    if assignments:
+        args["preferred_assignments"] = assignments
+    return args
+
+
 def _build_follow_ups(
     messages: List[Dict[str, Any]],
     proposals: Optional[List[Dict[str, Any]]] = None,
@@ -651,11 +679,42 @@ class StaffSchedulingAgent:
                     try:
                         fn_args = json.loads(fn_args_raw)
                     except Exception:
-                        fn_args = {}
+                        fn_args = (
+                            _salvage_plan_args(fn_args_raw)
+                            if fn_name in PLANNING_TOOLS
+                            else {}
+                        )
                 else:
                     fn_args = fn_args_raw or {}
+                if not isinstance(fn_args, dict):
+                    fn_args = {}
 
-                tool_output = await self.execute_tool(fn_name, fn_args, token)
+                if fn_name in PLANNING_TOOLS:
+                    # The model sometimes leaves the dates out; the planner cannot run
+                    # without them, so use the range the hospital asked for.
+                    default_from, default_to = _parse_suggest_dates_from_messages(
+                        messages, week_start, week_end
+                    )
+                    if not _ISO_DATE.search(str(fn_args.get("from_date") or "")):
+                        fn_args["from_date"] = default_from
+                    if not _ISO_DATE.search(str(fn_args.get("to_date") or "")):
+                        fn_args["to_date"] = default_to
+
+                try:
+                    tool_output = await self.execute_tool(fn_name, fn_args, token)
+                except Exception as tool_err:
+                    logger.exception("[%s] Tool %s failed: %s", self.name, fn_name, tool_err)
+                    if fn_name in PLANNING_TOOLS and not proposals:
+                        # Flagged so the client falls back to its rules-based suggestions.
+                        return self._reply(
+                            messages,
+                            "The scheduling assistant hit an error while planning, "
+                            "so no shifts were suggested.",
+                            model_unavailable=True,
+                        )
+                    tool_output = {"success": False, "error": "That lookup failed."}
+                if not isinstance(tool_output, dict):
+                    tool_output = {"success": False, "error": "That lookup failed."}
 
                 if fn_name == "analyze_staffing_needs" and tool_output.get("success"):
                     analyze_done = True
