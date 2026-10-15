@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
-import { TEST_ACCOUNTS } from './testAccounts.js';
+import { TEST_ACCOUNTS } from '../testAccounts.js';
 
 // Accessibility (WCAG 2.1 A/AA) checks for the hospital Staff Management pages,
 // using axe-core on the real React app against the local API.
@@ -27,6 +27,11 @@ function describeViolations(violations) {
 }
 
 async function scan(page, testInfo, label) {
+  // Scan the settled page: data loaded, fonts in, no transition half way through,
+  // otherwise colour contrast can be measured on text that is still fading in.
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.waitForLoadState('networkidle');
+  await page.evaluate(() => document.fonts.ready);
   const results = await new AxeBuilder({ page }).withTags(WCAG_TAGS).analyze();
   await testInfo.attach(`axe-${label}.json`, {
     body: JSON.stringify(results.violations, null, 2),
