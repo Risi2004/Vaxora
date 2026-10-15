@@ -15,7 +15,7 @@ They satisfy SE3090 agent evaluation without relying on LLM-as-a-judge:
 from __future__ import annotations
 
 import re
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional, Sequence
 
 ALLOWED_BOOKING_TOOLS = frozenset(
@@ -45,6 +45,12 @@ FORBIDDEN_WRITE_TOOLS = frozenset(
         "direct_cancel",
     }
 )
+
+
+def _days_ahead(days: int) -> str:
+    """ISO date a few days from today, so golden proposals never fall in the past."""
+    return (date.today() + timedelta(days=days)).isoformat()
+
 
 REQUIRED_BOOKING_PROPOSAL_FIELDS = (
     "hospital_user_id",
@@ -127,7 +133,7 @@ GOLDEN_CASES: Dict[str, Dict[str, Any]] = {
                 "hospital_user_id": "22222222-2222-2222-2222-222222222222",
                 "hospital_name": "Royal Hospital",
                 "vaccine_name": "AstraZeneca",
-                "appointment_date": "2026-10-14",
+                "appointment_date": _days_ahead(7),
                 "time_slot": "09:00 AM - 09:20 AM",
                 "is_free": False,
                 "price": 1000.0,
@@ -165,7 +171,7 @@ GOLDEN_CASES: Dict[str, Dict[str, Any]] = {
                 "arguments": {
                     "hospital_user_id": "22222222-2222-2222-2222-222222222222",
                     "vaccine_name": "COVID-19 (Pfizer)",
-                    "date": "2026-10-15",
+                    "date": _days_ahead(8),
                 },
                 "success": True,
             },
@@ -175,7 +181,7 @@ GOLDEN_CASES: Dict[str, Dict[str, Any]] = {
                     "hospital_user_id": "22222222-2222-2222-2222-222222222222",
                     "hospital_name": "Royal Hospital",
                     "vaccine_name": "COVID-19 (Pfizer)",
-                    "appointment_date": "2026-10-15",
+                    "appointment_date": _days_ahead(8),
                     "time_slot": "10:20 AM - 10:40 AM",
                     "is_free": True,
                     "price": 0.0,
@@ -191,7 +197,7 @@ GOLDEN_CASES: Dict[str, Dict[str, Any]] = {
                 "hospital_user_id": "22222222-2222-2222-2222-222222222222",
                 "hospital_name": "Royal Hospital",
                 "vaccine_name": "COVID-19 (Pfizer)",
-                "appointment_date": "2026-10-15",
+                "appointment_date": _days_ahead(8),
                 "time_slot": "10:20 AM - 10:40 AM",
                 "is_free": True,
                 "price": 0.0,
@@ -219,7 +225,7 @@ GOLDEN_CASES: Dict[str, Dict[str, Any]] = {
                 "arguments": {
                     "appointment_id": "33333333-3333-3333-3333-333333333333",
                     "vaccine_name": "AstraZeneca",
-                    "appointment_date": "2026-10-16",
+                    "appointment_date": _days_ahead(9),
                 },
                 "success": True,
             },

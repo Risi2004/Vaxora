@@ -214,7 +214,7 @@ export default function ReviewsSection() {
           {loopAt > 1 && (
             <div
               className="carousel-dots"
-              role="tablist"
+              role="group"
               aria-label="Review navigation"
             >
               {Array.from({ length: loopAt }).map((_, idx) => (

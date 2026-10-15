@@ -4,9 +4,10 @@ import { TEST_ACCOUNTS } from './testAccounts.js';
 
 async function loginAsHospital(page: Page) {
   await page.goto('/login');
-  await page.getByLabel(/email/i).fill(TEST_ACCOUNTS.hospital.email);
-  await page.getByLabel(/password/i).fill(TEST_ACCOUNTS.hospital.password);
-  await page.getByRole('button', { name: /log in|sign in/i }).click();
+  // The login fields have placeholders, not labels, so select them by name.
+  await page.fill('input[name="email"]', TEST_ACCOUNTS.hospital.email);
+  await page.fill('input[name="password"]', TEST_ACCOUNTS.hospital.password);
+  await page.click('button[type="submit"]');
   await page.waitForURL('**/hospital/**', { timeout: 15_000 });
 }
 
@@ -64,8 +65,10 @@ test.describe('Inventory Management E2E', () => {
 
     await modal.getByRole('button', { name: /commit shipment/i }).click();
 
-    // Real DOM assertion, not a native dialog
-    await expect(modal.getByText(/vaccine product name.*required/i)).toBeVisible();
+    // The form uses required fields, so the browser blocks the submit: the modal
+    // stays open with its first required field marked invalid.
+    await expect(modal).toBeVisible();
+    await expect(modal.locator('form :invalid').first()).toBeVisible();
     expect(apiCalled).toBe(false);
   });
 

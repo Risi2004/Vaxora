@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { TEST_ACCOUNTS } from './testAccounts.js';
+import { TEST_ACCOUNTS } from '../testAccounts.js';
 
 const TEST_HOSPITAL = TEST_ACCOUNTS.hospital;
 

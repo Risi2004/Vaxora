@@ -443,7 +443,7 @@ export default function HospitalInventoryTab() {
             </div>
             <div className="hospital-stat-info">
               <span className="hospital-stat-label">Total Vials In Stock</span>
-              <span className="hospital-stat-value">{totalVials.toLocaleString()}</span>
+              <span className="hospital-stat-value" data-testid="kpi-total-vials">{totalVials.toLocaleString()}</span>
               <span className="hospital-stat-meta">
                 ≈ {totalDoses.toLocaleString()} patient doses available
               </span>
@@ -572,13 +572,13 @@ export default function HospitalInventoryTab() {
         </div>
 
         {inventory.length === 0 ? (
-          <div className="hospital-appointments-table-wrapper inventory-empty-state">
+          <div className="hospital-appointments-table-wrapper inventory-empty-state" data-testid="batch-empty-state">
             <h3>No inventory yet</h3>
             <p>Log a restock shipment to add your first batch.</p>
           </div>
         ) : viewMode === 'table' ? (
           <div className="hospital-appointments-table-wrapper">
-            <table className="inventory-custom-table inv-clean">
+            <table className="inventory-custom-table inv-clean" data-testid="batch-table">
               <thead>
                 <tr>
                   <th className="is-left">Vaccine &amp; lot</th>
@@ -605,7 +605,7 @@ export default function HospitalInventoryTab() {
                     const isExpiring = item.expiryStatus === 'expiring_soon';
                     if (isOnOrder(item)) {
                       return (
-                        <tr key={item.id}>
+                        <tr key={item.id} data-testid="batch-row">
                           <td className="is-left">
                             <div className="inv-name">{item.name}</div>
                             <div className="inv-sub">Order {item.lotNumber}{item.manufacturer ? ` · ${item.manufacturer}` : ''}</div>
@@ -635,7 +635,7 @@ export default function HospitalInventoryTab() {
                       );
                     }
                     return (
-                      <tr key={item.id} className={isLow ? 'row-highlight-low' : ''}>
+                      <tr key={item.id} data-testid="batch-row" className={isLow ? 'row-highlight-low' : ''}>
                         <td className="is-left">
                           <div className="inv-name">{item.name}</div>
                           <div className="inv-sub">Lot {item.lotNumber}{item.manufacturer ? ` · ${item.manufacturer}` : ''}</div>

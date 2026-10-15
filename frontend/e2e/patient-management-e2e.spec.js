@@ -4,9 +4,10 @@ import { TEST_ACCOUNTS } from './testAccounts.js';
 
 async function loginAsPatient(page) {
   await page.goto('/login');
-  await page.getByLabel(/email/i).fill(TEST_ACCOUNTS.patient.email);
-  await page.getByLabel(/password/i).fill(TEST_ACCOUNTS.patient.password);
-  await page.getByRole('button', { name: /log in|sign in/i }).click();
+  // The login fields have placeholders, not labels, so select them by name.
+  await page.fill('input[name="email"]', TEST_ACCOUNTS.patient.email);
+  await page.fill('input[name="password"]', TEST_ACCOUNTS.patient.password);
+  await page.click('button[type="submit"]');
   await page.waitForURL('**/patient/**', { timeout: 15000 });
 }
 
@@ -23,7 +24,7 @@ test.describe('Patient Management E2E', () => {
     await page.goto('/patient/profile');
     await expect(page.getByText(/profile|account/i).first()).toBeVisible({ timeout: 10000 });
     // Email should be visible somewhere on the profile
-    await expect(page.getByText(PATIENT_EMAIL).first()).toBeVisible();
+    await expect(page.getByText(TEST_ACCOUNTS.patient.email).first()).toBeVisible();
   });
 
   test('Vaccination history page loads without error', async ({ page }) => {

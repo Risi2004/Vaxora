@@ -19,6 +19,13 @@ export default defineConfig([
     },
   },
   {
+    // Playwright specs and config run in Node.
+    files: ['e2e/**/*.{js,jsx}', 'playwright.config.js'],
+    languageOptions: {
+      globals: { ...globals.browser, ...globals.node },
+    },
+  },
+  {
     // Colors come from the design tokens in src/styles/variables.css.
     files: ['src/**/*.{js,jsx}'],
     ignores: [

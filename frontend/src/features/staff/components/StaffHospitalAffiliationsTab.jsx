@@ -646,7 +646,7 @@ export default function StaffHospitalAffiliationsTab({ roleLabel = 'Staff', view
                           className={`staff-shift-week-cell${isToday ? ' is-today' : ''}`}
                         >
                           {dayShifts.length === 0 ? (
-                            <span className="shift-week-calendar-empty" aria-label="No shift" />
+                            <span className="shift-week-calendar-empty"><span className="sr-only">No shift</span></span>
                           ) : (
                             dayShifts.map((shift) => {
                               const state = shiftCardState(shift, today);

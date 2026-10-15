@@ -65,6 +65,61 @@ public class FreshDatabaseStartupTests
         }
     }
 
+    /// <summary>
+    /// Regression for: startup against a server where the database had not been created yet.
+    /// The migration baseline could not be recorded, so the old migrations ran for real, collided
+    /// with the consolidated baseline migration and left the schema half built
+    /// (no ShiftSwapRequests table, staff endpoints returned 500).
+    /// </summary>
+    [Fact]
+    public async Task Startup_when_database_does_not_exist_yet_builds_the_full_schema()
+    {
+        var serverConn = Environment.GetEnvironmentVariable("TEST_POSTGRESQL_CONNECTION");
+        if (string.IsNullOrWhiteSpace(serverConn))
+            return; // Not configured locally; CI always sets it.
+
+        // Deliberately not created here: startup has to cope with a missing database.
+        var dbName = $"vaxora_missing_{Guid.NewGuid():N}";
+        var missingConn = new NpgsqlConnectionStringBuilder(serverConn) { Database = dbName, Pooling = false }.ConnectionString;
+
+        try
+        {
+            var services = new ServiceCollection();
+            services.AddLogging();
+            services.AddDbContext<ApplicationDbContext>(o => o.UseNpgsql(missingConn));
+            services.AddSingleton<IPasswordHasher, PasswordHasher>();
+            using var provider = services.BuildServiceProvider();
+            var config = new ConfigurationBuilder().Build();
+
+            await DbInitializer.SeedAsync(provider, config);
+
+            await using var conn = new NpgsqlConnection(missingConn);
+            await conn.OpenAsync();
+
+            Assert.True(await ScalarExistsAsync(conn,
+                "SELECT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'ShiftSwapRequests')"),
+                "ShiftSwapRequests table missing after startup created the database");
+            Assert.True(await ColumnExistsAsync(conn, "VaccineSchedules", "BoothId"),
+                "VaccineSchedules.BoothId missing after startup created the database");
+            Assert.True(await ColumnExistsAsync(conn, "HospitalFormularies", "Price"),
+                "HospitalFormularies.Price missing after startup created the database");
+
+            // Every migration must be recorded, so the next start has nothing left to apply.
+            using var scope = provider.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            Assert.Empty(await context.Database.GetPendingMigrationsAsync());
+
+            // The cover request inbox reads this table through EF; it must run without a schema error.
+            var exception = await Record.ExceptionAsync(() => context.ShiftSwapRequests.CountAsync());
+            Assert.Null(exception);
+        }
+        finally
+        {
+            NpgsqlConnection.ClearAllPools();
+            await ExecuteOnServerAsync(serverConn, $"DROP DATABASE IF EXISTS \"{dbName}\" WITH (FORCE)");
+        }
+    }
+
     private static async Task ExecuteOnServerAsync(string serverConn, string sql)
     {
         var maintenance = new NpgsqlConnectionStringBuilder(serverConn) { Database = "postgres", Pooling = false }.ConnectionString;
