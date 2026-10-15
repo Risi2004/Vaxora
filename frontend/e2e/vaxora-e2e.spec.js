@@ -89,7 +89,8 @@ test.describe('Vaxora E2E Testing Suite', () => {
 
     // Verify Appointments page structure
     await expect(page.locator('.book-appointment-heading')).toHaveText('Book a New Appointment');
-    await expect(page.locator('.appointments-section-heading')).toHaveText('Appointments');
+    // The heading also carries a count badge, so match the label rather than the exact text.
+    await expect(page.locator('.appointments-section-heading')).toContainText('Appointments');
 
     // Step 3: Select Vaccine
     const vaccineSelect = page.locator('#select-vaccine');
@@ -108,6 +109,9 @@ test.describe('Vaxora E2E Testing Suite', () => {
     if (hospitalValue) {
       await hospitalSelect.selectOption(hospitalValue);
     }
+    // Remember the chosen hospital so the check below does not depend on seeded names.
+    // Options read "Name - District"; the bookings table shows the name only.
+    const hospitalName = (await hospitalSelect.locator('option:checked').innerText()).split(' - ')[0].trim();
 
     // Step 5: Select Date from interactive calendar
     const dateTrigger = page.locator('#select-date-trigger');
@@ -118,8 +122,9 @@ test.describe('Vaxora E2E Testing Suite', () => {
     const calPopup = page.locator('.cal-popup-card');
     await expect(calPopup).toBeVisible();
 
-    // Select the first available date in the calendar
-    const availableDateCell = calPopup.locator('.cal-cell.available').first();
+    // Select the latest available date shown, so the booking is more than 24 hours away
+    // and can still be cancelled by the cancellation test below.
+    const availableDateCell = calPopup.locator('.cal-cell.available').last();
     await expect(availableDateCell).toBeVisible();
     await availableDateCell.click();
 
@@ -127,17 +132,19 @@ test.describe('Vaxora E2E Testing Suite', () => {
     await expect(page.locator('.cal-selection-detail-card')).toBeVisible();
 
     // Step 6: Select 20-minute Time Slot
-    const slotSelect = page.locator('#select-time');
-    await expect(slotSelect).toBeEnabled({ timeout: 10000 });
-    const availableSlotOption = slotSelect.locator('option:not([disabled])').first();
-    await expect(availableSlotOption).toBeAttached();
-    const slotValue = await availableSlotOption.getAttribute('value');
-    if (slotValue) {
-      await slotSelect.selectOption(slotValue);
-    }
+    // Slots are a list of option buttons (full ones are disabled), not a <select>.
+    const openSlot = page.locator('.slot-list [role="option"]:not([disabled])').first();
+    await expect(openSlot).toBeVisible({ timeout: 10000 });
+    await openSlot.click();
+    await expect(openSlot).toHaveAttribute('aria-selected', 'true');
 
     // Step 7: Submit Booking
-    const bookButton = page.locator('button.btn-book-appointment');
+    // A paid vaccine shows two buttons (pay online, or pay at the desk). Pay on the Day
+    // books without leaving for the payment gateway; a free vaccine has a single button.
+    const payOnTheDay = page.locator('button.btn-book-pay-later');
+    const bookButton = (await payOnTheDay.count()) > 0
+      ? payOnTheDay
+      : page.locator('button.btn-book-appointment');
     await expect(bookButton).toBeEnabled();
     await bookButton.click();
 
@@ -149,7 +156,7 @@ test.describe('Vaxora E2E Testing Suite', () => {
     const bookingRow = table.locator('tbody tr').filter({ hasText: 'AstraZeneca' }).first();
     await expect(bookingRow).toBeVisible({ timeout: 15000 });
     await expect(bookingRow.locator('.td-vaccine')).toContainText('AstraZeneca');
-    await expect(bookingRow.locator('.td-location')).toContainText('Royal Hospitals');
+    await expect(bookingRow.locator('.td-location')).toContainText(hospitalName);
   });
 
   // ---------------------------------------------------------------------------
@@ -171,23 +178,33 @@ test.describe('Vaxora E2E Testing Suite', () => {
     const table = page.locator('.custom-appointments-table');
     await expect(table).toBeVisible();
 
-    const bookingRow = table.locator('tbody tr').filter({ hasText: 'AstraZeneca' }).first();
+    // Bookings inside the 24-hour window are locked, so pick one that can still be cancelled.
+    const bookingRow = table
+      .locator('tbody tr')
+      .filter({ hasText: 'AstraZeneca' })
+      .filter({ has: page.locator('.btn-cancel-appointment') })
+      .first();
     await expect(bookingRow).toBeVisible({ timeout: 15000 });
 
     const cancelButton = bookingRow.locator('.btn-cancel-appointment');
     await expect(cancelButton).toBeVisible();
 
-    // Step 4: Click Cancel (window.confirm handled in beforeEach)
+    // Step 4: Click Cancel, then confirm in the in-app confirmation dialog
     await cancelButton.click();
+    const confirmDialog = page.locator('.confirm-modal-backdrop');
+    await expect(confirmDialog).toBeVisible();
+    await confirmDialog.locator('.confirm-modal-btn:not(.cancel)').click();
 
-    // Step 5: Verify cancellation toast / notification appears
-    const alertPill = page.locator('.appointment-alert-pill');
-    await expect(alertPill).toBeVisible({ timeout: 10000 });
-    await expect(alertPill).toContainText(/cancelled successfully/i);
+    // Step 5: Verify the cancellation toast appears
+    await expect(page.getByText(/cancelled successfully/i).first()).toBeVisible({ timeout: 10000 });
 
     // Step 6: Verify booking row status is updated or cancelled
+    // The list shows active bookings by default, so switch the filter to Cancelled.
+    // The cancelled row no longer has a Cancel button, so look it up again by its status badge.
+    await page.getByLabel('Filter by status').selectOption('cancelled');
     await expect(
-      bookingRow.locator('.td-action').filter({ hasText: /cancelled/i })
+      table.locator('tbody tr').filter({ hasText: 'AstraZeneca' })
+        .locator('.td-status').filter({ hasText: /cancelled/i }).first()
     ).toBeVisible({ timeout: 10000 });
   });
 

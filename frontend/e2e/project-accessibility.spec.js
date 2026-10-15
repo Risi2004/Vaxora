@@ -65,7 +65,8 @@ test.describe('Vaxora web app accessibility (axe-core, WCAG 2.1 AA)', () => {
       if (role) await loginAs(page, role);
       await page.goto(path);
       await page.waitForLoadState('networkidle');
-      await expect(page).toHaveURL(new RegExp(path.replace(/\//g, '\\/') + '$'));
+      // Escape every regex character: paths such as /hospital/sessions?view=booths contain "?".
+      await expect(page).toHaveURL(new RegExp(path.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&') + '$'));
 
       // Scroll once through the page so scroll-reveal content has finished
       // fading in before axe checks contrast.
