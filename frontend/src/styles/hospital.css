@@ -5569,7 +5569,8 @@ select.schedule-input-field {
   font-size: 0.75rem;
   font-weight: 800;
   /* Brand teal soft tint — matches the portal, not blue/purple */
-  color: var(--color-primary);
+  /* Dark brand text: the primary blue falls below 4.5:1 on the soft tint. */
+  color: var(--color-primary-dark);
   background: var(--color-primary-soft);
   border: 1px solid color-mix(in srgb, var(--color-primary) 22%, transparent);
 }

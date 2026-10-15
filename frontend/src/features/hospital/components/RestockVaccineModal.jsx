@@ -111,7 +111,13 @@ export default function RestockVaccineModal({
 
   return (
     <div className="modal-overlay" onClick={submitting ? undefined : onClose}>
-      <div className="hospital-modal-card" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="hospital-modal-card"
+        role="dialog"
+        aria-modal="true"
+        aria-label={isCustomMode ? 'Add new vaccine product' : 'Log Vaccine Restock Shipment'}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="modal-header">
           <div>
             <h3 style={{ margin: 0 }}>
@@ -143,7 +149,7 @@ export default function RestockVaccineModal({
                 ← Back to list
               </button>
             )}
-            <button type="button" className="modal-close-btn" onClick={onClose} disabled={submitting}>
+            <button type="button" className="modal-close-btn" aria-label="Close" onClick={onClose} disabled={submitting}>
               &times;
             </button>
           </div>
